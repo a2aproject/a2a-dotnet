@@ -16,6 +16,6 @@
     <File Path="README.md" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="test/a2atests/a2atests.csproj" />
+    <Project Path="tests/A2A.AspNetCore.UnitTests/A2A.AspNetCore.UnitTests.csproj" />
   </Folder>
 </Solution>
