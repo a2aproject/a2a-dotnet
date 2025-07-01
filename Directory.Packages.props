@@ -1,0 +1,42 @@
+<Project>
+	<PropertyGroup>
+		<!-- Enable central package management, https://learn.microsoft.com/en-us/nuget/consume-packages/Central-Package-Management -->
+		<ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+	</PropertyGroup>
+	<ItemGroup>
+		<!-- Microsoft Extensions -->
+		<PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.5" />
+		<PackageVersion Include="Microsoft.Extensions.Logging" Version="9.0.5" />
+
+		<!-- Microsoft Semantic Kernel -->
+		<PackageVersion Include="Microsoft.SemanticKernel.Agents.Core" Version="1.53.1" />
+		<PackageVersion Include="Microsoft.SemanticKernel.Agents.OpenAI" Version="1.53.1-preview" />
+
+		<!-- OpenTelemetry -->
+		<PackageVersion Include="OpenTelemetry" Version="1.12.0" />
+		<PackageVersion Include="OpenTelemetry.Api" Version="1.12.0" />
+		<PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.12.0" />
+		<PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.12.0" />
+		<PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.12.0" />
+		<PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.12.0" />
+		<PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.12.0" />
+		<PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.12.0" />
+
+		<!-- System Packages -->
+		<PackageVersion Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
+		<PackageVersion Include="System.Net.ServerSentEvents" Version="9.0.5" />
+		<PackageVersion Include="System.Text.Json" Version="8.0.5" />
+
+		<!-- JSON Schema -->
+		<PackageVersion Include="JsonSchema.Net" Version="7.3.4" />
+
+		<!-- Resilience & Utilities -->
+		<PackageVersion Include="Polly" Version="8.4.2" />
+
+		<!-- Test Packages -->
+		<PackageVersion Include="coverlet.collector" Version="6.0.4" />
+		<PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.0" />
+		<PackageVersion Include="xunit" Version="2.9.3" />
+		<PackageVersion Include="xunit.runner.visualstudio" Version="3.1.0" />
+	</ItemGroup>
+</Project>
