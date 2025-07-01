@@ -14,6 +14,6 @@
    <Folder Name="/Solution Items/">
     <File Path="Directory.Build.props" />
     <File Path="Directory.Packages.props" />
-    <File Path="README.MD" />
+    <File Path="README.md" />
   </Folder>
 </Solution>

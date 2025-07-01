@@ -1,20 +1,23 @@
 <Project>
-  <PropertyGroup>
-    <Version>0.2.1-preview.1</Version>
-    <Authors>Darrel Miller</Authors>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/a2aproject/a2a-dotnet</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/a2aproject/a2a-dotnet</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
+	<PropertyGroup>
+		<Version>0.2.1-preview.1</Version>
+		<Authors>Darrel Miller</Authors>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<PackageProjectUrl>https://github.com/a2aproject/a2a-dotnet</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/a2aproject/a2a-dotnet</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
 		<PackageTags>Agent2Agetn;a2a;agent;ai;llm</PackageTags>
-  </PropertyGroup>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+	</PropertyGroup>
 
 	<PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 	</PropertyGroup>
-	
+
 	<PropertyGroup>
 		<LangVersion>12.0</LangVersion>
+		<Nullable>enable</Nullable>
 	</PropertyGroup>
-	
+
 </Project>
