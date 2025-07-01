@@ -17,8 +17,6 @@
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Extensions.Logging" />
-		<PackageReference Include="OpenTelemetry.Api" />
-		<PackageReference Include="Polly" />
 		<PackageReference Include="System.Net.ServerSentEvents" />
 		<PackageReference Include="System.Text.Json" />
 	</ItemGroup>

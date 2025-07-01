@@ -1,4 +1,3 @@
-using OpenTelemetry.Context.Propagation;
 using System.Diagnostics;
 
 namespace A2A.Core;
