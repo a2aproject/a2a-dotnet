@@ -7,10 +7,9 @@
 
 		<!-- NuGet Package Properties -->
 		<PackageId>A2A.AspNetCore</PackageId>
-		<Description>ASP.NET Core extensions for the Agent-To-Agent(A2A) protocol.</Description>
-		<PackageTags>a2a;agent;ai;aspnetcore</PackageTags>
+		<Description>ASP.NET Core extensions for the Agent2Agent(A2A) protocol.</Description>
+		<PackageTags>Agent2Agetn;a2a;agent;ai;llm;aspnetcore</PackageTags>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
-		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 		<IsPackable>true</IsPackable>
 	</PropertyGroup>
 

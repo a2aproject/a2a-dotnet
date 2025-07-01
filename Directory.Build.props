@@ -6,5 +6,15 @@
     <PackageProjectUrl>https://github.com/a2aproject/a2a-dotnet</PackageProjectUrl>
     <RepositoryUrl>https://github.com/a2aproject/a2a-dotnet</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
+		<PackageTags>Agent2Agetn;a2a;agent;ai;llm</PackageTags>
   </PropertyGroup>
+
+	<PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+	</PropertyGroup>
+	
+	<PropertyGroup>
+		<LangVersion>12.0</LangVersion>
+	</PropertyGroup>
+	
 </Project>
