@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace SharpA2A.Core;
+namespace A2A.Core;
 
 public static class JsonRpcErrorResponses
 {

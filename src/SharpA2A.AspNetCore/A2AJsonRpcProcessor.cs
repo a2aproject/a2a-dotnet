@@ -1,11 +1,11 @@
 using Microsoft.AspNetCore.Http;
-using SharpA2A.Core;
+using A2A.Core;
 using System.Diagnostics;
 using System.IO.Pipelines;
 using System.Text;
 using System.Text.Json;
 
-namespace SharpA2A.AspNetCore;
+namespace A2A.AspNetCore;
 
 public static class A2AJsonRpcProcessor
 {

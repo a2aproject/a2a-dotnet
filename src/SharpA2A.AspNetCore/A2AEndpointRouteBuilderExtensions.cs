@@ -4,11 +4,11 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using SharpA2A.Core;
+using A2A.Core;
 using System.Diagnostics;
 
 
-namespace SharpA2A.AspNetCore;
+namespace A2A.AspNetCore;
 
 public static class A2ARouteBuilderExtensions
 {

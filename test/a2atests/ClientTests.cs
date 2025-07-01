@@ -1,6 +1,6 @@
 using System.Net;
-using SharpA2A.Core;
-using SharpA2A.AspNetCore;
+using A2A.Core;
+using A2A.AspNetCore;
 using Json.Schema;
 using System.Text.Json;
 

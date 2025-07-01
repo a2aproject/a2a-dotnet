@@ -1,7 +1,7 @@
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
-using SharpA2A.AspNetCore;
-using SharpA2A.Core;
+using A2A.AspNetCore;
+using A2A.Core;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,7 +12,7 @@ builder.Services.AddOpenTelemetry()
         resource.AddService("A2AAgentServer");
     })
     .WithTracing(tracing => tracing
-        .AddSource(SharpA2A.Core.TaskManager.ActivitySource.Name)
+        .AddSource(A2A.Core.TaskManager.ActivitySource.Name)
         .AddSource(A2AJsonRpcProcessor.ActivitySource.Name)
         .AddSource(HostedClientAgent.ActivitySource.Name)
         .AddSource(ResearcherAgent.ActivitySource.Name)

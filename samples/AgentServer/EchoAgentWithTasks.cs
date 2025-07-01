@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using SharpA2A.Core;
+using A2A.Core;
 
 public class EchoAgentWithTasks
 {

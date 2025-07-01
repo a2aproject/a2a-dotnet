@@ -1,8 +1,8 @@
-﻿using SharpA2A.AspNetCore;
+﻿using A2A.AspNetCore;
 using System.Net.ServerSentEvents;
 using System.Text.Json;
 
-namespace SharpA2A.Core;
+namespace A2A.Core;
 
 public class A2AClient : IA2AClient
 {

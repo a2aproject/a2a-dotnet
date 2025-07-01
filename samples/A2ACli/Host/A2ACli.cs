@@ -1,5 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
-using SharpA2A.Core;
+using A2A.Core;
 using System.CommandLine;
 using System.CommandLine.Invocation;
 using System.Text.Encodings.Web;

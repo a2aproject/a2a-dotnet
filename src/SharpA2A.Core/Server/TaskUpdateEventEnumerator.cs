@@ -1,7 +1,7 @@
 
 using System.Collections.Concurrent;
 
-namespace SharpA2A.Core;
+namespace A2A.Core;
 
 public class TaskUpdateEventEnumerator : IAsyncEnumerable<A2AEvent>
 {

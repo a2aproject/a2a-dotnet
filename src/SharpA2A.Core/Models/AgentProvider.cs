@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
-namespace SharpA2A.Core;
+namespace A2A.Core;
 
 /// <summary>
 /// Information about the agent provider

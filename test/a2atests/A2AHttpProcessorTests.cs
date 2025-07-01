@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
-using SharpA2A.AspNetCore;
-using SharpA2A.Core;
+using A2A.AspNetCore;
+using A2A.Core;
 
 namespace A2ATests;
 

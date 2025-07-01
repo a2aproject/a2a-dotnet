@@ -2,7 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
-namespace SharpA2A.Core;
+namespace A2A.Core;
 
 
 public class JsonRpcResponse

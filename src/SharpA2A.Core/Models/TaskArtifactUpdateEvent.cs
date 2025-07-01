@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace SharpA2A.Core;
+namespace A2A.Core;
 
 public class TaskArtifactUpdateEvent : TaskUpdateEvent
 {

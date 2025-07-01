@@ -1,8 +1,8 @@
 using System.Net;
 using System.Text.Json;
-using SharpA2A.Core;
+using A2A.Core;
 
-namespace SharpA2A.AspNetCore;
+namespace A2A.AspNetCore;
 
 public class JsonRpcContent : HttpContent
 {

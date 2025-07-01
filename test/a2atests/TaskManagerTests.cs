@@ -1,4 +1,4 @@
-﻿using SharpA2A.Core;
+﻿using A2A.Core;
 
 namespace a2atests;
 

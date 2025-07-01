@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
-using SharpA2A.Core;
+using A2A.Core;
 
 namespace A2ATests;
 

@@ -1,6 +1,6 @@
 using System.Net.ServerSentEvents;
 
-namespace SharpA2A.Core;
+namespace A2A.Core;
 
 public interface IA2AClient
 {

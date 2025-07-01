@@ -2,7 +2,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Text.Json;
 
-namespace SharpA2A.Core;
+namespace A2A.Core;
 
 /// <summary>
 /// Resolves Agent Card information from an A2A-compatible endpoint

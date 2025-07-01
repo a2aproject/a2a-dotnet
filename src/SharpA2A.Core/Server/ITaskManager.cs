@@ -1,4 +1,4 @@
-namespace SharpA2A.Core;
+namespace A2A.Core;
 
 public interface ITaskManager
 {
