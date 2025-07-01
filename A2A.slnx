@@ -9,11 +9,13 @@
     <Project Path="src/A2A.AspNetCore/A2A.AspNetCore.csproj" />
     <Project Path="src/A2A.Core/A2A.Core.csproj" />
     <Project Path="src/A2A/A2A.csproj" />
-    <Project Path="test/a2atests/a2atests.csproj" />
   </Folder>
    <Folder Name="/Solution Items/">
     <File Path="Directory.Build.props" />
     <File Path="Directory.Packages.props" />
     <File Path="README.md" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="test/a2atests/a2atests.csproj" />
   </Folder>
 </Solution>
