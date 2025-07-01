@@ -7,7 +7,7 @@
     
     <!-- NuGet Package Properties -->
     <PackageId>A2A.AspNetCore</PackageId>
-    <Description>ASP.NET Core integration for the A2A library to implement A2A protocol endpoints</Description>
+		<Description>ASP.NET Core extensions for the Agent-To-Agent(A2A) protocol.</Description>
     <PackageTags>a2a;agent;ai;aspnetcore</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>

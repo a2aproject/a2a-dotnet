@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+		<TargetFrameworks>net9.0;net8.0;netstandard2.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+		<LangVersion>12.0</LangVersion>
+
+		<!-- NuGet Package Properties -->
+		<PackageId>A2A</PackageId>
+		<Description>.NET SDK for the Agent-To-Agent(A2A) protocol.</Description>
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\A2A.Core\A2A.Core.csproj" />
+  </ItemGroup>
+
+</Project>
