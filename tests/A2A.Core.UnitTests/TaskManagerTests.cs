@@ -1,6 +1,6 @@
 ﻿using A2A.Core;
 
-namespace a2atests;
+namespace A2ATests;
 
 public class TaskManagerTests
 {

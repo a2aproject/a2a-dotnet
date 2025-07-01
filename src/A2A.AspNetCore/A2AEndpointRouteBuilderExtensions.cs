@@ -7,7 +7,6 @@ using Microsoft.Extensions.Logging;
 using A2A.Core;
 using System.Diagnostics;
 
-
 namespace A2A.AspNetCore;
 
 public static class A2ARouteBuilderExtensions

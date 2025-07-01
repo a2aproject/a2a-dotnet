@@ -5,7 +5,6 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 
-
 namespace A2A.AspNetCore;
 
 public class A2AHttpProcessor
