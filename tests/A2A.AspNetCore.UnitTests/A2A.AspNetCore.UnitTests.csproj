@@ -4,6 +4,7 @@
 		<TargetFrameworks>net8.0;net9.0</TargetFrameworks>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
+		
 		<IsPackable>false</IsPackable>
 		<NoWarn>$(NoWarn);CS8602;CS8604;CS8625</NoWarn>
 	</PropertyGroup>
