@@ -15,8 +15,8 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <ProjectReference Include="..\..\src\SharpA2A.AspNetCore\SharpA2A.AspNetCore.csproj" />
-	  <ProjectReference Include="..\..\src\SharpA2A.Core\SharpA2A.Core.csproj" />
+	  <ProjectReference Include="..\..\src\A2A.AspNetCore\A2A.AspNetCore.csproj" />
+	  <ProjectReference Include="..\..\src\A2A.Core\A2A.Core.csproj" />
 	</ItemGroup>
 
 </Project>

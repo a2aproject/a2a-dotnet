@@ -22,7 +22,7 @@ class Program
     private static string currentSessionId = Guid.NewGuid().ToString("N");
     // The version could also come from assembly info or a version file
     private static readonly string ServiceVersion = "1.0.0";
-    private static readonly string ServiceName = "SharpA2A.Client";
+    private static readonly string ServiceName = "A2A.Client";
     private static readonly ActivitySource activitySource = new ActivitySource(ServiceName, ServiceVersion);
     private static void ParseCommandLineArgs(string[] args)
     {

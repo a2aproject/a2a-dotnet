@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\SharpA2A.Core\SharpA2A.Core.csproj" />
+    <ProjectReference Include="..\..\src\A2A.Core\A2A.Core.csproj" />
   </ItemGroup>  <ItemGroup>
     <PackageReference Include="OpenTelemetry" Version="1.12.0" />
     <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.12.0" />

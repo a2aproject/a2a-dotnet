@@ -11,8 +11,8 @@ This is a work in progress and only the steps listed below are working.
 
 1.  Clone the repository:
     ```bash
-    git clone https://github.com/darrelmiller/sharpa2a.git
-    cd SharpA2A
+    git clone https://github.com/a2aproject/a2a-dotnet
+    cd a2a-dotnet
     ```
 2.  Build the solution using the .NET CLI:
     ```bash

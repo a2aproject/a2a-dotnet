@@ -5,11 +5,11 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{C25E1B4C-8C62-4A8A-9777-B988BC55CFD9}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpA2A.Core", "src\SharpA2A.Core\SharpA2A.Core.csproj", "{3E4E18F9-3926-4C40-9EC3-811DD1F2A46B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "A2A.Core", "src\A2A.Core\A2A.Core.csproj", "{3E4E18F9-3926-4C40-9EC3-811DD1F2A46B}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "a2atests", "test\a2atests\a2atests.csproj", "{84373987-EC96-4597-92AF-D9EDE23E15AC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpA2A.AspNetCore", "src\SharpA2A.AspNetCore\SharpA2A.AspNetCore.csproj", "{2D42C61D-7FF2-432B-8C03-C2A3ED645042}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "A2A.AspNetCore", "src\A2A.AspNetCore\A2A.AspNetCore.csproj", "{2D42C61D-7FF2-432B-8C03-C2A3ED645042}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "samples", "samples", "{402C1323-6567-472E-88A9-2271D8A66AC9}"
 EndProject

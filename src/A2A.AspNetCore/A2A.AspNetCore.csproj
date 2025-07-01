@@ -6,8 +6,8 @@
     <Nullable>enable</Nullable>
     
     <!-- NuGet Package Properties -->
-    <PackageId>SharpA2A.AspNetCore</PackageId>
-    <Description>ASP.NET Core integration for the SharpA2A library to implement A2A protocol endpoints</Description>
+    <PackageId>A2A.AspNetCore</PackageId>
+    <Description>ASP.NET Core integration for the A2A library to implement A2A protocol endpoints</Description>
     <PackageTags>a2a;agent;ai;aspnetcore</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
@@ -15,7 +15,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\SharpA2A.Core\SharpA2A.Core.csproj" />    
+    <ProjectReference Include="..\A2A.Core\A2A.Core.csproj" />    
   </ItemGroup>
 
   <ItemGroup>

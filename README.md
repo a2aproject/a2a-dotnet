@@ -1,4 +1,4 @@
-# SharpA2A: A .NET implementation of the Google A2A protocol
+# A2A: A .NET implementation of the Google A2A protocol
 Interact with agents using the A2A protocol in .NET applications. This library is designed to be used with ASP.NET Core applications and provides a simple way to add A2A support to your agents.
 
 ## Status
@@ -19,7 +19,7 @@ echoAgent.Attach(echoTaskManager);
 app.MapA2A(echoTaskManager,"/echo");
 ```
 
-## Library: SharpA2A.Core
+## Library: A2A.Core
 This library contains the core A2A protocol implementation. It includes the following classes:
 - `A2AClient`: Used for making A2A requests to an agent.
 - `TaskManager`: Provides standardized support for managing tasks and task execution.
@@ -33,7 +33,7 @@ This library contains helper classes for support deserialization and serializati
 Each agent instance should be given its own `TaskManager` instance. The `TaskManager` is responsible for managing the tasks and their execution. It is an implementation decision as to whether a single agent instance processes many tasks or whether an agent instance is created for each task.
 
 ```c#
-using SharpA2A.Core;
+using A2A.Core;
 
 public class EchoAgent
 {
