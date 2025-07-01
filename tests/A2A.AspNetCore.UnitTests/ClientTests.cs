@@ -1,10 +1,9 @@
 using System.Net;
 using A2A.Core;
-using A2A.AspNetCore;
 using Json.Schema;
 using System.Text.Json;
 
-namespace A2ATests;
+namespace A2A.AspNetCore.Tests;
 
 public class ClientTests : IClassFixture<JsonSchemaFixture> {
 

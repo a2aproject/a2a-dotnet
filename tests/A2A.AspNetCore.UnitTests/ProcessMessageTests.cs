@@ -4,6 +4,8 @@
 // using Xunit;
 // using A2A.Core;
 
+// namespace A2A.AspNetCore.Tests;
+
 // // These become A2AProcessor tests
 // public class ProcessMessageTests
 // {

@@ -1,8 +1,7 @@
 using System.Text;
 using System.Text.Json;
-using A2A.Core;
 
-namespace A2ATests;
+namespace A2A.Core.UnitTests;
 
 public class ParsingTests
 {
@@ -158,7 +157,7 @@ public class ParsingTests
         var deserializedResponse = JsonSerializer.Deserialize<JsonRpcResponse>(stream);
         // Deserialize using the base class
         // This is important to ensure polymorphic deserialization works correctly
-        var resultObject = JsonSerializer.Deserialize<A2AEvent>(deserializedResponse?.Result);
+        var resultObject = (deserializedResponse?.Result).Deserialize<A2AEvent>();
         // Act
 
 

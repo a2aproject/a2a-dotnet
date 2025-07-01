@@ -6,7 +6,9 @@
 		<Nullable>enable</Nullable>
 		
 		<IsPackable>false</IsPackable>
+		<IsTestProject>true</IsTestProject>
 		<NoWarn>$(NoWarn);CS8602;CS8604;CS8625</NoWarn>
+		<RootNamespace>A2A.AspNetCore.Tests</RootNamespace>
 	</PropertyGroup>
 
 	<ItemGroup>

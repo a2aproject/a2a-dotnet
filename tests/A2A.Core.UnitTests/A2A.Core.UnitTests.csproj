@@ -7,6 +7,7 @@
 
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+		<RootNamespace>A2A.Core.UnitTests</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>

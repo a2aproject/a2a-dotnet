@@ -1,8 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
-using A2A.AspNetCore;
 using A2A.Core;
 
-namespace A2ATests;
+namespace A2A.AspNetCore.Tests;
 
 public class A2AHttpProcessorTests
 {
