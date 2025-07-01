@@ -2,7 +2,7 @@
 	<PropertyGroup>
 		<Version>0.2.1-preview.1</Version>
 		<Authors>Darrel Miller</Authors>
-		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
 		<PackageProjectUrl>https://github.com/a2aproject/a2a-dotnet</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/a2aproject/a2a-dotnet</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
