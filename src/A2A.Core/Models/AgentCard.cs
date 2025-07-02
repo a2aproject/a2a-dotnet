@@ -91,5 +91,5 @@ public class AgentCard
     /// Indicates support for retrieving a more detailed Agent Card via an authenticated endpoint.
     /// </summary>
     [JsonPropertyName("supportsAuthenticatedExtendedCard")]
-    public bool supportsAuthenticatedExtendedCard { get; set; } = false;
+    public bool SupportsAuthenticatedExtendedCard { get; set; } = false;
 }
