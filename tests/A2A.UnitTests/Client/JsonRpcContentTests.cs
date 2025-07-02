@@ -9,11 +9,13 @@ namespace A2A.UnitTests.Client
         public async Task Constructor_SetsContentType_AndSerializesRequest()
         {
             // Arrange
+            using var data = JsonDocument.Parse("{\"foo\":\"bar\"}");
+
             var request = new JsonRpcRequest
             {
                 Id = "req-1",
                 Method = "testMethod",
-                Params = JsonDocument.Parse("{\"foo\":\"bar\"}").RootElement
+                Params = data.RootElement
             };
 
             var ms = new MemoryStream();
@@ -24,7 +26,7 @@ namespace A2A.UnitTests.Client
             await sut.CopyToAsync(ms);
             
             ms.Position = 0;
-            var doc = JsonDocument.Parse(ms);
+            using var doc = JsonDocument.Parse(ms);
 
             // Assert
             Assert.Equal("application/json", sut.Headers.ContentType!.MediaType);
@@ -50,7 +52,7 @@ namespace A2A.UnitTests.Client
             var ms = new MemoryStream();
             await sut.CopyToAsync(ms);
             ms.Position = 0;
-            var doc = JsonDocument.Parse(ms);
+            using var doc = JsonDocument.Parse(ms);
 
             // Assert
             Assert.Equal("application/json", sut.Headers.ContentType!.MediaType);

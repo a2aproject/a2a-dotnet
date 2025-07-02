@@ -8,10 +8,10 @@ public class JsonRpcErrorTests
     public void JsonRpcError_Properties_SetAndGet()
     {
         // Arrange
-        var data = JsonDocument.Parse("{\"foo\":123}").RootElement;
+        using var data = JsonDocument.Parse("{\"foo\":123}");
         
         // Act
-        var sut = new JsonRpcError { Code = 42, Message = "msg", Data = data };
+        var sut = new JsonRpcError { Code = 42, Message = "msg", Data = data.RootElement };
         
         // Assert
         Assert.Equal(42, sut.Code);
@@ -23,7 +23,9 @@ public class JsonRpcErrorTests
     public void JsonRpcError_SerializesAndDeserializesCorrectly()
     {
         // Arrange
-        var sut = new JsonRpcError { Code = 1, Message = "m", Data = JsonDocument.Parse("{\"bar\":true}").RootElement };
+        using var data = JsonDocument.Parse("{\"bar\":true}");
+
+        var sut = new JsonRpcError { Code = 1, Message = "m", Data = data.RootElement };
         
         // Act
         var json = sut.ToJson();

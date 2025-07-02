@@ -11,23 +11,10 @@ public class A2AClientTests
     public async Task SendMessageAsync_MapsRequestParamsCorrectly()
     {
         // Arrange
-        var expectedResponse = new A2AResponse();
-        var jsonResponse = JsonSerializer.Serialize(new JsonRpcResponse
-        {
-            Id = "1",
-            Result = JsonSerializer.SerializeToNode(expectedResponse)
-        });
         HttpRequestMessage? capturedRequest = null;
-        var response = new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new StringContent(jsonResponse, Encoding.UTF8, "application/json")
-        };
-        var handler = new MockHttpMessageHandler(response, req => capturedRequest = req);
-        var httpClient = new HttpClient(handler)
-        {
-            BaseAddress = new Uri("http://localhost")
-        };
-        var sut = new A2AClient(httpClient);
+
+        var sut = CreateA2AClient(new A2AResponse(), req => capturedRequest = req);
+
         var sendParams = new MessageSendParams
         {
             Message = new Message
@@ -99,21 +86,7 @@ public class A2AClientTests
             TaskId = "task-456",
             ContextId = "ctx-789"
         };
-        var jsonResponse = JsonSerializer.Serialize(new JsonRpcResponse
-        {
-            Id = "1",
-            Result = JsonSerializer.SerializeToNode<A2AResponse>(expectedMessage)
-        });
-        var response = new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new StringContent(jsonResponse, Encoding.UTF8, "application/json")
-        };
-        var handler = new MockHttpMessageHandler(response);
-        var httpClient = new HttpClient(handler)
-        {
-            BaseAddress = new Uri("http://localhost")
-        };
-        var sut = new A2AClient(httpClient);
+        var sut = CreateA2AClient<A2AResponse>(expectedMessage);
         var sendParams = new MessageSendParams();
 
         // Act
@@ -139,22 +112,11 @@ public class A2AClientTests
     {
         // Arrange
         var expectedResponse = new AgentTask { Id = "task-1", ContextId = "ctx-1" };
-        var jsonResponse = JsonSerializer.Serialize(new JsonRpcResponse
-        {
-            Id = "1",
-            Result = JsonSerializer.SerializeToNode(expectedResponse)
-        });
+
         HttpRequestMessage? capturedRequest = null;
-        var response = new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new StringContent(jsonResponse, Encoding.UTF8, "application/json")
-        };
-        var handler = new MockHttpMessageHandler(response, req => capturedRequest = req);
-        var httpClient = new HttpClient(handler)
-        {
-            BaseAddress = new Uri("http://localhost")
-        };
-        var sut = new A2AClient(httpClient);
+
+        var sut = CreateA2AClient(expectedResponse, req => capturedRequest = req);
+
         var taskId = "task-1";
 
         // Act
@@ -183,21 +145,7 @@ public class A2AClientTests
             History = new List<Message> { new Message { MessageId = "m1" } },
             Metadata = new Dictionary<string, JsonElement> { { "foo", JsonDocument.Parse("\"bar\"").RootElement } }
         };
-        var jsonResponse = JsonSerializer.Serialize(new JsonRpcResponse
-        {
-            Id = "1",
-            Result = JsonSerializer.SerializeToNode(expectedTask)
-        });
-        var response = new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new StringContent(jsonResponse, Encoding.UTF8, "application/json")
-        };
-        var handler = new MockHttpMessageHandler(response);
-        var httpClient = new HttpClient(handler)
-        {
-            BaseAddress = new Uri("http://localhost")
-        };
-        var sut = new A2AClient(httpClient);
+        var sut = CreateA2AClient(expectedTask);
 
         // Act
         var result = await sut.GetTaskAsync("task-1");
@@ -217,22 +165,10 @@ public class A2AClientTests
     public async Task CancelTaskAsync_MapsRequestParamsCorrectly()
     {
         // Arrange
-        var jsonResponse = JsonSerializer.Serialize(new JsonRpcResponse
-        {
-            Id = "1",
-            Result = JsonSerializer.SerializeToNode(new AgentTask { Id = "task-2" })
-        });
         HttpRequestMessage? capturedRequest = null;
-        var response = new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new StringContent(jsonResponse, Encoding.UTF8, "application/json")
-        };
-        var handler = new MockHttpMessageHandler(response, req => capturedRequest = req);
-        var httpClient = new HttpClient(handler)
-        {
-            BaseAddress = new Uri("http://localhost")
-        };
-        var sut = new A2AClient(httpClient);
+
+        var sut = CreateA2AClient(new AgentTask { Id = "task-2" }, req => capturedRequest = req);
+
         var taskIdParams = new TaskIdParams
         {
             Id = "task-2",
@@ -266,21 +202,7 @@ public class A2AClientTests
             History = new List<Message> { new Message { MessageId = "m1" } },
             Metadata = new Dictionary<string, JsonElement> { { "foo", JsonDocument.Parse("\"bar\"").RootElement } }
         };
-        var jsonResponse = JsonSerializer.Serialize(new JsonRpcResponse
-        {
-            Id = "1",
-            Result = JsonSerializer.SerializeToNode(expectedTask)
-        });
-        var response = new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new StringContent(jsonResponse, Encoding.UTF8, "application/json")
-        };
-        var handler = new MockHttpMessageHandler(response);
-        var httpClient = new HttpClient(handler)
-        {
-            BaseAddress = new Uri("http://localhost")
-        };
-        var sut = new A2AClient(httpClient);
+        var sut = CreateA2AClient(expectedTask);
         var taskIdParams = new TaskIdParams { Id = "task-2" };
 
         // Act
@@ -314,24 +236,11 @@ public class A2AClientTests
                 }
             }
         };
-        var jsonResponse = JsonSerializer.Serialize(new JsonRpcResponse
-        {
-            Id = "1",
-            Result = JsonSerializer.SerializeToNode(pushConfig)
-        });
+
         HttpRequestMessage? capturedRequest = null;
-        var response = new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new StringContent(jsonResponse, Encoding.UTF8, "application/json")
-        };
-        var handler = new MockHttpMessageHandler(response, req => capturedRequest = req);
-        var httpClient = new HttpClient(handler)
-        {
-            BaseAddress = new Uri("http://localhost")
-        };
-        
-        var sut = new A2AClient(httpClient);
-        
+
+        var sut = CreateA2AClient(pushConfig, req => capturedRequest = req);
+
         // Act
         await sut.SetPushNotificationAsync(pushConfig);
 
@@ -365,22 +274,7 @@ public class A2AClientTests
                 }
             }
         };
-        var jsonResponse = JsonSerializer.Serialize(new JsonRpcResponse
-        {
-            Id = "1",
-            Result = JsonSerializer.SerializeToNode(expectedConfig)
-        });
-        var response = new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new StringContent(jsonResponse, Encoding.UTF8, "application/json")
-        };
-        var handler = new MockHttpMessageHandler(response);
-        var httpClient = new HttpClient(handler)
-        {
-            BaseAddress = new Uri("http://localhost")
-        };
-
-        var sut = new A2AClient(httpClient);
+        var sut = CreateA2AClient(expectedConfig);
 
         // Act
         var result = await sut.SetPushNotificationAsync(expectedConfig);
@@ -397,24 +291,18 @@ public class A2AClientTests
     public async Task GetPushNotificationAsync_MapsRequestParamsCorrectly()
     {
         // Arrange
-        var jsonResponse = JsonSerializer.Serialize(new JsonRpcResponse
-        {
-            Id = "1",
-            Result = JsonSerializer.SerializeToNode(new TaskPushNotificationConfig { Id = "task-4", PushNotificationConfig = new PushNotificationConfig { Url = "http://push-url2" } })
-        });
-        HttpRequestMessage? capturedRequest = null;
-        var response = new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new StringContent(jsonResponse, Encoding.UTF8, "application/json")
-        };
-        var handler = new MockHttpMessageHandler(response, req => capturedRequest = req);
-        var httpClient = new HttpClient(handler)
-        {
-            BaseAddress = new Uri("http://localhost")
-        };
-        var sut = new A2AClient(httpClient);
-        var taskIdParams = new TaskIdParams 
+        var config = new TaskPushNotificationConfig 
         { 
+            Id = "task-4", 
+            PushNotificationConfig = new PushNotificationConfig { Url = "http://push-url2" } 
+        };
+
+        HttpRequestMessage? capturedRequest = null;
+
+        var sut = CreateA2AClient(config, req => capturedRequest = req);
+
+        var taskIdParams = new TaskIdParams
+        {
             Id = "task-4",
             Metadata = new Dictionary<string, JsonElement> { { "meta", JsonDocument.Parse("\"val\"").RootElement } }
         };
@@ -437,34 +325,20 @@ public class A2AClientTests
     public async Task GetPushNotificationAsync_MapsResponseCorrectly()
     {
         // Arrange
-        var expectedConfig = new TaskPushNotificationConfig 
-        { 
-            Id = "task-4", 
-            PushNotificationConfig = new PushNotificationConfig 
-            { 
+        var expectedConfig = new TaskPushNotificationConfig
+        {
+            Id = "task-4",
+            PushNotificationConfig = new PushNotificationConfig
+            {
                 Url = "http://push-url2",
                 Token = "tok2",
-                Authentication = new AuthenticationInfo 
-                { 
+                Authentication = new AuthenticationInfo
+                {
                     Schemes = ["Bearer"]
                 }
-            } 
+            }
         };
-        var jsonResponse = JsonSerializer.Serialize(new JsonRpcResponse
-        {
-            Id = "1",
-            Result = JsonSerializer.SerializeToNode(expectedConfig)
-        });
-        var response = new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new StringContent(jsonResponse, Encoding.UTF8, "application/json")
-        };
-        var handler = new MockHttpMessageHandler(response);
-        var httpClient = new HttpClient(handler)
-        {
-            BaseAddress = new Uri("http://localhost")
-        };
-        var sut = new A2AClient(httpClient);
+        var sut = CreateA2AClient(expectedConfig);
         var taskIdParams = new TaskIdParams { Id = "task-4" };
 
         // Act
@@ -512,12 +386,8 @@ public class A2AClientTests
             Content = new StreamContent(sseStream)
         };
         response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/event-stream");
-        var handler = new MockHttpMessageHandler(response, req => capturedRequest = req);
-        var httpClient = new HttpClient(handler)
-        {
-            BaseAddress = new Uri("http://localhost")
-        };
-        var sut = new A2AClient(httpClient);
+
+        var sut = CreateA2AClient(response, req => capturedRequest = req);
 
         // Act
         await foreach (var _ in sut.SendMessageStreamAsync(sendParams))
@@ -574,12 +444,7 @@ public class A2AClientTests
             Content = new StreamContent(sseStream)
         };
         response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/event-stream");
-        var handler = new MockHttpMessageHandler(response);
-        var httpClient = new HttpClient(handler)
-        {
-            BaseAddress = new Uri("http://localhost")
-        };
-        var sut = new A2AClient(httpClient);
+        var sut = CreateA2AClient(response);
         var sendParams = new MessageSendParams();
 
         // Act
@@ -619,12 +484,7 @@ public class A2AClientTests
             Content = new StreamContent(sseStream)
         };
         response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/event-stream");
-        var handler = new MockHttpMessageHandler(response, req => capturedRequest = req);
-        var httpClient = new HttpClient(handler)
-        {
-            BaseAddress = new Uri("http://localhost")
-        };
-        var sut = new A2AClient(httpClient);
+        var sut = CreateA2AClient(response, req => capturedRequest = req);
 
         // Act
         await foreach (var _ in sut.ResubscribeToTaskAsync(taskId))
@@ -668,12 +528,7 @@ public class A2AClientTests
             Content = new StreamContent(sseStream)
         };
         response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/event-stream");
-        var handler = new MockHttpMessageHandler(response);
-        var httpClient = new HttpClient(handler)
-        {
-            BaseAddress = new Uri("http://localhost")
-        };
-        var sut = new A2AClient(httpClient);
+        var sut = CreateA2AClient(response);
 
         // Act
         SseItem<A2AEvent>? result = null;
@@ -727,4 +582,33 @@ public class A2AClientTests
         Assert.Equal("Hello", element.GetProperty("message").GetProperty("parts")[0].GetProperty("text").GetString());
         Assert.Equal("bar", element.GetProperty("metadata").GetProperty("foo").GetString());
     }
+
+    private static A2AClient CreateA2AClient<T>(T result, Action<HttpRequestMessage>? onRequest = null)
+    {
+        var jsonResponse = JsonSerializer.Serialize(new JsonRpcResponse
+        {
+            Id = "1",
+            Result = JsonSerializer.SerializeToNode(result)
+        });
+
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(jsonResponse, Encoding.UTF8, "application/json")
+        };
+
+        return CreateA2AClient(response, onRequest);
+    }
+
+    private static A2AClient CreateA2AClient(HttpResponseMessage response, Action<HttpRequestMessage>? onRequest = null)
+    {
+        var handler = new MockHttpMessageHandler(response, onRequest);
+
+        var httpClient = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+
+        return new A2AClient(httpClient);
+    }
+
 }
