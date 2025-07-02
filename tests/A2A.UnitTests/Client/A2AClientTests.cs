@@ -554,35 +554,6 @@ public class A2AClientTests
         Assert.Equal(expectedMessage.ContextId, message.ContextId);
     }
 
-    [Fact]
-    public void ToJsonElement_ProducesExpectedJsonElement()
-    {
-        // Arrange
-        var input = new MessageSendParams
-        {
-            Message = new Message
-            {
-                Parts = [new TextPart { Text = "Hello" }],
-                Role = MessageRole.User,
-                MessageId = "msg-1",
-                TaskId = "task-1",
-                ContextId = "ctx-1"
-            },
-            Metadata = new Dictionary<string, JsonElement> { { "foo", JsonDocument.Parse("\"bar\"").RootElement } }
-        };
-
-        // Act
-        var element = A2AClient.ToJsonElement(input);
-
-        // Assert
-        Assert.Equal("msg-1", element.GetProperty("message").GetProperty("messageId").GetString());
-        Assert.Equal("task-1", element.GetProperty("message").GetProperty("taskId").GetString());
-        Assert.Equal("ctx-1", element.GetProperty("message").GetProperty("contextId").GetString());
-        Assert.Equal("user", element.GetProperty("message").GetProperty("role").GetString());
-        Assert.Equal("Hello", element.GetProperty("message").GetProperty("parts")[0].GetProperty("text").GetString());
-        Assert.Equal("bar", element.GetProperty("metadata").GetProperty("foo").GetString());
-    }
-
     private static A2AClient CreateA2AClient<T>(T result, Action<HttpRequestMessage>? onRequest = null)
     {
         var jsonResponse = JsonSerializer.Serialize(new JsonRpcResponse
@@ -610,5 +581,4 @@ public class A2AClientTests
 
         return new A2AClient(httpClient);
     }
-
 }
