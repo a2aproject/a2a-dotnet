@@ -3,7 +3,7 @@ Interact with agents using the A2A protocol in .NET applications. This library i
 
 ## Status
 
-This library has implemented the majority of the protocol v0.2.1, however there are likely some scenarios that are still not complete.  Buyer beware.  The biggest piece of functionality that is missing is client callbacks using push notifications.
+This library has implemented the majority of the protocol v0.2.1, however there are likely some scenarios that are still not complete.  The biggest piece of functionality that is missing is client callbacks using push notifications.
 
 ## Overview
 ![alt text](overview.png)
