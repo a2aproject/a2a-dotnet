@@ -1,6 +1,6 @@
-﻿using A2A.AspNetCore;
-using System.Net.ServerSentEvents;
+﻿using System.Net.ServerSentEvents;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 namespace A2A;
 
@@ -13,18 +13,40 @@ public class A2AClient : IA2AClient
         _client = client;
     }
 
-    public async Task<A2AResponse> SendMessageAsync(MessageSendParams taskSendParams)
-    {
-        return await RpcRequest<MessageSendParams, A2AResponse>(taskSendParams, A2AMethods.MessageSend);
-    }
-    public async Task<AgentTask> GetTaskAsync(string taskId)
-    {
-        return await RpcRequest<TaskIdParams, AgentTask>(new TaskIdParams() { Id = taskId }, A2AMethods.TaskGet);
-    }
-    public async Task<AgentTask> CancelTaskAsync(TaskIdParams taskIdParams)
-    {
-        return await RpcRequest<TaskIdParams, AgentTask>(taskIdParams, A2AMethods.TaskCancel);
-    }
+    public Task<A2AResponse> SendMessageAsync(MessageSendParams taskSendParams) =>
+        RpcRequest(
+            taskSendParams, 
+            A2AMethods.MessageSend,
+            A2AJsonUtilities.JsonContext.Default.MessageSendParams,
+            A2AJsonUtilities.JsonContext.Default.A2AResponse);
+
+    public Task<AgentTask> GetTaskAsync(string taskId) => 
+        RpcRequest(
+            new() { Id = taskId }, 
+            A2AMethods.TaskGet,
+            A2AJsonUtilities.JsonContext.Default.TaskIdParams,
+            A2AJsonUtilities.JsonContext.Default.AgentTask);
+
+    public Task<AgentTask> CancelTaskAsync(TaskIdParams taskIdParams) =>
+        RpcRequest(
+            taskIdParams,
+            A2AMethods.TaskCancel,
+            A2AJsonUtilities.JsonContext.Default.TaskIdParams,
+            A2AJsonUtilities.JsonContext.Default.AgentTask);
+
+    public Task<TaskPushNotificationConfig> SetPushNotificationAsync(TaskPushNotificationConfig pushNotificationConfig) =>
+        RpcRequest(
+            pushNotificationConfig,
+            "task/pushNotification/set",
+            A2AJsonUtilities.JsonContext.Default.TaskPushNotificationConfig,
+            A2AJsonUtilities.JsonContext.Default.TaskPushNotificationConfig);
+
+    public Task<TaskPushNotificationConfig> GetPushNotificationAsync(TaskIdParams taskIdParams) =>
+        RpcRequest(
+            taskIdParams, 
+            "task/pushNotification/get",
+            A2AJsonUtilities.JsonContext.Default.TaskIdParams,
+            A2AJsonUtilities.JsonContext.Default.TaskPushNotificationConfig);
 
     public async IAsyncEnumerable<SseItem<A2AEvent>> SendMessageStreamAsync(MessageSendParams taskSendParams)
     {
@@ -32,26 +54,18 @@ public class A2AClient : IA2AClient
         {
             Id = Guid.NewGuid().ToString(),
             Method = A2AMethods.MessageStream,
-            Params = ToJsonElement(taskSendParams)
+            Params = JsonSerializer.SerializeToElement(taskSendParams, A2AJsonUtilities.JsonContext.Default.MessageSendParams),
         };
         var response = await _client.SendAsync(new HttpRequestMessage(HttpMethod.Post, "")
         {
             Content = new JsonRpcContent(request)
         });
         response.EnsureSuccessStatusCode();
-        var stream = await response.Content.ReadAsStreamAsync();
-        var sseParser = SseParser.Create<A2AEvent>(stream, (eventType, data) =>
+        using var stream = await response.Content.ReadAsStreamAsync();
+        var sseParser = SseParser.Create(stream, (eventType, data) =>
         {
             var reader = new Utf8JsonReader(data);
-            var taskEvent = JsonSerializer.Deserialize<A2AEvent>(ref reader, new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-            });
-            if (taskEvent == null)
-            {
-                throw new InvalidOperationException("Failed to deserialize the event.");
-            }
-            return taskEvent;
+            return JsonSerializer.Deserialize(ref reader, A2AJsonUtilities.JsonContext.Default.A2AEvent) ?? throw new InvalidOperationException("Failed to deserialize the event.");
         });
         await foreach (var item in sseParser.EnumerateAsync())
         {
@@ -65,26 +79,18 @@ public class A2AClient : IA2AClient
         {
             Id = Guid.NewGuid().ToString(),
             Method = A2AMethods.TaskResubscribe,
-            Params = ToJsonElement(new TaskIdParams() { Id = taskId })
+            Params = JsonSerializer.SerializeToElement(new TaskIdParams() { Id = taskId }, A2AJsonUtilities.JsonContext.Default.TaskIdParams),
         };
         var response = await _client.SendAsync(new HttpRequestMessage(HttpMethod.Post, "")
         {
             Content = new JsonRpcContent(request)
         });
         response.EnsureSuccessStatusCode();
-        var stream = await response.Content.ReadAsStreamAsync();
-        var sseParser = SseParser.Create<A2AEvent>(stream, (eventType, data) =>
+        using var stream = await response.Content.ReadAsStreamAsync();
+        var sseParser = SseParser.Create(stream, (eventType, data) =>
         {
             var reader = new Utf8JsonReader(data);
-            var taskEvent = JsonSerializer.Deserialize<A2AEvent>(ref reader, new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-            });
-            if (taskEvent == null)
-            {
-                throw new InvalidOperationException("Failed to deserialize the event.");
-            }
-            return taskEvent;
+            return JsonSerializer.Deserialize(ref reader, A2AJsonUtilities.JsonContext.Default.A2AEvent) ?? throw new InvalidOperationException("Failed to deserialize the event.");
         });
         await foreach (var item in sseParser.EnumerateAsync())
         {
@@ -92,24 +98,20 @@ public class A2AClient : IA2AClient
         }
     }
 
-    public async Task<TaskPushNotificationConfig> SetPushNotificationAsync(TaskPushNotificationConfig pushNotificationConfig)
-    {
-        return await RpcRequest<TaskPushNotificationConfig, TaskPushNotificationConfig>(pushNotificationConfig, "task/pushNotification/set");
-    }
-    public async Task<TaskPushNotificationConfig> GetPushNotificationAsync(TaskIdParams taskIdParams)
-    {
-        return await RpcRequest<TaskIdParams, TaskPushNotificationConfig>(taskIdParams, "task/pushNotification/get");
-    }
-
-    private async Task<OUT> RpcRequest<IN, OUT>(IN jsonRpcParams, string method) where OUT : class
+    private async Task<TOutput> RpcRequest<TInput, TOutput>(
+        TInput jsonRpcParams,
+        string method,
+        JsonTypeInfo<TInput> inputTypeInfo,
+        JsonTypeInfo<TOutput> outputTypeInfo) where TOutput : class
     {
         var request = new JsonRpcRequest()
         {
             Id = Guid.NewGuid().ToString(),
             Method = method,
-            Params = ToJsonElement<IN>(jsonRpcParams)
+            Params = JsonSerializer.SerializeToElement(jsonRpcParams, inputTypeInfo),
         };
-        var response = await _client.SendAsync(new HttpRequestMessage(HttpMethod.Post, "")
+
+        using var response = await _client.SendAsync(new HttpRequestMessage(HttpMethod.Post, "")
         {
             Content = new JsonRpcContent(request)
         });
@@ -119,34 +121,12 @@ public class A2AClient : IA2AClient
             throw new InvalidOperationException("Invalid content type.");
         }
 
-        var responseStream = await response.Content.ReadAsStreamAsync();
-        var responseObject = await JsonSerializer.DeserializeAsync<JsonRpcResponse>(responseStream, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
+        using var responseStream = await response.Content.ReadAsStreamAsync();
 
-        if (responseObject == null)
-        {
+        var responseObject = await JsonSerializer.DeserializeAsync(responseStream, A2AJsonUtilities.JsonContext.Default.JsonRpcResponse) ??
             throw new InvalidOperationException("Failed to deserialize the response.");
-        }
-        var resultObject = JsonSerializer.Deserialize<OUT>(responseObject.Result, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
-        return resultObject ?? throw new InvalidOperationException("Response does not contain a result.");
+        
+        return responseObject.Result?.Deserialize(outputTypeInfo) ??
+            throw new InvalidOperationException("Response does not contain a result.");
     }
-
-    public static JsonElement ToJsonElement<T>(T value)
-    {
-        // TODO: Reduce memory allocations
-        // Serialize the object to a JSON string
-        var json = JsonSerializer.Serialize(value);
-
-        // Parse the JSON string into a JsonDocument
-        using var document = JsonDocument.Parse(json);
-
-        // Return the root element
-        return document.RootElement.Clone(); // Clone to avoid disposal issues
-    }
-
 }

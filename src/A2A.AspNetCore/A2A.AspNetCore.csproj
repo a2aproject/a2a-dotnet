@@ -1,28 +1,31 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-	<PropertyGroup>
-		<TargetFrameworks>net9.0;net8.0</TargetFrameworks>
-		<ImplicitUsings>enable</ImplicitUsings>
-		<Nullable>enable</Nullable>
+  <PropertyGroup>
+    <TargetFrameworks>net9.0;net8.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
 
-		<!-- NuGet Package Properties -->
-		<PackageId>A2A.AspNetCore</PackageId>
-		<Description>ASP.NET Core extensions for the Agent2Agent(A2A) protocol.</Description>
-		<PackageTags>Agent2Agent;a2a;agent;ai;llm;aspnetcore</PackageTags>
-		<PackageReadmeFile>README.md</PackageReadmeFile>
-		<IsPackable>true</IsPackable>
-	</PropertyGroup>
+    <!-- NuGet Package Properties -->
+    <PackageId>A2A.AspNetCore</PackageId>
+    <Description>ASP.NET Core extensions for the Agent2Agent(A2A) protocol.</Description>
+    <PackageTags>Agent2Agent;a2a;agent;ai;llm;aspnetcore</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IsPackable>true</IsPackable>
+    <PublishAot>true</PublishAot>
+    <EnableRequestDelegateGenerator>true</EnableRequestDelegateGenerator>
+    <InterceptorsNamespaces>$(InterceptorsNamespaces);Microsoft.AspNetCore.Http.Generated</InterceptorsNamespaces>
+  </PropertyGroup>
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
-	<ItemGroup>
-		<ProjectReference Include="..\A2A\A2A.csproj" />
-	</ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\A2A\A2A.csproj" />
+  </ItemGroup>
 
-	<ItemGroup>
-		<None Include="..\..\README.md" pack="true" PackagePath="\" />
-	</ItemGroup>
-	
+  <ItemGroup>
+    <None Include="..\..\README.md" pack="true" PackagePath="\" />
+  </ItemGroup>
+
 </Project>

@@ -53,12 +53,8 @@ public sealed class A2ACardResolver
 
             var content = await response.Content.ReadAsStreamAsync();
 
-            var options = new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            };
-
-            return JsonSerializer.Deserialize<AgentCard>(content, options) ?? throw new A2AClientJsonError($"Failed to parse agent card JSON.");
+            return JsonSerializer.Deserialize(content, A2AJsonUtilities.JsonContext.Default.AgentCard) ?? 
+                throw new A2AClientJsonError($"Failed to parse agent card JSON.");
         }
         catch (JsonException ex)
         {

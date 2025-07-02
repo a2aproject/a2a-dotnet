@@ -1,9 +1,10 @@
+using Microsoft.Extensions.Options;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 namespace A2A;
-
 
 public class JsonRpcResponse
 {
@@ -16,21 +17,14 @@ public class JsonRpcResponse
     [JsonPropertyName("result")]
     public JsonNode? Result { get; set; }
 
-    public static JsonRpcResponse CreateJsonRpcResponse<T>(string requestId, T result)
+    public static JsonRpcResponse CreateJsonRpcResponse<T>(string requestId, T result, JsonTypeInfo? resultTypeInfo = null)
     {
-        JsonNode? node = null;
-        if (result != null) {
-            node = JsonSerializer.SerializeToNode(result, new JsonSerializerOptions
-            {
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-            });
-        }
+        resultTypeInfo ??= (JsonTypeInfo<T>)A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(T));
+
         return new JsonRpcResponse()
         {
             Id = requestId,
-            JsonRpc = "2.0",
-            Result = node
+            Result = result is not null ? JsonSerializer.SerializeToNode(result, resultTypeInfo) : null
         };
     }
 }
@@ -78,7 +72,7 @@ public class JsonRpcErrorResponse : JsonRpcResponse
 
 //             if (rootElement.TryGetProperty("result", out var resultProperty))
 //             {
-//                 response.Result = JsonSerializer.Deserialize<T>(resultProperty.GetRawText(), options);
+//                 response.Result = resultProperty.Deserialize<T>(options);
 //             }
 
 //             return response;

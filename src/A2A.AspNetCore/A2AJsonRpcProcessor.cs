@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Http;
-using A2A;
 using System.Diagnostics;
 using System.IO.Pipelines;
 using System.Text;
@@ -21,7 +20,7 @@ public static class A2AJsonRpcProcessor
         // Dispatch based on return type
         if (A2AMethods.IsStreamingMethod(rpcRequest.Method))
         {
-            return await StreamResponse(taskManager, rpcRequest.Id,rpcRequest.Method, parsedParameters);
+            return await StreamResponse(taskManager, rpcRequest.Id, rpcRequest.Method, parsedParameters);
         }
         else
         {
@@ -54,8 +53,7 @@ public static class A2AJsonRpcProcessor
         switch (method)
         {
             case A2AMethods.MessageSend:
-                var parameterString = parameters.Value.GetRawText();
-                var taskSendParams = JsonSerializer.Deserialize<MessageSendParams>(parameters.Value.GetRawText()); //TODO stop the double parsing
+                var taskSendParams = (MessageSendParams?)parameters.Value.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(MessageSendParams))); //TODO stop the double parsing
                 if (taskSendParams == null)
                 {
                     response = JsonRpcErrorResponses.InvalidParamsResponse(requestId);
@@ -65,7 +63,7 @@ public static class A2AJsonRpcProcessor
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, a2aResponse);
                 break;
             case A2AMethods.TaskGet:
-                var taskIdParams = JsonSerializer.Deserialize<TaskQueryParams>(parameters.Value.GetRawText());
+                var taskIdParams = (TaskQueryParams?)parameters.Value.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(TaskQueryParams)));
                 if (taskIdParams == null)
                 {
                     response = JsonRpcErrorResponses.InvalidParamsResponse(requestId);
@@ -75,7 +73,7 @@ public static class A2AJsonRpcProcessor
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, getAgentTask);
                 break;
             case A2AMethods.TaskCancel:
-                var taskIdParamsCancel = JsonSerializer.Deserialize<TaskIdParams>(parameters.Value.GetRawText());
+                var taskIdParamsCancel = (TaskIdParams?)parameters.Value.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(TaskIdParams)));
                 if (taskIdParamsCancel == null)
                 {
                     response = JsonRpcErrorResponses.InvalidParamsResponse(requestId);
@@ -85,7 +83,7 @@ public static class A2AJsonRpcProcessor
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, cancelledTask);
                 break;
             case A2AMethods.TaskPushNotificationConfigSet:
-                var taskPushNotificationConfig = JsonSerializer.Deserialize<TaskPushNotificationConfig>(parameters.Value.GetRawText());
+                var taskPushNotificationConfig = (TaskPushNotificationConfig?)parameters.Value.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(TaskPushNotificationConfig))!);
                 if (taskPushNotificationConfig == null)
                 {
                     response = JsonRpcErrorResponses.InvalidParamsResponse(requestId);
@@ -95,7 +93,7 @@ public static class A2AJsonRpcProcessor
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, setConfig);
                 break;
             case A2AMethods.TaskPushNotificationConfigGet:
-                var taskIdParamsGetConfig = JsonSerializer.Deserialize<TaskIdParams>(parameters.Value.GetRawText());
+                var taskIdParamsGetConfig = (TaskIdParams?)parameters.Value.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(TaskIdParams))!);
                 if (taskIdParamsGetConfig == null)
                 {
                     response = JsonRpcErrorResponses.InvalidParamsResponse(requestId);
@@ -124,7 +122,7 @@ public static class A2AJsonRpcProcessor
         switch (method)
         {
             case A2AMethods.TaskResubscribe:
-                var taskIdParams = JsonSerializer.Deserialize<TaskIdParams>(parameters.Value.GetRawText());
+                var taskIdParams = (TaskIdParams?)parameters.Value.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(TaskIdParams)));
                 if (taskIdParams == null)
                 {
                     activity?.SetStatus(ActivityStatusCode.Error, "Invalid parameters");
@@ -135,7 +133,7 @@ public static class A2AJsonRpcProcessor
             case A2AMethods.MessageStream:
                 try
                 {
-                    var taskSendParams = JsonSerializer.Deserialize<MessageSendParams>(parameters.Value.GetRawText());
+                    var taskSendParams = (MessageSendParams?)parameters.Value.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(MessageSendParams)));
                     if (taskSendParams == null)
                     {
                         activity?.SetStatus(ActivityStatusCode.Error, "Invalid parameters");
@@ -159,83 +157,66 @@ public static class A2AJsonRpcProcessor
     }
 }
 
+public class JsonRpcResponseResult : IResult
+{
+    private readonly JsonRpcResponse jsonRpcResponse;
 
-    public class JsonRpcResponseResult : IResult
+    public JsonRpcResponseResult(JsonRpcResponse jsonRpcResponse)
     {
-        private readonly JsonRpcResponse jsonRpcResponse;
-
-        public JsonRpcResponseResult(JsonRpcResponse jsonRpcResponse)
-        {
-            this.jsonRpcResponse = jsonRpcResponse;
-        }
-
-        public async Task ExecuteAsync(HttpContext httpContext)
-        {
-            httpContext.Response.ContentType = "application/json";
-            if (jsonRpcResponse is JsonRpcErrorResponse)
-            {
-                httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
-            }
-            else
-            {
-                httpContext.Response.StatusCode = StatusCodes.Status200OK;
-            }
-
-            await JsonSerializer.SerializeAsync(httpContext.Response.Body,  jsonRpcResponse, jsonRpcResponse.GetType(), new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                WriteIndented = false
-            });
-        }
+        this.jsonRpcResponse = jsonRpcResponse;
     }
 
-    public class JsonRpcStreamedResult : IResult {
-        private readonly IAsyncEnumerable<A2AEvent> _events;
-        private readonly string requestId;
-
-        public JsonRpcStreamedResult(IAsyncEnumerable<A2AEvent> events, string requestId)
-        {
-            _events = events;
-            this.requestId = requestId;
-        }
-
-        public async Task ExecuteAsync(HttpContext httpContext)
-        {
-            httpContext.Response.StatusCode = StatusCodes.Status200OK;
-            httpContext.Response.ContentType = "text/event-stream";
-
-            await foreach (var taskEvent in _events)
-            {
-                var sseItem = new A2ASseItem()
-                {
-                    Data = JsonRpcResponse.CreateJsonRpcResponse(this.requestId,taskEvent)
-                };
-                await sseItem.WriteAsync(httpContext.Response.BodyWriter);
-            }
-        }
-    }
-
-    public class A2ASseItem
+    public async Task ExecuteAsync(HttpContext httpContext)
     {
-        public JsonRpcResponse? Data { get; set; }
+        httpContext.Response.ContentType = "application/json";
+        httpContext.Response.StatusCode = jsonRpcResponse is JsonRpcErrorResponse ?
+            StatusCodes.Status400BadRequest :
+            StatusCodes.Status200OK;
 
-        public async Task WriteAsync(PipeWriter writer)
+        await JsonSerializer.SerializeAsync(httpContext.Response.Body, jsonRpcResponse, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcResponse)));
+    }
+}
+
+public class JsonRpcStreamedResult : IResult
+{
+    private readonly IAsyncEnumerable<A2AEvent> _events;
+    private readonly string requestId;
+
+    public JsonRpcStreamedResult(IAsyncEnumerable<A2AEvent> events, string requestId)
+    {
+        _events = events;
+        this.requestId = requestId;
+    }
+
+    public async Task ExecuteAsync(HttpContext httpContext)
+    {
+        httpContext.Response.StatusCode = StatusCodes.Status200OK;
+        httpContext.Response.ContentType = "text/event-stream";
+        httpContext.Response.Headers.Append("Cache-Control", "no-cache");
+
+        await foreach (var taskEvent in _events)
         {
-
-            if (Data != null)
+            var sseItem = new A2ASseItem()
             {
-                var jsonStream = new MemoryStream();
-                await JsonSerializer.SerializeAsync(jsonStream, Data, Data.GetType(), new JsonSerializerOptions
-                {
-                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                    WriteIndented = false
-                });
-                jsonStream.Position = 0;
-                using var reader = new StreamReader(jsonStream);
-                var json = reader.ReadToEnd();
-                await writer.WriteAsync(Encoding.UTF8.GetBytes($"data: {json}\n\n"));
-                await writer.FlushAsync();
-            }
+                Data = JsonRpcResponse.CreateJsonRpcResponse(this.requestId, taskEvent),
+            };
+            await sseItem.WriteAsync(httpContext.Response.BodyWriter);
         }
     }
+}
+
+public class A2ASseItem
+{
+    public JsonRpcResponse? Data { get; set; }
+
+    public async Task WriteAsync(PipeWriter writer)
+    {
+        if (Data != null)
+        {
+            string json = JsonSerializer.Serialize(Data, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcResponse)));
+            await writer.WriteAsync(Encoding.UTF8.GetBytes($"data: {json}\n\n"));
+            await writer.FlushAsync();
+        }
+    }
+}
 
