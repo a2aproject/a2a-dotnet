@@ -12,19 +12,19 @@ public class FileContent
 }
 
 public class FileWithBytes : FileContent
-    {
-        [JsonPropertyName("name")]
-        public string? Name { get; set; }
+{
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
 
-        [JsonPropertyName("mimeType")]
-        public string? MimeType { get; set; }
+    [JsonPropertyName("mimeType")]
+    public string? MimeType { get; set; }
 
-        [JsonPropertyName("bytes")]
-        public string? Bytes { get; set; }
+    [JsonPropertyName("bytes")]
+    public string? Bytes { get; set; }
 
-        [JsonPropertyName("uri")]
-        public string? Uri { get; set; }
-    }
+    [JsonPropertyName("uri")]
+    public string? Uri { get; set; }
+}
 
 
 public class FileWithUri : FileContent

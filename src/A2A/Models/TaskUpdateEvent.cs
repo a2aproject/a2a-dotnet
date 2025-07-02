@@ -3,7 +3,6 @@ using System.Text.Json.Serialization;
 
 namespace A2A;
 
-
 public abstract class TaskUpdateEvent : A2AEvent
 {
     [JsonPropertyName("taskId")]
