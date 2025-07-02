@@ -32,9 +32,9 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
       - name: BuildLibs
-        run: dotnet build ./src/SharpA2ALibs.sln --framework ${{ matrix.framework }}
+        run: dotnet build ./src/A2ALibs.slnx --framework ${{ matrix.framework }}
       - name: TestLibs
-        run: dotnet test ./src/SharpA2ALibs.sln --no-build --verbosity normal --framework ${{ matrix.framework }}
+        run: dotnet test ./src/A2ALibs.slnx --no-build --verbosity normal --framework ${{ matrix.framework }}
   buildSamples:
     runs-on: ubuntu-latest
     steps:
