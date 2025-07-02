@@ -18,7 +18,7 @@
   </ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\A2A.Core\A2A.Core.csproj" />
+		<ProjectReference Include="..\A2A\A2A.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>

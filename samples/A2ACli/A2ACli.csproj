@@ -16,7 +16,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\..\src\A2A.Core\A2A.Core.csproj" />
+		<ProjectReference Include="..\..\src\A2A\A2A.csproj" />
 	</ItemGroup>
 
 </Project>

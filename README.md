@@ -8,8 +8,13 @@ This library has implemented the majority of the protocol v0.2.1, however there 
 ## Overview
 ![alt text](overview.png)
 
+## Library: A2A
+This library contains the core A2A protocol implementation. It includes the following classes:
+- `A2AClient`: Used for making A2A requests to an agent.
+- `TaskManager`: Provides standardized support for managing tasks and task execution.
+- `ITaskStore`: An interface for abstracting the storage of tasks. `InMemoryTaskStore` is a simple in-memory implementation.
 
-## Library: a2a.AspNetCore
+## Library: A2A.AspNetCore
 This library adds the MapA2A extension method that allows you to add A2A support to an Agent hosted at the specified path.
 
 ```c#
@@ -19,12 +24,6 @@ echoAgent.Attach(echoTaskManager);
 app.MapA2A(echoTaskManager,"/echo");
 ```
 
-## Library: A2A.Core
-This library contains the core A2A protocol implementation. It includes the following classes:
-- `A2AClient`: Used for making A2A requests to an agent.
-- `TaskManager`: Provides standardized support for managing tasks and task execution.
-- `ITaskStore`: An interface for abstracting the storage of tasks. `InMemoryTaskStore` is a simple in-memory implementation.
-
 ## Library: DomFactory
 This library contains helper classes for support deserialization and serialization of A2A messages and JsonRPC envelopes. In theory this can be done with JsonSerializer, but this library makes the process easier to debug and doesn't require an reflection or code generation.
 
@@ -33,7 +32,7 @@ This library contains helper classes for support deserialization and serializati
 Each agent instance should be given its own `TaskManager` instance. The `TaskManager` is responsible for managing the tasks and their execution. It is an implementation decision as to whether a single agent instance processes many tasks or whether an agent instance is created for each task.
 
 ```c#
-using A2A.Core;
+using A2A;
 
 public class EchoAgent
 {

@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
 using Polly;
-using A2A.Core;
+using A2A;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Text.Json;

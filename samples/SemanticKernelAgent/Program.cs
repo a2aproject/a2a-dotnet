@@ -4,7 +4,7 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using SemanticKernelAgent;
 using A2A.AspNetCore;
-using A2A.Core;
+using A2A;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddHttpClient()
@@ -15,7 +15,7 @@ builder.Services.AddHttpClient()
         resource.AddService("TravelAgent");
     })
     .WithTracing(tracing => tracing
-        .AddSource(A2A.Core.TaskManager.ActivitySource.Name)
+        .AddSource(TaskManager.ActivitySource.Name)
         .AddSource(A2AJsonRpcProcessor.ActivitySource.Name)
         .AddAspNetCoreInstrumentation()
         .AddHttpClientInstrumentation()

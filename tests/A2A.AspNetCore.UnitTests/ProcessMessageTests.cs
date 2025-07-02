@@ -2,7 +2,7 @@
 // using System.Threading;
 // using System.Threading.Tasks;
 // using Xunit;
-// using A2A.Core;
+// using A2A;
 
 // namespace A2A.AspNetCore.Tests;
 

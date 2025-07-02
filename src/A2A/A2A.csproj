@@ -1,21 +1,30 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
+	<PropertyGroup>
 		<TargetFrameworks>net9.0;net8.0;netstandard2.0</TargetFrameworks>
-    <ImplicitUsings>enable</ImplicitUsings>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
 
-		<!-- NuGet Package Properties -->
-		<PackageId>A2A</PackageId>
-		<Description>.NET SDK for the Agent2Agent(A2A) protocol.</Description>
-		<IsPackable>true</IsPackable>
+    <!-- NuGet Package Properties -->
+    <PackageId>A2A</PackageId>
+    <Description>.NET SDK for the Agent2Agent(A2A) protocol.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IsPackable>true</IsPackable>
   </PropertyGroup>
+  
+  <!-- Dependencies only needed by netstandard2.0 -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="System.Text.Json" />
+  </ItemGroup>
 
+  <!-- Dependencies needed by all -->
   <ItemGroup>
-    <ProjectReference Include="..\A2A.Core\A2A.Core.csproj" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+    <PackageReference Include="System.Net.ServerSentEvents" />
   </ItemGroup>
 
 	<ItemGroup>
-		<None Include="..\..\README.md" pack="true" PackagePath="\" />
+		<None Include="..\..\README.md" Pack="true" PackagePath="\" />
 	</ItemGroup>
 
 </Project>

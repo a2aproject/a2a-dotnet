@@ -7,7 +7,6 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/A2A/A2A.csproj" />
-    <Project Path="src/A2A.Core/A2A.Core.csproj" />
     <Project Path="src/A2A.AspNetCore/A2A.AspNetCore.csproj" />
   </Folder>
    <Folder Name="/Solution Items/">
@@ -18,7 +17,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/A2A.AspNetCore.UnitTests/A2A.AspNetCore.UnitTests.csproj" />
-    <Project Path="tests/A2A.Core.UnitTests/A2A.Core.UnitTests.csproj" />
     <Project Path="tests/A2A.UnitTests/A2A.UnitTests.csproj" />
   </Folder>
 </Solution>

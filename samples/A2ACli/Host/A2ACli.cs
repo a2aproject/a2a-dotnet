@@ -1,11 +1,10 @@
 ﻿using Microsoft.Extensions.Logging;
-using A2A.Core;
 using System.CommandLine;
 using System.CommandLine.Invocation;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 
-namespace A2A.Host;
+namespace A2A;
 
 /// <summary>
 /// This is a port of the A2A cli from the Google project. Adding this to help ensure we have feature parity.

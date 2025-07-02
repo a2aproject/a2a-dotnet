@@ -1,7 +1,7 @@
 
 using System.Diagnostics;
 
-namespace A2A.Core;
+namespace A2A;
 
 public class ResearcherAgent
 {

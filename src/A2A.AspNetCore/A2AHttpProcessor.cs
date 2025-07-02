@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
-using A2A.Core;
+using A2A;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;

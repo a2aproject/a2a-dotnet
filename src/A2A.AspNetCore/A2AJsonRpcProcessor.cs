@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Http;
-using A2A.Core;
+using A2A;
 using System.Diagnostics;
 using System.IO.Pipelines;
 using System.Text;
