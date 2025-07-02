@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
-using A2A;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
@@ -9,7 +8,7 @@ namespace A2A.AspNetCore;
 
 public class A2AHttpProcessor
 {
-    public static readonly ActivitySource ActivitySource = new ActivitySource("A2A.HttpProcessor", "1.0.0");
+    public static readonly ActivitySource ActivitySource = new("A2A.HttpProcessor", "1.0.0");
 
 
     internal static Task<IResult> GetAgentCard(TaskManager taskManager, ILogger logger, string agentUrl)
@@ -41,7 +40,7 @@ public class A2AHttpProcessor
             {
                 Id = id.ToString(),
                 HistoryLength = historyLength,
-                Metadata = String.IsNullOrWhiteSpace(metadata) ? null : JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(metadata)    
+                Metadata = string.IsNullOrWhiteSpace(metadata) ? null : (Dictionary<string, JsonElement>?)JsonSerializer.Deserialize(metadata, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(Dictionary<string, JsonElement>)))
             });
 
             if (agentTask == null)
@@ -98,7 +97,7 @@ public class A2AHttpProcessor
                 {
                     HistoryLength = historyLength
                 };
-                sendParams.Metadata = String.IsNullOrWhiteSpace(metadata) ? null : JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(metadata);
+                sendParams.Metadata = string.IsNullOrWhiteSpace(metadata) ? null : (Dictionary<string, JsonElement>?)JsonSerializer.Deserialize(metadata, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(Dictionary<string, JsonElement>)));
 
                 var a2aResponse = await taskManager.SendMessageAsync(sendParams);
                 if (a2aResponse == null)
@@ -127,7 +126,7 @@ public class A2AHttpProcessor
             {
                 HistoryLength = historyLength
             };
-            sendParams.Metadata = String.IsNullOrWhiteSpace(metadata) ? null : JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(metadata);
+            sendParams.Metadata = String.IsNullOrWhiteSpace(metadata) ? null : (Dictionary<string, JsonElement>?)JsonSerializer.Deserialize(metadata, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(Dictionary<string, JsonElement>)));
 
             var taskEvents = await taskManager.SendMessageStreamAsync(sendParams);
 
@@ -209,7 +208,6 @@ public class A2AHttpProcessor
             return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
         }
     }
-
 }
 
 
@@ -225,11 +223,7 @@ public class A2AResponseResult : IResult
     {
         httpContext.Response.ContentType = "application/json";
 
-        await JsonSerializer.SerializeAsync(httpContext.Response.Body, a2aResponse, a2aResponse.GetType(), new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            WriteIndented = true
-        });
+        await JsonSerializer.SerializeAsync(httpContext.Response.Body, a2aResponse, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(A2AResponse)));
     }
 }
 
@@ -248,11 +242,7 @@ public class A2AEventStreamResult : IResult
         httpContext.Response.ContentType = "text/event-stream";
         await foreach (var taskEvent in taskEvents)
         {
-            var json = JsonSerializer.Serialize(taskEvent, taskEvent.GetType(), new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                WriteIndented = true
-            });
+            var json = JsonSerializer.Serialize(taskEvent, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(A2AEvent)));
             await httpContext.Response.BodyWriter.WriteAsync(Encoding.UTF8.GetBytes($"data: {json}\n\n"));
             await httpContext.Response.BodyWriter.FlushAsync();
         }

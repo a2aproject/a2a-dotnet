@@ -23,6 +23,11 @@
 		<ProjectReference Include="..\..\src\A2A.AspNetCore\A2A.AspNetCore.csproj" />
 	</ItemGroup>
 
+  <PropertyGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))">
+    <!-- in some TFMs, help validate NativeAOT by disabling the use of reflection for serialization -->
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+  </PropertyGroup>
+
 	<ItemGroup>
 		<Using Include="Xunit" />
 	</ItemGroup>

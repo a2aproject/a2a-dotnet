@@ -1,8 +1,7 @@
 using System.Net;
 using System.Text.Json;
-using A2A;
 
-namespace A2A.AspNetCore;
+namespace A2A;
 
 public class JsonRpcContent : HttpContent
 {
@@ -14,11 +13,7 @@ public class JsonRpcContent : HttpContent
 
         // Serialize the request directly to the stream
         stream = new MemoryStream();
-        JsonSerializer.Serialize(stream, request, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            WriteIndented = false
-        });
+        JsonSerializer.Serialize(stream, request, A2AJsonUtilities.JsonContext.Default.JsonRpcRequest);
         stream.Position = 0;
     }
 
@@ -28,11 +23,7 @@ public class JsonRpcContent : HttpContent
 
         // Serialize the response directly to the stream
         stream = new MemoryStream();
-        JsonSerializer.Serialize(stream, response, response.GetType(), new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            WriteIndented = false
-        });
+        JsonSerializer.Serialize(stream, response, A2AJsonUtilities.JsonContext.Default.JsonRpcResponse);
         stream.Position = 0;
     }
 

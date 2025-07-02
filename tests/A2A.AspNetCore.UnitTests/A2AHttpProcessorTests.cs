@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging.Abstractions;
-using A2A;
 
 namespace A2A.AspNetCore.Tests;
 
