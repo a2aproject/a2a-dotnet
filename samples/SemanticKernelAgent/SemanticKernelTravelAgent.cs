@@ -213,8 +213,6 @@ public class SemanticKernelTravelAgent : IDisposable
     private readonly ChatCompletionAgent _agent;
     private TaskManager? _taskManager;
 
-    private ChatHistoryAgentThread? _thread;
-
     public readonly List<string> SupportedContentTypes = new() { "text", "text/plain" };
 
     private ChatCompletionAgent InitializeAgent()

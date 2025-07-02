@@ -140,7 +140,8 @@ public class TaskManagerTests
         Assert.NotNull(updatedTask);
         Assert.Equal(task.Id, updatedTask.Id);
         Assert.Equal(TaskState.Working, updatedTask.Status.State);
-        Assert.Equal("Task updated!", (updatedTask.History.Last().Parts[0] as TextPart).Text);
+        Assert.NotNull(updatedTask.History);
+        Assert.Equal("Task updated!", (updatedTask.History.Last().Parts[0] as TextPart)!.Text);
     }
 
     [Fact]

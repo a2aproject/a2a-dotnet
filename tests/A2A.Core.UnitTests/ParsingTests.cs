@@ -164,6 +164,7 @@ public class ParsingTests
         // Assert
         Assert.NotNull(resultObject);
         var resultTaskArtifactUpdateEvent = resultObject as TaskArtifactUpdateEvent;
+        Assert.NotNull(resultTaskArtifactUpdateEvent);
         Assert.Equal(taskArtifactUpdateEvent.TaskId, resultTaskArtifactUpdateEvent.TaskId);
         Assert.Equal(taskArtifactUpdateEvent.ContextId, resultTaskArtifactUpdateEvent.ContextId);
         Assert.Equal(taskArtifactUpdateEvent.Artifact.Parts[0].AsTextPart().Text, resultTaskArtifactUpdateEvent.Artifact.Parts[0].AsTextPart().Text);
