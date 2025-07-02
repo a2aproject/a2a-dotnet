@@ -13,16 +13,12 @@
 		<IsPackable>true</IsPackable>
 	</PropertyGroup>
 
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
 	<ItemGroup>
 		<ProjectReference Include="..\A2A.Core\A2A.Core.csproj" />
-	</ItemGroup>
-
-	<ItemGroup>
-		<FrameworkReference Include="Microsoft.AspNetCore.App" />
-	</ItemGroup>
-
-	<ItemGroup>
-		<PackageReference Include="System.Text.Json" />
 	</ItemGroup>
 
 	<ItemGroup>
