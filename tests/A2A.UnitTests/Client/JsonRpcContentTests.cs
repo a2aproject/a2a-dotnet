@@ -64,7 +64,7 @@ namespace A2A.UnitTests.Client
         }
 
         [Fact]
-        public void ContentLength_IsSetAndGreaterThanZero()
+        public void ContentLength_IsNull()
         {
             // Arrange
             var request = new JsonRpcRequest { Id = "id", Method = "m" };
@@ -74,8 +74,7 @@ namespace A2A.UnitTests.Client
             var length = sut.Headers.ContentLength;
 
             // Assert
-            Assert.NotNull(length);
-            Assert.True(length > 0);
+            Assert.Null(length);
         }
 
         [Fact]

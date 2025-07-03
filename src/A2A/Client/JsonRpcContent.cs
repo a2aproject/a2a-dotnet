@@ -1,53 +1,43 @@
 using System.Net;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 namespace A2A;
 
-public class JsonRpcContent : HttpContent
+public sealed class JsonRpcContent : HttpContent
 {
-    private readonly Stream stream;
+    private readonly object? _contentToSerialize;
+    private readonly JsonTypeInfo _contentTypeInfo;
 
-    public JsonRpcContent(JsonRpcRequest request)
+    public JsonRpcContent(JsonRpcRequest? request) : this(request, A2AJsonUtilities.JsonContext.Default.JsonRpcRequest)
     {
-        Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
-
-        // Serialize the request directly to the stream
-        stream = new MemoryStream();
-        JsonSerializer.Serialize(stream, request, A2AJsonUtilities.JsonContext.Default.JsonRpcRequest);
-        stream.Position = 0;
     }
 
-    public JsonRpcContent(JsonRpcResponse response)
+    public JsonRpcContent(JsonRpcResponse? response) : this(response, A2AJsonUtilities.JsonContext.Default.JsonRpcResponse)
     {
-        Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
-
-        // Serialize the response directly to the stream
-        stream = new MemoryStream();
-        JsonSerializer.Serialize(stream, response, A2AJsonUtilities.JsonContext.Default.JsonRpcResponse);
-        stream.Position = 0;
     }
 
-#if NET8_0_OR_GREATER
-    protected override void SerializeToStream(Stream stream, TransportContext? context, CancellationToken cancellationToken)
+    private JsonRpcContent(object? contentToSerialize, JsonTypeInfo contentTypeInfo)
     {
-        this.stream.CopyTo(stream);
-    }
-
-    protected override async Task SerializeToStreamAsync(Stream stream, TransportContext? context, CancellationToken cancellationToken)
-    {
-        await this.stream.CopyToAsync(stream, cancellationToken);
-    }
-#endif
-
-    protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context)
-    {
-        this.stream.CopyTo(stream);
-        return Task.CompletedTask;
+        _contentToSerialize = contentToSerialize;
+        _contentTypeInfo = contentTypeInfo;
+        Headers.TryAddWithoutValidation("Content-Type", "application/json");
     }
 
     protected override bool TryComputeLength(out long length)
     {
-        length = stream.Length;
-        return true;
+        length = 0;
+        return false;
     }
+
+    protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) =>
+        JsonSerializer.SerializeAsync(stream, _contentToSerialize, _contentTypeInfo);
+
+#if NET8_0_OR_GREATER
+    protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context, CancellationToken cancellationToken) =>
+        JsonSerializer.SerializeAsync(stream, _contentToSerialize, _contentTypeInfo, cancellationToken);
+
+    protected override void SerializeToStream(Stream stream, TransportContext? context, CancellationToken cancellationToken) =>
+        JsonSerializer.Serialize(stream, _contentToSerialize, _contentTypeInfo);
+#endif
 }
