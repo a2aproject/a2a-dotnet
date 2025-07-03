@@ -26,7 +26,6 @@ public class FileWithBytes : FileContent
     public string? Uri { get; set; }
 }
 
-
 public class FileWithUri : FileContent
 {
     [JsonPropertyName("name")]
@@ -38,4 +37,3 @@ public class FileWithUri : FileContent
     [JsonPropertyName("uri")]
     public string? Uri { get; set; }
 }
-

@@ -53,14 +53,12 @@ public class HttpAuthSecurityScheme : SecurityScheme
 
 public class OAuth2SecurityScheme : SecurityScheme
 {
-
     /// <summary>
     /// The flow of the OAuth2 security scheme
     /// </summary>
     [JsonPropertyName("flows")]
     [Required]
     public string Flows { get; set; } = string.Empty;
-
 }
 
 public class OpenIdConnectSecurityScheme : SecurityScheme
@@ -117,7 +115,7 @@ public class AuthorizationCodeOAuthFlow
     public string TokenUrl { get; set; } = string.Empty;
 
     /// <summary>
-    /// The refresh URL 
+    /// The refresh URL
     /// </summary>
     [JsonPropertyName("refreshUrl")]
     [Required]

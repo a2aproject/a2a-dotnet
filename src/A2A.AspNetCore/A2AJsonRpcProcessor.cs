@@ -22,19 +22,16 @@ public static class A2AJsonRpcProcessor
         {
             return await StreamResponse(taskManager, rpcRequest.Id, rpcRequest.Method, parsedParameters);
         }
-        else
+
+        try
         {
-            try
-            {
-                return await SingleResponse(taskManager, rpcRequest.Id, rpcRequest.Method, parsedParameters); ;
-            }
-            catch (Exception e)
-            {
-                return new JsonRpcResponseResult(JsonRpcErrorResponses.InternalErrorResponse(rpcRequest.Id, e.Message));
-            }
+            return await SingleResponse(taskManager, rpcRequest.Id, rpcRequest.Method, parsedParameters); ;
+        }
+        catch (Exception e)
+        {
+            return new JsonRpcResponseResult(JsonRpcResponse.InternalErrorResponse(rpcRequest.Id, e.Message));
         }
     }
-
 
     internal static async Task<JsonRpcResponseResult> SingleResponse(TaskManager taskManager, string requestId, string method, JsonElement? parameters)
     {
@@ -47,7 +44,7 @@ public static class A2AJsonRpcProcessor
         if (parameters == null)
         {
             activity?.SetStatus(ActivityStatusCode.Error, "Invalid parameters");
-            return new JsonRpcResponseResult(JsonRpcErrorResponses.InvalidParamsResponse(requestId));
+            return new JsonRpcResponseResult(JsonRpcResponse.InvalidParamsResponse(requestId));
         }
 
         switch (method)
@@ -56,7 +53,7 @@ public static class A2AJsonRpcProcessor
                 var taskSendParams = (MessageSendParams?)parameters.Value.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(MessageSendParams))); //TODO stop the double parsing
                 if (taskSendParams == null)
                 {
-                    response = JsonRpcErrorResponses.InvalidParamsResponse(requestId);
+                    response = JsonRpcResponse.InvalidParamsResponse(requestId);
                     break;
                 }
                 var a2aResponse = await taskManager.SendMessageAsync(taskSendParams);
@@ -66,7 +63,7 @@ public static class A2AJsonRpcProcessor
                 var taskIdParams = (TaskQueryParams?)parameters.Value.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(TaskQueryParams)));
                 if (taskIdParams == null)
                 {
-                    response = JsonRpcErrorResponses.InvalidParamsResponse(requestId);
+                    response = JsonRpcResponse.InvalidParamsResponse(requestId);
                     break;
                 }
                 var getAgentTask = await taskManager.GetTaskAsync(taskIdParams);
@@ -76,7 +73,7 @@ public static class A2AJsonRpcProcessor
                 var taskIdParamsCancel = (TaskIdParams?)parameters.Value.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(TaskIdParams)));
                 if (taskIdParamsCancel == null)
                 {
-                    response = JsonRpcErrorResponses.InvalidParamsResponse(requestId);
+                    response = JsonRpcResponse.InvalidParamsResponse(requestId);
                     break;
                 }
                 var cancelledTask = await taskManager.CancelTaskAsync(taskIdParamsCancel);
@@ -86,7 +83,7 @@ public static class A2AJsonRpcProcessor
                 var taskPushNotificationConfig = (TaskPushNotificationConfig?)parameters.Value.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(TaskPushNotificationConfig))!);
                 if (taskPushNotificationConfig == null)
                 {
-                    response = JsonRpcErrorResponses.InvalidParamsResponse(requestId);
+                    response = JsonRpcResponse.InvalidParamsResponse(requestId);
                     break;
                 }
                 var setConfig = await taskManager.SetPushNotificationAsync(taskPushNotificationConfig);
@@ -96,14 +93,14 @@ public static class A2AJsonRpcProcessor
                 var taskIdParamsGetConfig = (TaskIdParams?)parameters.Value.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(TaskIdParams))!);
                 if (taskIdParamsGetConfig == null)
                 {
-                    response = JsonRpcErrorResponses.InvalidParamsResponse(requestId);
+                    response = JsonRpcResponse.InvalidParamsResponse(requestId);
                     break;
                 }
                 var getConfig = await taskManager.GetPushNotificationAsync(taskIdParamsGetConfig);
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, getConfig);
                 break;
             default:
-                response = JsonRpcErrorResponses.MethodNotFoundResponse(requestId);
+                response = JsonRpcResponse.MethodNotFoundResponse(requestId);
                 break;
         }
 
@@ -118,8 +115,9 @@ public static class A2AJsonRpcProcessor
         if (parameters == null)
         {
             activity?.SetStatus(ActivityStatusCode.Error, "Invalid parameters");
-            return new JsonRpcResponseResult(JsonRpcErrorResponses.InvalidParamsResponse(requestId));
+            return new JsonRpcResponseResult(JsonRpcResponse.InvalidParamsResponse(requestId));
         }
+
         switch (method)
         {
             case A2AMethods.TaskResubscribe:
@@ -127,8 +125,9 @@ public static class A2AJsonRpcProcessor
                 if (taskIdParams == null)
                 {
                     activity?.SetStatus(ActivityStatusCode.Error, "Invalid parameters");
-                    return new JsonRpcResponseResult(JsonRpcErrorResponses.InvalidParamsResponse(requestId));
+                    return new JsonRpcResponseResult(JsonRpcResponse.InvalidParamsResponse(requestId));
                 }
+
                 var taskEvents = taskManager.ResubscribeAsync(taskIdParams);
                 return new JsonRpcStreamedResult(taskEvents, requestId);
             case A2AMethods.MessageStream:
@@ -138,22 +137,20 @@ public static class A2AJsonRpcProcessor
                     if (taskSendParams == null)
                     {
                         activity?.SetStatus(ActivityStatusCode.Error, "Invalid parameters");
-                        return new JsonRpcResponseResult(JsonRpcErrorResponses.InvalidParamsResponse(requestId));
+                        return new JsonRpcResponseResult(JsonRpcResponse.InvalidParamsResponse(requestId));
                     }
 
                     var sendEvents = await taskManager.SendMessageStreamAsync(taskSendParams);
-
                     return new JsonRpcStreamedResult(sendEvents, requestId);
-
                 }
                 catch (Exception ex)
                 {
                     activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-                    return new JsonRpcResponseResult(JsonRpcErrorResponses.InternalErrorResponse(requestId, ex.Message));
+                    return new JsonRpcResponseResult(JsonRpcResponse.InternalErrorResponse(requestId, ex.Message));
                 }
             default:
                 activity?.SetStatus(ActivityStatusCode.Error, "Invalid method");
-                return new JsonRpcResponseResult(JsonRpcErrorResponses.MethodNotFoundResponse(requestId));
+                return new JsonRpcResponseResult(JsonRpcResponse.MethodNotFoundResponse(requestId));
         }
     }
 }
@@ -220,4 +217,3 @@ public class A2ASseItem
         }
     }
 }
-

@@ -24,7 +24,7 @@ builder.Services.AddHttpClient()
             options.Endpoint = new Uri("http://localhost:4317");
             options.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.Grpc;
         })
-        );
+     );
 var app = builder.Build();
 
 var configuration = app.Configuration;

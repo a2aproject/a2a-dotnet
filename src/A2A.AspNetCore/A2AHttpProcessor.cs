@@ -6,10 +6,9 @@ using System.Text.Json;
 
 namespace A2A.AspNetCore;
 
-public class A2AHttpProcessor
+public static class A2AHttpProcessor
 {
     public static readonly ActivitySource ActivitySource = new("A2A.HttpProcessor", "1.0.0");
-
 
     internal static Task<IResult> GetAgentCard(TaskManager taskManager, ILogger logger, string agentUrl)
     {
@@ -35,10 +34,9 @@ public class A2AHttpProcessor
 
         try
         {
-
             var agentTask = await taskManager.GetTaskAsync(new TaskQueryParams()
             {
-                Id = id.ToString(),
+                Id = id,
                 HistoryLength = historyLength,
                 Metadata = string.IsNullOrWhiteSpace(metadata) ? null : (Dictionary<string, JsonElement>?)JsonSerializer.Deserialize(metadata, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(Dictionary<string, JsonElement>)))
             });
@@ -121,7 +119,7 @@ public class A2AHttpProcessor
             {
                 HistoryLength = historyLength
             };
-            sendParams.Metadata = String.IsNullOrWhiteSpace(metadata) ? null : (Dictionary<string, JsonElement>?)JsonSerializer.Deserialize(metadata, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(Dictionary<string, JsonElement>)));
+            sendParams.Metadata = string.IsNullOrWhiteSpace(metadata) ? null : (Dictionary<string, JsonElement>?)JsonSerializer.Deserialize(metadata, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(Dictionary<string, JsonElement>)));
 
             var taskEvents = await taskManager.SendMessageStreamAsync(sendParams);
 
@@ -205,7 +203,6 @@ public class A2AHttpProcessor
     }
 }
 
-
 public class A2AResponseResult : IResult
 {
     private readonly A2AResponse a2aResponse;
@@ -221,7 +218,6 @@ public class A2AResponseResult : IResult
         await JsonSerializer.SerializeAsync(httpContext.Response.Body, a2aResponse, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(A2AResponse)));
     }
 }
-
 
 public class A2AEventStreamResult : IResult
 {

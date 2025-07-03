@@ -24,5 +24,3 @@ public abstract class Part
         dataPart :
         throw new InvalidCastException($"Cannot cast {GetType().Name} to DataPart.");
 }
-
-

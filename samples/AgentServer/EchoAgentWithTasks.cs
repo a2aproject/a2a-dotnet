@@ -14,7 +14,7 @@ public class EchoAgentWithTasks
         taskManager.OnAgentCardQuery = GetAgentCard;
     }
 
-    public async Task ProcessMessage(AgentTask task)
+    private async Task ProcessMessage(AgentTask task)
     {
         // Process the message
         var messageText = task.History!.Last().Parts.OfType<TextPart>().First().Text;
@@ -28,7 +28,7 @@ public class EchoAgentWithTasks
         await _taskManager!.UpdateStatusAsync(task.Id, TaskState.Completed, final: true);
     }
 
-    public AgentCard GetAgentCard(string agentUrl)
+    private AgentCard GetAgentCard(string agentUrl)
     {
         var capabilities = new AgentCapabilities()
         {

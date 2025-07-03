@@ -10,5 +10,3 @@ public class TaskPushNotificationConfig
     [JsonPropertyName("pushNotificationConfig")]
     public PushNotificationConfig PushNotificationConfig { get; set; } = new PushNotificationConfig();
 }
-
-

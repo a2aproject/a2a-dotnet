@@ -29,6 +29,46 @@ public class JsonRpcResponse
             Result = result is not null ? JsonSerializer.SerializeToNode(result, resultTypeInfo) : null
         };
     }
+
+    public static JsonRpcResponse InvalidParamsResponse(string requestId) => new()
+    {
+        Id = requestId,
+        Error = new JsonRpcError()
+        {
+            Code = -32602,
+            Message = "Invalid parameters",
+        },
+    };
+
+    public static JsonRpcResponse MethodNotFoundResponse(string requestId) => new()
+    {
+        Id = requestId,
+        Error = new JsonRpcError
+        {
+            Code = -32601,
+            Message = "Method not found"
+        },
+    };
+
+    public static JsonRpcResponse InternalErrorResponse(string requestId, string message) => new()
+    {
+        Id = requestId,
+        Error = new JsonRpcError
+        {
+            Code = -32603,
+            Message = message
+        },
+    };
+
+    public static JsonRpcResponse ParseErrorResponse(string requestId, string? message) => new()
+    {
+        Id = requestId,
+        Error = new JsonRpcError
+        {
+            Code = -32700,
+            Message = message ?? "Invalid JSON payload",
+        },
+    };
 }
 
 // public class JsonRpcResponse<T> : JsonRpcResponse
@@ -42,7 +82,6 @@ public class JsonRpcResponse
 //             JsonRpc = "2.0"
 //         };
 //     }
-
 
 //     [JsonPropertyName("result")]
 //     public T? Result { get; set; }

@@ -5,7 +5,6 @@ namespace A2A.UnitTests;
 
 public class ParsingTests
 {
-
     [Fact]
     public void RoundTripTaskSendParams()
     {
@@ -80,7 +79,6 @@ public class ParsingTests
             Status = new AgentTaskStatus
             {
                 State = TaskState.Working,
-
             }
         };
         var json = JsonSerializer.Serialize(taskStatusUpdateEvent);
@@ -160,7 +158,6 @@ public class ParsingTests
         var resultObject = (deserializedResponse?.Result).Deserialize<A2AEvent>();
         // Act
 
-
         // Assert
         Assert.NotNull(resultObject);
         var resultTaskArtifactUpdateEvent = resultObject as TaskArtifactUpdateEvent;
@@ -169,6 +166,4 @@ public class ParsingTests
         Assert.Equal(taskArtifactUpdateEvent.ContextId, resultTaskArtifactUpdateEvent.ContextId);
         Assert.Equal(taskArtifactUpdateEvent.Artifact.Parts[0].AsTextPart().Text, resultTaskArtifactUpdateEvent.Artifact.Parts[0].AsTextPart().Text);
     }
-
-
 }

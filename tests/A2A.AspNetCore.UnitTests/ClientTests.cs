@@ -6,7 +6,6 @@ namespace A2A.AspNetCore.Tests;
 
 public class ClientTests : IClassFixture<JsonSchemaFixture>
 {
-
     private readonly JsonSchema a2aSchema;
 
     public ClientTests(JsonSchemaFixture fixture)
@@ -148,7 +147,6 @@ public class JsonSchemaFixture
 }
 public class MockMessageHandler : HttpMessageHandler
 {
-
     public HttpRequestMessage? Request { get; private set; }
 
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -164,7 +162,6 @@ public class MockMessageHandler : HttpMessageHandler
                 Status = new AgentTaskStatus()
                 {
                     State = TaskState.Completed,
-
                 }
             }))
         };

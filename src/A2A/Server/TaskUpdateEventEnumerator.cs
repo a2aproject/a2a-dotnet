@@ -38,4 +38,3 @@ public class TaskUpdateEventEnumerator : IAsyncEnumerable<A2AEvent>
         }
     }
 }
-

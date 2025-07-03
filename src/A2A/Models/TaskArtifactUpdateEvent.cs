@@ -13,5 +13,3 @@ public class TaskArtifactUpdateEvent : TaskUpdateEvent
     [JsonPropertyName("lastChunk")]
     public bool? LastChunk { get; set; }
 }
-
-

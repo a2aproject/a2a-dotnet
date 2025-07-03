@@ -8,5 +8,3 @@ public class DataPart : Part
     [JsonPropertyName("data")]
     public Dictionary<string, JsonElement> Data { get; set; } = [];
 }
-
-

@@ -11,5 +11,3 @@ public class TaskIdParams
     [JsonPropertyName("metadata")]
     public Dictionary<string, JsonElement>? Metadata { get; set; }
 }
-
-

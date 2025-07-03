@@ -65,10 +65,10 @@ public class A2AJsonRpcProcessorTests
 
         Assert.Equal(StatusCodes.Status400BadRequest, StatusCode);
         Assert.Equal("application/json", ContentType);
-        
+
         Assert.NotNull(BodyContent);
         Assert.Null(BodyContent.Result);
-        
+
         Assert.NotNull(BodyContent.Error);
         Assert.Equal(-32602, BodyContent.Error!.Code); // Invalid params
         Assert.Equal("Invalid parameters", BodyContent.Error.Message);
@@ -90,7 +90,7 @@ public class A2AJsonRpcProcessorTests
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
 
         var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
-        
+
         Assert.Equal(StatusCodes.Status200OK, StatusCode);
         Assert.Equal("application/json", ContentType);
         Assert.NotNull(BodyContent);
@@ -165,10 +165,11 @@ public class A2AJsonRpcProcessorTests
     {
         // Arrange
         var taskManager = new TaskManager();
-        var config = new TaskPushNotificationConfig { 
-            Id = "test-task", 
+        var config = new TaskPushNotificationConfig
+        {
+            Id = "test-task",
             PushNotificationConfig = new PushNotificationConfig()
-            { 
+            {
                 Url = "https://example.com/notify",
             }
         };
@@ -205,9 +206,9 @@ public class A2AJsonRpcProcessorTests
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
-        
+
         var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
-        
+
         Assert.Equal(StatusCodes.Status400BadRequest, StatusCode);
         Assert.Equal("application/json", ContentType);
 

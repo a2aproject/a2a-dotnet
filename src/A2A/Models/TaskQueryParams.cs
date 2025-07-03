@@ -7,5 +7,3 @@ public class TaskQueryParams : TaskIdParams
     [JsonPropertyName("historyLength")]
     public int? HistoryLength { get; set; }
 }
-
-

@@ -168,5 +168,3 @@ public class ContentTypeNotSupportedError : JsonRpcError
         Message = "Incompatible content types";
     }
 }
-
-

@@ -14,6 +14,7 @@ public class HostedClientAgent
     {
         _echoClient = new A2AClient(new HttpClient() { BaseAddress = new Uri("http://localhost:5048/echo") });
     }
+
     public void Attach(TaskManager taskManager)
     {
         _taskManager = taskManager;
@@ -22,7 +23,7 @@ public class HostedClientAgent
         taskManager.OnAgentCardQuery = GetAgentCard;
     }
 
-    public async Task ExecuteAgentTask(AgentTask task)
+    private async Task ExecuteAgentTask(AgentTask task)
     {
         using var activity = ActivitySource.StartActivity("ExecuteAgentTask", ActivityKind.Server);
         activity?.SetTag("task.id", task.Id);
@@ -64,7 +65,7 @@ public class HostedClientAgent
         await _taskManager.UpdateStatusAsync(task.Id, TaskState.Completed);
     }
 
-    public AgentCard GetAgentCard(string agentUrl)
+    private AgentCard GetAgentCard(string agentUrl)
     {
         var capabilities = new AgentCapabilities()
         {

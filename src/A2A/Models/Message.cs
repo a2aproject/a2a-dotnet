@@ -37,7 +37,6 @@ public class MessageRoleConverter : JsonConverter<MessageRole>
 
 public class Message : A2AResponse
 {
-
     [JsonPropertyName("role")]
     [JsonRequired]
     public MessageRole Role { get; set; } = MessageRole.User;
@@ -58,9 +57,7 @@ public class Message : A2AResponse
 
     [JsonPropertyName("taskId")]
     public string? TaskId { get; set; }
+
     [JsonPropertyName("contextId")]
     public string? ContextId { get; set; }
-
 }
-
-

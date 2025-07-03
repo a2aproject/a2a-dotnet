@@ -14,5 +14,3 @@ public class MethodNotFoundError : JsonRpcError
         Message = "Method not found";
     }
 }
-
-

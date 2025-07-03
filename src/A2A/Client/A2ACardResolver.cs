@@ -58,7 +58,7 @@ public sealed class A2ACardResolver
                 );
 
             return JsonSerializer.Deserialize(content, A2AJsonUtilities.JsonContext.Default.AgentCard) ??
-                throw new A2AClientJsonException($"Failed to parse agent card JSON.");
+                throw new A2AClientJsonException("Failed to parse agent card JSON.");
         }
         catch (JsonException ex)
         {

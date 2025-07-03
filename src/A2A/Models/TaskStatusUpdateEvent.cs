@@ -10,5 +10,3 @@ public class TaskStatusUpdateEvent : TaskUpdateEvent
     [JsonPropertyName("final")]
     public bool Final { get; set; } = false;
 }
-
-

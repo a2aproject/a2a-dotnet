@@ -4,7 +4,6 @@ namespace A2A.AspNetCore.Tests;
 
 public class A2AHttpProcessorTests
 {
-
     [Fact]
     public async Task GetAgentCard_ShouldReturnNotNull()
     {
@@ -83,5 +82,4 @@ public class A2AHttpProcessorTests
         Assert.NotNull(result);
         Assert.IsType<A2AResponseResult>(result);
     }
-
 }

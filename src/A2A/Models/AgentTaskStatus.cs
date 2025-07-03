@@ -14,5 +14,3 @@ public class AgentTaskStatus
     [JsonPropertyName("timestamp")]
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
 }
-
-

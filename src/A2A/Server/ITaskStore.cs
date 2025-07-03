@@ -8,4 +8,3 @@ public interface ITaskStore
     Task SetTaskAsync(AgentTask task);
     Task SetPushNotificationConfigAsync(TaskPushNotificationConfig pushNotificationConfig);
 }
-

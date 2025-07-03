@@ -42,4 +42,3 @@ public class InMemoryTaskStore : ITaskStore
         return Task.CompletedTask;
     }
 }
-

@@ -12,4 +12,3 @@ public static class A2AMethods
 
     public static bool IsStreamingMethod(string method) => method is MessageStream or TaskResubscribe;
 }
-

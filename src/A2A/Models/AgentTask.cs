@@ -26,5 +26,3 @@ public class AgentTask : A2AResponse
     [JsonPropertyName("metadata")]
     public Dictionary<string, JsonElement>? Metadata { get; set; }
 }
-
-

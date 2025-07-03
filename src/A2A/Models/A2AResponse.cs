@@ -9,7 +9,6 @@ namespace A2A;
 [JsonDerivedType(typeof(AgentTask), "task")]
 public class A2AEvent
 {
-
 }
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]

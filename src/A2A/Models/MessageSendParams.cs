@@ -5,7 +5,6 @@ namespace A2A;
 
 public class MessageSendParams
 {
-
     [JsonPropertyName("message")]
     [JsonRequired]
     public Message Message { get; set; } = new Message();

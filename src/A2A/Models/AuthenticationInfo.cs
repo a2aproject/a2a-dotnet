@@ -11,5 +11,3 @@ public class AuthenticationInfo
     [JsonPropertyName("credentials")]
     public string? Credentials { get; set; }
 }
-
-

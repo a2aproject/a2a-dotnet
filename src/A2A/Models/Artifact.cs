@@ -5,7 +5,6 @@ namespace A2A;
 
 public class Artifact
 {
-
     [JsonPropertyName("artifactId")]
     [JsonRequired]
     public string ArtifactId { get; set; } = string.Empty;
@@ -22,7 +21,4 @@ public class Artifact
 
     [JsonPropertyName("metadata")]
     public Dictionary<string, JsonElement>? Metadata { get; set; }
-
 }
-
-

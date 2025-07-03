@@ -24,7 +24,6 @@ builder.Services.AddOpenTelemetry()
         })
         );
 
-
 var app = builder.Build();
 
 app.UseHttpsRedirection();
@@ -54,4 +53,3 @@ researcherAgent.Attach(researcherTaskManager);
 app.MapA2A(researcherTaskManager, "/researcher");
 
 app.Run();
-

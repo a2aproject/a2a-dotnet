@@ -1,4 +1,3 @@
-
 using System.Diagnostics;
 
 namespace A2A;
@@ -40,7 +39,6 @@ public class ResearcherAgent
     // It probably should have a cancellation token to enable the process to be cancelled.
     public async Task Invoke(string taskId, string message)
     {
-
         if (_taskManager == null)
         {
             throw new InvalidOperationException("TaskManager is not attached.");
@@ -138,7 +136,7 @@ public class ResearcherAgent
         _agentStates[taskId] = AgentState.WaitingForFeedbackOnPlan;
     }
 
-    public AgentCard GetAgentCard(string agentUrl)
+    private AgentCard GetAgentCard(string agentUrl)
     {
         var capabilities = new AgentCapabilities()
         {

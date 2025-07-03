@@ -7,5 +7,3 @@ public class TextPart : Part
     [JsonPropertyName("text")]
     public string Text { get; set; } = string.Empty;
 }
-
-

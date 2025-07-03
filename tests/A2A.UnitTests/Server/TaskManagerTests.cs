@@ -38,11 +38,9 @@ public class TaskManagerTests
         Assert.Equal("Hello, World!", messageReceived);
     }
 
-
     [Fact]
     public async Task CreateAndRetrieveTask()
     {
-
         var taskManager = new TaskManager();
         var messageSendParams = new MessageSendParams
         {
@@ -73,10 +71,8 @@ public class TaskManagerTests
         var taskManager = new TaskManager();
         var taskSendParams = new MessageSendParams
         {
-
             Message = new Message
             {
-
                 Parts = [
                     new TextPart
                     {
@@ -252,7 +248,6 @@ public class TaskManagerTests
             taskCount++;
         }
         Assert.Equal(2, taskCount);
-
     }
 
     [Fact]
@@ -287,7 +282,6 @@ public class TaskManagerTests
                 Assert.IsType<AgentTask>(taskEvent);
                 isFirstEvent = false;
             }
-
         }
     }
 
@@ -410,7 +404,7 @@ public class TaskManagerTests
 
         // Register the enumerator for the taskId
         var enumerator = await sut.SendMessageStreamAsync(sendParams);
-        
+
         // Now, ResubscribeAsync should return the same enumerator instance for the taskId
         var result = sut.ResubscribeAsync(new TaskIdParams { Id = task.Id });
         Assert.Same(enumerator, result);

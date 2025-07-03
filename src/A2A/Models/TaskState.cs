@@ -2,7 +2,6 @@ using System.Text.Json.Serialization;
 
 namespace A2A;
 
-
 [JsonConverter(typeof(TaskStateJsonConverter))]
 public enum TaskState
 {
@@ -16,5 +15,3 @@ public enum TaskState
     AuthRequired,
     Unknown
 }
-
-
