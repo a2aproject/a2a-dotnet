@@ -5,7 +5,6 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- Product dependencies netstandard -->
-    <PackageVersion Include="Microsoft.AspNetCore.Routing" Version="2.3.0" />
     <PackageVersion Include="System.Text.Json" Version="8.0.5" />
     <!-- Product dependencies shared -->
     <PackageVersion Include="System.Net.ServerSentEvents" Version="9.0.6" />

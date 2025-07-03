@@ -407,13 +407,13 @@ public class TaskManagerTests
                 Parts = [ new TextPart { Text = "init" } ]
             }
         };
+
         // Register the enumerator for the taskId
-        var _ = await sut.SendMessageStreamAsync(sendParams);
-        // Now, ResubscribeAsync should return the enumerator for the taskId
+        var enumerator = await sut.SendMessageStreamAsync(sendParams);
+        
+        // Now, ResubscribeAsync should return the same enumerator instance for the taskId
         var result = sut.ResubscribeAsync(new TaskIdParams { Id = task.Id });
-        Assert.NotNull(result);
-        // We can't use Assert.Same because we don't have a direct reference, but we can check type
-        Assert.IsAssignableFrom<IAsyncEnumerable<A2AEvent>>(result);
+        Assert.Same(enumerator, result);
     }
 
     [Fact]
