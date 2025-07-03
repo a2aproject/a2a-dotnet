@@ -4,7 +4,7 @@ namespace A2A;
 
 public static class JsonRpcErrorResponses
 {
-    public static JsonRpcErrorResponse InvalidParamsResponse(string requestId) => new()
+    public static JsonRpcResponse InvalidParamsResponse(string requestId) => new()
     {
         Id = requestId,
         Error = new JsonRpcError()
@@ -14,7 +14,7 @@ public static class JsonRpcErrorResponses
         },
     };
 
-    public static JsonRpcErrorResponse MethodNotFoundResponse(string requestId) => new()
+    public static JsonRpcResponse MethodNotFoundResponse(string requestId) => new()
     {
         Id = requestId,
         Error = new JsonRpcError
@@ -24,7 +24,7 @@ public static class JsonRpcErrorResponses
         },
     };
 
-    public static JsonRpcErrorResponse InternalErrorResponse(string requestId, string message) => new()
+    public static JsonRpcResponse InternalErrorResponse(string requestId, string message) => new()
     {
         Id = requestId,
         Error = new JsonRpcError
@@ -34,7 +34,7 @@ public static class JsonRpcErrorResponses
         },
     };
 
-    public static JsonRpcErrorResponse ParseErrorResponse(string requestId, string? message) => new()
+    public static JsonRpcResponse ParseErrorResponse(string requestId, string? message) => new()
     {
         Id = requestId,
         Error = new JsonRpcError

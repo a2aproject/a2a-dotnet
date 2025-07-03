@@ -170,17 +170,11 @@ public class JsonRpcResponseResult : IResult
     public async Task ExecuteAsync(HttpContext httpContext)
     {
         httpContext.Response.ContentType = "application/json";
+        httpContext.Response.StatusCode = jsonRpcResponse.Error is not null ?
+            StatusCodes.Status400BadRequest :
+            StatusCodes.Status200OK;
 
-        if (jsonRpcResponse is JsonRpcErrorResponse)
-        {
-            httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
-            await JsonSerializer.SerializeAsync(httpContext.Response.Body, jsonRpcResponse, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcErrorResponse)));
-        }
-        else
-        {
-            httpContext.Response.StatusCode = StatusCodes.Status200OK;
-            await JsonSerializer.SerializeAsync(httpContext.Response.Body, jsonRpcResponse, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcResponse)));
-        }
+        await JsonSerializer.SerializeAsync(httpContext.Response.Body, jsonRpcResponse, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcResponse)));
     }
 }
 

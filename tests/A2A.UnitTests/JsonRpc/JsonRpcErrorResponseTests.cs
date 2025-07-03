@@ -11,7 +11,7 @@ public class JsonRpcErrorResponseTests
         var error = new JsonRpcError { Code = 123, Message = "err" };
 
         // Act
-        var sut = new JsonRpcErrorResponse
+        var sut = new JsonRpcResponse
         {
             Id = "id1",
             JsonRpc = "2.0",
@@ -31,7 +31,7 @@ public class JsonRpcErrorResponseTests
         var node = JsonValue.Create(42);
 
         // Act
-        var sut = new JsonRpcErrorResponse { Result = node };
+        var sut = new JsonRpcResponse { Result = node };
 
         // Assert
         Assert.Equal(42, sut.Result!.GetValue<int>());

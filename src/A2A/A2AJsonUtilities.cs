@@ -35,7 +35,6 @@ public static partial class A2AJsonUtilities
     [JsonSerializable(typeof(JsonRpcError))]
     [JsonSerializable(typeof(JsonRpcRequest))]
     [JsonSerializable(typeof(JsonRpcResponse))]
-    [JsonSerializable(typeof(JsonRpcErrorResponse))]
     [JsonSerializable(typeof(Dictionary<string, JsonElement>))]
 
     // A2A

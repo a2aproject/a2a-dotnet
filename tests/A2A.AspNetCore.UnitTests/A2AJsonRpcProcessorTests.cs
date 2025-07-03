@@ -61,7 +61,7 @@ public class A2AJsonRpcProcessorTests
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
 
-        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcErrorResponse>(responseResult);
+        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
 
         Assert.Equal(StatusCodes.Status400BadRequest, StatusCode);
         Assert.Equal("application/json", ContentType);
@@ -206,7 +206,7 @@ public class A2AJsonRpcProcessorTests
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
         
-        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcErrorResponse>(responseResult);
+        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
         
         Assert.Equal(StatusCodes.Status400BadRequest, StatusCode);
         Assert.Equal("application/json", ContentType);
