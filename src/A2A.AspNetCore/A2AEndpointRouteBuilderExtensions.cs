@@ -10,7 +10,7 @@ namespace A2A.AspNetCore;
 
 public static class A2ARouteBuilderExtensions
 {
-    public static readonly ActivitySource ActivitySource = new ActivitySource("A2A.Endpoint", "1.0.0");
+    public static readonly ActivitySource ActivitySource = new("A2A.Endpoint", "1.0.0");
 
     /// <summary>
     /// Enables JSONRPC A2A endpoints for the specified path.

@@ -3,14 +3,14 @@
 /// <summary>
 /// Base exception for A2A client errors
 /// </summary>
-public class A2AClientError : Exception
+public class A2AClientException : Exception
 {
     /// <summary>
     /// Creates a new A2A client error
     /// </summary>
     /// <param name="message">The error message</param>
     /// <param name="innerException">Optional inner exception</param>
-    public A2AClientError(string message, Exception? innerException = null)
+    public A2AClientException(string message, Exception? innerException = null)
         : base(message, innerException)
     {
     }
@@ -19,7 +19,7 @@ public class A2AClientError : Exception
 /// <summary>
 /// Exception for HTTP errors
 /// </summary>
-public class A2AClientHTTPError : A2AClientError
+public class A2AClientHTTPException : A2AClientException
 {
     /// <summary>
     /// The HTTP status code
@@ -36,7 +36,7 @@ public class A2AClientHTTPError : A2AClientError
     /// </summary>
     /// <param name="statusCode">The HTTP status code</param>
     /// <param name="message">The error message</param>
-    public A2AClientHTTPError(int statusCode, string message)
+    public A2AClientHTTPException(int statusCode, string message)
         : base($"HTTP Error {statusCode}: {message}")
     {
         StatusCode = statusCode;
@@ -47,7 +47,7 @@ public class A2AClientHTTPError : A2AClientError
 /// <summary>
 /// Exception for JSON parsing errors
 /// </summary>
-public class A2AClientJsonError : A2AClientError
+public class A2AClientJsonException : A2AClientException
 {
     /// <summary>
     /// The error message
@@ -58,7 +58,7 @@ public class A2AClientJsonError : A2AClientError
     /// Creates a new JSON error
     /// </summary>
     /// <param name="message">The error message</param>
-    public A2AClientJsonError(string message)
+    public A2AClientJsonException(string message)
         : base($"JSON Error: {message}")
     {
         ErrorMessage = message;
@@ -68,12 +68,12 @@ public class A2AClientJsonError : A2AClientError
 /// <summary>
 /// Exception for missing API key
 /// </summary>
-public class MissingAPIKeyError : Exception
+public class MissingAPIKeyException : Exception
 {
     /// <summary>
     /// Creates a new missing API key error
     /// </summary>
-    public MissingAPIKeyError()
+    public MissingAPIKeyException()
         : base("API key is required but was not provided")
     {
     }

@@ -1,7 +1,7 @@
 ﻿using System.Net;
+using System.Net.ServerSentEvents;
 using System.Text;
 using System.Text.Json;
-using System.Net.ServerSentEvents;
 
 namespace A2A.UnitTests.Client;
 
@@ -25,11 +25,11 @@ public class A2AClientTests
                 TaskId = "task-1",
                 ContextId = "ctx-1",
                 Metadata = new Dictionary<string, JsonElement> { { "foo", JsonDocument.Parse("\"bar\"").RootElement } },
-                ReferenceTaskIds = new List<string> { "ref-1" }
+                ReferenceTaskIds = ["ref-1"]
             },
             Configuration = new MessageSendConfiguration
             {
-                AcceptedOutputModes = new List<string> { "mode1" },
+                AcceptedOutputModes = ["mode1"],
                 PushNotification = new PushNotificationConfig { Url = "http://push" },
                 HistoryLength = 5,
                 Blocking = true
@@ -75,13 +75,13 @@ public class A2AClientTests
         var expectedMessage = new Message
         {
             Role = MessageRole.Agent,
-            Parts = new List<Part>
-            {
+            Parts =
+            [
                 new TextPart { Text = "Test text" },
                 new DataPart { Data = new Dictionary<string, JsonElement> { { "key", JsonDocument.Parse("\"value\"").RootElement } } },
-            },
+            ],
             Metadata = new Dictionary<string, JsonElement> { { "metaKey", JsonDocument.Parse("\"metaValue\"").RootElement } },
-            ReferenceTaskIds = new List<string> { "ref1", "ref2" },
+            ReferenceTaskIds = ["ref1", "ref2"],
             MessageId = "msg-123",
             TaskId = "task-456",
             ContextId = "ctx-789"
@@ -141,8 +141,8 @@ public class A2AClientTests
             Id = "task-1",
             ContextId = "ctx-ctx",
             Status = new AgentTaskStatus { State = TaskState.Working },
-            Artifacts = new List<Artifact> { new Artifact { ArtifactId = "a1", Parts = { new TextPart { Text = "part" } } } },
-            History = new List<Message> { new Message { MessageId = "m1" } },
+            Artifacts = [new Artifact { ArtifactId = "a1", Parts = { new TextPart { Text = "part" } } }],
+            History = [new Message { MessageId = "m1" }],
             Metadata = new Dictionary<string, JsonElement> { { "foo", JsonDocument.Parse("\"bar\"").RootElement } }
         };
         var sut = CreateA2AClient(expectedTask);
@@ -198,8 +198,8 @@ public class A2AClientTests
             Id = "task-1",
             ContextId = "ctx-ctx",
             Status = new AgentTaskStatus { State = TaskState.Working },
-            Artifacts = new List<Artifact> { new Artifact { ArtifactId = "a1", Parts = { new TextPart { Text = "part" } } } },
-            History = new List<Message> { new Message { MessageId = "m1" } },
+            Artifacts = [new Artifact { ArtifactId = "a1", Parts = { new TextPart { Text = "part" } } }],
+            History = [new Message { MessageId = "m1" }],
             Metadata = new Dictionary<string, JsonElement> { { "foo", JsonDocument.Parse("\"bar\"").RootElement } }
         };
         var sut = CreateA2AClient(expectedTask);
@@ -291,10 +291,10 @@ public class A2AClientTests
     public async Task GetPushNotificationAsync_MapsRequestParamsCorrectly()
     {
         // Arrange
-        var config = new TaskPushNotificationConfig 
-        { 
-            Id = "task-4", 
-            PushNotificationConfig = new PushNotificationConfig { Url = "http://push-url2" } 
+        var config = new TaskPushNotificationConfig
+        {
+            Id = "task-4",
+            PushNotificationConfig = new PushNotificationConfig { Url = "http://push-url2" }
         };
 
         HttpRequestMessage? capturedRequest = null;
@@ -366,11 +366,11 @@ public class A2AClientTests
                 TaskId = "task-1",
                 ContextId = "ctx-1",
                 Metadata = new Dictionary<string, JsonElement> { { "foo", JsonDocument.Parse("\"bar\"").RootElement } },
-                ReferenceTaskIds = new List<string> { "ref-1" }
+                ReferenceTaskIds = ["ref-1"]
             },
             Configuration = new MessageSendConfiguration
             {
-                AcceptedOutputModes = new List<string> { "mode1" },
+                AcceptedOutputModes = ["mode1"],
                 PushNotification = new PushNotificationConfig { Url = "http://push" },
                 HistoryLength = 5,
                 Blocking = true
@@ -425,18 +425,18 @@ public class A2AClientTests
         var expectedMessage = new Message
         {
             Role = MessageRole.Agent,
-            Parts = new List<Part>
-            {
+            Parts =
+            [
                 new TextPart { Text = "Test text" },
                 new DataPart { Data = new Dictionary<string, JsonElement> { { "key", JsonDocument.Parse("\"value\"").RootElement } } },
-            },
+            ],
             Metadata = new Dictionary<string, JsonElement> { { "metaKey", JsonDocument.Parse("\"metaValue\"").RootElement } },
-            ReferenceTaskIds = new List<string> { "ref1", "ref2" },
+            ReferenceTaskIds = ["ref1", "ref2"],
             MessageId = "msg-123",
             TaskId = "task-456",
             ContextId = "ctx-789"
         };
-        var sseEventJson = JsonSerializer.Serialize(expectedMessage, typeof(A2AEvent), new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+        var sseEventJson = JsonSerializer.Serialize<A2AEvent>(expectedMessage, A2AJsonUtilities.DefaultOptions);
         var sseData = $"event: message\ndata: {sseEventJson}\n\n";
         var sseStream = new MemoryStream(Encoding.UTF8.GetBytes(sseData));
         var response = new HttpResponseMessage(HttpStatusCode.OK)
@@ -509,18 +509,18 @@ public class A2AClientTests
         var expectedMessage = new Message
         {
             Role = MessageRole.Agent,
-            Parts = new List<Part>
-            {
+            Parts =
+            [
                 new TextPart { Text = "Test text" },
                 new DataPart { Data = new Dictionary<string, JsonElement> { { "key", JsonDocument.Parse("\"value\"").RootElement } } },
-            },
+            ],
             Metadata = new Dictionary<string, JsonElement> { { "metaKey", JsonDocument.Parse("\"metaValue\"").RootElement } },
-            ReferenceTaskIds = new List<string> { "ref1", "ref2" },
+            ReferenceTaskIds = ["ref1", "ref2"],
             MessageId = "msg-123",
             TaskId = "task-456",
             ContextId = "ctx-789"
         };
-        var sseEventJson = JsonSerializer.Serialize(expectedMessage, typeof(A2AEvent), new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+        var sseEventJson = JsonSerializer.Serialize<A2AEvent>(expectedMessage, A2AJsonUtilities.DefaultOptions);
         var sseData = $"event: message\ndata: {sseEventJson}\n\n";
         var sseStream = new MemoryStream(Encoding.UTF8.GetBytes(sseData));
         var response = new HttpResponseMessage(HttpStatusCode.OK)

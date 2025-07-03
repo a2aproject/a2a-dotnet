@@ -1,10 +1,10 @@
-﻿using Microsoft.AspNetCore.Builder;
+﻿using A2A;
+using A2A.AspNetCore;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using SemanticKernelAgent;
-using A2A.AspNetCore;
-using A2A;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddHttpClient()

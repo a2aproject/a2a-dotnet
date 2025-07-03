@@ -7,7 +7,7 @@ public class MethodNotFoundErrorTests
     {
         // Act
         var sut = new MethodNotFoundError();
-        
+
         // Assert
         Assert.Equal(-32601, sut.Code);
         Assert.Equal("Method not found", sut.Message);

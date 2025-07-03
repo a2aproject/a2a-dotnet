@@ -7,10 +7,10 @@ public class ErrorTypesTests
     {
         // Arrange
         var inner = new InvalidOperationException("inner");
-        
+
         // Act
-        var sut = new A2AClientError("msg", inner);
-        
+        var sut = new A2AClientException("msg", inner);
+
         // Assert
         Assert.Equal("msg", sut.Message);
         Assert.Equal(inner, sut.InnerException);
@@ -20,8 +20,8 @@ public class ErrorTypesTests
     public void A2AClientHTTPError_PropertiesSetCorrectly()
     {
         // Act
-        var sut = new A2AClientHTTPError(404, "Not Found");
-        
+        var sut = new A2AClientHTTPException(404, "Not Found");
+
         // Assert
         Assert.Equal(404, sut.StatusCode);
         Assert.Equal("Not Found", sut.ErrorMessage);
@@ -33,8 +33,8 @@ public class ErrorTypesTests
     public void A2AClientJsonError_PropertiesSetCorrectly()
     {
         // Act
-        var sut = new A2AClientJsonError("bad json");
-        
+        var sut = new A2AClientJsonException("bad json");
+
         // Assert
         Assert.Equal("bad json", sut.ErrorMessage);
         Assert.Contains("bad json", sut.Message);
@@ -44,8 +44,8 @@ public class ErrorTypesTests
     public void MissingAPIKeyError_HasExpectedMessage()
     {
         // Act
-        var sut = new MissingAPIKeyError();
-        
+        var sut = new MissingAPIKeyException();
+
         // Assert
         Assert.Equal("API key is required but was not provided", sut.Message);
     }
@@ -55,7 +55,7 @@ public class ErrorTypesTests
     {
         // Act
         var sut = new InternalError();
-        
+
         // Assert
         Assert.Equal(-32603, sut.Code);
         Assert.Equal("Internal error", sut.Message);
@@ -66,7 +66,7 @@ public class ErrorTypesTests
     {
         // Act
         var sut = new TaskNotFoundError();
-        
+
         // Assert
         Assert.Equal(-32001, sut.Code);
         Assert.Equal("Task not found", sut.Message);
@@ -77,7 +77,7 @@ public class ErrorTypesTests
     {
         // Act
         var sut = new TaskNotCancelableError();
-        
+
         // Assert
         Assert.Equal(-32002, sut.Code);
         Assert.Equal("Task cannot be canceled", sut.Message);
@@ -88,7 +88,7 @@ public class ErrorTypesTests
     {
         // Act
         var sut = new PushNotificationNotSupportedError();
-        
+
         // Assert
         Assert.Equal(-32003, sut.Code);
         Assert.Equal("Push Notification is not supported", sut.Message);
@@ -99,7 +99,7 @@ public class ErrorTypesTests
     {
         // Act
         var sut = new UnsupportedOperationError();
-        
+
         // Assert
         Assert.Equal(-32004, sut.Code);
         Assert.Equal("This operation is not supported", sut.Message);
@@ -110,7 +110,7 @@ public class ErrorTypesTests
     {
         // Act
         var sut = new ContentTypeNotSupportedError();
-        
+
         // Assert
         Assert.Equal(-32005, sut.Code);
         Assert.Equal("Incompatible content types", sut.Message);

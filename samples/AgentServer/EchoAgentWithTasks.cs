@@ -1,13 +1,14 @@
-using System.Diagnostics;
 using A2A;
+
+namespace AgentServer;
 
 public class EchoAgentWithTasks
 {
-    private ITaskManager? _TaskManager = null;
+    private TaskManager? _taskManager;
 
     public void Attach(TaskManager taskManager)
     {
-        _TaskManager = taskManager;
+        _taskManager = taskManager;
         taskManager.OnTaskCreated = ProcessMessage;
         taskManager.OnTaskUpdated = ProcessMessage;
         taskManager.OnAgentCardQuery = GetAgentCard;
@@ -18,13 +19,13 @@ public class EchoAgentWithTasks
         // Process the message
         var messageText = task.History!.Last().Parts.OfType<TextPart>().First().Text;
 
-        await _TaskManager!.ReturnArtifactAsync(task.Id, new Artifact()
+        await _taskManager!.ReturnArtifactAsync(task.Id, new Artifact()
         {
             Parts = [new TextPart() {
                 Text = $"Echo: {messageText}"
             }]
         });
-        await _TaskManager!.UpdateStatusAsync(task.Id, TaskState.Completed,final: true);
+        await _taskManager!.UpdateStatusAsync(task.Id, TaskState.Completed, final: true);
     }
 
     public AgentCard GetAgentCard(string agentUrl)

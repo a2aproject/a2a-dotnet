@@ -43,12 +43,7 @@ public class A2AHttpProcessor
                 Metadata = string.IsNullOrWhiteSpace(metadata) ? null : (Dictionary<string, JsonElement>?)JsonSerializer.Deserialize(metadata, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(Dictionary<string, JsonElement>)))
             });
 
-            if (agentTask == null)
-            {
-                return Results.NotFound();
-            }
-
-            return new A2AResponseResult(agentTask);
+            return agentTask is not null ? new A2AResponseResult(agentTask) : Results.NotFound();
         }
         catch (Exception ex)
         {
@@ -88,30 +83,30 @@ public class A2AHttpProcessor
         }
 
         try
+        {
+            if (taskId != null)
             {
-                if (taskId != null)
-                {
-                    sendParams.Message.TaskId = taskId;
-                }
-                sendParams.Configuration = new MessageSendConfiguration
-                {
-                    HistoryLength = historyLength
-                };
-                sendParams.Metadata = string.IsNullOrWhiteSpace(metadata) ? null : (Dictionary<string, JsonElement>?)JsonSerializer.Deserialize(metadata, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(Dictionary<string, JsonElement>)));
-
-                var a2aResponse = await taskManager.SendMessageAsync(sendParams);
-                if (a2aResponse == null)
-                {
-                    return Results.NotFound();
-                }
-
-                return new A2AResponseResult(a2aResponse);
+                sendParams.Message.TaskId = taskId;
             }
-            catch (Exception ex)
+            sendParams.Configuration = new MessageSendConfiguration
             {
-                logger.LogError(ex, "Error sending message to task");
-                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+                HistoryLength = historyLength
+            };
+            sendParams.Metadata = string.IsNullOrWhiteSpace(metadata) ? null : (Dictionary<string, JsonElement>?)JsonSerializer.Deserialize(metadata, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(Dictionary<string, JsonElement>)));
+
+            var a2aResponse = await taskManager.SendMessageAsync(sendParams);
+            if (a2aResponse == null)
+            {
+                return Results.NotFound();
             }
+
+            return new A2AResponseResult(a2aResponse);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error sending message to task");
+            return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+        }
     }
 
     internal static async Task<IResult> SendSubscribeTaskMessage(TaskManager taskManager, ILogger logger, string id, MessageSendParams sendParams, int? historyLength, string? metadata)

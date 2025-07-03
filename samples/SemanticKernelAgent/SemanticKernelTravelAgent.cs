@@ -1,9 +1,9 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using A2A;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
 using Polly;
-using A2A;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Text.Json;
@@ -19,7 +19,7 @@ public class CurrencyPlugin
 {
     private readonly ILogger<CurrencyPlugin> _logger;
     private readonly HttpClient _httpClient;
-    private readonly IAsyncPolicy<HttpResponseMessage> _retryPolicy;
+    private readonly AsyncPolicy<HttpResponseMessage> _retryPolicy;
 
     /// <summary>
     /// Initialize a new instance of the CurrencyPlugin
@@ -87,13 +87,10 @@ public class CurrencyPlugin
     /// </summary>
     /// <param name="response">HTTP response message</param>
     /// <returns>True if the status code indicates a transient error</returns>
-    private bool IsTransientError(HttpResponseMessage response)
-    {
-        int statusCode = (int)response.StatusCode;
-        return statusCode == 408 // Request Timeout
-            || statusCode == 429 // Too Many Requests
-            || statusCode >= 500 && statusCode < 600; // Server errors
-    }
+    private static bool IsTransientError(HttpResponseMessage response) =>
+        (int)response.StatusCode is 408 // Request Timeout
+            or 429 // Too Many Requests
+            or >= 500 and < 600; // Server errors
 }
 #endregion
 
@@ -104,7 +101,7 @@ public class CurrencyPlugin
 /// </summary>
 public class SemanticKernelTravelAgent : IDisposable
 {
-    public static readonly ActivitySource ActivitySource = new ActivitySource("A2A.SemanticKernelTravelAgent", "1.0.0");
+    public static readonly ActivitySource ActivitySource = new("A2A.SemanticKernelTravelAgent", "1.0.0");
 
     /// <summary>
     /// Initializes a new instance of the SemanticKernelTravelAgent
@@ -140,7 +137,7 @@ public class SemanticKernelTravelAgent : IDisposable
 
     public void Attach(TaskManager taskManager)
     {
-        this._taskManager = taskManager;
+        _taskManager = taskManager;
         taskManager.OnTaskCreated = ExecuteAgentTask;
         taskManager.OnTaskUpdated = ExecuteAgentTask;
         taskManager.OnAgentCardQuery = GetAgentCard;
@@ -150,7 +147,7 @@ public class SemanticKernelTravelAgent : IDisposable
     {
         if (_taskManager == null)
         {
-            throw new Exception("TaskManager is not attached.");
+            throw new InvalidOperationException("TaskManager is not attached.");
         }
 
         await _taskManager.UpdateStatusAsync(task.Id, TaskState.Working);
@@ -171,7 +168,7 @@ public class SemanticKernelTravelAgent : IDisposable
         await _taskManager.UpdateStatusAsync(task.Id, TaskState.Completed);
     }
 
-    public AgentCard GetAgentCard(string agentUrl)
+    public static AgentCard GetAgentCard(string agentUrl)
     {
         var capabilities = new AgentCapabilities()
         {
@@ -213,7 +210,7 @@ public class SemanticKernelTravelAgent : IDisposable
     private readonly ChatCompletionAgent _agent;
     private TaskManager? _taskManager;
 
-    public readonly List<string> SupportedContentTypes = new() { "text", "text/plain" };
+    public List<string> SupportedContentTypes { get; } = ["text", "text/plain"];
 
     private ChatCompletionAgent InitializeAgent()
     {
@@ -223,7 +220,7 @@ public class SemanticKernelTravelAgent : IDisposable
             string apiKey = openAiConfig["ApiKey"] ?? throw new ArgumentException("OPENAI_API_KEY must be provided");
             string modelId = openAiConfig["Model"] ?? "gpt-4.1";
 
-            _logger.LogInformation($"Initializing Semantic Kernel agent with model {modelId}", modelId);
+            _logger.LogInformation("Initializing Semantic Kernel agent with model {ModelId}", modelId);
 
             // Define the TravelPlannerAgent
             var builder = Kernel.CreateBuilder();
@@ -235,7 +232,7 @@ public class SemanticKernelTravelAgent : IDisposable
             {
                 Kernel = kernel,
                 Arguments = new KernelArguments(new PromptExecutionSettings()
-                    { FunctionChoiceBehavior = FunctionChoiceBehavior.Auto() }),
+                { FunctionChoiceBehavior = FunctionChoiceBehavior.Auto() }),
                 Name = "TravelPlannerAgent",
                 Instructions =
                     """

@@ -17,7 +17,7 @@ public class JsonRpcErrorResponseTests
             JsonRpc = "2.0",
             Error = error
         };
-        
+
         // Assert
         Assert.Equal("id1", sut.Id);
         Assert.Equal("2.0", sut.JsonRpc);
@@ -32,7 +32,7 @@ public class JsonRpcErrorResponseTests
 
         // Act
         var sut = new JsonRpcErrorResponse { Result = node };
-        
+
         // Assert
         Assert.Equal(42, sut.Result!.GetValue<int>());
     }

@@ -281,7 +281,7 @@ public class TaskManagerTests
         var isFirstEvent = true;
         await foreach (var taskEvent in taskEvents)
         {
-            if(isFirstEvent)
+            if (isFirstEvent)
             {
                 Assert.NotNull(taskEvent);
                 Assert.IsType<AgentTask>(taskEvent);

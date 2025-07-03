@@ -1,5 +1,4 @@
 ﻿using System.Text.Json;
-using A2A.AspNetCore;
 
 namespace A2A.UnitTests.Client
 {
@@ -24,7 +23,7 @@ namespace A2A.UnitTests.Client
 
             // Act
             await sut.CopyToAsync(ms);
-            
+
             ms.Position = 0;
             using var doc = JsonDocument.Parse(ms);
 

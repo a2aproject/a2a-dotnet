@@ -8,7 +8,7 @@ namespace A2A;
 [JsonDerivedType(typeof(FileWithUri), "uri")]
 public class FileContent
 {
-    public Dictionary<string, JsonElement> Metadata = new Dictionary<string, JsonElement>();
+    public Dictionary<string, JsonElement> Metadata { get; set; } = [];
 }
 
 public class FileWithBytes : FileContent

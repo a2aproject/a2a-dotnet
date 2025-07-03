@@ -51,15 +51,19 @@ public sealed class A2ACardResolver
 
             response.EnsureSuccessStatusCode();
 
-            var content = await response.Content.ReadAsStreamAsync();
+            var content = await response.Content.ReadAsStreamAsync(
+#if NET8_0_OR_GREATER
+                cancellationToken
+#endif
+                );
 
-            return JsonSerializer.Deserialize(content, A2AJsonUtilities.JsonContext.Default.AgentCard) ?? 
-                throw new A2AClientJsonError($"Failed to parse agent card JSON.");
+            return JsonSerializer.Deserialize(content, A2AJsonUtilities.JsonContext.Default.AgentCard) ??
+                throw new A2AClientJsonException($"Failed to parse agent card JSON.");
         }
         catch (JsonException ex)
         {
             _logger?.LogError(ex, "Failed to parse agent card JSON");
-            throw new A2AClientJsonError($"Failed to parse JSON: {ex.Message}");
+            throw new A2AClientJsonException($"Failed to parse JSON: {ex.Message}");
         }
         catch (HttpRequestException ex)
         {
@@ -69,7 +73,7 @@ public sealed class A2ACardResolver
             int statusCode = (int)System.Net.HttpStatusCode.InternalServerError;
 #endif
             _logger?.LogError(ex, "HTTP request failed with status code {StatusCode}", statusCode);
-            throw new A2AClientHTTPError(statusCode, ex.Message);
+            throw new A2AClientHTTPException(statusCode, ex.Message);
         }
     }
 

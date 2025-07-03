@@ -64,7 +64,7 @@ public class AgentCard
     /// Optional authentication information
     /// </summary>
     [JsonPropertyName("securitySchemes")]
-    public Dictionary<string,SecurityScheme>? SecuritySchemes { get; set; }
+    public Dictionary<string, SecurityScheme>? SecuritySchemes { get; set; }
 
     public Dictionary<string, string[]>? Security { get; set; }
 
@@ -72,20 +72,20 @@ public class AgentCard
     /// Default input modes supported
     /// </summary>
     [JsonPropertyName("defaultInputModes")]
-    public List<string> DefaultInputModes { get; set; } = new List<string> { "text" };
+    public List<string> DefaultInputModes { get; set; } = ["text"];
 
     /// <summary>
     /// Default output modes supported
     /// </summary>
     [JsonPropertyName("defaultOutputModes")]
-    public List<string> DefaultOutputModes { get; set; } = new List<string> { "text" };
+    public List<string> DefaultOutputModes { get; set; } = ["text"];
 
     /// <summary>
     /// The skills provided by this agent
     /// </summary>
     [JsonPropertyName("skills")]
     [Required]
-    public List<AgentSkill> Skills { get; set; } = new List<AgentSkill>();
+    public List<AgentSkill> Skills { get; set; } = [];
 
     /// <summary>
     /// Indicates support for retrieving a more detailed Agent Card via an authenticated endpoint.

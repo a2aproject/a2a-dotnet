@@ -1,0 +1,18 @@
+root = true
+
+# All files
+[*]
+indent_style = space
+
+# Xml files
+[*.xml]
+indent_size = 2
+
+# CS files
+[*.cs]
+indent_size = 4
+
+dotnet_diagnostic.CA1001.severity = suggestion      # CA1001: Type owns disposable field(s) but is not disposable
+dotnet_diagnostic.CA1848.severity = suggestion      # CA1848: For improved performance, use the LoggerMessage delegates
+dotnet_diagnostic.CA1707.severity = none            # CA1707: Remove underscores from member name
+dotnet_diagnostic.IDE0130.severity = none           # IDE0130: Namespace does not match folder structure

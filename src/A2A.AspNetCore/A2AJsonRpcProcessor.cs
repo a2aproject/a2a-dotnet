@@ -8,7 +8,7 @@ namespace A2A.AspNetCore;
 
 public static class A2AJsonRpcProcessor
 {
-    public static readonly ActivitySource ActivitySource = new ActivitySource("A2A.Processor", "1.0.0");
+    public static readonly ActivitySource ActivitySource = new("A2A.Processor", "1.0.0");
 
     internal static async Task<IResult> ProcessRequest(TaskManager taskManager, JsonRpcRequest rpcRequest)
     {
@@ -205,7 +205,7 @@ public class JsonRpcStreamedResult : IResult
         {
             var sseItem = new A2ASseItem()
             {
-                Data = JsonRpcResponse.CreateJsonRpcResponse(this.requestId, taskEvent),
+                Data = JsonRpcResponse.CreateJsonRpcResponse(requestId, taskEvent),
             };
             await sseItem.WriteAsync(httpContext.Response.BodyWriter);
         }
