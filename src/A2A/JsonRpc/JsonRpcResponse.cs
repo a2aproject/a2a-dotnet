@@ -40,27 +40,57 @@ public class JsonRpcResponse
         },
     };
 
+    public static JsonRpcResponse TaskNotFoundResponse(string requestId) => new()
+    {
+        Id = requestId,
+        Error = new JsonRpcError
+        {
+            Code = -32001,
+            Message = "Task not found",
+        },
+    };
+
+    public static JsonRpcResponse TaskNotCancelableResponse(string requestId) => new()
+    {
+        Id = requestId,
+        Error = new JsonRpcError
+        {
+            Code = -32002,
+            Message = "Task cannot be canceled",
+        },
+    };
+
     public static JsonRpcResponse MethodNotFoundResponse(string requestId) => new()
     {
         Id = requestId,
         Error = new JsonRpcError
         {
             Code = -32601,
-            Message = "Method not found"
+            Message = "Method not found",
         },
     };
 
-    public static JsonRpcResponse InternalErrorResponse(string requestId, string message) => new()
+    public static JsonRpcResponse PushNotificationNotSupportedResponse(string requestId) => new()
+    {
+        Id = requestId,
+        Error = new JsonRpcError
+        {
+            Code = -32003,
+            Message = "Push notification not supported",
+        },
+    };
+
+    public static JsonRpcResponse InternalErrorResponse(string requestId, string? message = null) => new()
     {
         Id = requestId,
         Error = new JsonRpcError
         {
             Code = -32603,
-            Message = message
+            Message = message ?? "Internal error",
         },
     };
 
-    public static JsonRpcResponse ParseErrorResponse(string requestId, string? message) => new()
+    public static JsonRpcResponse ParseErrorResponse(string requestId, string? message = null) => new()
     {
         Id = requestId,
         Error = new JsonRpcError
@@ -69,64 +99,24 @@ public class JsonRpcResponse
             Message = message ?? "Invalid JSON payload",
         },
     };
+
+    public static JsonRpcResponse UnsupportedOperationResponse(string requestId, string? message = null) => new()
+    {
+        Id = requestId,
+        Error = new JsonRpcError
+        {
+            Code = -32004,
+            Message = message ?? "Unsupported operation",
+        },
+    };
+
+    public static JsonRpcResponse ContentTypeNotSupportedResponse(string requestId, string? message = null) => new()
+    {
+        Id = requestId,
+        Error = new JsonRpcError
+        {
+            Code = -32005,
+            Message = message ?? "Content type not supported",
+        },
+    };
 }
-
-// public class JsonRpcResponse<T> : JsonRpcResponse
-// {
-//     public static JsonRpcResponse<T> CreateJsonRpcResponse(string requestId, T result)
-//     {
-//         return new JsonRpcResponse<T>()
-//         {
-//             Id = requestId,
-//             Result = result,
-//             JsonRpc = "2.0"
-//         };
-//     }
-
-//     [JsonPropertyName("result")]
-//     public T? Result { get; set; }
-
-// }
-
-// public class JsonRpcResponseConverter<T> : JsonConverter<JsonRpcResponse<T>>
-// {
-//     public override JsonRpcResponse<T>? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-//     {
-//         using (JsonDocument document = JsonDocument.ParseValue(ref reader))
-//         {
-//             var rootElement = document.RootElement;
-
-//             var jsonRpc = rootElement.GetProperty("jsonrpc").GetString();
-//             var id = rootElement.GetProperty("id").GetString();
-
-//             JsonRpcResponse<T> response = new JsonRpcResponse<T>
-//             {
-//                 JsonRpc = jsonRpc ?? "2.0",
-//                 Id = id ?? string.Empty
-//             };
-
-//             if (rootElement.TryGetProperty("result", out var resultProperty))
-//             {
-//                 response.Result = resultProperty.Deserialize<T>(options);
-//             }
-
-//             return response;
-//         }
-//     }
-
-//     public override void Write(Utf8JsonWriter writer, JsonRpcResponse<T> value, JsonSerializerOptions options)
-//     {
-//         writer.WriteStartObject();
-
-//         writer.WriteString("jsonrpc", value.JsonRpc);
-//         writer.WriteString("id", value.Id);
-
-//         if (value.Result != null)
-//         {
-//             writer.WritePropertyName("result");
-//             JsonSerializer.Serialize(writer, value.Result, value.Result.GetType(), options);
-//         }
-
-//         writer.WriteEndObject();
-//     }
-// }

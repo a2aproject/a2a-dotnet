@@ -54,65 +54,71 @@ public class ErrorTypesTests
     public void InternalError_HasExpectedCodeAndMessage()
     {
         // Act
-        var sut = new InternalError();
+        var sut = JsonRpcResponse.InternalErrorResponse("123");
 
         // Assert
-        Assert.Equal(-32603, sut.Code);
-        Assert.Equal("Internal error", sut.Message);
+        Assert.Equal("123", sut.Id);
+        Assert.Equal(-32603, sut.Error?.Code);
+        Assert.Equal("Internal error", sut.Error?.Message);
     }
 
     [Fact]
     public void TaskNotFoundError_HasExpectedCodeAndMessage()
     {
         // Act
-        var sut = new TaskNotFoundError();
+        var sut = JsonRpcResponse.TaskNotFoundResponse("123");
 
         // Assert
-        Assert.Equal(-32001, sut.Code);
-        Assert.Equal("Task not found", sut.Message);
+        Assert.Equal("123", sut.Id);
+        Assert.Equal(-32001, sut.Error?.Code);
+        Assert.Equal("Task not found", sut.Error?.Message);
     }
 
     [Fact]
     public void TaskNotCancelableError_HasExpectedCodeAndMessage()
     {
         // Act
-        var sut = new TaskNotCancelableError();
+        var sut = JsonRpcResponse.TaskNotCancelableResponse("123");
 
         // Assert
-        Assert.Equal(-32002, sut.Code);
-        Assert.Equal("Task cannot be canceled", sut.Message);
+        Assert.Equal("123", sut.Id);
+        Assert.Equal(-32002, sut.Error?.Code);
+        Assert.Equal("Task cannot be canceled", sut.Error?.Message);
     }
 
     [Fact]
     public void PushNotificationNotSupportedError_HasExpectedCodeAndMessage()
     {
         // Act
-        var sut = new PushNotificationNotSupportedError();
+        var sut = JsonRpcResponse.PushNotificationNotSupportedResponse("123");
 
         // Assert
-        Assert.Equal(-32003, sut.Code);
-        Assert.Equal("Push Notification is not supported", sut.Message);
+        Assert.Equal("123", sut.Id);
+        Assert.Equal(-32003, sut.Error?.Code);
+        Assert.Equal("Push notification not supported", sut.Error?.Message);
     }
 
     [Fact]
     public void UnsupportedOperationError_HasExpectedCodeAndMessage()
     {
         // Act
-        var sut = new UnsupportedOperationError();
+        var sut = JsonRpcResponse.UnsupportedOperationResponse("123");
 
         // Assert
-        Assert.Equal(-32004, sut.Code);
-        Assert.Equal("This operation is not supported", sut.Message);
+        Assert.Equal("123", sut.Id);
+        Assert.Equal(-32004, sut.Error?.Code);
+        Assert.Equal("Unsupported operation", sut.Error?.Message);
     }
 
     [Fact]
     public void ContentTypeNotSupportedError_HasExpectedCodeAndMessage()
     {
         // Act
-        var sut = new ContentTypeNotSupportedError();
+        var sut = JsonRpcResponse.ContentTypeNotSupportedResponse("123");
 
         // Assert
-        Assert.Equal(-32005, sut.Code);
-        Assert.Equal("Incompatible content types", sut.Message);
+        Assert.Equal("123", sut.Id);
+        Assert.Equal(-32005, sut.Error?.Code);
+        Assert.Equal("Content type not supported", sut.Error?.Message);
     }
 }
