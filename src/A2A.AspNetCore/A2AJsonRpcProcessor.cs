@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using System.Diagnostics;
-using System.IO.Pipelines;
-using System.Text;
+using System.Net.ServerSentEvents;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 
 namespace A2A.AspNetCore;
@@ -192,28 +192,15 @@ public class JsonRpcStreamedResult : IResult
         httpContext.Response.ContentType = "text/event-stream";
         httpContext.Response.Headers.Append("Cache-Control", "no-cache");
 
-        await foreach (var taskEvent in _events)
-        {
-            var sseItem = new A2ASseItem()
+        var responseTypeInfo = A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcResponse));
+        await SseFormatter.WriteAsync(
+            _events.Select(e => new SseItem<JsonRpcResponse>(JsonRpcResponse.CreateJsonRpcResponse(requestId, e))),
+            httpContext.Response.Body,
+            (item, writer) =>
             {
-                Data = JsonRpcResponse.CreateJsonRpcResponse(requestId, taskEvent),
-            };
-            await sseItem.WriteAsync(httpContext.Response.BodyWriter);
-        }
-    }
-}
-
-public class A2ASseItem
-{
-    public JsonRpcResponse? Data { get; set; }
-
-    public async Task WriteAsync(PipeWriter writer)
-    {
-        if (Data != null)
-        {
-            string json = JsonSerializer.Serialize(Data, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcResponse)));
-            await writer.WriteAsync(Encoding.UTF8.GetBytes($"data: {json}\n\n"));
-            await writer.FlushAsync();
-        }
+                using Utf8JsonWriter json = new(writer, new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
+                JsonSerializer.Serialize(json, item.Data, responseTypeInfo);
+            },
+            httpContext.RequestAborted);
     }
 }
