@@ -6,7 +6,7 @@ namespace A2A;
 public class DataPart : Part
 {
     [JsonPropertyName("data")]
-    public Dictionary<string, JsonElement> Data { get; set; } = new Dictionary<string, JsonElement>();
+    public Dictionary<string, JsonElement> Data { get; set; } = [];
 }
 
 

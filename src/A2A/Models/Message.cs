@@ -44,7 +44,7 @@ public class Message : A2AResponse
 
     [JsonPropertyName("parts")]
     [JsonRequired]
-    public List<Part> Parts { get; set; } = new List<Part>();
+    public List<Part> Parts { get; set; } = [];
 
     [JsonPropertyName("metadata")]
     public Dictionary<string, JsonElement>? Metadata { get; set; }

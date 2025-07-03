@@ -54,7 +54,7 @@ public class A2ACardResolverTests
         var resolver = new A2ACardResolver(httpClient);
 
         // Act & Assert
-        await Assert.ThrowsAsync<A2AClientJsonError>(() => resolver.GetAgentCardAsync());
+        await Assert.ThrowsAsync<A2AClientJsonException>(() => resolver.GetAgentCardAsync());
     }
 
     [Fact]
@@ -67,6 +67,6 @@ public class A2ACardResolverTests
         var resolver = new A2ACardResolver(httpClient);
 
         // Act & Assert
-        await Assert.ThrowsAsync<A2AClientHTTPError>(() => resolver.GetAgentCardAsync());
+        await Assert.ThrowsAsync<A2AClientHTTPException>(() => resolver.GetAgentCardAsync());
     }
 }

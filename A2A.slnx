@@ -10,6 +10,7 @@
     <Project Path="src/A2A.AspNetCore/A2A.AspNetCore.csproj" />
   </Folder>
    <Folder Name="/Solution Items/">
+     <File Path=".editorconfig" />
      <File Path=".gitignore" />
     <File Path="Directory.Build.props" />
     <File Path="Directory.Packages.props" />

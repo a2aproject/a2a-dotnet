@@ -15,14 +15,14 @@ public class A2AClient : IA2AClient
 
     public Task<A2AResponse> SendMessageAsync(MessageSendParams taskSendParams) =>
         RpcRequest(
-            taskSendParams, 
+            taskSendParams,
             A2AMethods.MessageSend,
             A2AJsonUtilities.JsonContext.Default.MessageSendParams,
             A2AJsonUtilities.JsonContext.Default.A2AResponse);
 
-    public Task<AgentTask> GetTaskAsync(string taskId) => 
+    public Task<AgentTask> GetTaskAsync(string taskId) =>
         RpcRequest(
-            new() { Id = taskId }, 
+            new() { Id = taskId },
             A2AMethods.TaskGet,
             A2AJsonUtilities.JsonContext.Default.TaskIdParams,
             A2AJsonUtilities.JsonContext.Default.AgentTask);
@@ -43,7 +43,7 @@ public class A2AClient : IA2AClient
 
     public Task<TaskPushNotificationConfig> GetPushNotificationAsync(TaskIdParams taskIdParams) =>
         RpcRequest(
-            taskIdParams, 
+            taskIdParams,
             "task/pushNotification/get",
             A2AJsonUtilities.JsonContext.Default.TaskIdParams,
             A2AJsonUtilities.JsonContext.Default.TaskPushNotificationConfig);
@@ -125,7 +125,7 @@ public class A2AClient : IA2AClient
 
         var responseObject = await JsonSerializer.DeserializeAsync(responseStream, A2AJsonUtilities.JsonContext.Default.JsonRpcResponse) ??
             throw new InvalidOperationException("Failed to deserialize the response.");
-        
+
         return responseObject.Result?.Deserialize(outputTypeInfo) ??
             throw new InvalidOperationException("Response does not contain a result.");
     }

@@ -1,18 +1,16 @@
+using A2A;
+using A2A.AspNetCore;
+using AgentServer;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
-using A2A.AspNetCore;
-using A2A;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Configure OpenTelemetry
 builder.Services.AddOpenTelemetry()
-    .ConfigureResource(resource =>
-    {
-        resource.AddService("A2AAgentServer");
-    })
+    .ConfigureResource(resource => resource.AddService("A2AAgentServer"))
     .WithTracing(tracing => tracing
-        .AddSource(A2A.TaskManager.ActivitySource.Name)
+        .AddSource(TaskManager.ActivitySource.Name)
         .AddSource(A2AJsonRpcProcessor.ActivitySource.Name)
         .AddSource(HostedClientAgent.ActivitySource.Name)
         .AddSource(ResearcherAgent.ActivitySource.Name)

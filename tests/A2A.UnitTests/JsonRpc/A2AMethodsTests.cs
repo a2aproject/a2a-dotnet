@@ -7,10 +7,10 @@ public class A2AMethodsTests
     {
         // Arrange
         var method = A2AMethods.MessageStream;
-        
+
         // Act
         var result = A2AMethods.IsStreamingMethod(method);
-        
+
         // Assert
         Assert.True(result);
     }
@@ -20,10 +20,10 @@ public class A2AMethodsTests
     {
         // Arrange
         var method = A2AMethods.TaskResubscribe;
-        
+
         // Act
         var result = A2AMethods.IsStreamingMethod(method);
-        
+
         // Assert
         Assert.True(result);
     }
@@ -39,7 +39,7 @@ public class A2AMethodsTests
     {
         // Act
         var result = A2AMethods.IsStreamingMethod(method);
-        
+
         // Assert
         Assert.False(result);
     }

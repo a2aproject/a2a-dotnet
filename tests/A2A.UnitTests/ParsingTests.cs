@@ -107,13 +107,13 @@ public class ParsingTests
             ContextId = "test-session",
             Artifact = new Artifact
             {
-                Parts = new List<Part>
-                {
+                Parts =
+                [
                     new TextPart
                     {
                         Text = "Hello, World!",
                     }
-                },
+                ],
             }
         };
         var json = JsonSerializer.Serialize(taskArtifactUpdateEvent);
@@ -142,13 +142,13 @@ public class ParsingTests
             ContextId = "test-session",
             Artifact = new Artifact
             {
-                Parts = new List<Part>
-                {
+                Parts =
+                [
                     new TextPart
                     {
                         Text = "Hello, World!",
                     }
-                },
+                ],
             }
         };
         var jsonRpcResponse = JsonRpcResponse.CreateJsonRpcResponse<A2AEvent>("test-id", taskArtifactUpdateEvent);

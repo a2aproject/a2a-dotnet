@@ -2,71 +2,43 @@ namespace A2A;
 
 public class InMemoryTaskStore : ITaskStore
 {
-    private Dictionary<string, AgentTask> _TaskCache { get; set; } = new Dictionary<string, AgentTask>();
-    private Dictionary<string, TaskPushNotificationConfig> _PushNotificationCache { get; set; } = new Dictionary<string, TaskPushNotificationConfig>();
+    private readonly Dictionary<string, AgentTask> _taskCache = [];
+    private readonly Dictionary<string, TaskPushNotificationConfig> _pushNotificationCache = [];
 
-
-    public Task<AgentTask?> GetTaskAsync(string taskId)
-    {
-        if (string.IsNullOrEmpty(taskId))
-        {
-            return Task.FromResult<AgentTask?>(null);
-        }
-
-        if (_TaskCache.TryGetValue(taskId, out var task))
-        {
-            return Task.FromResult<AgentTask?>(task);
-        }
-        return Task.FromResult<AgentTask?>(null);
-    }
+    public Task<AgentTask?> GetTaskAsync(string taskId) =>
+        Task.FromResult(
+            string.IsNullOrEmpty(taskId) ? null :
+            _taskCache.TryGetValue(taskId, out var task) ? task :
+            null);
 
     public Task<TaskPushNotificationConfig?> GetPushNotificationAsync(string taskId)
     {
-        if (_PushNotificationCache.TryGetValue(taskId, out var pushNotificationConfig))
-        {
-            return Task.FromResult<TaskPushNotificationConfig?>(pushNotificationConfig);
-        }
-        return Task.FromResult<TaskPushNotificationConfig?>(null);
+        _pushNotificationCache.TryGetValue(taskId, out var pushNotificationConfig);
+        return Task.FromResult<TaskPushNotificationConfig?>(pushNotificationConfig);
     }
 
     public Task<AgentTaskStatus> UpdateStatusAsync(string taskId, TaskState status, Message? message = null)
     {
-        if (_TaskCache.TryGetValue(taskId, out var task))
-        {
-            task.Status.State = status;
-            task.Status.Message = message;
-            task.Status.Timestamp = DateTime.UtcNow;
-            return Task.FromResult(task.Status);
-        }
-        else
+        if (!_taskCache.TryGetValue(taskId, out var task))
         {
             throw new ArgumentException("Task not found.");
         }
+
+        task.Status.State = status;
+        task.Status.Message = message;
+        task.Status.Timestamp = DateTime.UtcNow;
+        return Task.FromResult(task.Status);
     }
 
     public Task SetTaskAsync(AgentTask task)
     {
-        if (_TaskCache.ContainsKey(task.Id))
-        {
-            _TaskCache[task.Id] = task;
-        }
-        else
-        {
-            _TaskCache.Add(task.Id, task);
-        }
+        _taskCache[task.Id] = task;
         return Task.CompletedTask;
     }
 
     public Task SetPushNotificationConfigAsync(TaskPushNotificationConfig pushNotificationConfig)
     {
-        if (_PushNotificationCache.ContainsKey(pushNotificationConfig.Id))
-        {
-            _PushNotificationCache[pushNotificationConfig.Id] = pushNotificationConfig;
-        }
-        else
-        {
-            _PushNotificationCache.Add(pushNotificationConfig.Id, pushNotificationConfig);
-        }
+        _pushNotificationCache[pushNotificationConfig.Id] = pushNotificationConfig;
         return Task.CompletedTask;
     }
 }

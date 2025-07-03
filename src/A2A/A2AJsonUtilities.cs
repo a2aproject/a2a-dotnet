@@ -1,7 +1,6 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.Json.Serialization.Metadata;
 
 namespace A2A;
 
@@ -31,7 +30,7 @@ public static partial class A2AJsonUtilities
     [JsonSourceGenerationOptions(JsonSerializerDefaults.Web,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         NumberHandling = JsonNumberHandling.AllowReadingFromString)]
-    
+
     // JSON-RPC
     [JsonSerializable(typeof(JsonRpcError))]
     [JsonSerializable(typeof(JsonRpcRequest))]

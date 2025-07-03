@@ -1,47 +1,44 @@
 using A2A;
 using System.Diagnostics;
 
+namespace AgentServer;
 
 public class HostedClientAgent
 {
-    private ITaskManager? _TaskManager;
-    private A2AClient echoClient;
-    public static readonly ActivitySource ActivitySource = new ActivitySource("A2A.HostedClientAgent", "1.0.0");
+    private TaskManager? _taskManager;
+    private readonly A2AClient _echoClient;
+
+    public static ActivitySource ActivitySource { get; } = new("A2A.HostedClientAgent", "1.0.0");
 
     public HostedClientAgent()
     {
-        echoClient = new A2AClient(new HttpClient() { BaseAddress = new Uri("http://localhost:5048/echo") });
+        _echoClient = new A2AClient(new HttpClient() { BaseAddress = new Uri("http://localhost:5048/echo") });
     }
     public void Attach(TaskManager taskManager)
     {
-        _TaskManager = taskManager;
-        taskManager.OnTaskCreated = async (task) =>
-        {
-            await ExecuteAgentTask(task);
-        };
-        taskManager.OnTaskUpdated = async (task) =>
-        {
-            await ExecuteAgentTask(task);
-        };
+        _taskManager = taskManager;
+        taskManager.OnTaskCreated = ExecuteAgentTask;
+        taskManager.OnTaskUpdated = ExecuteAgentTask;
         taskManager.OnAgentCardQuery = GetAgentCard;
     }
+
     public async Task ExecuteAgentTask(AgentTask task)
     {
         using var activity = ActivitySource.StartActivity("ExecuteAgentTask", ActivityKind.Server);
         activity?.SetTag("task.id", task.Id);
         activity?.SetTag("task.sessionId", task.ContextId);
 
-        if (_TaskManager == null)
+        if (_taskManager == null)
         {
             activity?.SetStatus(ActivityStatusCode.Error, "TaskManager is not attached.");
-            throw new Exception("TaskManager is not attached.");
+            throw new InvalidOperationException("TaskManager is not attached.");
         }
 
-        await _TaskManager.UpdateStatusAsync(task.Id, TaskState.Working);
+        await _taskManager.UpdateStatusAsync(task.Id, TaskState.Working);
 
         // Get message from the user to HostedClientAgent
         var userMessage = task.History!.Last().Parts.First().AsTextPart().Text;
-        var echoTask = await echoClient.SendMessageAsync(new MessageSendParams() 
+        var echoTask = await _echoClient.SendMessageAsync(new MessageSendParams()
         {
             Message = new Message()
             {
@@ -63,8 +60,8 @@ public class HostedClientAgent
                 Text = $"EchoAgent said: {message}"
             }]
         };
-        await _TaskManager.ReturnArtifactAsync(task.Id, artifact);
-        await _TaskManager.UpdateStatusAsync(task.Id, TaskState.Completed);
+        await _taskManager.ReturnArtifactAsync(task.Id, artifact);
+        await _taskManager.UpdateStatusAsync(task.Id, TaskState.Completed);
     }
 
     public AgentCard GetAgentCard(string agentUrl)

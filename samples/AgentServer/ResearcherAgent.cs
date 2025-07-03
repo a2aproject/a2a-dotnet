@@ -5,9 +5,9 @@ namespace A2A;
 
 public class ResearcherAgent
 {
-    private ITaskManager? _taskManager;
-    private Dictionary<string, AgentState> _agentStates = new Dictionary<string, AgentState>();
-    public static readonly ActivitySource ActivitySource = new ActivitySource("A2A.ResearcherAgent", "1.0.0");
+    private TaskManager? _taskManager;
+    private readonly Dictionary<string, AgentState> _agentStates = [];
+    public static readonly ActivitySource ActivitySource = new("A2A.ResearcherAgent", "1.0.0");
 
     private enum AgentState
     {
@@ -43,7 +43,7 @@ public class ResearcherAgent
 
         if (_taskManager == null)
         {
-            throw new Exception("TaskManager is not attached.");
+            throw new InvalidOperationException("TaskManager is not attached.");
         }
 
         using var activity = ActivitySource.StartActivity("Invoke", ActivityKind.Server);
@@ -85,7 +85,7 @@ public class ResearcherAgent
     {
         if (_taskManager == null)
         {
-            throw new Exception("TaskManager is not attached.");
+            throw new InvalidOperationException("TaskManager is not attached.");
         }
 
         using var activity = ActivitySource.StartActivity("DoResearch", ActivityKind.Server);
@@ -111,7 +111,7 @@ public class ResearcherAgent
     {
         if (_taskManager == null)
         {
-            throw new Exception("TaskManager is not attached.");
+            throw new InvalidOperationException("TaskManager is not attached.");
         }
 
         using var activity = ActivitySource.StartActivity("DoPlanning", ActivityKind.Server);

@@ -1,13 +1,13 @@
-
 using System.Collections.Concurrent;
 
 namespace A2A;
 
 public class TaskUpdateEventEnumerator : IAsyncEnumerable<A2AEvent>
 {
-    private bool isFinal = false;
-    private ConcurrentQueue<A2AEvent> _UpdateEvents = new ConcurrentQueue<A2AEvent>();
-    private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(0);
+    private bool isFinal;
+    private readonly ConcurrentQueue<A2AEvent> _UpdateEvents = new();
+    private readonly SemaphoreSlim _semaphore = new(0);
+
     public Task? ProcessingTask { get; set; } // Store the processing task so it doesn't get garbage collected
 
     public void NotifyEvent(A2AEvent taskUpdateEvent)

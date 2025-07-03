@@ -1,29 +1,28 @@
 ﻿// Warning: This file was largely LLM generated. YMMV
-using System.Diagnostics;
+using A2A;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
-using A2A;
-
+using System.Diagnostics;
 
 namespace Client;
 
-class Program
+internal sealed class Program
 {
     private const string DefaultAgentUrl = "http://localhost:5048/echotasks";
     private const string DefaultAgentName = "Echo Agent";
     private static string agentUrl = DefaultAgentUrl;
     private static string agentName = DefaultAgentName;
-    private static bool useStreamingMode = false;
+    private static bool useStreamingMode;
     private static HttpClient? httpClient;
     private static A2AClient? client;
-    private static string currentSessionId = Guid.NewGuid().ToString("N");
+    private static readonly string currentSessionId = Guid.NewGuid().ToString("N");
     // The version could also come from assembly info or a version file
     private static readonly string ServiceVersion = "1.0.0";
     private static readonly string ServiceName = "A2A.Client";
-    private static readonly ActivitySource activitySource = new ActivitySource(ServiceName, ServiceVersion);
+    private static readonly ActivitySource activitySource = new(ServiceName, ServiceVersion);
     private static void ParseCommandLineArgs(string[] args)
     {
         if (args.Length == 0)
@@ -63,7 +62,7 @@ class Program
                 args[i].Equals("--stream", StringComparison.OrdinalIgnoreCase))
             {
                 useStreamingMode = true;
-                
+
                 // Shift remaining args left if this was the first argument
                 if (i == 0 && args.Length > 1)
                 {
@@ -74,7 +73,7 @@ class Program
             }
         }
 
-        if (args.Length >= 1 && !args[0].StartsWith("-"))
+        if (args.Length >= 1 && args[0] is not ['-', ..])
         {
             agentUrl = args[0];
         }
@@ -84,7 +83,7 @@ class Program
             agentName = args[1];
         }
     }
-    static async Task Main(string[] args)
+    private static async Task Main(string[] args)
     {
         ParseCommandLineArgs(args);
 
@@ -121,23 +120,22 @@ class Program
             string? userInput = Console.ReadLine();
 
             if (string.IsNullOrEmpty(userInput))
+            {
                 continue;
+            }
 
-            if (userInput.ToLower() == "exit")
+            if (string.Equals(userInput, "exit", StringComparison.OrdinalIgnoreCase))
+            {
                 break;
+            }
 
             try
             {
                 // Choose method based on streaming mode
-                A2AResponse response;
-                if (useStreamingMode)
-                {
-                    response = await SendMessageToAgentStreaming(userInput);
-                }
-                else
-                {
-                    response = await SendMessageToAgent(userInput);
-                }
+                A2AResponse response = useStreamingMode ?
+                    await SendMessageToAgentStreaming(userInput) :
+                    await SendMessageToAgent(userInput);
+
                 if (response is AgentTask agentTask)
                 {
                     DisplayAgentResponse(agentTask);
@@ -161,7 +159,7 @@ class Program
 
         await host.StopAsync();
     }
-    private static void InitializeOpenTelemetry(IHostApplicationBuilder builder)
+    private static void InitializeOpenTelemetry(HostApplicationBuilder builder)
     {
         builder.Services.AddOpenTelemetry()
             .ConfigureResource(c => c.AddService(ServiceName))
@@ -190,13 +188,13 @@ class Program
             Message = new Message
             {
                 Role = MessageRole.User,
-                Parts = new List<Part>
-                {
+                Parts =
+                [
                     new TextPart
                     {
                         Text = messageText
                     }
-                }
+                ]
             }
         };
 
@@ -265,13 +263,13 @@ class Program
                 ContextId = currentSessionId,
                 MessageId = Guid.NewGuid().ToString("N"),
                 Role = MessageRole.User,
-                Parts = new List<Part>
-                {
+                Parts =
+                [
                     new TextPart
                     {
                         Text = messageText
                     }
-                }
+                ]
             }
         };
 
@@ -286,8 +284,7 @@ class Program
                 activity?.SetTag("task.id", agentTask.Id);
 
                 // Wait for the agent to complete processing
-                while (agentTask.Status?.State != TaskState.Completed &&
-                       agentTask.Status?.State != TaskState.Failed)
+                while (agentTask.Status?.State is not TaskState.Completed and not TaskState.Failed)
                 {
                     // Poll for task updates
                     activity?.AddEvent(new ActivityEvent("PollingForUpdate"));
@@ -298,7 +295,7 @@ class Program
                 activity?.SetTag("task.status", agentTask.Status?.State.ToString());
                 activity?.AddEvent(new ActivityEvent("ReceivedResponse"));
                 return result;
-            } 
+            }
             else if (result is Message message)
             {
                 return message;

@@ -5,35 +5,36 @@ namespace A2A;
 public class TaskManager : ITaskManager
 {
     // OpenTelemetry ActivitySource
-    public static readonly ActivitySource ActivitySource = new ActivitySource("A2A.TaskManager", "1.0.0");
+    public static readonly ActivitySource ActivitySource = new("A2A.TaskManager", "1.0.0");
 
-    private HttpClient _CallbackHttpClient;
-    private ITaskStore _TaskStore;
+    private readonly ITaskStore _TaskStore;
 
-
-    public Func<MessageSendParams, Task<Message>>? OnMessageReceived { get; set; } = null;
+    public Func<MessageSendParams, Task<Message>>? OnMessageReceived { get; set; }
     /// <summary>
     /// Agent handler for task creation.
     /// </summary>
-    public Func<AgentTask, Task> OnTaskCreated { get; set; } = (task) => { return Task.CompletedTask; };
+    public Func<AgentTask, Task> OnTaskCreated { get; set; } = static _ => Task.CompletedTask;
+
     /// <summary>
     /// Agent handler for task cancellation.
     /// </summary>
-    public Func<AgentTask, Task> OnTaskCancelled { get; set; } = (task) => { return Task.CompletedTask; };
+    public Func<AgentTask, Task> OnTaskCancelled { get; set; } = static _ => Task.CompletedTask;
+
     /// <summary>
     /// Agent handler for task update.
     /// </summary>
-    public Func<AgentTask, Task> OnTaskUpdated { get; set; } = (task) => { return Task.CompletedTask; };
+    public Func<AgentTask, Task> OnTaskUpdated { get; set; } = static _ => Task.CompletedTask;
+
     /// <summary>
     /// Agent handler for an agent card query.
     /// </summary>
-    public Func<string, AgentCard> OnAgentCardQuery { get; set; } = (agentUrl) => { return new AgentCard() { Name = "Unknown", Url = agentUrl }; };
+    public Func<string, AgentCard> OnAgentCardQuery { get; set; } = static agentUrl => new AgentCard() { Name = "Unknown", Url = agentUrl };
 
-    private Dictionary<string, TaskUpdateEventEnumerator> _TaskUpdateEventEnumerators = new Dictionary<string, TaskUpdateEventEnumerator>();
+    private readonly Dictionary<string, TaskUpdateEventEnumerator> _TaskUpdateEventEnumerators = [];
 
     public TaskManager(HttpClient? callbackHttpClient = null, ITaskStore? taskStore = null)
     {
-        _CallbackHttpClient = callbackHttpClient ?? new HttpClient();
+        // TODO: Use callbackHttpClient
         _TaskStore = taskStore ?? new InMemoryTaskStore();
     }
 
@@ -123,45 +124,33 @@ public class TaskManager : ITaskManager
             // If the task is configured to process simple messages without tasks, pass the message directly to the agent
             if (OnMessageReceived != null)
             {
-                using (var createActivity = ActivitySource.StartActivity("OnMessageReceived", ActivityKind.Server))
-                {
-                    return await OnMessageReceived(messageSendParams);
-                }
+                using var createActivity = ActivitySource.StartActivity("OnMessageReceived", ActivityKind.Server);
+                return await OnMessageReceived(messageSendParams);
             }
             else
             {
                 // If no task is found and no OnMessageReceived handler is set, create a new task
                 task = await CreateTaskAsync(messageSendParams.Message.ContextId);
-                if (task.History == null)
-                {
-                    task.History = new List<Message>();
-                }
+                task.History ??= [];
                 task.History.Add(messageSendParams.Message);
-                using (var createActivity = ActivitySource.StartActivity("OnMessageReceived", ActivityKind.Server))
-                {
-                    await OnTaskCreated(task);
-                }
+                using var createActivity = ActivitySource.StartActivity("OnMessageReceived", ActivityKind.Server);
+                await OnTaskCreated(task);
             }
         }
         else
         {
             // Fail if Task is in terminal stateS
-            if (task.Status.State == TaskState.Completed || task.Status.State == TaskState.Canceled || task.Status.State == TaskState.Failed || task.Status.State == TaskState.Rejected )
+            if (task.Status.State is TaskState.Completed or TaskState.Canceled or TaskState.Failed or TaskState.Rejected)
             {
                 activity?.SetTag("task.terminalState", true);
                 throw new InvalidOperationException("Cannot send message to a task in terminal state.");
             }
             // If the task is found, update its status and history
-            if (task.History == null)
-            {
-                task.History = new List<Message>();
-            }
+            task.History ??= [];
             task.History.Add(messageSendParams.Message);
             await _TaskStore.SetTaskAsync(task);
-            using (var createActivity = ActivitySource.StartActivity("OnTaskUpdated", ActivityKind.Server))
-            {
-                await OnTaskUpdated(task);
-            }
+            using var createActivity = ActivitySource.StartActivity("OnTaskUpdated", ActivityKind.Server);
+            await OnTaskUpdated(task);
         }
         return task;
     }
@@ -208,40 +197,30 @@ public class TaskManager : ITaskManager
             {
                 // If no task is found and no OnMessageReceived handler is set, create a new task
                 agentTask = await CreateTaskAsync(messageSendParams.Message.ContextId);
-                if (agentTask.History == null)
-                {
-                    agentTask.History = new List<Message>();
-                }
+                agentTask.History ??= [];
                 agentTask.History.Add(messageSendParams.Message);
                 enumerator = new TaskUpdateEventEnumerator();
                 _TaskUpdateEventEnumerators[agentTask.Id] = enumerator;
                 enumerator.NotifyEvent(agentTask);
                 enumerator.ProcessingTask = Task.Run(async () =>
                 {
-                    using (var createActivity = ActivitySource.StartActivity("OnTaskCreated", ActivityKind.Server))
-                    {
-                        await OnTaskCreated(agentTask);
-                    }
+                    using var createActivity = ActivitySource.StartActivity("OnTaskCreated", ActivityKind.Server);
+                    await OnTaskCreated(agentTask);
                 });
             }
         }
         else
         {
             // If the task is found, update its status and history
-            if (agentTask.History == null)
-            {
-                agentTask.History = new List<Message>();
-            }
+            agentTask.History ??= [];
             agentTask.History.Add(messageSendParams.Message);
             await _TaskStore.SetTaskAsync(agentTask);
             enumerator = new TaskUpdateEventEnumerator();
             _TaskUpdateEventEnumerators[agentTask.Id] = enumerator;
             enumerator.ProcessingTask = Task.Run(async () =>
             {
-                using (var createActivity = ActivitySource.StartActivity("OnTaskUpdated", ActivityKind.Server))
-                {
-                    await OnTaskUpdated(agentTask);
-                }
+                using var createActivity = ActivitySource.StartActivity("OnTaskUpdated", ActivityKind.Server);
+                await OnTaskUpdated(agentTask);
             });
         }
 
@@ -259,28 +238,22 @@ public class TaskManager : ITaskManager
         using var activity = ActivitySource.StartActivity("Resubscribe", ActivityKind.Server);
         activity?.SetTag("task.id", taskIdParams.Id);
 
-        if (_TaskUpdateEventEnumerators.TryGetValue(taskIdParams.Id, out var enumerator))
-        {
-            return enumerator;
-        }
-        else
-        {
+        return _TaskUpdateEventEnumerators.TryGetValue(taskIdParams.Id, out var enumerator) ?
+            (IAsyncEnumerable<A2AEvent>)enumerator :
             throw new ArgumentException("Task not found or invalid TaskIdParams.");
-        }
     }
 
     public async Task<TaskPushNotificationConfig?> SetPushNotificationAsync(TaskPushNotificationConfig? pushNotificationConfig)
     {
-        if (pushNotificationConfig != null)
-        {
-            await _TaskStore.SetPushNotificationConfigAsync(pushNotificationConfig);
-            return pushNotificationConfig;
-        }
-        else
+        if (pushNotificationConfig is null)
         {
             throw new ArgumentException("Missing push notification config.");
         }
+
+        await _TaskStore.SetPushNotificationConfigAsync(pushNotificationConfig);
+        return pushNotificationConfig;
     }
+
     public async Task<TaskPushNotificationConfig?> GetPushNotificationAsync(TaskIdParams? taskIdParams)
     {
         if (taskIdParams == null)
@@ -326,6 +299,7 @@ public class TaskManager : ITaskManager
                     Status = agentStatus,
                     Final = final
                 };
+
                 if (final)
                 {
                     activity?.SetTag("event.type", "final");
@@ -365,10 +339,7 @@ public class TaskManager : ITaskManager
             {
                 activity?.SetTag("task.found", true);
 
-                if (task.Artifacts == null)
-                {
-                    task.Artifacts = new List<Artifact>();
-                }
+                task.Artifacts ??= [];
                 task.Artifacts.Add(artifact);
                 await _TaskStore.SetTaskAsync(task);
 

@@ -10,10 +10,6 @@ public static class A2AMethods
     public const string TaskPushNotificationConfigSet = "tasks/pushnotificationconfig/set";
     public const string TaskPushNotificationConfigGet = "tasks/pushnotificationconfig/get";
 
-
-    public static bool IsStreamingMethod(string method)
-    {
-        return method == MessageStream || method == TaskResubscribe;
-    }
+    public static bool IsStreamingMethod(string method) => method is MessageStream or TaskResubscribe;
 }
 

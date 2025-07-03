@@ -16,8 +16,12 @@
 	</PropertyGroup>
 
 	<PropertyGroup>
-		<LangVersion>12.0</LangVersion>
+		<LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 		<Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <AnalysisMode>recommended</AnalysisMode>
 	</PropertyGroup>
 
 </Project>

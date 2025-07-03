@@ -1,13 +1,14 @@
-using System.Diagnostics;
 using A2A;
+
+namespace AgentServer;
 
 public class EchoAgent
 {
-    private ITaskManager? _TaskManager = null;
+    private ITaskManager? _taskManager;
 
     public void Attach(TaskManager taskManager)
     {
-        _TaskManager = taskManager;
+        _taskManager = taskManager;
         taskManager.OnMessageReceived = ProcessMessage;
         taskManager.OnAgentCardQuery = GetAgentCard;
     }

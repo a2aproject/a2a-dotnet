@@ -16,11 +16,11 @@ public static class A2ACli
         // Create root command with options
         var rootCommand = new RootCommand("A2A CLI Client")
         {
-            AgentOption,
-            SessionOption,
-            HistoryOption,
-            UsePushNotificationsOption,
-            PushNotificationReceiverOption
+            s_agentOption,
+            s_sessionOption,
+            s_historyOption,
+            s_usePushNotificationsOption,
+            s_pushNotificationReceiverOption
         };
 
         // Replace the problematic line with the following:
@@ -33,45 +33,47 @@ public static class A2ACli
         return await rootCommand.InvokeAsync(args);
     }
 
-    public static async System.Threading.Tasks.Task RunCliAsync(InvocationContext context)
+    public static async Task RunCliAsync(InvocationContext context)
     {
-        string agent = context.ParseResult.GetValueForOption<string>(AgentOption)!;
-        string session = context.ParseResult.GetValueForOption<string>(SessionOption)!;
-        bool history = context.ParseResult.GetValueForOption<bool>(HistoryOption);
-        bool usePushNotifications = context.ParseResult.GetValueForOption<bool>(UsePushNotificationsOption);
-        string pushNotificationReceiver = context.ParseResult.GetValueForOption<string>(PushNotificationReceiverOption)!;
+        string agent = context.ParseResult.GetValueForOption(s_agentOption)!;
+        string session = context.ParseResult.GetValueForOption(s_sessionOption)!;
+        bool history = context.ParseResult.GetValueForOption(s_historyOption);
+        bool usePushNotifications = context.ParseResult.GetValueForOption(s_usePushNotificationsOption);
+        string pushNotificationReceiver = context.ParseResult.GetValueForOption(s_pushNotificationReceiverOption)!;
 
         await RunCliAsync(agent, session, history, usePushNotifications, pushNotificationReceiver);
     }
 
     #region private
-    private static readonly Option<string> AgentOption = new(
+    private static readonly Option<string> s_agentOption = new(
                 "--agent",
                 getDefaultValue: () => "http://localhost:10000",
                 description: "Agent URL");
-    private static readonly Option<string> SessionOption = new(
+    private static readonly Option<string> s_sessionOption = new(
                 "--session",
                 getDefaultValue: () => "0",
                 description: "Session ID (0 for new session)");
-    private static readonly Option<bool> HistoryOption = new(
+    private static readonly Option<bool> s_historyOption = new(
                 "--history",
             getDefaultValue: () => false,
                 description: "Show task history");
-    private static readonly Option<bool> UsePushNotificationsOption = new(
+    private static readonly Option<bool> s_usePushNotificationsOption = new(
                 "--use-push-notifications",
                 getDefaultValue: () => false,
                 description: "Enable push notifications");
-    private static readonly Option<string> PushNotificationReceiverOption = new(
+    private static readonly Option<string> s_pushNotificationReceiverOption = new(
                 "--push-notification-receiver",
                 getDefaultValue: () => "http://localhost:5000",
                 description: "Push notification receiver URL");
-    private static JsonSerializerOptions jsonOptions = new JsonSerializerOptions
+
+    private static readonly JsonSerializerOptions s_jsonOptions = new()
     {
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
 
+    private static readonly JsonSerializerOptions s_indentOptions = new() { WriteIndented = true };
 
-    private static async System.Threading.Tasks.Task RunCliAsync(
+    private static async Task RunCliAsync(
         string agentUrl,
         string session,
         bool history,
@@ -98,7 +100,7 @@ public static class A2ACli
             var card = await cardResolver.GetAgentCardAsync();
 
             Console.WriteLine("======= Agent Card ========");
-            Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(card, jsonOptions));
+            Console.WriteLine(JsonSerializer.Serialize(card, s_jsonOptions));
 
             // Parse notification receiver URL
             var notificationReceiverUri = new Uri(pushNotificationReceiver!);
@@ -135,9 +137,9 @@ public static class A2ACli
                     // Display history in a way similar to the Python version
                     if (taskResponse.History != null)
                     {
-                        Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(
+                        Console.WriteLine(JsonSerializer.Serialize(
                             new { result = new { history = taskResponse.History } },
-                            new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+                            s_indentOptions));
                     }
                     taskResponse?.History?
                         .SelectMany(artifact => artifact.Parts.OfType<TextPart>())
@@ -171,7 +173,7 @@ public static class A2ACli
             return true;
         }
 
-        if (prompt == ":q" || prompt == "quit")
+        if (prompt is ":q" or "quit")
         {
             return false;
         }
@@ -180,13 +182,13 @@ public static class A2ACli
         var message = new Message
         {
             Role = MessageRole.User,
-            Parts = new List<Part>
-            {
+            Parts =
+            [
                 new TextPart
                 {
                     Text = prompt
                 }
-            }
+            ]
         };
 
         // Handle file attachment
@@ -220,10 +222,10 @@ public static class A2ACli
         {
             Configuration = new()
             {
-                AcceptedOutputModes = new List<string> { "text" }
+                AcceptedOutputModes = ["text"]
             },
-                Message = message
-            };
+            Message = message
+        };
 
         // Add push notification configuration if enabled
         if (usePushNotifications)
@@ -233,7 +235,7 @@ public static class A2ACli
                 Url = $"http://{notificationReceiverHost}:{notificationReceiverPort}/notify",
                 Authentication = new AuthenticationInfo
                 {
-                    Schemes = new List<string> { "bearer" }
+                    Schemes = ["bearer"]
                 }
             };
         }
@@ -247,12 +249,12 @@ public static class A2ACli
         };
 
         // Process the task based on streaming capability
-        Console.WriteLine($"Send task payload => {System.Text.Json.JsonSerializer.Serialize(payload, jsonOptions)}");
+        Console.WriteLine($"Send task payload => {JsonSerializer.Serialize(payload, jsonOptions)}");
         if (streaming)
         {
             await foreach (var result in client.SendMessageStreamAsync(payload))
             {
-                Console.WriteLine($"Stream event => {System.Text.Json.JsonSerializer.Serialize(result, jsonOptions)}");
+                Console.WriteLine($"Stream event => {JsonSerializer.Serialize(result, jsonOptions)}");
             }
 
             var taskResult = await client.GetTaskAsync(taskId);
@@ -260,7 +262,7 @@ public static class A2ACli
         else
         {
             agentTask = await client.SendMessageAsync(payload) as AgentTask;
-            Console.WriteLine($"\n{System.Text.Json.JsonSerializer.Serialize(agentTask, jsonOptions)}");
+            Console.WriteLine($"\n{JsonSerializer.Serialize(agentTask, jsonOptions)}");
             agentTask?.Artifacts?
                 .SelectMany(artifact => artifact.Parts.OfType<TextPart>())
                 .ToList()
