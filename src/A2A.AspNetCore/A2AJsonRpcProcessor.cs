@@ -25,7 +25,7 @@ public static class A2AJsonRpcProcessor
 
         try
         {
-            return await SingleResponse(taskManager, rpcRequest.Id, rpcRequest.Method, parsedParameters); ;
+            return await SingleResponse(taskManager, rpcRequest.Id, rpcRequest.Method, parsedParameters);
         }
         catch (Exception e)
         {
