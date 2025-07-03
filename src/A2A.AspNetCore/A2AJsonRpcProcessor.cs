@@ -109,6 +109,7 @@ public static class A2AJsonRpcProcessor
 
         return new JsonRpcResponseResult(response);
     }
+    
     internal static async Task<IResult> StreamResponse(TaskManager taskManager, string requestId, string method, JsonElement? parameters)
     {
         using var activity = ActivitySource.StartActivity("StreamResponse", ActivityKind.Server);
