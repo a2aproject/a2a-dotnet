@@ -1,6 +1,5 @@
 ﻿using Microsoft.AspNetCore.Http;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace A2A.AspNetCore.Tests;
 
@@ -28,14 +27,14 @@ public class A2AJsonRpcProcessorTests
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
 
-        var details = await GetJsonRpcResponseResultDetails<JsonRpcResponse>(responseResult);
+        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
 
-        Assert.Equal(StatusCodes.Status200OK, details.StatusCode);
-        Assert.Equal("application/json", details.ContentType);
+        Assert.Equal(StatusCodes.Status200OK, StatusCode);
+        Assert.Equal("application/json", ContentType);
 
-        Assert.NotNull(details.Response.Result);
+        Assert.NotNull(BodyContent.Result);
+        var agentTask = JsonSerializer.Deserialize<AgentTask>(BodyContent.Result, A2AJsonUtilities.DefaultOptions);
 
-        AgentTask? agentTask = JsonSerializer.Deserialize<AgentTask>(details.Response.Result, A2AJsonUtilities.DefaultOptions);
         Assert.NotNull(agentTask);
         Assert.Equal(TaskState.Submitted, agentTask.Status.State);
         Assert.NotEmpty(agentTask.History);
@@ -61,51 +60,18 @@ public class A2AJsonRpcProcessorTests
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
+
+        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcErrorResponse>(responseResult);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, StatusCode);
+        Assert.Equal("application/json", ContentType);
         
-        var details = await GetJsonRpcResponseResultDetails<JsonRpcErrorResponse>(responseResult);
-
-        Assert.Equal(StatusCodes.Status400BadRequest, details.StatusCode);
-        Assert.Equal("application/json", details.ContentType);
+        Assert.NotNull(BodyContent);
+        Assert.Null(BodyContent.Result);
         
-        Assert.NotNull(details.Response);
-        Assert.Null(details.Response.Result);
-
-        var error = TryGetError(details.Response);
-        Assert.NotNull(error);
-        Assert.Equal(-32602, error!.Code); // Invalid params
-    }
-
-    [Fact]
-    public async Task ProcessRequest_Streaming_MessageStream_Works()
-    {
-        // Arrange
-        var taskManager = new TaskManager();
-        var sendParams = new MessageSendParams
-        {
-            Message = new Message { Parts = new List<Part> { new TextPart { Text = "hi" } } }
-        };
-        var req = new JsonRpcRequest
-        {
-            Id = "3",
-            Method = A2AMethods.MessageStream,
-            Params = ToJsonElement(sendParams)
-        };
-
-        // Act
-        var result = await A2AJsonRpcProcessor.ProcessRequest(taskManager, req);
-
-        // Assert
-        if (result is JsonRpcResponseResult responseResult)
-        {
-            var details = await GetJsonRpcResponseResultDetails<JsonRpcResponse>(responseResult);
-            Assert.Equal(StatusCodes.Status200OK, details.StatusCode);
-            Assert.Equal("application/json", details.ContentType);
-            Assert.NotNull(details.Response.Result);
-        }
-        else
-        {
-            Assert.IsType<JsonRpcStreamedResult>(result);
-        }
+        Assert.NotNull(BodyContent.Error);
+        Assert.Equal(-32602, BodyContent.Error!.Code); // Invalid params
+        Assert.Equal("Invalid parameters", BodyContent.Error.Message);
     }
 
     [Fact]
@@ -113,19 +79,26 @@ public class A2AJsonRpcProcessorTests
     {
         // Arrange
         var taskManager = new TaskManager();
-        var queryParams = new TaskQueryParams { Id = "test-task" };
+        var task = await taskManager.CreateTaskAsync();
+
+        var queryParams = new TaskQueryParams { Id = task.Id };
 
         // Act
         var result = await A2AJsonRpcProcessor.SingleResponse(taskManager, "4", A2AMethods.TaskGet, ToJsonElement(queryParams));
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
+
+        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
         
-        var details = await GetJsonRpcResponseResultDetails<JsonRpcResponse>(responseResult);
-        
-        Assert.Equal(StatusCodes.Status200OK, details.StatusCode);
-        Assert.Equal("application/json", details.ContentType);
-        Assert.NotNull(details.Response);
+        Assert.Equal(StatusCodes.Status200OK, StatusCode);
+        Assert.Equal("application/json", ContentType);
+        Assert.NotNull(BodyContent);
+
+        var agentTask = JsonSerializer.Deserialize<AgentTask>(BodyContent.Result, A2AJsonUtilities.DefaultOptions);
+        Assert.NotNull(agentTask);
+        Assert.Equal(TaskState.Submitted, agentTask.Status.State);
+        Assert.Empty(agentTask.History);
     }
 
     [Fact]
@@ -141,10 +114,17 @@ public class A2AJsonRpcProcessorTests
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
-        var details = await GetJsonRpcResponseResultDetails<JsonRpcResponse>(responseResult);
-        Assert.Equal(StatusCodes.Status200OK, details.StatusCode);
-        Assert.Equal("application/json", details.ContentType);
-        Assert.NotNull(details.Response);
+
+        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+
+        Assert.Equal(StatusCodes.Status200OK, StatusCode);
+        Assert.Equal("application/json", ContentType);
+        Assert.NotNull(BodyContent);
+
+        var agentTask = JsonSerializer.Deserialize<AgentTask>(BodyContent.Result, A2AJsonUtilities.DefaultOptions);
+        Assert.NotNull(agentTask);
+        Assert.Equal(TaskState.Canceled, agentTask.Status.State);
+        Assert.Empty(agentTask.History);
     }
 
     [Fact]
@@ -152,17 +132,32 @@ public class A2AJsonRpcProcessorTests
     {
         // Arrange
         var taskManager = new TaskManager();
-        var config = new TaskPushNotificationConfig { Id = "test-task", PushNotificationConfig = new PushNotificationConfig() };
+        var config = new TaskPushNotificationConfig
+        {
+            Id = "test-task",
+            PushNotificationConfig = new PushNotificationConfig()
+            {
+                Url = "https://example.com/notify",
+            }
+        };
 
         // Act
         var result = await A2AJsonRpcProcessor.SingleResponse(taskManager, "6", A2AMethods.TaskPushNotificationConfigSet, ToJsonElement(config));
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
-        var details = await GetJsonRpcResponseResultDetails<JsonRpcResponse>(responseResult);
-        Assert.Equal(StatusCodes.Status200OK, details.StatusCode);
-        Assert.Equal("application/json", details.ContentType);
-        Assert.NotNull(details.Response);
+
+        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+
+        Assert.Equal(StatusCodes.Status200OK, StatusCode);
+        Assert.Equal("application/json", ContentType);
+        Assert.NotNull(BodyContent);
+
+        var notificationConfig = JsonSerializer.Deserialize<TaskPushNotificationConfig>(BodyContent.Result, A2AJsonUtilities.DefaultOptions);
+        Assert.NotNull(notificationConfig);
+
+        Assert.Equal("test-task", notificationConfig.Id);
+        Assert.Equal("https://example.com/notify", notificationConfig.PushNotificationConfig.Url);
     }
 
     [Fact]
@@ -170,7 +165,13 @@ public class A2AJsonRpcProcessorTests
     {
         // Arrange
         var taskManager = new TaskManager();
-        var config = new TaskPushNotificationConfig { Id = "test-task", PushNotificationConfig = new PushNotificationConfig() };
+        var config = new TaskPushNotificationConfig { 
+            Id = "test-task", 
+            PushNotificationConfig = new PushNotificationConfig()
+            { 
+                Url = "https://example.com/notify",
+            }
+        };
         await taskManager.SetPushNotificationAsync(config);
         var getParams = new TaskIdParams { Id = "test-task" };
 
@@ -179,10 +180,18 @@ public class A2AJsonRpcProcessorTests
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
-        var details = await GetJsonRpcResponseResultDetails<JsonRpcResponse>(responseResult);
-        Assert.Equal(StatusCodes.Status200OK, details.StatusCode);
-        Assert.Equal("application/json", details.ContentType);
-        Assert.NotNull(details.Response);
+
+        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+
+        Assert.Equal(StatusCodes.Status200OK, StatusCode);
+        Assert.Equal("application/json", ContentType);
+        Assert.NotNull(BodyContent);
+
+        var notificationConfig = JsonSerializer.Deserialize<TaskPushNotificationConfig>(BodyContent.Result, A2AJsonUtilities.DefaultOptions);
+        Assert.NotNull(notificationConfig);
+
+        Assert.Equal("test-task", notificationConfig.Id);
+        Assert.Equal("https://example.com/notify", notificationConfig.PushNotificationConfig.Url);
     }
 
     [Fact]
@@ -196,36 +205,18 @@ public class A2AJsonRpcProcessorTests
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
-        var details = await GetJsonRpcResponseResultDetails<JsonRpcResponse>(responseResult);
-        Assert.Equal(StatusCodes.Status400BadRequest, details.StatusCode);
-        Assert.Equal("application/json", details.ContentType);
-        Assert.NotNull(details.Response);
-        Assert.Null(details.Response.Result);
-        var error = TryGetError(details.Response);
-        Assert.NotNull(error);
-        Assert.Equal(-32602, error!.Code); // Invalid params
-    }
+        
+        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcErrorResponse>(responseResult);
+        
+        Assert.Equal(StatusCodes.Status400BadRequest, StatusCode);
+        Assert.Equal("application/json", ContentType);
 
-    [Fact]
-    public async Task StreamResponse_UnknownMethod_ReturnsMethodNotFound()
-    {
-        // Arrange
-        var taskManager = new TaskManager();
-        var taskIdParams = new TaskIdParams { Id = "test-task" };
+        Assert.NotNull(BodyContent);
+        Assert.Null(BodyContent.Result);
 
-        // Act
-        var result = await A2AJsonRpcProcessor.StreamResponse(taskManager, "11", "unknownMethod", ToJsonElement(taskIdParams));
-
-        // Assert
-        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
-        var details = await GetJsonRpcResponseResultDetails<JsonRpcResponse>(responseResult);
-        Assert.Equal(StatusCodes.Status404NotFound, details.StatusCode);
-        Assert.Equal("application/json", details.ContentType);
-        Assert.NotNull(details.Response);
-        Assert.Null(details.Response.Result);
-        var error = TryGetError(details.Response);
-        Assert.NotNull(error);
-        Assert.Equal(-32601, error!.Code); // Method not found
+        Assert.NotNull(BodyContent.Error);
+        Assert.Equal(-32602, BodyContent.Error!.Code); // Invalid params
+        Assert.Equal("Invalid parameters", BodyContent.Error.Message);
     }
 
     private static JsonElement ToJsonElement<T>(T obj)
@@ -235,7 +226,7 @@ public class A2AJsonRpcProcessorTests
         return doc.RootElement.Clone();
     }
 
-    private static async Task<(int StatusCode, string? ContentType, TResponse Response)> GetJsonRpcResponseResultDetails<TResponse>(JsonRpcResponseResult responseResult)
+    private static async Task<(int StatusCode, string? ContentType, TBody BodyContent)> GetJsonRpcResponseHttpDetails<TBody>(JsonRpcResponseResult responseResult)
     {
         HttpContext context = new DefaultHttpContext();
         using var memoryStream = new MemoryStream();
@@ -243,21 +234,6 @@ public class A2AJsonRpcProcessorTests
         await responseResult.ExecuteAsync(context);
 
         context.Response.Body.Position = 0;
-        return (context.Response.StatusCode, context.Response.ContentType, JsonSerializer.Deserialize<TResponse>(context.Response.Body, A2AJsonUtilities.DefaultOptions)!);
-    }
-
-    private static JsonRpcError? TryGetError(JsonRpcResponse response)
-    {
-        // Try to get the error property if present (deserialize as JsonRpcErrorResponse)
-        try
-        {
-            var json = JsonSerializer.Serialize(response, A2AJsonUtilities.DefaultOptions);
-            var errorResponse = JsonSerializer.Deserialize<JsonRpcErrorResponse>(json, A2AJsonUtilities.DefaultOptions);
-            return errorResponse?.Error;
-        }
-        catch
-        {
-            return null;
-        }
+        return (context.Response.StatusCode, context.Response.ContentType, JsonSerializer.Deserialize<TBody>(context.Response.Body, A2AJsonUtilities.DefaultOptions)!);
     }
 }

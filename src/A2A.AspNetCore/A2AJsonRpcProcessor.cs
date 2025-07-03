@@ -109,7 +109,7 @@ public static class A2AJsonRpcProcessor
 
         return new JsonRpcResponseResult(response);
     }
-    
+
     internal static async Task<IResult> StreamResponse(TaskManager taskManager, string requestId, string method, JsonElement? parameters)
     {
         using var activity = ActivitySource.StartActivity("StreamResponse", ActivityKind.Server);
@@ -170,11 +170,17 @@ public class JsonRpcResponseResult : IResult
     public async Task ExecuteAsync(HttpContext httpContext)
     {
         httpContext.Response.ContentType = "application/json";
-        httpContext.Response.StatusCode = jsonRpcResponse is JsonRpcErrorResponse ?
-            StatusCodes.Status400BadRequest :
-            StatusCodes.Status200OK;
 
-        await JsonSerializer.SerializeAsync(httpContext.Response.Body, jsonRpcResponse, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcResponse)));
+        if (jsonRpcResponse is JsonRpcErrorResponse)
+        {
+            httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+            await JsonSerializer.SerializeAsync(httpContext.Response.Body, jsonRpcResponse, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcErrorResponse)));
+        }
+        else
+        {
+            httpContext.Response.StatusCode = StatusCodes.Status200OK;
+            await JsonSerializer.SerializeAsync(httpContext.Response.Body, jsonRpcResponse, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcResponse)));
+        }
     }
 }
 

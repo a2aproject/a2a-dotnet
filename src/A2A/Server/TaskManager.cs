@@ -168,7 +168,6 @@ public class TaskManager : ITaskManager
 
     public async Task<IAsyncEnumerable<A2AEvent>> SendMessageStreamAsync(MessageSendParams messageSendParams)
     {
-
         using var activity = ActivitySource.StartActivity("SendSubscribe", ActivityKind.Server);
         AgentTask? agentTask = null;
 
