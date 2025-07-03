@@ -11,7 +11,7 @@ public class TaskUpdateEventEnumeratorTests
         enumerator.NotifyEvent(evt);
 
         // Act
-        var yielded = new List<A2AEvent>();
+        List<A2AEvent> yielded = [];
         await foreach (var e in enumerator.WithCancellation(new CancellationTokenSource(100).Token))
         {
             yielded.Add(e);
@@ -32,7 +32,7 @@ public class TaskUpdateEventEnumeratorTests
         enumerator.NotifyFinalEvent(evt);
 
         // Act
-        var yielded = new List<A2AEvent>();
+        List<A2AEvent> yielded = [];
         await foreach (var e in enumerator)
         {
             yielded.Add(e);
@@ -56,7 +56,7 @@ public class TaskUpdateEventEnumeratorTests
         enumerator.NotifyFinalEvent(evt3);
 
         // Act
-        var yielded = new List<A2AEvent>();
+        List<A2AEvent> yielded = [];
         await foreach (var e in enumerator)
         {
             yielded.Add(e);

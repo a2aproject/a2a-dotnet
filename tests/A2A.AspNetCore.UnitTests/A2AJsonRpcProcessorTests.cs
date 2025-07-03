@@ -12,7 +12,7 @@ public class A2AJsonRpcProcessorTests
         var taskManager = new TaskManager();
         var sendParams = new MessageSendParams
         {
-            Message = new Message { MessageId = "test-message-id", Parts = new List<Part> { new TextPart { Text = "hi" } } }
+            Message = new Message { MessageId = "test-message-id", Parts = [new TextPart { Text = "hi" }] }
         };
         var req = new JsonRpcRequest
         {
