@@ -8,17 +8,23 @@ using System.Diagnostics;
 
 namespace A2A.AspNetCore;
 
+/// <summary>
+/// Provides extension methods for configuring A2A (Agent-to-Agent) endpoints in ASP.NET Core applications.
+/// </summary>
 public static class A2ARouteBuilderExtensions
 {
+    /// <summary>
+    /// Gets the OpenTelemetry ActivitySource for A2A endpoint operations.
+    /// </summary>
     public static readonly ActivitySource ActivitySource = new("A2A.Endpoint", "1.0.0");
 
     /// <summary>
     /// Enables JSONRPC A2A endpoints for the specified path.
     /// </summary>
-    /// <param name="endpoints"></param>
-    /// <param name="taskManager"></param>
-    /// <param name="path"></param>
-    /// <returns></returns>
+    /// <param name="endpoints">The endpoint route builder to which the A2A endpoints will be added.</param>
+    /// <param name="taskManager">The TaskManager instance responsible for managing agent tasks and events.</param>
+    /// <param name="path">The base path for the A2A endpoints (e.g., "/a2a/api").</param>
+    /// <returns>An <see cref="IEndpointConventionBuilder"/> for further configuration of the endpoints.</returns>
     public static IEndpointConventionBuilder MapA2A(this IEndpointRouteBuilder endpoints, TaskManager taskManager, string path)
     {
         var loggerFactory = endpoints.ServiceProvider.GetRequiredService<ILoggerFactory>();
@@ -41,10 +47,10 @@ public static class A2ARouteBuilderExtensions
     /// <summary>
     /// Enables experimental HTTP A2A endpoints for the specified path.
     /// </summary>
-    /// <param name="endpoints"></param>
-    /// <param name="taskManager"></param>
-    /// <param name="path"></param>
-    /// <returns></returns>
+    /// <param name="endpoints">The endpoint route builder to which the HTTP A2A endpoints will be added.</param>
+    /// <param name="taskManager">The TaskManager instance responsible for managing agent tasks and events.</param>
+    /// <param name="path">The base path for the HTTP A2A endpoints (e.g., "/a2a/api").</param>
+    /// <returns>An <see cref="IEndpointConventionBuilder"/> for further configuration of the endpoints.</returns>
     public static IEndpointConventionBuilder MapHttpA2A(this IEndpointRouteBuilder endpoints, TaskManager taskManager, string path)
     {
         var loggerFactory = endpoints.ServiceProvider.GetRequiredService<ILoggerFactory>();

@@ -4,15 +4,23 @@ using System.Text.Json.Serialization.Metadata;
 
 namespace A2A;
 
+/// <summary>
+/// Provides HTTP-based client functionality for communicating with A2A (Agent-to-Agent) services.
+/// </summary>
 public class A2AClient : IA2AClient
 {
     private readonly HttpClient _client;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="A2AClient"/> class.
+    /// </summary>
+    /// <param name="client">The HTTP client to use for communication with the A2A service.</param>
     public A2AClient(HttpClient client)
     {
         _client = client;
     }
 
+    /// <inheritdoc />
     public Task<A2AResponse> SendMessageAsync(MessageSendParams taskSendParams) =>
         RpcRequest(
             taskSendParams,
@@ -20,6 +28,7 @@ public class A2AClient : IA2AClient
             A2AJsonUtilities.JsonContext.Default.MessageSendParams,
             A2AJsonUtilities.JsonContext.Default.A2AResponse);
 
+    /// <inheritdoc />
     public Task<AgentTask> GetTaskAsync(string taskId) =>
         RpcRequest(
             new() { Id = taskId },
@@ -27,6 +36,7 @@ public class A2AClient : IA2AClient
             A2AJsonUtilities.JsonContext.Default.TaskIdParams,
             A2AJsonUtilities.JsonContext.Default.AgentTask);
 
+    /// <inheritdoc />
     public Task<AgentTask> CancelTaskAsync(TaskIdParams taskIdParams) =>
         RpcRequest(
             taskIdParams,
@@ -34,6 +44,7 @@ public class A2AClient : IA2AClient
             A2AJsonUtilities.JsonContext.Default.TaskIdParams,
             A2AJsonUtilities.JsonContext.Default.AgentTask);
 
+    /// <inheritdoc />
     public Task<TaskPushNotificationConfig> SetPushNotificationAsync(TaskPushNotificationConfig pushNotificationConfig) =>
         RpcRequest(
             pushNotificationConfig,
@@ -41,6 +52,7 @@ public class A2AClient : IA2AClient
             A2AJsonUtilities.JsonContext.Default.TaskPushNotificationConfig,
             A2AJsonUtilities.JsonContext.Default.TaskPushNotificationConfig);
 
+    /// <inheritdoc />
     public Task<TaskPushNotificationConfig> GetPushNotificationAsync(TaskIdParams taskIdParams) =>
         RpcRequest(
             taskIdParams,
@@ -48,6 +60,7 @@ public class A2AClient : IA2AClient
             A2AJsonUtilities.JsonContext.Default.TaskIdParams,
             A2AJsonUtilities.JsonContext.Default.TaskPushNotificationConfig);
 
+    /// <inheritdoc />
     public async IAsyncEnumerable<SseItem<A2AEvent>> SendMessageStreamAsync(MessageSendParams taskSendParams)
     {
         var request = new JsonRpcRequest()
@@ -73,6 +86,7 @@ public class A2AClient : IA2AClient
         }
     }
 
+    /// <inheritdoc />
     public async IAsyncEnumerable<SseItem<A2AEvent>> ResubscribeToTaskAsync(string taskId)
     {
         var request = new JsonRpcRequest()
@@ -98,6 +112,16 @@ public class A2AClient : IA2AClient
         }
     }
 
+    /// <summary>
+    /// Executes a JSON-RPC request to the A2A service with the specified parameters and returns the response.
+    /// </summary>
+    /// <typeparam name="TInput">The type of the input parameters.</typeparam>
+    /// <typeparam name="TOutput">The type of the expected output response.</typeparam>
+    /// <param name="jsonRpcParams">The parameters to send with the JSON-RPC request.</param>
+    /// <param name="method">The JSON-RPC method name to invoke.</param>
+    /// <param name="inputTypeInfo">The JSON type information for serializing the input parameters.</param>
+    /// <param name="outputTypeInfo">The JSON type information for deserializing the output response.</param>
+    /// <returns>A task that represents the asynchronous operation, containing the deserialized response.</returns>
     private async Task<TOutput> RpcRequest<TInput, TOutput>(
         TInput jsonRpcParams,
         string method,

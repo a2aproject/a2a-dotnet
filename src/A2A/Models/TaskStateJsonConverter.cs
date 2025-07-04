@@ -3,8 +3,12 @@ using System.Text.Json.Serialization;
 
 namespace A2A;
 
+/// <summary>
+/// Provides JSON serialization and deserialization for TaskState enumeration values.
+/// </summary>
 public class TaskStateJsonConverter : JsonConverter<TaskState>
 {
+    /// <inheritdoc />
     public override TaskState Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         var value = reader.GetString();
@@ -23,6 +27,7 @@ public class TaskStateJsonConverter : JsonConverter<TaskState>
         };
     }
 
+    /// <inheritdoc />
     public override void Write(Utf8JsonWriter writer, TaskState value, JsonSerializerOptions options)
     {
         var stringValue = value switch

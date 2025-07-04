@@ -2,42 +2,47 @@ using System.Diagnostics;
 
 namespace A2A;
 
+/// <summary>
+/// Manages agent tasks, including creation, status updates, and event notifications for A2A communication.
+/// </summary>
 public class TaskManager : ITaskManager
 {
-    // OpenTelemetry ActivitySource
+    /// <summary>
+    /// Gets the OpenTelemetry ActivitySource for the TaskManager.
+    /// </summary>
     public static readonly ActivitySource ActivitySource = new("A2A.TaskManager", "1.0.0");
 
     private readonly ITaskStore _taskStore;
 
     private readonly Dictionary<string, TaskUpdateEventEnumerator> _taskUpdateEventEnumerators = [];
 
+    /// <inheritdoc />
     public Func<MessageSendParams, Task<Message>>? OnMessageReceived { get; set; }
-    /// <summary>
-    /// Agent handler for task creation.
-    /// </summary>
+
+    /// <inheritdoc />
     public Func<AgentTask, Task> OnTaskCreated { get; set; } = static _ => Task.CompletedTask;
 
-    /// <summary>
-    /// Agent handler for task cancellation.
-    /// </summary>
+    /// <inheritdoc />
     public Func<AgentTask, Task> OnTaskCancelled { get; set; } = static _ => Task.CompletedTask;
 
-    /// <summary>
-    /// Agent handler for task update.
-    /// </summary>
+    /// <inheritdoc />
     public Func<AgentTask, Task> OnTaskUpdated { get; set; } = static _ => Task.CompletedTask;
 
-    /// <summary>
-    /// Agent handler for an agent card query.
-    /// </summary>
+    /// <inheritdoc />
     public Func<string, AgentCard> OnAgentCardQuery { get; set; } = static agentUrl => new AgentCard() { Name = "Unknown", Url = agentUrl };
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TaskManager"/> class.
+    /// </summary>
+    /// <param name="callbackHttpClient">The optional HTTP client for making callbacks (currently not used).</param>
+    /// <param name="taskStore">The optional task store implementation. If not provided, an in-memory store will be used.</param>
     public TaskManager(HttpClient? callbackHttpClient = null, ITaskStore? taskStore = null)
     {
         // TODO: Use callbackHttpClient
         _taskStore = taskStore ?? new InMemoryTaskStore();
     }
 
+    /// <inheritdoc />
     public async Task<AgentTask> CreateTaskAsync(string? contextId = null)
     {
         using var activity = ActivitySource.StartActivity("CreateTask", ActivityKind.Server);
@@ -58,6 +63,7 @@ public class TaskManager : ITaskManager
         return task;
     }
 
+    /// <inheritdoc />
     public async Task<AgentTask?> CancelTaskAsync(TaskIdParams? taskIdParams)
     {
         if (taskIdParams == null)
@@ -80,6 +86,8 @@ public class TaskManager : ITaskManager
         activity?.SetTag("task.found", false);
         throw new ArgumentException("Task not found or invalid TaskIdParams.");
     }
+
+    /// <inheritdoc />
     public async Task<AgentTask?> GetTaskAsync(TaskIdParams? taskIdParams)
     {
         if (taskIdParams == null)
@@ -95,6 +103,7 @@ public class TaskManager : ITaskManager
         return task;
     }
 
+    /// <inheritdoc />
     public async Task<A2AResponse?> SendMessageAsync(MessageSendParams messageSendParams)
     {
         using var activity = ActivitySource.StartActivity("SendMessage", ActivityKind.Server);
@@ -153,6 +162,7 @@ public class TaskManager : ITaskManager
         return task;
     }
 
+    /// <inheritdoc />
     public async Task<IAsyncEnumerable<A2AEvent>> SendMessageStreamAsync(MessageSendParams messageSendParams)
     {
         using var activity = ActivitySource.StartActivity("SendSubscribe", ActivityKind.Server);
@@ -224,6 +234,7 @@ public class TaskManager : ITaskManager
         return enumerator;  //TODO: Clean up enumerators after use
     }
 
+    /// <inheritdoc />
     public IAsyncEnumerable<A2AEvent> ResubscribeAsync(TaskIdParams? taskIdParams)
     {
         if (taskIdParams == null)
@@ -239,6 +250,7 @@ public class TaskManager : ITaskManager
             throw new ArgumentException("Task not found or invalid TaskIdParams.");
     }
 
+    /// <inheritdoc />
     public async Task<TaskPushNotificationConfig?> SetPushNotificationAsync(TaskPushNotificationConfig? pushNotificationConfig)
     {
         if (pushNotificationConfig is null)
@@ -250,6 +262,7 @@ public class TaskManager : ITaskManager
         return pushNotificationConfig;
     }
 
+    /// <inheritdoc />
     public async Task<TaskPushNotificationConfig?> GetPushNotificationAsync(TaskIdParams? taskIdParams)
     {
         if (taskIdParams == null)
@@ -265,16 +278,7 @@ public class TaskManager : ITaskManager
         return pushNotificationConfig;
     }
 
-    /// <summary>
-    /// Updates the status of a task. This is used by the agent to update the status of a task.
-    /// </summary>
-    /// <remarks>
-    /// Should this be limited to only allow certain state transitions?
-    /// </remarks>
-    /// <param name="taskId"></param>
-    /// <param name="status"></param>
-    /// <param name="message"></param>
-    /// <returns></returns>
+    /// <inheritdoc />
     public async Task UpdateStatusAsync(string taskId, TaskState status, Message? message = null, bool final = false)
     {
         using var activity = ActivitySource.StartActivity("UpdateStatus", ActivityKind.Server);
@@ -315,14 +319,7 @@ public class TaskManager : ITaskManager
         }
     }
 
-    /// <summary>
-    /// Enables an agent to add an artifact to a task to be returned to the client.
-    /// </summary>
-    /// <param name="taskId"></param>
-    /// <param name="artifact"></param>
-    /// <returns></returns>
-    /// <exception cref="ArgumentNullException"></exception>
-    /// <exception cref="ArgumentException"></exception>
+    /// <inheritdoc />
     public async Task ReturnArtifactAsync(string taskId, Artifact artifact)
     {
         using var activity = ActivitySource.StartActivity("ReturnArtifact", ActivityKind.Server);
