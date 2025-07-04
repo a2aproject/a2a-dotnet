@@ -98,7 +98,7 @@ public class OAuthFlows
     /// The client credentials flow
     /// </summary>
     [JsonPropertyName("clientCredentials")]
-    public ClientClientialsOAuthFlow? ClientCredentials { get; set; }
+    public ClientCredentialsOAuthFlow? ClientCredentials { get; set; }
 
     /// <summary>
     /// The password flow
@@ -149,7 +149,7 @@ public class AuthorizationCodeOAuthFlow
 /// <summary>
 /// Client credentials OAuth flow configuration
 /// </summary>
-public class ClientClientialsOAuthFlow
+public class ClientCredentialsOAuthFlow
 {
     /// <summary>
     /// The token URL
