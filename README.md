@@ -24,9 +24,6 @@ echoAgent.Attach(echoTaskManager);
 app.MapA2A(echoTaskManager,"/echo");
 ```
 
-## Library: DomFactory
-This library contains helper classes for support deserialization and serialization of A2A messages and JsonRPC envelopes. In theory this can be done with JsonSerializer, but this library makes the process easier to debug and doesn't require an reflection or code generation.
-
 ## Agent Integration Example
 
 Each agent instance should be given its own `TaskManager` instance. The `TaskManager` is responsible for managing the tasks and their execution. It is an implementation decision as to whether a single agent instance processes many tasks or whether an agent instance is created for each task.
