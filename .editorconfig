@@ -24,3 +24,5 @@ dotnet_diagnostic.RCS1192.severity = warning        # Unnecessary usage of verba
 dotnet_diagnostic.RCS1211.severity = warning        # Remove unnecessary else clause.
 dotnet_diagnostic.RCS1214.severity = warning        # Unnecessary interpolated string.
 dotnet_diagnostic.RCS1225.severity = warning        # Make class sealed.
+dotnet_diagnostic.RCS1141.severity = warning        # Add documentation comment to public members.
+dotnet_diagnostic.RCS1232.severity = warning        # Order elements in documentation comment.

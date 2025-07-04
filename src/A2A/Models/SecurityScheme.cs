@@ -16,6 +16,9 @@ public class SecurityScheme
     public string Type { get; set; } = string.Empty;
 }
 
+/// <summary>
+/// API key security scheme for authentication
+/// </summary>
 public class ApiKeySecurityScheme : SecurityScheme
 {
     /// <summary>
@@ -33,6 +36,9 @@ public class ApiKeySecurityScheme : SecurityScheme
     public string In { get; set; } = string.Empty;
 }
 
+/// <summary>
+/// HTTP authentication security scheme
+/// </summary>
 public class HttpAuthSecurityScheme : SecurityScheme
 {
     /// <summary>
@@ -51,6 +57,9 @@ public class HttpAuthSecurityScheme : SecurityScheme
     public string? BearerFormat { get; set; }
 }
 
+/// <summary>
+/// OAuth2 security scheme for authentication
+/// </summary>
 public class OAuth2SecurityScheme : SecurityScheme
 {
     /// <summary>
@@ -61,6 +70,9 @@ public class OAuth2SecurityScheme : SecurityScheme
     public string Flows { get; set; } = string.Empty;
 }
 
+/// <summary>
+/// OpenID Connect security scheme for authentication
+/// </summary>
 public class OpenIdConnectSecurityScheme : SecurityScheme
 {
     /// <summary>
@@ -71,6 +83,9 @@ public class OpenIdConnectSecurityScheme : SecurityScheme
     public string OpenIdConnectUrl { get; set; } = string.Empty;
 }
 
+/// <summary>
+/// OAuth flows configuration for OAuth2 security schemes
+/// </summary>
 public class OAuthFlows
 {
     /// <summary>
@@ -98,6 +113,9 @@ public class OAuthFlows
     public ImplicitOAuthFlow? ImplicitOAuthFlow { get; set; }
 }
 
+/// <summary>
+/// Authorization code OAuth flow configuration
+/// </summary>
 public class AuthorizationCodeOAuthFlow
 {
     /// <summary>
@@ -128,6 +146,9 @@ public class AuthorizationCodeOAuthFlow
     public Dictionary<string, string>? Scopes { get; set; }
 }
 
+/// <summary>
+/// Client credentials OAuth flow configuration
+/// </summary>
 public class ClientClientialsOAuthFlow
 {
     /// <summary>
@@ -151,6 +172,9 @@ public class ClientClientialsOAuthFlow
     public Dictionary<string, string>? Scopes { get; set; }
 }
 
+/// <summary>
+/// Password OAuth flow configuration
+/// </summary>
 public class PasswordOAuthFlow
 {
     /// <summary>
@@ -174,6 +198,9 @@ public class PasswordOAuthFlow
     public Dictionary<string, string>? Scopes { get; set; }
 }
 
+/// <summary>
+/// Implicit OAuth flow configuration
+/// </summary>
 public class ImplicitOAuthFlow
 {
     /// <summary>

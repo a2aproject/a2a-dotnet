@@ -66,6 +66,9 @@ public class AgentCard
     [JsonPropertyName("securitySchemes")]
     public Dictionary<string, SecurityScheme>? SecuritySchemes { get; set; }
 
+    /// <summary>
+    /// Security requirements for the agent
+    /// </summary>
     public Dictionary<string, string[]>? Security { get; set; }
 
     /// <summary>
