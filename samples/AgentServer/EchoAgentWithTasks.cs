@@ -20,7 +20,8 @@ public class EchoAgentWithTasks
     private async Task ProcessMessage(AgentTask task)
     {
         // Process the message
-        var messageText = task.History?.LastOrDefault()?.Parts.OfType<TextPart>().FirstOrDefault()?.Text ?? string.Empty;
+        var lastMessage = task.History?.LastOrDefault();
+        var messageText = lastMessage?.Parts.OfType<TextPart>().FirstOrDefault()?.Text ?? string.Empty;
 
         await _taskManager!.ReturnArtifactAsync(task.Id, new Artifact()
         {
