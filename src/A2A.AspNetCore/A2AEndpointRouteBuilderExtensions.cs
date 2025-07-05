@@ -52,18 +52,18 @@ public static class A2ARouteBuilderExtensions
 
         var routeGroup = endpoints.MapGroup(path);
 
-        // /card endpoint - Agent discovery
-        routeGroup.MapGet("/card", async context => await A2AHttpProcessor.GetAgentCard(taskManager, logger, $"{context.Request.Scheme}://{context.Request.Host}{path}"));
+        // /v1/card endpoint - Agent discovery
+        routeGroup.MapGet("v1/card", async context => await A2AHttpProcessor.GetAgentCard(taskManager, logger, $"{context.Request.Scheme}://{context.Request.Host}{path}"));
 
-        // /tasks/{id} endpoint
-        routeGroup.MapGet("/tasks/{id}", (string id, [FromQuery] int? historyLength, [FromQuery] string? metadata) =>
+        // /v1/tasks/{id} endpoint
+        routeGroup.MapGet("v1/tasks/{id}", (string id, [FromQuery] int? historyLength, [FromQuery] string? metadata) =>
             A2AHttpProcessor.GetTask(taskManager, logger, id, historyLength, metadata));
 
-        // /tasks/{id}/cancel endpoint
-        routeGroup.MapPost("/tasks/{id}/cancel", (string id) => A2AHttpProcessor.CancelTask(taskManager, logger, id));
+        // /v1/tasks/{id}:cancel endpoint
+        routeGroup.MapPost("v1/tasks/{id}:cancel", (string id) => A2AHttpProcessor.CancelTask(taskManager, logger, id));
 
-        // /send endpoint
-        routeGroup.MapPost("/send", ([FromBody] MessageSendParams sendParams, int? historyLength, string? metadata) =>
+        // /v1/message:send endpoint
+        routeGroup.MapPost("v1/message:send", ([FromBody] MessageSendParams sendParams, int? historyLength, string? metadata) =>
             A2AHttpProcessor.SendTaskMessage(taskManager, logger, null, sendParams, historyLength, metadata));
 
         // /tasks/{id}/send endpoint
@@ -81,8 +81,8 @@ public static class A2ARouteBuilderExtensions
         routeGroup.MapPut("/tasks/{id}/pushNotification", (string id, [FromBody] PushNotificationConfig pushNotificationConfig) =>
             A2AHttpProcessor.SetPushNotification(taskManager, logger, id, pushNotificationConfig));
 
-        // /tasks/{id}/pushNotification endpoint - GET
-        routeGroup.MapGet("/tasks/{id}/pushNotification", (string id) => A2AHttpProcessor.GetPushNotification(taskManager, logger, id));
+        // /v1/tasks/{id}/pushNotification endpoint - GET
+        routeGroup.MapGet("v1/tasks/{id}/pushNotificationConfigs", (string id) => A2AHttpProcessor.GetPushNotification(taskManager, logger, id));
 
         return routeGroup;
     }
