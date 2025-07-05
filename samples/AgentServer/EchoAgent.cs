@@ -1,4 +1,6 @@
 using A2A;
+using System;
+using System.Linq;
 
 namespace AgentServer;
 
@@ -13,7 +15,7 @@ public class EchoAgent
     private Task<Message> ProcessMessage(MessageSendParams messageSendParams)
     {
         // Process the message
-        var messageText = messageSendParams.Message.Parts.OfType<TextPart>().First().Text;
+        var messageText = messageSendParams.Message.Parts.OfType<TextPart>().FirstOrDefault()?.Text ?? string.Empty;
 
         // Create and return an artifact
         var message = new Message()
@@ -22,8 +24,8 @@ public class EchoAgent
             MessageId = Guid.NewGuid().ToString(),
             ContextId = messageSendParams.Message.ContextId,
             Parts = [new TextPart() {
-                Text = $"Echo: {messageText}"
-            }]
+                    Text = $"Echo: {messageText}"
+                }]
         };
 
         return Task.FromResult(message);
