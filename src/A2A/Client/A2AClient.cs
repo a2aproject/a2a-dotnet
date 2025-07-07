@@ -1,4 +1,4 @@
-﻿using System.Net.ServerSentEvents;
+using System.Net.ServerSentEvents;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
@@ -6,7 +6,7 @@ using System.Text.Json.Serialization.Metadata;
 namespace A2A;
 
 /// <summary>
-/// Implementation of A2A client for communicating with agents
+/// Implementation of A2A client for communicating with agents.
 /// </summary>
 public sealed class A2AClient : IA2AClient
 {
@@ -15,7 +15,7 @@ public sealed class A2AClient : IA2AClient
     private readonly HttpClient _httpClient;
 
     /// <summary>
-    /// Initializes a new instance of the A2AClient class
+    /// Initializes a new instance of the A2AClient class.
     /// </summary>
     /// <param name="httpClient">The HTTP client to use for requests</param>
     public A2AClient(HttpClient? httpClient = null)

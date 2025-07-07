@@ -26,19 +26,19 @@ public class JsonRpcResponse
     public string Id { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the result object on success
+    /// Gets or sets the result object on success.
     /// </summary>
     [JsonPropertyName("result")]
     public JsonNode? Result { get; set; }
 
     /// <summary>
-    /// Gets or sets the error object when an error occurs
+    /// Gets or sets the error object when an error occurs.
     /// </summary>
     [JsonPropertyName("error")]
     public JsonRpcError? Error { get; set; }
 
     /// <summary>
-    /// Creates a JSON-RPC response with a result
+    /// Creates a JSON-RPC response with a result.
     /// </summary>
     /// <typeparam name="T">The type of the result</typeparam>
     /// <param name="requestId">The request ID</param>
@@ -57,7 +57,7 @@ public class JsonRpcResponse
     }
 
     /// <summary>
-    /// Creates a JSON-RPC error response for invalid parameters
+    /// Creates a JSON-RPC error response for invalid parameters.
     /// </summary>
     /// <param name="requestId">The request ID</param>
     /// <returns>A JSON-RPC error response</returns>
@@ -72,7 +72,7 @@ public class JsonRpcResponse
     };
 
     /// <summary>
-    /// Creates a JSON-RPC error response for task not found
+    /// Creates a JSON-RPC error response for task not found.
     /// </summary>
     /// <param name="requestId">The request ID</param>
     /// <returns>A JSON-RPC error response</returns>
@@ -87,7 +87,7 @@ public class JsonRpcResponse
     };
 
     /// <summary>
-    /// Creates a JSON-RPC error response for task not cancelable
+    /// Creates a JSON-RPC error response for task not cancelable.
     /// </summary>
     /// <param name="requestId">The request ID</param>
     /// <returns>A JSON-RPC error response</returns>
@@ -102,7 +102,7 @@ public class JsonRpcResponse
     };
 
     /// <summary>
-    /// Creates a JSON-RPC error response for method not found
+    /// Creates a JSON-RPC error response for method not found.
     /// </summary>
     /// <param name="requestId">The request ID</param>
     /// <returns>A JSON-RPC error response</returns>
@@ -117,7 +117,7 @@ public class JsonRpcResponse
     };
 
     /// <summary>
-    /// Creates a JSON-RPC error response for push notification not supported
+    /// Creates a JSON-RPC error response for push notification not supported.
     /// </summary>
     /// <param name="requestId">The request ID</param>
     /// <returns>A JSON-RPC error response</returns>
@@ -132,7 +132,7 @@ public class JsonRpcResponse
     };
 
     /// <summary>
-    /// Creates a JSON-RPC error response for internal error
+    /// Creates a JSON-RPC error response for internal error.
     /// </summary>
     /// <param name="requestId">The request ID</param>
     /// <param name="message">Optional error message</param>
@@ -148,7 +148,7 @@ public class JsonRpcResponse
     };
 
     /// <summary>
-    /// Creates a JSON-RPC error response for parse error
+    /// Creates a JSON-RPC error response for parse error.
     /// </summary>
     /// <param name="requestId">The request ID</param>
     /// <param name="message">Optional error message</param>
@@ -164,7 +164,7 @@ public class JsonRpcResponse
     };
 
     /// <summary>
-    /// Creates a JSON-RPC error response for unsupported operation
+    /// Creates a JSON-RPC error response for unsupported operation.
     /// </summary>
     /// <param name="requestId">The request ID</param>
     /// <param name="message">Optional error message</param>
@@ -180,7 +180,7 @@ public class JsonRpcResponse
     };
 
     /// <summary>
-    /// Creates a JSON-RPC error response for content type not supported
+    /// Creates a JSON-RPC error response for content type not supported.
     /// </summary>
     /// <param name="requestId">The request ID</param>
     /// <param name="message">Optional error message</param>

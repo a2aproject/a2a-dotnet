@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
 namespace A2A;
@@ -10,7 +10,7 @@ namespace A2A;
 public class SecurityScheme
 {
     /// <summary>
-    /// The type of the security scheme
+    /// The type of the security scheme.
     /// </summary>
     [JsonPropertyName("type")]
     [Required]
@@ -91,7 +91,7 @@ public class OpenIdConnectSecurityScheme : SecurityScheme
 }
 
 /// <summary>
-/// Allows configuration of the supported OAuth Flows
+/// Allows configuration of the supported OAuth Flows.
 /// </summary>
 public class OAuthFlows
 {
@@ -114,20 +114,20 @@ public class OAuthFlows
     public ClientCredentialsOAuthFlow? ClientCredentials { get; set; }
 
     /// <summary>
-    /// Configuration for the OAuth Resource Owner Password flow
+    /// Configuration for the OAuth Resource Owner Password flow.
     /// </summary>
     [JsonPropertyName("password")]
     public PasswordOAuthFlow? Password { get; set; }
 
     /// <summary>
-    /// Configuration for the OAuth Implicit flow
+    /// Configuration for the OAuth Implicit flow.
     /// </summary>
     [JsonPropertyName("implicit")]
     public ImplicitOAuthFlow? Implicit { get; set; }
 }
 
 /// <summary>
-/// Configuration details for a supported OAuth Flow
+/// Configuration details for a supported OAuth Flow.
 /// </summary>
 public class AuthorizationCodeOAuthFlow
 {
@@ -135,7 +135,7 @@ public class AuthorizationCodeOAuthFlow
     /// The authorization URL to be used for this flow.
     /// </summary>
     /// <remarks>
-    /// This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS
+    /// This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.
     /// </remarks>
     [JsonPropertyName("authorizationUrl")]
     [Required]
@@ -172,7 +172,7 @@ public class AuthorizationCodeOAuthFlow
 }
 
 /// <summary>
-/// Configuration details for a supported OAuth Flow
+/// Configuration details for a supported OAuth Flow.
 /// </summary>
 public class ClientCredentialsOAuthFlow
 {
@@ -203,7 +203,7 @@ public class ClientCredentialsOAuthFlow
 }
 
 /// <summary>
-/// Configuration details for a supported OAuth Flow
+/// Configuration details for a supported OAuth Flow.
 /// </summary>
 public class PasswordOAuthFlow
 {
@@ -238,7 +238,7 @@ public class PasswordOAuthFlow
 }
 
 /// <summary>
-/// Configuration details for a supported OAuth Flow
+/// Configuration details for a supported OAuth Flow.
 /// </summary>
 public class ImplicitOAuthFlow
 {
@@ -246,7 +246,7 @@ public class ImplicitOAuthFlow
     /// The authorization URL to be used for this flow.
     /// </summary>
     /// <remarks>
-    /// This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS
+    /// This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.
     /// </remarks>
     [JsonPropertyName("authorizationUrl")]
     [Required]

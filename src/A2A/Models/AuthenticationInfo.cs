@@ -8,14 +8,14 @@ namespace A2A;
 public class AuthenticationInfo
 {
     /// <summary>
-    /// Supported authentication schemes - e.g. Basic, Bearer
+    /// Supported authentication schemes - e.g. Basic, Bearer.
     /// </summary>
     [JsonPropertyName("schemes")]
     [JsonRequired]
     public List<string> Schemes { get; set; } = [];
 
     /// <summary>
-    /// Optional credentials
+    /// Optional credentials.
     /// </summary>
     [JsonPropertyName("credentials")]
     public string? Credentials { get; set; }

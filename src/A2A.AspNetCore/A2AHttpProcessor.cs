@@ -16,7 +16,7 @@ namespace A2A.AspNetCore;
 public static class A2AHttpProcessor
 {
     /// <summary>
-    /// OpenTelemetry ActivitySource for tracing HTTP processor operations
+    /// OpenTelemetry ActivitySource for tracing HTTP processor operations.
     /// </summary>
     public static readonly ActivitySource ActivitySource = new("A2A.HttpProcessor", "1.0.0");
 

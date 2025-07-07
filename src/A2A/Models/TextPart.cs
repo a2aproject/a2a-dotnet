@@ -8,7 +8,7 @@ namespace A2A;
 public class TextPart : Part
 {
     /// <summary>
-    /// Gets or sets the text content
+    /// Gets or sets the text content.
     /// </summary>
     [JsonPropertyName("text")]
     public string Text { get; set; } = string.Empty;

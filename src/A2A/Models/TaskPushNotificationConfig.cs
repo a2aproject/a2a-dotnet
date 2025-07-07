@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace A2A;
 
 /// <summary>
-/// Parameters for setting or getting push notification configuration for a task
+/// Parameters for setting or getting push notification configuration for a task.
 /// </summary>
 public class TaskPushNotificationConfig
 {

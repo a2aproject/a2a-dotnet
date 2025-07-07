@@ -16,7 +16,7 @@ namespace A2A.AspNetCore;
 public static class A2AJsonRpcProcessor
 {
     /// <summary>
-    /// OpenTelemetry ActivitySource for tracing JSON-RPC processor operations
+    /// OpenTelemetry ActivitySource for tracing JSON-RPC processor operations.
     /// </summary>
     public static readonly ActivitySource ActivitySource = new("A2A.Processor", "1.0.0");
 
@@ -24,12 +24,12 @@ public static class A2AJsonRpcProcessor
     /// Processes an incoming JSON-RPC request and routes it to the appropriate handler.
     /// </summary>
     /// <remarks>
-    /// Determines whether the request requires a single response or streaming response
+    /// Determines whether the request requires a single response or streaming response.
     /// based on the method name and dispatches accordingly.
     /// </remarks>
-    /// <param name="taskManager">The task manager instance for handling A2A operations</param>
-    /// <param name="rpcRequest">The parsed JSON-RPC request containing method, parameters, and request ID</param>
-    /// <returns>An HTTP result containing either a single JSON-RPC response or a streaming SSE response</returns>
+    /// <param name="taskManager">The task manager instance for handling A2A operations.</param>
+    /// <param name="rpcRequest">The parsed JSON-RPC request containing method, parameters, and request ID.</param>
+    /// <returns>An HTTP result containing either a single JSON-RPC response or a streaming SSE response.</returns>
     internal static async Task<IResult> ProcessRequest(TaskManager taskManager, JsonRpcRequest rpcRequest)
     {
         using var activity = ActivitySource.StartActivity("HandleA2ARequest", ActivityKind.Server);
@@ -60,11 +60,11 @@ public static class A2AJsonRpcProcessor
     /// Handles methods like message sending, task retrieval, task cancellation,
     /// and push notification configuration operations.
     /// </remarks>
-    /// <param name="taskManager">The task manager instance for handling A2A operations</param>
-    /// <param name="requestId">The JSON-RPC request ID for response correlation</param>
-    /// <param name="method">The JSON-RPC method name to execute</param>
-    /// <param name="parameters">The JSON parameters for the method call</param>
-    /// <returns>A JSON-RPC response result containing the operation result or error</returns>
+    /// <param name="taskManager">The task manager instance for handling A2A operations.</param>
+    /// <param name="requestId">The JSON-RPC request ID for response correlation.</param>
+    /// <param name="method">The JSON-RPC method name to execute.</param>
+    /// <param name="parameters">The JSON parameters for the method call.</param>
+    /// <returns>A JSON-RPC response result containing the operation result or error.</returns>
     internal static async Task<JsonRpcResponseResult> SingleResponse(TaskManager taskManager, string requestId, string method, JsonElement? parameters)
     {
         using var activity = ActivitySource.StartActivity($"SingleResponse/{method}", ActivityKind.Server);
@@ -146,11 +146,11 @@ public static class A2AJsonRpcProcessor
     /// Handles methods like task resubscription and streaming message sending that return
     /// continuous streams of events rather than single responses.
     /// </remarks>
-    /// <param name="taskManager">The task manager instance for handling streaming A2A operations</param>
-    /// <param name="requestId">The JSON-RPC request ID for response correlation</param>
-    /// <param name="method">The JSON-RPC streaming method name to execute</param>
-    /// <param name="parameters">The JSON parameters for the streaming method call</param>
-    /// <returns>An HTTP result that streams JSON-RPC responses as Server-Sent Events or an error response</returns>
+    /// <param name="taskManager">The task manager instance for handling streaming A2A operations.</param>
+    /// <param name="requestId">The JSON-RPC request ID for response correlation.</param>
+    /// <param name="method">The JSON-RPC streaming method name to execute.</param>
+    /// <param name="parameters">The JSON parameters for the streaming method call.</param>
+    /// <returns>An HTTP result that streams JSON-RPC responses as Server-Sent Events or an error response.</returns>
     internal static async Task<IResult> StreamResponse(TaskManager taskManager, string requestId, string method, JsonElement? parameters)
     {
         using var activity = ActivitySource.StartActivity("StreamResponse", ActivityKind.Server);
@@ -213,7 +213,7 @@ public class JsonRpcResponseResult : IResult
     /// <summary>
     /// Initializes a new instance of the JsonRpcResponseResult class.
     /// </summary>
-    /// <param name="jsonRpcResponse">The JSON-RPC response object to serialize and return in the HTTP response</param>
+    /// <param name="jsonRpcResponse">The JSON-RPC response object to serialize and return in the HTTP response.</param>
     public JsonRpcResponseResult(JsonRpcResponse jsonRpcResponse)
     {
         this.jsonRpcResponse = jsonRpcResponse;
@@ -226,8 +226,8 @@ public class JsonRpcResponseResult : IResult
     /// Sets the appropriate content type and HTTP status code (200 for success, 400 for JSON-RPC errors).
     /// Uses the default A2A JSON serialization options for consistent formatting.
     /// </remarks>
-    /// <param name="httpContext">The HTTP context to write the response to</param>
-    /// <returns>A task representing the asynchronous serialization operation</returns>
+    /// <param name="httpContext">The HTTP context to write the response to.</param>
+    /// <returns>A task representing the asynchronous serialization operation.</returns>
     public async Task ExecuteAsync(HttpContext httpContext)
     {
         httpContext.Response.ContentType = "application/json";
@@ -254,8 +254,8 @@ public class JsonRpcStreamedResult : IResult
     /// <summary>
     /// Initializes a new instance of the JsonRpcStreamedResult class.
     /// </summary>
-    /// <param name="events">The async enumerable stream of A2A events to send as Server-Sent Events</param>
-    /// <param name="requestId">The JSON-RPC request ID used for correlating responses with the original request</param>
+    /// <param name="events">The async enumerable stream of A2A events to send as Server-Sent Events.</param>
+    /// <param name="requestId">The JSON-RPC request ID used for correlating responses with the original request.</param>
     public JsonRpcStreamedResult(IAsyncEnumerable<A2AEvent> events, string requestId)
     {
         _events = events;
@@ -269,8 +269,8 @@ public class JsonRpcStreamedResult : IResult
     /// Sets appropriate SSE headers, wraps each A2A event in a JSON-RPC response format,
     /// and streams them using the SSE protocol with proper formatting and encoding.
     /// </remarks>
-    /// <param name="httpContext">The HTTP context to stream the responses to</param>
-    /// <returns>A task representing the asynchronous streaming operation</returns>
+    /// <param name="httpContext">The HTTP context to stream the responses to.</param>
+    /// <returns>A task representing the asynchronous streaming operation.</returns>
     public async Task ExecuteAsync(HttpContext httpContext)
     {
         httpContext.Response.StatusCode = StatusCodes.Status200OK;

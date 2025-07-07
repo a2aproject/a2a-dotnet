@@ -8,7 +8,7 @@ namespace A2A;
 public class FilePart : Part
 {
     /// <summary>
-    /// File content either as url or bytes
+    /// File content either as url or bytes.
     /// </summary>
     [JsonPropertyName("file")]
     public FileWithBytes File { get; set; } = new FileWithBytes();

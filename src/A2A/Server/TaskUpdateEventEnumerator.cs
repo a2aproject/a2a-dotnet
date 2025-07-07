@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 namespace A2A;
 
 /// <summary>
-/// Enumerator for streaming task update events to clients
+/// Enumerator for streaming task update events to clients.
 /// </summary>
 public class TaskUpdateEventEnumerator : IAsyncEnumerable<A2AEvent>
 {
@@ -12,12 +12,12 @@ public class TaskUpdateEventEnumerator : IAsyncEnumerable<A2AEvent>
     private readonly SemaphoreSlim _semaphore = new(0);
 
     /// <summary>
-    /// Gets or sets the processing task to prevent garbage collection
+    /// Gets or sets the processing task to prevent garbage collection.
     /// </summary>
     public Task? ProcessingTask { get; set; }
 
     /// <summary>
-    /// Notifies of a new event in the task stream
+    /// Notifies of a new event in the task stream.
     /// </summary>
     /// <param name="taskUpdateEvent">The event to notify</param>
     public void NotifyEvent(A2AEvent taskUpdateEvent)
@@ -28,7 +28,7 @@ public class TaskUpdateEventEnumerator : IAsyncEnumerable<A2AEvent>
     }
 
     /// <summary>
-    /// Notifies of the final event in the task stream
+    /// Notifies of the final event in the task stream.
     /// </summary>
     /// <param name="taskUpdateEvent">The final event to notify</param>
     public void NotifyFinalEvent(A2AEvent taskUpdateEvent)

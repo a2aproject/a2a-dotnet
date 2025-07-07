@@ -27,13 +27,13 @@ public class JsonRpcRequest
     public string Id { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the string containing the name of the method to be invoked
+    /// Gets or sets the string containing the name of the method to be invoked.
     /// </summary>
     [JsonPropertyName("method")]
     public string Method { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the structured value that holds the parameter values to be used during the invocation of the method
+    /// Gets or sets the structured value that holds the parameter values to be used during the invocation of the method.
     /// </summary>
     [JsonPropertyName("params")]
     public JsonElement? Params { get; set; }

@@ -9,21 +9,21 @@ namespace A2A;
 public class AgentTask : A2AResponse
 {
     /// <summary>
-    /// Unique identifier for the task
+    /// Unique identifier for the task.
     /// </summary>
     [JsonPropertyName("id")]
     [JsonRequired]
     public string Id { get; set; } = string.Empty;
 
     /// <summary>
-    /// Server-generated id for contextual alignment across interactions
+    /// Server-generated id for contextual alignment across interactions.
     /// </summary>
     [JsonPropertyName("contextId")]
     [JsonRequired]
     public string? ContextId { get; set; }
 
     /// <summary>
-    /// Current status of the task
+    /// Current status of the task.
     /// </summary>
     [JsonPropertyName("status")]
     [JsonRequired]

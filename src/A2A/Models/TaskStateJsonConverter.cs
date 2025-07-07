@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 namespace A2A;
 
 /// <summary>
-/// JSON converter for TaskState enum that maps between enum values and string representations
+/// JSON converter for TaskState enum that maps between enum values and string representations.
 /// </summary>
 public class TaskStateJsonConverter : JsonConverter<TaskState>
 {

@@ -12,7 +12,7 @@ namespace A2A;
 public class TaskManager : ITaskManager
 {
     /// <summary>
-    /// OpenTelemetry ActivitySource for tracing
+    /// OpenTelemetry ActivitySource for tracing.
     /// </summary>
     public static readonly ActivitySource ActivitySource = new("A2A.TaskManager", "1.0.0");
 

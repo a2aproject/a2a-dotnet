@@ -11,14 +11,14 @@ namespace A2A;
 public class AgentTaskStatus
 {
     /// <summary>
-    /// The current state of the task
+    /// The current state of the task.
     /// </summary>
     [JsonPropertyName("state")]
     [JsonRequired]
     public TaskState State { get; set; }
 
     /// <summary>
-    /// Additional status updates for client
+    /// Additional status updates for client.
     /// </summary>
     [JsonPropertyName("message")]
     public Message? Message { get; set; }

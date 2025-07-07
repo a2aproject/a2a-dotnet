@@ -1,7 +1,7 @@
 namespace A2A;
 
 /// <summary>
-/// In-memory implementation of task store for development and testing
+/// In-memory implementation of task store for development and testing.
 /// </summary>
 public class InMemoryTaskStore : ITaskStore
 {

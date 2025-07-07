@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Diagnostics;
 using System.Net;
@@ -7,7 +7,7 @@ using System.Text.Json;
 namespace A2A;
 
 /// <summary>
-/// Resolves Agent Card information from an A2A-compatible endpoint
+/// Resolves Agent Card information from an A2A-compatible endpoint.
 /// </summary>
 public sealed class A2ACardResolver
 {
@@ -16,7 +16,7 @@ public sealed class A2ACardResolver
     private readonly ILogger _logger;
 
     /// <summary>
-    /// Creates a new instance of the A2ACardResolver
+    /// Creates a new instance of the A2ACardResolver.
     /// </summary>
     /// <param name="httpClient">Optional HTTP client (if not provided, a shared one will be used)</param>
     /// <param name="agentCardPath">Path to the agent card (defaults to "/.well-known/agent.json")</param>
@@ -42,7 +42,7 @@ public sealed class A2ACardResolver
     }
 
     /// <summary>
-    /// Gets the agent card asynchronously
+    /// Gets the agent card asynchronously.
     /// </summary>
     /// <param name="cancellationToken">Optional cancellation token</param>
     /// <returns>The agent card</returns>

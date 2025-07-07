@@ -9,7 +9,7 @@ namespace A2A;
 public class DataPart : Part
 {
     /// <summary>
-    /// Structured data content
+    /// Structured data content.
     /// </summary>
     [JsonPropertyName("data")]
     public Dictionary<string, JsonElement> Data { get; set; } = [];

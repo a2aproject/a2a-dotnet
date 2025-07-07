@@ -8,12 +8,12 @@ namespace A2A;
 public class JsonRpcError
 {
     /// <summary>
-    /// Gets or sets the number that indicates the error type that occurred
+    /// Gets or sets the number that indicates the error type that occurred.
     /// </summary>
     public int Code { get; set; }
 
     /// <summary>
-    /// Gets or sets the string providing a short description of the error
+    /// Gets or sets the string providing a short description of the error.
     /// </summary>
     public string Message { get; set; } = string.Empty;
 
@@ -24,7 +24,7 @@ public class JsonRpcError
     public JsonElement? Data { get; set; }
 
     /// <summary>
-    /// Deserializes a JsonRpcError from a JsonElement
+    /// Deserializes a JsonRpcError from a JsonElement.
     /// </summary>
     /// <param name="jsonElement">The JSON element to deserialize</param>
     /// <returns>A JsonRpcError instance</returns>
@@ -34,7 +34,7 @@ public class JsonRpcError
         throw new InvalidOperationException("Failed to deserialize JsonRpcError.");
 
     /// <summary>
-    /// Serializes a JsonRpcError to JSON
+    /// Serializes a JsonRpcError to JSON.
     /// </summary>
     /// <returns>JSON string representation</returns>
     public string ToJson() => JsonSerializer.Serialize(this, A2AJsonUtilities.JsonContext.Default.JsonRpcError);

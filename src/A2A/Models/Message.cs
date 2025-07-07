@@ -4,23 +4,23 @@ using System.Text.Json.Serialization;
 namespace A2A;
 
 /// <summary>
-/// Message sender's role
+/// Message sender's role.
 /// </summary>
 [JsonConverter(typeof(MessageRoleConverter))]
 public enum MessageRole
 {
     /// <summary>
-    /// User role
+    /// User role.
     /// </summary>
     User,
     /// <summary>
-    /// Agent role
+    /// Agent role.
     /// </summary>
     Agent
 }
 
 /// <summary>
-/// JSON converter for MessageRole enum
+/// JSON converter for MessageRole enum.
 /// </summary>
 public class MessageRoleConverter : JsonConverter<MessageRole>
 {
@@ -55,14 +55,14 @@ public class MessageRoleConverter : JsonConverter<MessageRole>
 public class Message : A2AResponse
 {
     /// <summary>
-    /// Message sender's role
+    /// Message sender's role.
     /// </summary>
     [JsonPropertyName("role")]
     [JsonRequired]
     public MessageRole Role { get; set; } = MessageRole.User;
 
     /// <summary>
-    /// Message content
+    /// Message content.
     /// </summary>
     [JsonPropertyName("parts")]
     [JsonRequired]
@@ -81,20 +81,20 @@ public class Message : A2AResponse
     public List<string>? ReferenceTaskIds { get; set; }
 
     /// <summary>
-    /// Identifier created by the message creator
+    /// Identifier created by the message creator.
     /// </summary>
     [JsonPropertyName("messageId")]
     [JsonRequired]
     public string? MessageId { get; set; }
 
     /// <summary>
-    /// Identifier of task the message is related to
+    /// Identifier of task the message is related to.
     /// </summary>
     [JsonPropertyName("taskId")]
     public string? TaskId { get; set; }
 
     /// <summary>
-    /// The context the message is associated with
+    /// The context the message is associated with.
     /// </summary>
     [JsonPropertyName("contextId")]
     public string? ContextId { get; set; }

@@ -9,17 +9,17 @@ using System.Diagnostics;
 namespace A2A.AspNetCore;
 
 /// <summary>
-/// Extension methods for configuring A2A endpoints in ASP.NET Core applications
+/// Extension methods for configuring A2A endpoints in ASP.NET Core applications.
 /// </summary>
 public static class A2ARouteBuilderExtensions
 {
     /// <summary>
-    /// Activity source for tracing A2A endpoint operations
+    /// Activity source for tracing A2A endpoint operations.
     /// </summary>
     public static readonly ActivitySource ActivitySource = new("A2A.Endpoint", "1.0.0");
 
     /// <summary>
-    /// Enables JSON-RPC A2A endpoints for the specified path
+    /// Enables JSON-RPC A2A endpoints for the specified path.
     /// </summary>
     /// <param name="endpoints">The endpoint route builder to configure</param>
     /// <param name="taskManager">The task manager for handling A2A operations</param>
@@ -45,7 +45,7 @@ public static class A2ARouteBuilderExtensions
     }
 
     /// <summary>
-    /// Enables experimental HTTP A2A endpoints for the specified path
+    /// Enables experimental HTTP A2A endpoints for the specified path.
     /// </summary>
     /// <param name="endpoints">The endpoint route builder to configure</param>
     /// <param name="taskManager">The task manager for handling A2A operations</param>
