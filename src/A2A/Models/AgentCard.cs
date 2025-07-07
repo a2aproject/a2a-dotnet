@@ -48,6 +48,13 @@ public class AgentCard
     public string Version { get; set; } = string.Empty;
 
     /// <summary>
+    /// The version of the A2A protocol this agent supports
+    /// </summary>
+    [JsonPropertyName("protocolVersion")]
+    [Required]
+    public string ProtocolVersion { get; set; } = "0.2.3";
+
+    /// <summary>
     /// Optional documentation URL
     /// </summary>
     [JsonPropertyName("documentationUrl")]
