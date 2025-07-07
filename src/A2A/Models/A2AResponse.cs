@@ -2,6 +2,9 @@ using System.Text.Json.Serialization;
 
 namespace A2A;
 
+/// <summary>
+/// Base class for A2A events.
+/// </summary>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
 [JsonDerivedType(typeof(TaskStatusUpdateEvent), "status-update")]
 [JsonDerivedType(typeof(TaskArtifactUpdateEvent), "artifact-update")]
@@ -11,6 +14,9 @@ public class A2AEvent
 {
 }
 
+/// <summary>
+/// A2A response objects.
+/// </summary>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
 [JsonDerivedType(typeof(Message), "message")]
 [JsonDerivedType(typeof(AgentTask), "task")]

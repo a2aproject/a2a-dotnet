@@ -155,15 +155,23 @@ public static class A2AJsonRpcProcessor
     }
 }
 
+/// <summary>
+/// Result type for returning JSON-RPC responses as JSON in HTTP responses
+/// </summary>
 public class JsonRpcResponseResult : IResult
 {
     private readonly JsonRpcResponse jsonRpcResponse;
 
+    /// <summary>
+    /// Initializes a new instance of the JsonRpcResponseResult class
+    /// </summary>
+    /// <param name="jsonRpcResponse">The JSON-RPC response to return</param>
     public JsonRpcResponseResult(JsonRpcResponse jsonRpcResponse)
     {
         this.jsonRpcResponse = jsonRpcResponse;
     }
 
+    /// <inheritdoc />
     public async Task ExecuteAsync(HttpContext httpContext)
     {
         httpContext.Response.ContentType = "application/json";
@@ -175,17 +183,26 @@ public class JsonRpcResponseResult : IResult
     }
 }
 
+/// <summary>
+/// Result type for streaming JSON-RPC responses as Server-Sent Events (SSE)
+/// </summary>
 public class JsonRpcStreamedResult : IResult
 {
     private readonly IAsyncEnumerable<A2AEvent> _events;
     private readonly string requestId;
 
+    /// <summary>
+    /// Initializes a new instance of the JsonRpcStreamedResult class
+    /// </summary>
+    /// <param name="events">The stream of events to send</param>
+    /// <param name="requestId">The JSON-RPC request ID for response correlation</param>
     public JsonRpcStreamedResult(IAsyncEnumerable<A2AEvent> events, string requestId)
     {
         _events = events;
         this.requestId = requestId;
     }
 
+    /// <inheritdoc />
     public async Task ExecuteAsync(HttpContext httpContext)
     {
         httpContext.Response.StatusCode = StatusCodes.Status200OK;

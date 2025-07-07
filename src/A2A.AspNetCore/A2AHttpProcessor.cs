@@ -203,14 +203,23 @@ public static class A2AHttpProcessor
     }
 }
 
+/// <summary>
+/// Result type for returning A2A responses as JSON in HTTP responses
+/// </summary>
 public class A2AResponseResult : IResult
 {
     private readonly A2AResponse a2aResponse;
 
+    /// <summary>
+    /// Initializes a new instance of the A2AResponseResult class
+    /// </summary>
+    /// <param name="a2aResponse">The A2A response to return</param>
     public A2AResponseResult(A2AResponse a2aResponse)
     {
         this.a2aResponse = a2aResponse;
     }
+
+    /// <inheritdoc />
     public async Task ExecuteAsync(HttpContext httpContext)
     {
         httpContext.Response.ContentType = "application/json";
@@ -219,15 +228,23 @@ public class A2AResponseResult : IResult
     }
 }
 
+/// <summary>
+/// Result type for streaming A2A events as Server-Sent Events (SSE)
+/// </summary>
 public class A2AEventStreamResult : IResult
 {
     private readonly IAsyncEnumerable<A2AEvent> taskEvents;
 
+    /// <summary>
+    /// Initializes a new instance of the A2AEventStreamResult class
+    /// </summary>
+    /// <param name="taskEvents">The stream of events to send</param>
     public A2AEventStreamResult(IAsyncEnumerable<A2AEvent> taskEvents)
     {
         this.taskEvents = taskEvents;
     }
 
+    /// <inheritdoc />
     public async Task ExecuteAsync(HttpContext httpContext)
     {
         httpContext.Response.ContentType = "text/event-stream";

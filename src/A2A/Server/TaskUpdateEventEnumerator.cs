@@ -2,14 +2,24 @@ using System.Collections.Concurrent;
 
 namespace A2A;
 
+/// <summary>
+/// Enumerator for streaming task update events to clients
+/// </summary>
 public class TaskUpdateEventEnumerator : IAsyncEnumerable<A2AEvent>
 {
     private bool isFinal;
     private readonly ConcurrentQueue<A2AEvent> _UpdateEvents = new();
     private readonly SemaphoreSlim _semaphore = new(0);
 
-    public Task? ProcessingTask { get; set; } // Store the processing task so it doesn't get garbage collected
+    /// <summary>
+    /// Gets or sets the processing task to prevent garbage collection
+    /// </summary>
+    public Task? ProcessingTask { get; set; }
 
+    /// <summary>
+    /// Notifies of a new event in the task stream
+    /// </summary>
+    /// <param name="taskUpdateEvent">The event to notify</param>
     public void NotifyEvent(A2AEvent taskUpdateEvent)
     {
         // Enqueue the event to the queue
@@ -17,6 +27,10 @@ public class TaskUpdateEventEnumerator : IAsyncEnumerable<A2AEvent>
         _semaphore.Release();
     }
 
+    /// <summary>
+    /// Notifies of the final event in the task stream
+    /// </summary>
+    /// <param name="taskUpdateEvent">The final event to notify</param>
     public void NotifyFinalEvent(A2AEvent taskUpdateEvent)
     {
         isFinal = true;
@@ -25,6 +39,7 @@ public class TaskUpdateEventEnumerator : IAsyncEnumerable<A2AEvent>
         _semaphore.Release();
     }
 
+    /// <inheritdoc />
     public async IAsyncEnumerator<A2AEvent> GetAsyncEnumerator(CancellationToken cancellationToken = default)
     {
         while (!isFinal || !_UpdateEvents.IsEmpty)

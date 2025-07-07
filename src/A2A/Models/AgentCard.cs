@@ -4,19 +4,24 @@ using System.Text.Json.Serialization;
 namespace A2A;
 
 /// <summary>
-/// Information about an agent
+/// An AgentCard conveys key information:
+/// - Overall details (version, name, description, uses)
+/// - Skills: A set of capabilities the agent can perform
+/// - Default modalities/content types supported by the agent.
+/// - Authentication requirements
 /// </summary>
 public class AgentCard
 {
     /// <summary>
-    /// Human-readable name of the agent (e.g., "Recipe Advisor Agent").
+    /// Human readable name of the agent.
     /// </summary>
     [JsonPropertyName("name")]
     [Required]
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
-    /// A human-readable description of the agent and its general purpose.
+    /// A human-readable description of the agent. Used to assist users and
+    /// other agents in understanding what the agent can do.
     /// [CommonMark](https://commonmark.org/) MAY be used for rich text formatting.
     /// (e.g., "This agent helps users find recipes, plan meals, and get cooking instructions.")
     /// </summary>
@@ -25,70 +30,74 @@ public class AgentCard
     public string? Description { get; set; }
 
     /// <summary>
-    /// The base URL endpoint for the agent's A2A service (where JSON-RPC requests are sent).
-    /// Must be an absolute HTTPS URL for production (e.g., `https://agent.example.com/a2a/api`).
-    /// HTTP MAY be used for local development/testing only.
+    /// A URL to the address the agent is hosted at. This represents the
+    /// preferred endpoint as declared by the agent.
     /// </summary>
     [JsonPropertyName("url")]
     [Required]
     public string Url { get; set; } = string.Empty;
 
     /// <summary>
-    /// Information about the organization or entity providing the agent.
+    /// The service provider of the agent
     /// </summary>
     [JsonPropertyName("provider")]
     public AgentProvider? Provider { get; set; }
 
     /// <summary>
-    /// Version string for the agent or its A2A implementation
-    /// (format is defined by the provider, e.g., "1.0.0", "2023-10-26-beta").
+    /// The version of the agent - format is up to the provider.
     /// </summary>
     [JsonPropertyName("version")]
     [Required]
     public string Version { get; set; } = string.Empty;
 
     /// <summary>
-    /// Optional documentation URL
+    /// A URL to documentation for the agent.
     /// </summary>
     [JsonPropertyName("documentationUrl")]
     public string? DocumentationUrl { get; set; }
 
     /// <summary>
-    /// The agent capabilities
+    /// Optional capabilities supported by the agent.
     /// </summary>
     [JsonPropertyName("capabilities")]
     [Required]
     public AgentCapabilities Capabilities { get; set; } = new AgentCapabilities();
 
     /// <summary>
-    /// Optional authentication information
+    /// Security scheme details used for authenticating with this agent.
     /// </summary>
     [JsonPropertyName("securitySchemes")]
     public Dictionary<string, SecurityScheme>? SecuritySchemes { get; set; }
 
+    /// <summary>
+    /// Security requirements for contacting the agent.
+    /// </summary>
+    [JsonPropertyName("security")]
     public Dictionary<string, string[]>? Security { get; set; }
 
     /// <summary>
-    /// Default input modes supported
+    /// The set of interaction modes that the agent supports across all skills. This can be overridden per-skill.
+    /// Supported media types for input.
     /// </summary>
     [JsonPropertyName("defaultInputModes")]
     public List<string> DefaultInputModes { get; set; } = ["text"];
 
     /// <summary>
-    /// Default output modes supported
+    /// Supported media types for output.
     /// </summary>
     [JsonPropertyName("defaultOutputModes")]
     public List<string> DefaultOutputModes { get; set; } = ["text"];
 
     /// <summary>
-    /// The skills provided by this agent
+    /// Skills are a unit of capability that an agent can perform.
     /// </summary>
     [JsonPropertyName("skills")]
     [Required]
     public List<AgentSkill> Skills { get; set; } = [];
 
     /// <summary>
-    /// Indicates support for retrieving a more detailed Agent Card via an authenticated endpoint.
+    /// true if the agent supports providing an extended agent card when the user is authenticated.
+    /// Defaults to false if not specified.
     /// </summary>
     [JsonPropertyName("supportsAuthenticatedExtendedCard")]
     public bool SupportsAuthenticatedExtendedCard { get; set; } = false;

@@ -2,8 +2,14 @@ using System.Text.Json.Serialization;
 
 namespace A2A;
 
+/// <summary>
+/// Represents a text segment within parts.
+/// </summary>
 public class TextPart : Part
 {
+    /// <summary>
+    /// Gets or sets the text content
+    /// </summary>
     [JsonPropertyName("text")]
     public string Text { get; set; } = string.Empty;
 }
