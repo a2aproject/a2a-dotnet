@@ -17,9 +17,11 @@ public class JsonRpcResponse
     public string JsonRpc { get; set; } = "2.0";
 
     /// <summary>
-    /// Gets or sets the identifier established by the Client that MUST contain a String, Number.
-    /// Numbers SHOULD NOT contain fractional parts.
+    /// Gets or sets the identifier established by the Client.
     /// </summary>
+    /// <remarks>
+    /// MUST contain a String, Number. Numbers SHOULD NOT contain fractional parts.
+    /// </remarks>
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
 

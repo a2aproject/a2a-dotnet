@@ -4,7 +4,9 @@ using System.Text.Json.Serialization;
 
 namespace A2A;
 
-/// <summary>Provides a collection of utility methods for working with JSON data in the context of A2A.</summary>
+/// <summary>
+/// Provides a collection of utility methods for working with JSON data in the context of A2A.
+/// </summary>
 public static partial class A2AJsonUtilities
 {
     /// <summary>

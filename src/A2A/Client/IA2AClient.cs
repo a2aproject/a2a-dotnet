@@ -33,8 +33,10 @@ public interface IA2AClient
 
     /// <summary>
     /// Sends a streaming message request to the agent and yields responses as they arrive.
-    /// This method uses Server-Sent Events (SSE) to receive a stream of updates from the agent.
     /// </summary>
+    /// <remarks>
+    /// This method uses Server-Sent Events (SSE) to receive a stream of updates from the agent.
+    /// </remarks>
     /// <param name="taskSendParams">The message parameters containing the message and configuration</param>
     /// <param name="cancellationToken">A cancellation token to cancel the operation</param>
     /// <returns>An async enumerable of server-sent events containing Task, Message, TaskStatusUpdateEvent, or TaskArtifactUpdateEvent</returns>

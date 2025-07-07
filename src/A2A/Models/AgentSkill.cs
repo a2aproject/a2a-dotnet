@@ -23,9 +23,11 @@ public class AgentSkill
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
-    /// Description of the skill - will be used by the client or a human
-    /// as a hint to understand what the skill does.
+    /// Description of the skill.
     /// </summary>
+    /// <remarks>
+    /// Will be used by the client or a human as a hint to understand what the skill does.
+    /// </remarks>
     [JsonPropertyName("description")]
     [Required]
     public string? Description { get; set; }
@@ -39,16 +41,19 @@ public class AgentSkill
 
     /// <summary>
     /// The set of example scenarios that the skill can perform.
-    /// Will be used by the client as a hint to understand how the skill can be used.
     /// </summary>
+    /// <remarks>
+    /// Will be used by the client as a hint to understand how the skill can be used.
+    /// </remarks>
     [JsonPropertyName("examples")]
     public List<string>? Examples { get; set; }
 
     /// <summary>
-    /// The set of interaction modes that the skill supports
-    /// (if different than the default).
-    /// Supported media types for input.
+    /// The set of interaction modes that the skill supports (if different than the default).
     /// </summary>
+    /// <remarks>
+    /// Supported media types for input.
+    /// </remarks>
     [JsonPropertyName("inputModes")]
     public List<string>? InputModes { get; set; }
 

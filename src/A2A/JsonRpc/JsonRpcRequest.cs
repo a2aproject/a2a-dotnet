@@ -9,15 +9,20 @@ namespace A2A;
 public class JsonRpcRequest
 {
     /// <summary>
-    /// Gets or sets the version of the JSON-RPC protocol. MUST be exactly "2.0"
+    /// Gets or sets the version of the JSON-RPC protocol.
     /// </summary>
+    /// <remarks>
+    /// MUST be exactly "2.0"
+    /// </remarks>
     [JsonPropertyName("jsonrpc")]
     public string JsonRpc { get; set; } = "2.0";
 
     /// <summary>
     /// Gets or sets the identifier established by the Client that MUST contain a String, Number.
-    /// Numbers SHOULD NOT contain fractional parts.
     /// </summary>
+    /// <remarks>
+    /// Numbers SHOULD NOT contain fractional parts.
+    /// </remarks>
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
 

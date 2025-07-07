@@ -3,8 +3,11 @@ using System.Text.Json.Serialization;
 namespace A2A;
 
 /// <summary>
-/// TaskState and accompanying message.
+/// Represents the current status of an agent task.
 /// </summary>
+/// <remarks>
+/// Contains the TaskState and accompanying message.
+/// </remarks>
 public class AgentTaskStatus
 {
     /// <summary>

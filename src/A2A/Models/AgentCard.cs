@@ -4,12 +4,14 @@ using System.Text.Json.Serialization;
 namespace A2A;
 
 /// <summary>
-/// An AgentCard conveys key information:
+/// An AgentCard conveys key information about an agent.
+/// </summary>
+/// <remarks>
 /// - Overall details (version, name, description, uses)
 /// - Skills: A set of capabilities the agent can perform
 /// - Default modalities/content types supported by the agent.
 /// - Authentication requirements
-/// </summary>
+/// </remarks>
 public class AgentCard
 {
     /// <summary>
@@ -20,19 +22,23 @@ public class AgentCard
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets a human-readable description of the agent. Used to assist users and
-    /// other agents in understanding what the agent can do.
-    /// [CommonMark](https://commonmark.org/) MAY be used for rich text formatting.
-    /// (e.g., "This agent helps users find recipes, plan meals, and get cooking instructions.")
+    /// Gets or sets a human-readable description of the agent.
     /// </summary>
+    /// <remarks>
+    /// Used to assist users and other agents in understanding what the agent can do.
+    /// CommonMark MAY be used for rich text formatting.
+    /// (e.g., "This agent helps users find recipes, plan meals, and get cooking instructions.")
+    /// </remarks>
     [JsonPropertyName("description")]
     [Required]
     public string? Description { get; set; }
 
     /// <summary>
-    /// Gets or sets a URL to the address the agent is hosted at. This represents the
-    /// preferred endpoint as declared by the agent.
+    /// Gets or sets a URL to the address the agent is hosted at.
     /// </summary>
+    /// <remarks>
+    /// This represents the preferred endpoint as declared by the agent.
+    /// </remarks>
     [JsonPropertyName("url")]
     [Required]
     public string Url { get; set; } = string.Empty;
@@ -76,9 +82,11 @@ public class AgentCard
     public Dictionary<string, string[]>? Security { get; set; }
 
     /// <summary>
-    /// Gets or sets the set of interaction modes that the agent supports across all skills. This can be overridden per-skill.
-    /// Supported media types for input.
+    /// Gets or sets the set of interaction modes that the agent supports across all skills.
     /// </summary>
+    /// <remarks>
+    /// This can be overridden per-skill. Supported media types for input.
+    /// </remarks>
     [JsonPropertyName("defaultInputModes")]
     public List<string> DefaultInputModes { get; set; } = ["text"];
 
@@ -97,8 +105,10 @@ public class AgentCard
 
     /// <summary>
     /// Gets or sets a value indicating whether the agent supports providing an extended agent card when the user is authenticated.
-    /// Defaults to false if not specified.
     /// </summary>
+    /// <remarks>
+    /// Defaults to false if not specified.
+    /// </remarks>
     [JsonPropertyName("supportsAuthenticatedExtendedCard")]
     public bool SupportsAuthenticatedExtendedCard { get; set; } = false;
 }

@@ -4,8 +4,11 @@ using System.Text.Json.Serialization;
 namespace A2A;
 
 /// <summary>
-/// Sent by the client to the agent as a request. May create, continue or restart a task.
+/// Parameters for sending a message request to an agent.
 /// </summary>
+/// <remarks>
+/// Sent by the client to the agent as a request. May create, continue or restart a task.
+/// </remarks>
 public class MessageSendParams
 {
     /// <summary>
