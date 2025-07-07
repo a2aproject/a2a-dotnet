@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 namespace A2A;
 
 /// <summary>
-/// Mirrors the OpenAPI Security Scheme Object
+/// Mirrors the OpenAPI Security Scheme Object.
 /// (https://swagger.io/specification/#security-scheme-object)
 /// </summary>
 public class SecurityScheme
@@ -108,7 +108,7 @@ public class OAuthFlows
     /// Configuration for the OAuth Client Credentials flow.
     /// </summary>
     /// <remarks>
-    /// Previously called application in OpenAPI 2.0
+    /// Previously called application in OpenAPI 2.0.
     /// </remarks>
     [JsonPropertyName("clientCredentials")]
     public ClientCredentialsOAuthFlow? ClientCredentials { get; set; }

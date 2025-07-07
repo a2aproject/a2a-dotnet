@@ -12,7 +12,7 @@ public class JsonRpcRequest
     /// Gets or sets the version of the JSON-RPC protocol.
     /// </summary>
     /// <remarks>
-    /// MUST be exactly "2.0"
+    /// MUST be exactly "2.0".
     /// </remarks>
     [JsonPropertyName("jsonrpc")]
     public string JsonRpc { get; set; } = "2.0";

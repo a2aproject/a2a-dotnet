@@ -11,7 +11,7 @@ namespace A2A;
 public class JsonRpcResponse
 {
     /// <summary>
-    /// Gets or sets the version of the JSON-RPC protocol. MUST be exactly "2.0"
+    /// Gets or sets the version of the JSON-RPC protocol. MUST be exactly "2.0".
     /// </summary>
     [JsonPropertyName("jsonrpc")]
     public string JsonRpc { get; set; } = "2.0";
