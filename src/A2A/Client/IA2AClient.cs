@@ -11,61 +11,56 @@ public interface IA2AClient
     /// Sends a non-streaming message request to the agent
     /// </summary>
     /// <param name="taskSendParams">The message parameters containing the message and configuration</param>
+    /// <param name="cancellationToken">A cancellation token to cancel the operation</param>
     /// <returns>The agent's response containing a Task or Message</returns>
-    Task<A2AResponse> SendMessageAsync(MessageSendParams taskSendParams);
+    Task<A2AResponse> SendMessageAsync(MessageSendParams taskSendParams, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Retrieves the current state and history of a specific task
     /// </summary>
     /// <param name="taskId">The ID of the task to retrieve</param>
+    /// <param name="cancellationToken">A cancellation token to cancel the operation</param>
     /// <returns>The requested task with its current state and history</returns>
-    /// <exception cref="A2AClientHTTPException">Thrown when an HTTP error occurs during the request</exception>
-    /// <exception cref="A2AClientJsonException">Thrown when the response body cannot be decoded as JSON or validated</exception>
-    Task<AgentTask> GetTaskAsync(string taskId);
+    Task<AgentTask> GetTaskAsync(string taskId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Requests the agent to cancel a specific task
     /// </summary>
     /// <param name="taskIdParams">Parameters containing the task ID to cancel</param>
+    /// <param name="cancellationToken">A cancellation token to cancel the operation</param>
     /// <returns>The updated task with canceled status</returns>
-    /// <exception cref="A2AClientHTTPException">Thrown when an HTTP error occurs during the request</exception>
-    /// <exception cref="A2AClientJsonException">Thrown when the response body cannot be decoded as JSON or validated</exception>
-    Task<AgentTask> CancelTaskAsync(TaskIdParams taskIdParams);
+    Task<AgentTask> CancelTaskAsync(TaskIdParams taskIdParams, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Sends a streaming message request to the agent and yields responses as they arrive.
     /// This method uses Server-Sent Events (SSE) to receive a stream of updates from the agent.
     /// </summary>
     /// <param name="taskSendParams">The message parameters containing the message and configuration</param>
+    /// <param name="cancellationToken">A cancellation token to cancel the operation</param>
     /// <returns>An async enumerable of server-sent events containing Task, Message, TaskStatusUpdateEvent, or TaskArtifactUpdateEvent</returns>
-    /// <exception cref="A2AClientHTTPException">Thrown when an HTTP or SSE protocol error occurs during the request</exception>
-    /// <exception cref="A2AClientJsonException">Thrown when an SSE event data cannot be decoded as JSON or validated</exception>
-    IAsyncEnumerable<SseItem<A2AEvent>> SendMessageStreamAsync(MessageSendParams taskSendParams);
+    IAsyncEnumerable<SseItem<A2AEvent>> SendMessageStreamAsync(MessageSendParams taskSendParams, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Resubscribes to a task's event stream to receive ongoing updates
     /// </summary>
     /// <param name="taskId">The ID of the task to resubscribe to</param>
+    /// <param name="cancellationToken">A cancellation token to cancel the operation</param>
     /// <returns>An async enumerable of server-sent events containing task updates</returns>
-    /// <exception cref="A2AClientHTTPException">Thrown when an HTTP or SSE protocol error occurs during the request</exception>
-    /// <exception cref="A2AClientJsonException">Thrown when an SSE event data cannot be decoded as JSON or validated</exception>
-    IAsyncEnumerable<SseItem<A2AEvent>> ResubscribeToTaskAsync(string taskId);
+    IAsyncEnumerable<SseItem<A2AEvent>> ResubscribeToTaskAsync(string taskId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Sets or updates the push notification configuration for a specific task
     /// </summary>
     /// <param name="pushNotificationConfig">The push notification configuration to set</param>
+    /// <param name="cancellationToken">A cancellation token to cancel the operation</param>
     /// <returns>The configured push notification settings with confirmation</returns>
-    /// <exception cref="A2AClientHTTPException">Thrown when an HTTP error occurs during the request</exception>
-    /// <exception cref="A2AClientJsonException">Thrown when the response body cannot be decoded as JSON or validated</exception>
-    Task<TaskPushNotificationConfig> SetPushNotificationAsync(TaskPushNotificationConfig pushNotificationConfig);
+    Task<TaskPushNotificationConfig> SetPushNotificationAsync(TaskPushNotificationConfig pushNotificationConfig, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Retrieves the push notification configuration for a specific task
     /// </summary>
     /// <param name="taskIdParams">Parameters containing the task ID</param>
+    /// <param name="cancellationToken">A cancellation token to cancel the operation</param>
     /// <returns>The push notification configuration for the specified task</returns>
-    /// <exception cref="A2AClientHTTPException">Thrown when an HTTP error occurs during the request</exception>
-    /// <exception cref="A2AClientJsonException">Thrown when the response body cannot be decoded as JSON or validated</exception>
-    Task<TaskPushNotificationConfig> GetPushNotificationAsync(TaskIdParams taskIdParams);
+    Task<TaskPushNotificationConfig> GetPushNotificationAsync(TaskIdParams taskIdParams, CancellationToken cancellationToken = default);
 }
