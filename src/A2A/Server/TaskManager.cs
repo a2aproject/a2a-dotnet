@@ -4,7 +4,7 @@ namespace A2A;
 
 /// <summary>
 /// Implementation of task manager for handling agent tasks and their lifecycle.
-/// Helps manage a task's lifecycle during execution of a request, responsible for retrieving, 
+/// Helps manage a task's lifecycle during execution of a request, responsible for retrieving,
 /// saving, and updating the Task object based on events received from the agent.
 /// </summary>
 public class TaskManager : ITaskManager
