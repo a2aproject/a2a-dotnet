@@ -10,7 +10,7 @@ namespace A2A;
 /// - Overall details (version, name, description, uses)
 /// - Skills: A set of capabilities the agent can perform
 /// - Default modalities/content types supported by the agent.
-/// - Authentication requirements
+/// - Authentication requirements.
 /// </remarks>
 public class AgentCard
 {
