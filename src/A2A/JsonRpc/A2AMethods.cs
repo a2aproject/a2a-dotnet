@@ -43,7 +43,7 @@ public static class A2AMethods
     /// <summary>
     /// Determines if a method requires streaming response handling.
     /// </summary>
-    /// <param name="method">The method name to check</param>
+    /// <param name="method">The method name to check.</param>
     /// <returns>True if the method requires streaming, false otherwise</returns>
     public static bool IsStreamingMethod(string method) => method is MessageStream or TaskResubscribe;
 }

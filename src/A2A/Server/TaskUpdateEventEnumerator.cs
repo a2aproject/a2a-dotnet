@@ -19,7 +19,7 @@ public class TaskUpdateEventEnumerator : IAsyncEnumerable<A2AEvent>
     /// <summary>
     /// Notifies of a new event in the task stream.
     /// </summary>
-    /// <param name="taskUpdateEvent">The event to notify</param>
+    /// <param name="taskUpdateEvent">The event to notify.</param>
     public void NotifyEvent(A2AEvent taskUpdateEvent)
     {
         // Enqueue the event to the queue
@@ -30,7 +30,7 @@ public class TaskUpdateEventEnumerator : IAsyncEnumerable<A2AEvent>
     /// <summary>
     /// Notifies of the final event in the task stream.
     /// </summary>
-    /// <param name="taskUpdateEvent">The final event to notify</param>
+    /// <param name="taskUpdateEvent">The final event to notify.</param>
     public void NotifyFinalEvent(A2AEvent taskUpdateEvent)
     {
         isFinal = true;

@@ -41,8 +41,8 @@ public class TaskManager : ITaskManager
     /// <remarks>
     /// Sets up the task store for persistence and optionally configures HTTP client for callbacks.
     /// </remarks>
-    /// <param name="callbackHttpClient">HTTP client for making callback requests to external endpoints (currently unused)</param>
-    /// <param name="taskStore">Task store implementation for persisting tasks. If null, defaults to in-memory store</param>
+    /// <param name="callbackHttpClient">HTTP client for making callback requests to external endpoints (currently unused).</param>
+    /// <param name="taskStore">Task store implementation for persisting tasks. If null, defaults to in-memory store.</param>
     public TaskManager(HttpClient? callbackHttpClient = null, ITaskStore? taskStore = null)
     {
         // TODO: Use callbackHttpClient
@@ -76,7 +76,7 @@ public class TaskManager : ITaskManager
     /// <remarks>
     /// Retrieves the task from the store, updates its status, and notifies the cancellation handler.
     /// </remarks>
-    /// <param name="taskIdParams">Parameters containing the task ID to cancel</param>
+    /// <param name="taskIdParams">Parameters containing the task ID to cancel.</param>
     /// <returns>The canceled task with updated status, or null if not found</returns>
     public async Task<AgentTask?> CancelTaskAsync(TaskIdParams? taskIdParams)
     {
@@ -107,7 +107,7 @@ public class TaskManager : ITaskManager
     /// <remarks>
     /// Looks up the task in the persistent store and returns the current state and history.
     /// </remarks>
-    /// <param name="taskIdParams">Parameters containing the task ID to retrieve</param>
+    /// <param name="taskIdParams">Parameters containing the task ID to retrieve.</param>
     /// <returns>The task if found in the store, null otherwise</returns>
     public async Task<AgentTask?> GetTaskAsync(TaskIdParams? taskIdParams)
     {
@@ -131,7 +131,7 @@ public class TaskManager : ITaskManager
     /// If the message contains a task ID, it updates the existing task's history. If no task ID is provided,
     /// it either delegates to the OnMessageReceived handler or creates a new task.
     /// </remarks>
-    /// <param name="messageSendParams">The message parameters containing the message content and optional task/context IDs</param>
+    /// <param name="messageSendParams">The message parameters containing the message content and optional task/context IDs.</param>
     /// <returns>The agent's response as either a Task object or a direct Message from the handler</returns>
     public async Task<A2AResponse?> SendMessageAsync(MessageSendParams messageSendParams)
     {
@@ -198,7 +198,7 @@ public class TaskManager : ITaskManager
     /// Creates or updates a task and establishes an event stream that yields Task, Message,
     /// TaskStatusUpdateEvent, and TaskArtifactUpdateEvent objects as they are generated.
     /// </remarks>
-    /// <param name="messageSendParams">The message parameters containing the message content and optional task/context IDs</param>
+    /// <param name="messageSendParams">The message parameters containing the message content and optional task/context IDs.</param>
     /// <returns>An async enumerable that yields events as they are produced by the agent</returns>
     public async Task<IAsyncEnumerable<A2AEvent>> SendMessageStreamAsync(MessageSendParams messageSendParams)
     {
@@ -278,7 +278,7 @@ public class TaskManager : ITaskManager
     /// Returns the event enumerator that was previously established for the task,
     /// allowing clients to reconnect to an active task stream.
     /// </remarks>
-    /// <param name="taskIdParams">Parameters containing the task ID to resubscribe to</param>
+    /// <param name="taskIdParams">Parameters containing the task ID to resubscribe to.</param>
     /// <returns>An async enumerable of events for the specified task</returns>
     public IAsyncEnumerable<A2AEvent> ResubscribeAsync(TaskIdParams? taskIdParams)
     {
@@ -301,7 +301,7 @@ public class TaskManager : ITaskManager
     /// <remarks>
     /// Configures callback URLs and authentication for receiving task updates via HTTP notifications.
     /// </remarks>
-    /// <param name="pushNotificationConfig">The push notification configuration containing callback URL and authentication details</param>
+    /// <param name="pushNotificationConfig">The push notification configuration containing callback URL and authentication details.</param>
     /// <returns>The configured push notification settings with confirmation</returns>
     public async Task<TaskPushNotificationConfig?> SetPushNotificationAsync(TaskPushNotificationConfig? pushNotificationConfig)
     {
@@ -320,7 +320,7 @@ public class TaskManager : ITaskManager
     /// <remarks>
     /// Returns the callback URL and authentication settings configured for receiving task update notifications.
     /// </remarks>
-    /// <param name="taskIdParams">Parameters containing the task ID to get push notification configuration for</param>
+    /// <param name="taskIdParams">Parameters containing the task ID to get push notification configuration for.</param>
     /// <returns>The push notification configuration if found, null otherwise</returns>
     public async Task<TaskPushNotificationConfig?> GetPushNotificationAsync(TaskIdParams? taskIdParams)
     {

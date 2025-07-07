@@ -17,7 +17,7 @@ public sealed class A2AClient : IA2AClient
     /// <summary>
     /// Initializes a new instance of the A2AClient class.
     /// </summary>
-    /// <param name="httpClient">The HTTP client to use for requests</param>
+    /// <param name="httpClient">The HTTP client to use for requests.</param>
     public A2AClient(HttpClient? httpClient = null)
     {
         _httpClient = httpClient ?? s_sharedClient;

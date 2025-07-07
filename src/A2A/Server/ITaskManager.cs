@@ -54,7 +54,7 @@ public interface ITaskManager
     /// <remarks>
     /// The task is immediately persisted to the task store.
     /// </remarks>
-    /// <param name="contextId">Optional context ID for the task. If null, a new GUID is generated</param>
+    /// <param name="contextId">Optional context ID for the task. If null, a new GUID is generated.</param>
     /// <returns>The created task with Submitted status and unique identifiers</returns>
     Task<AgentTask> CreateTaskAsync(string? contextId = null);
 
@@ -64,8 +64,8 @@ public interface ITaskManager
     /// <remarks>
     /// The artifact is appended to the task's artifacts collection and persisted.
     /// </remarks>
-    /// <param name="taskId">The ID of the task to add the artifact to</param>
-    /// <param name="artifact">The artifact to add to the task</param>
+    /// <param name="taskId">The ID of the task to add the artifact to.</param>
+    /// <param name="artifact">The artifact to add to the task.</param>
     /// <returns>A task representing the asynchronous operation</returns>
     Task ReturnArtifactAsync(string taskId, Artifact artifact);
 
@@ -75,10 +75,10 @@ public interface ITaskManager
     /// <remarks>
     /// Notifies any active event streams about the status change.
     /// </remarks>
-    /// <param name="taskId">The ID of the task to update</param>
-    /// <param name="status">The new task status to set</param>
-    /// <param name="message">Optional message to add to the task history along with the status update</param>
-    /// <param name="final">Whether this is a final status update that should close any active streams</param>
+    /// <param name="taskId">The ID of the task to update.</param>
+    /// <param name="status">The new task status to set.</param>
+    /// <param name="message">Optional message to add to the task history along with the status update.</param>
+    /// <param name="final">Whether this is a final status update that should close any active streams.</param>
     /// <returns>A task representing the asynchronous operation</returns>
     Task UpdateStatusAsync(string taskId, TaskState status, Message? message = null, bool final = false);
 }

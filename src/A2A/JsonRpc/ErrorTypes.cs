@@ -10,8 +10,8 @@ public class A2AClientException : Exception
     /// <summary>
     /// Creates a new A2A client error.
     /// </summary>
-    /// <param name="message">The error message</param>
-    /// <param name="innerException">Optional inner exception</param>
+    /// <param name="message">The error message.</param>
+    /// <param name="innerException">Optional inner exception.</param>
     public A2AClientException(string message, Exception? innerException = null)
         : base(message, innerException)
     {
@@ -36,8 +36,8 @@ public class A2AClientHTTPException : A2AClientException
     /// <summary>
     /// Creates a new HTTP error.
     /// </summary>
-    /// <param name="statusCode">The HTTP status code</param>
-    /// <param name="message">The error message</param>
+    /// <param name="statusCode">The HTTP status code.</param>
+    /// <param name="message">The error message.</param>
     public A2AClientHTTPException(HttpStatusCode statusCode, string message)
         : base($"HTTP Error {(int)statusCode}: {message}")
     {
@@ -59,7 +59,7 @@ public class A2AClientJsonException : A2AClientException
     /// <summary>
     /// Creates a new JSON error.
     /// </summary>
-    /// <param name="message">The error message</param>
+    /// <param name="message">The error message.</param>
     public A2AClientJsonException(string message)
         : base($"JSON Error: {message}")
     {

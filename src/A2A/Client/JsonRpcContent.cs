@@ -15,7 +15,7 @@ public sealed class JsonRpcContent : HttpContent
     /// <summary>
     /// Initializes a new instance of JsonRpcContent for a JSON-RPC request.
     /// </summary>
-    /// <param name="request">The JSON-RPC request to serialize</param>
+    /// <param name="request">The JSON-RPC request to serialize.</param>
     public JsonRpcContent(JsonRpcRequest? request) : this(request, A2AJsonUtilities.JsonContext.Default.JsonRpcRequest)
     {
     }
@@ -23,7 +23,7 @@ public sealed class JsonRpcContent : HttpContent
     /// <summary>
     /// Initializes a new instance of JsonRpcContent for a JSON-RPC response.
     /// </summary>
-    /// <param name="response">The JSON-RPC response to serialize</param>
+    /// <param name="response">The JSON-RPC response to serialize.</param>
     public JsonRpcContent(JsonRpcResponse? response) : this(response, A2AJsonUtilities.JsonContext.Default.JsonRpcResponse)
     {
     }
@@ -31,8 +31,8 @@ public sealed class JsonRpcContent : HttpContent
     /// <summary>
     /// Initializes a new instance of JsonRpcContent with custom content and type info.
     /// </summary>
-    /// <param name="contentToSerialize">The content to serialize</param>
-    /// <param name="contentTypeInfo">Type information for serialization</param>
+    /// <param name="contentToSerialize">The content to serialize.</param>
+    /// <param name="contentTypeInfo">Type information for serialization.</param>
     private JsonRpcContent(object? contentToSerialize, JsonTypeInfo contentTypeInfo)
     {
         _contentToSerialize = contentToSerialize;

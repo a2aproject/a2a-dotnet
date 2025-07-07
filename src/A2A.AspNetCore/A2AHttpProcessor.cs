@@ -26,9 +26,9 @@ public static class A2AHttpProcessor
     /// <remarks>
     /// Invokes the task manager's agent card query handler to get current agent information.
     /// </remarks>
-    /// <param name="taskManager">The task manager instance containing the agent card query handler</param>
-    /// <param name="logger">Logger instance for recording operation details and errors</param>
-    /// <param name="agentUrl">The URL of the agent to retrieve the card for</param>
+    /// <param name="taskManager">The task manager instance containing the agent card query handler.</param>
+    /// <param name="logger">Logger instance for recording operation details and errors.</param>
+    /// <param name="agentUrl">The URL of the agent to retrieve the card for.</param>
     /// <returns>An HTTP result containing the agent card JSON or an error response</returns>
     internal static Task<IResult> GetAgentCard(TaskManager taskManager, ILogger logger, string agentUrl)
     {
@@ -53,11 +53,11 @@ public static class A2AHttpProcessor
     /// <remarks>
     /// Returns the task's current state, history, and metadata with optional history length limiting.
     /// </remarks>
-    /// <param name="taskManager">The task manager instance for accessing task storage</param>
-    /// <param name="logger">Logger instance for recording operation details and errors</param>
-    /// <param name="id">The unique identifier of the task to retrieve</param>
-    /// <param name="historyLength">Optional limit on the number of history items to return</param>
-    /// <param name="metadata">Optional JSON metadata filter for the task query</param>
+    /// <param name="taskManager">The task manager instance for accessing task storage.</param>
+    /// <param name="logger">Logger instance for recording operation details and errors.</param>
+    /// <param name="id">The unique identifier of the task to retrieve.</param>
+    /// <param name="historyLength">Optional limit on the number of history items to return.</param>
+    /// <param name="metadata">Optional JSON metadata filter for the task query.</param>
     /// <returns>An HTTP result containing the task JSON or a not found/error response</returns>
     internal static async Task<IResult> GetTask(TaskManager taskManager, ILogger logger, string id, int? historyLength, string? metadata)
     {
@@ -88,9 +88,9 @@ public static class A2AHttpProcessor
     /// <remarks>
     /// Invokes the task manager's cancellation logic and returns the updated task state.
     /// </remarks>
-    /// <param name="taskManager">The task manager instance for handling task cancellation</param>
-    /// <param name="logger">Logger instance for recording operation details and errors</param>
-    /// <param name="id">The unique identifier of the task to cancel</param>
+    /// <param name="taskManager">The task manager instance for handling task cancellation.</param>
+    /// <param name="logger">Logger instance for recording operation details and errors.</param>
+    /// <param name="id">The unique identifier of the task to cancel.</param>
     /// <returns>An HTTP result containing the canceled task JSON or a not found/error response</returns>
     internal static async Task<IResult> CancelTask(TaskManager taskManager, ILogger logger, string id)
     {
@@ -121,12 +121,12 @@ public static class A2AHttpProcessor
     /// Creates a new task if no task ID is provided, or updates an existing task's history.
     /// Configures message sending parameters including history length and metadata.
     /// </remarks>
-    /// <param name="taskManager">The task manager instance for handling message processing</param>
-    /// <param name="logger">Logger instance for recording operation details and errors</param>
-    /// <param name="taskId">Optional task ID to send the message to. If null, a new task may be created</param>
-    /// <param name="sendParams">The message parameters containing the message content and configuration</param>
-    /// <param name="historyLength">Optional limit on the number of history items to include in processing</param>
-    /// <param name="metadata">Optional JSON metadata to include with the message request</param>
+    /// <param name="taskManager">The task manager instance for handling message processing.</param>
+    /// <param name="logger">Logger instance for recording operation details and errors.</param>
+    /// <param name="taskId">Optional task ID to send the message to. If null, a new task may be created.</param>
+    /// <param name="sendParams">The message parameters containing the message content and configuration.</param>
+    /// <param name="historyLength">Optional limit on the number of history items to include in processing.</param>
+    /// <param name="metadata">Optional JSON metadata to include with the message request.</param>
     /// <returns>An HTTP result containing the agent's response (Task or Message) or an error response</returns>
     internal static async Task<IResult> SendTaskMessage(TaskManager taskManager, ILogger logger, string? taskId, MessageSendParams sendParams, int? historyLength, string? metadata)
     {
@@ -170,12 +170,12 @@ public static class A2AHttpProcessor
     /// Creates or updates a task and establishes a Server-Sent Events stream that yields
     /// Task, Message, TaskStatusUpdateEvent, and TaskArtifactUpdateEvent objects as they occur.
     /// </remarks>
-    /// <param name="taskManager">The task manager instance for handling streaming message processing</param>
-    /// <param name="logger">Logger instance for recording operation details and errors</param>
-    /// <param name="id">The unique identifier of the task to send the message to</param>
-    /// <param name="sendParams">The message parameters containing the message content and configuration</param>
-    /// <param name="historyLength">Optional limit on the number of history items to include in processing</param>
-    /// <param name="metadata">Optional JSON metadata to include with the message request</param>
+    /// <param name="taskManager">The task manager instance for handling streaming message processing.</param>
+    /// <param name="logger">Logger instance for recording operation details and errors.</param>
+    /// <param name="id">The unique identifier of the task to send the message to.</param>
+    /// <param name="sendParams">The message parameters containing the message content and configuration.</param>
+    /// <param name="historyLength">Optional limit on the number of history items to include in processing.</param>
+    /// <param name="metadata">Optional JSON metadata to include with the message request.</param>
     /// <returns>An HTTP result that streams events as Server-Sent Events or an error response</returns>
     internal static async Task<IResult> SendSubscribeTaskMessage(TaskManager taskManager, ILogger logger, string id, MessageSendParams sendParams, int? historyLength, string? metadata)
     {

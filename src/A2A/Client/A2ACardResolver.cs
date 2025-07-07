@@ -18,9 +18,9 @@ public sealed class A2ACardResolver
     /// <summary>
     /// Creates a new instance of the A2ACardResolver.
     /// </summary>
-    /// <param name="httpClient">Optional HTTP client (if not provided, a shared one will be used)</param>
-    /// <param name="agentCardPath">Path to the agent card (defaults to "/.well-known/agent.json")</param>
-    /// <param name="logger">Optional logger</param>
+    /// <param name="httpClient">Optional HTTP client (if not provided, a shared one will be used).</param>
+    /// <param name="agentCardPath">Path to the agent card (defaults to "/.well-known/agent.json").</param>
+    /// <param name="logger">Optional logger.</param>
     public A2ACardResolver(
         HttpClient? httpClient,
         string agentCardPath = "/.well-known/agent.json",
@@ -44,7 +44,7 @@ public sealed class A2ACardResolver
     /// <summary>
     /// Gets the agent card asynchronously.
     /// </summary>
-    /// <param name="cancellationToken">Optional cancellation token</param>
+    /// <param name="cancellationToken">Optional cancellation token.</param>
     /// <returns>The agent card</returns>
     public async Task<AgentCard> GetAgentCardAsync(CancellationToken cancellationToken = default)
     {

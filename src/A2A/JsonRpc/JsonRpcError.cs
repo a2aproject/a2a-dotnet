@@ -26,7 +26,7 @@ public class JsonRpcError
     /// <summary>
     /// Deserializes a JsonRpcError from a JsonElement.
     /// </summary>
-    /// <param name="jsonElement">The JSON element to deserialize</param>
+    /// <param name="jsonElement">The JSON element to deserialize.</param>
     /// <returns>A JsonRpcError instance</returns>
     /// <exception cref="InvalidOperationException">Thrown when deserialization fails</exception>
     public static JsonRpcError FromJson(JsonElement jsonElement) =>
