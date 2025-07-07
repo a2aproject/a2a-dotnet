@@ -1,4 +1,6 @@
-﻿namespace A2A;
+﻿using System.Net;
+
+namespace A2A;
 
 /// <summary>
 /// Base exception for A2A client errors
@@ -24,7 +26,7 @@ public class A2AClientHTTPException : A2AClientException
     /// <summary>
     /// The HTTP status code
     /// </summary>
-    public int StatusCode { get; }
+    public HttpStatusCode StatusCode { get; }
 
     /// <summary>
     /// The error message
@@ -36,8 +38,8 @@ public class A2AClientHTTPException : A2AClientException
     /// </summary>
     /// <param name="statusCode">The HTTP status code</param>
     /// <param name="message">The error message</param>
-    public A2AClientHTTPException(int statusCode, string message)
-        : base($"HTTP Error {statusCode}: {message}")
+    public A2AClientHTTPException(HttpStatusCode statusCode, string message)
+        : base($"HTTP Error {(int)statusCode}: {message}")
     {
         StatusCode = statusCode;
         ErrorMessage = message;

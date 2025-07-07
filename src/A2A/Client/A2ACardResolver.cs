@@ -1,5 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Diagnostics;
+using System.Net;
 using System.Text.Json;
 
 namespace A2A;
@@ -9,30 +11,34 @@ namespace A2A;
 /// </summary>
 public sealed class A2ACardResolver
 {
+    private readonly HttpClient _httpClient;
+    private readonly Uri _agentCardPath;
+    private readonly ILogger _logger;
+
     /// <summary>
     /// Creates a new instance of the A2ACardResolver
     /// </summary>
-    /// <param name="httpClient">Optional HTTP client (if not provided, a new one will be created)</param>
-    /// <param name="agentCardPath">Path to the agent card (defaults to /.well-known/agent.json)</param>
+    /// <param name="httpClient">Optional HTTP client (if not provided, a shared one will be used)</param>
+    /// <param name="agentCardPath">Path to the agent card (defaults to "/.well-known/agent.json")</param>
     /// <param name="logger">Optional logger</param>
     public A2ACardResolver(
-        HttpClient httpClient,
+        HttpClient? httpClient,
         string agentCardPath = "/.well-known/agent.json",
         ILogger? logger = null)
     {
-        _agentCardPath = agentCardPath.TrimStart('/');
-        _httpClient = httpClient;
-        _httpClient.Timeout = TimeSpan.FromSeconds(30); // Set a reasonable timeout
-        _logger = logger ?? NullLogger.Instance;
-    }
+        if (agentCardPath is null)
+        {
+            throw new ArgumentNullException(nameof(agentCardPath), "Agent card path cannot be null.");
+        }
 
-    /// <summary>
-    /// Gets the agent card synchronously
-    /// </summary>
-    /// <returns>The agent card</returns>
-    public AgentCard GetAgentCard()
-    {
-        return GetAgentCardAsync().GetAwaiter().GetResult();
+        _httpClient = httpClient ?? A2AClient.s_sharedClient;
+        _agentCardPath = new Uri(agentCardPath.TrimStart('/'), UriKind.RelativeOrAbsolute);
+        _logger = logger ?? NullLogger.Instance;
+
+        if (_httpClient.BaseAddress is null && !_agentCardPath.IsAbsoluteUri)
+        {
+            throw new ArgumentException($"HttpClient.BaseAddress must be set when using a relative {nameof(agentCardPath)}.", nameof(httpClient));
+        }
     }
 
     /// <summary>
@@ -42,44 +48,44 @@ public sealed class A2ACardResolver
     /// <returns>The agent card</returns>
     public async Task<AgentCard> GetAgentCardAsync(CancellationToken cancellationToken = default)
     {
-        string url = $"{_httpClient.BaseAddress}/{_agentCardPath}";
-        _logger?.LogInformation("Fetching agent card from {Url}", url);
+        if (_logger.IsEnabled(LogLevel.Information))
+        {
+            Debug.Assert(_agentCardPath.IsAbsoluteUri || _httpClient.BaseAddress is not null);
+            _logger.LogInformation("Fetching agent card from '{Url}'", _agentCardPath.IsAbsoluteUri ?
+                _agentCardPath :
+                new Uri(_httpClient.BaseAddress!, _agentCardPath.ToString()));
+        }
 
         try
         {
-            var response = await _httpClient.GetAsync(_agentCardPath, cancellationToken);
+            using var response = await _httpClient.GetAsync(_agentCardPath, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
 
             response.EnsureSuccessStatusCode();
 
-            var content = await response.Content.ReadAsStreamAsync(
-#if NET8_0_OR_GREATER
+            using var responseStream = await response.Content.ReadAsStreamAsync(
+#if NET
                 cancellationToken
 #endif
-                );
+                ).ConfigureAwait(false);
 
-            return JsonSerializer.Deserialize(content, A2AJsonUtilities.JsonContext.Default.AgentCard) ??
+            return JsonSerializer.Deserialize(responseStream, A2AJsonUtilities.JsonContext.Default.AgentCard) ??
                 throw new A2AClientJsonException("Failed to parse agent card JSON.");
         }
         catch (JsonException ex)
         {
-            _logger?.LogError(ex, "Failed to parse agent card JSON");
+            _logger.LogError(ex, "Failed to parse agent card JSON");
             throw new A2AClientJsonException($"Failed to parse JSON: {ex.Message}");
         }
         catch (HttpRequestException ex)
         {
-#if NET8_0_OR_GREATER
-            int statusCode = (int)(ex.StatusCode ?? System.Net.HttpStatusCode.InternalServerError);
-#else
-            int statusCode = (int)System.Net.HttpStatusCode.InternalServerError;
+            HttpStatusCode statusCode =
+#if NET
+                ex.StatusCode ??
 #endif
-            _logger?.LogError(ex, "HTTP request failed with status code {StatusCode}", statusCode);
+                HttpStatusCode.InternalServerError;
+
+            _logger.LogError(ex, "HTTP request failed with status code {StatusCode}", statusCode);
             throw new A2AClientHTTPException(statusCode, ex.Message);
         }
     }
-
-    #region private
-    private readonly HttpClient _httpClient;
-    private readonly string _agentCardPath;
-    private readonly ILogger _logger;
-    #endregion
 }
