@@ -1,4 +1,6 @@
-﻿namespace A2A.UnitTests.JsonRpc;
+﻿using System.Net;
+
+namespace A2A.UnitTests.JsonRpc;
 
 public class ErrorTypesTests
 {
@@ -20,10 +22,10 @@ public class ErrorTypesTests
     public void A2AClientHTTPError_PropertiesSetCorrectly()
     {
         // Act
-        var sut = new A2AClientHTTPException(404, "Not Found");
+        var sut = new A2AClientHTTPException(HttpStatusCode.NotFound, "Not Found");
 
         // Assert
-        Assert.Equal(404, sut.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, sut.StatusCode);
         Assert.Equal("Not Found", sut.ErrorMessage);
         Assert.Contains("404", sut.Message);
         Assert.Contains("Not Found", sut.Message);
