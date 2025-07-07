@@ -1,10 +1,12 @@
-﻿using System.Text.Json.Serialization;
+﻿using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace A2A;
 
 /// <summary>
 /// Represents the transport protocol for an AgentInterface.
 /// </summary>
+[JsonConverter(typeof(AgentTransportConverter))]
 public readonly struct AgentTransport : IEquatable<AgentTransport>
 {
     /// <summary>
@@ -15,7 +17,6 @@ public readonly struct AgentTransport : IEquatable<AgentTransport>
     /// <summary>
     /// Gets the label associated with this <see cref="AgentTransport"/>.
     /// </summary>
-    [JsonPropertyName("transport")]
     public string Label { get; }
 
     /// <summary>
@@ -76,4 +77,44 @@ public readonly struct AgentTransport : IEquatable<AgentTransport>
     /// </summary>
     /// <returns>The label of this <see cref="AgentTransport"/>.</returns>
     public override string ToString() => this.Label;
+
+    /// <summary>
+    /// Custom JSON converter for <see cref="AgentTransport"/> that serializes it as a simple string value.
+    /// </summary>
+    internal sealed class AgentTransportConverter : JsonConverter<AgentTransport>
+    {
+        /// <summary>
+        /// Reads and converts the JSON to <see cref="AgentTransport"/>.
+        /// </summary>
+        /// <param name="reader">The reader to read from.</param>
+        /// <param name="typeToConvert">The type to convert.</param>
+        /// <param name="options">Serializer options.</param>
+        /// <returns>The converted <see cref="AgentTransport"/>.</returns>
+        public override AgentTransport Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType != JsonTokenType.String)
+            {
+                throw new JsonException("Expected a string for AgentTransport.");
+            }
+
+            var label = reader.GetString();
+            if (label is null)
+            {
+                throw new JsonException("AgentTransport string value cannot be null.");
+            }
+
+            return new AgentTransport(label);
+        }
+
+        /// <summary>
+        /// Writes the <see cref="AgentTransport"/> as a JSON string.
+        /// </summary>
+        /// <param name="writer">The writer to write to.</param>
+        /// <param name="value">The value to convert.</param>
+        /// <param name="options">Serializer options.</param>
+        public override void Write(Utf8JsonWriter writer, AgentTransport value, JsonSerializerOptions options)
+        {
+            writer.WriteStringValue(value.Label);
+        }
+    }
 }

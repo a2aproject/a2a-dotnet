@@ -76,4 +76,36 @@ public class AgentTransportTests
         Assert.Equal(sut, deserialized);
         Assert.Equal("GRPC", deserialized!.Label);
     }
+
+    [Fact]
+    public void SerializesToSimpleString()
+    {
+        // Arrange
+        var sut = new AgentTransport("JSONRPC");
+
+        // Act
+        var json = JsonSerializer.Serialize(sut);
+
+        // Assert
+        Assert.Equal("\"JSONRPC\"", json); // Should be a simple quoted string, not an object
+    }
+
+    [Fact]
+    public void SerializesCorrectlyWithinAgentInterface()
+    {
+        // Arrange
+        var agentInterface = new AgentInterface
+        {
+            Transport = new AgentTransport("GRPC"),
+            Url = "https://example.com/agent"
+        };
+
+        // Act
+        var json = JsonSerializer.Serialize(agentInterface);
+
+        // Assert
+        // Should contain "transport":"GRPC", not "transport":{"transport":"GRPC"}
+        Assert.Contains("\"transport\":\"GRPC\"", json);
+        Assert.DoesNotContain("\"transport\":{\"transport\":", json);
+    }
 }
