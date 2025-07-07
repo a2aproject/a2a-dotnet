@@ -118,4 +118,22 @@ public class AgentCard
     /// </remarks>
     [JsonPropertyName("supportsAuthenticatedExtendedCard")]
     public bool SupportsAuthenticatedExtendedCard { get; set; } = false;
+
+    /// <summary>
+    /// Announcement of additional supported transports.
+    /// </summary>
+    /// <remarks>
+    /// The client can use any of the supported transports.
+    /// </remarks>
+    [JsonPropertyName("additionalInterfaces")]
+    public List<AgentInterface>? AdditionalInterfaces { get; set; }
+
+    /// <summary>
+    /// The transport of the preferred endpoint.
+    /// </summary>
+    /// <remarks>
+    /// If empty, defaults to JSONRPC.
+    /// </remarks>
+    [JsonPropertyName("preferredTransport")]
+    public AgentTransport? PreferredTransport { get; set; }
 }
