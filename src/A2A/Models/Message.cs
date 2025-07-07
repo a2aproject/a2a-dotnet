@@ -3,36 +3,11 @@ using System.Text.Json.Serialization;
 
 namespace A2A;
 
-[JsonConverter(typeof(MessageRoleConverter))]
+[JsonConverter(typeof(KebabCaseLowerJsonStringEnumConverter<MessageRole>))]
 public enum MessageRole
 {
     User,
     Agent
-}
-
-public class MessageRoleConverter : JsonConverter<MessageRole>
-{
-    public override MessageRole Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-    {
-        var value = reader.GetString();
-        return value switch
-        {
-            "user" => MessageRole.User,
-            "agent" => MessageRole.Agent,
-            _ => throw new JsonException($"Unknown message role: {value}")
-        };
-    }
-
-    public override void Write(Utf8JsonWriter writer, MessageRole value, JsonSerializerOptions options)
-    {
-        var role = value switch
-        {
-            MessageRole.User => "user",
-            MessageRole.Agent => "agent",
-            _ => throw new JsonException($"Unknown message role: {value}")
-        };
-        writer.WriteStringValue(role);
-    }
 }
 
 public class Message : A2AResponse

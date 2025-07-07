@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace A2A;
 
-[JsonConverter(typeof(TaskStateJsonConverter))]
+[JsonConverter(typeof(KebabCaseLowerJsonStringEnumConverter<TaskState>))]
 public enum TaskState
 {
     Submitted,
