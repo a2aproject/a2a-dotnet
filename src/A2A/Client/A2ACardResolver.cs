@@ -1,8 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-#if NET
 using System.Diagnostics;
-#endif
 using System.Net;
 using System.Text.Json;
 
@@ -13,8 +11,6 @@ namespace A2A;
 /// </summary>
 public sealed class A2ACardResolver
 {
-    private static readonly HttpClient s_sharedClient = new();
-
     private readonly HttpClient _httpClient;
     private readonly Uri _agentCardPath;
     private readonly ILogger _logger;
@@ -23,10 +19,10 @@ public sealed class A2ACardResolver
     /// Creates a new instance of the A2ACardResolver
     /// </summary>
     /// <param name="httpClient">Optional HTTP client (if not provided, a shared one will be used)</param>
-    /// <param name="agentCardPath">Path to the agent card (defaults to /.well-known/agent.json)</param>
+    /// <param name="agentCardPath">Path to the agent card (defaults to "/.well-known/agent.json")</param>
     /// <param name="logger">Optional logger</param>
     public A2ACardResolver(
-        HttpClient? httpClient = null,
+        HttpClient? httpClient,
         string agentCardPath = "/.well-known/agent.json",
         ILogger? logger = null)
     {
@@ -35,22 +31,14 @@ public sealed class A2ACardResolver
             throw new ArgumentNullException(nameof(agentCardPath), "Agent card path cannot be null.");
         }
 
-        _httpClient = httpClient ?? s_sharedClient;
+        _httpClient = httpClient ?? A2AClient.s_sharedClient;
         _agentCardPath = new Uri(agentCardPath.TrimStart('/'), UriKind.RelativeOrAbsolute);
         _logger = logger ?? NullLogger.Instance;
-    }
 
-    /// <summary>
-    /// Gets the agent card synchronously
-    /// </summary>
-    /// <returns>The agent card</returns>
-    public AgentCard GetAgentCard()
-    {
-        Task<AgentCard> t = GetAgentCardAsync(useAsync: false, default);
-#if NET
-        Debug.Assert(t.IsCompleted, "With synchronous APIs available, specifying useAsync:false should always result in synchronous completion.");
-#endif
-        return t.GetAwaiter().GetResult();
+        if (_httpClient.BaseAddress is null && !_agentCardPath.IsAbsoluteUri)
+        {
+            throw new ArgumentException($"HttpClient.BaseAddress must be set when using a relative {nameof(agentCardPath)}.", nameof(httpClient));
+        }
     }
 
     /// <summary>
@@ -58,36 +46,27 @@ public sealed class A2ACardResolver
     /// </summary>
     /// <param name="cancellationToken">Optional cancellation token</param>
     /// <returns>The agent card</returns>
-    public Task<AgentCard> GetAgentCardAsync(CancellationToken cancellationToken = default) =>
-        GetAgentCardAsync(useAsync: true, cancellationToken);
-
-    private async Task<AgentCard> GetAgentCardAsync(
-        bool useAsync,
-        CancellationToken cancellationToken)
+    public async Task<AgentCard> GetAgentCardAsync(CancellationToken cancellationToken = default)
     {
         if (_logger.IsEnabled(LogLevel.Information))
         {
-            _logger.LogInformation("Fetching agent card from {Url}", $"{_httpClient.BaseAddress}/{_agentCardPath}");
+            Debug.Assert(_agentCardPath.IsAbsoluteUri || _httpClient.BaseAddress is not null);
+            _logger.LogInformation("Fetching agent card from '{Url}'", _agentCardPath.IsAbsoluteUri ?
+                _agentCardPath :
+                new Uri(_httpClient.BaseAddress!, _agentCardPath.ToString()));
         }
 
         try
         {
-            using var response =
-#if NET
-                !useAsync ? _httpClient.Send(new(HttpMethod.Get, _agentCardPath), HttpCompletionOption.ResponseHeadersRead, cancellationToken) :
-#endif
-                await _httpClient.GetAsync(_agentCardPath, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+            using var response = await _httpClient.GetAsync(_agentCardPath, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
 
             response.EnsureSuccessStatusCode();
 
-            using var responseStream =
+            using var responseStream = await response.Content.ReadAsStreamAsync(
 #if NET
-                !useAsync ?
-                    response.Content.ReadAsStream(cancellationToken) :
-                    await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-#else
-                await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+                cancellationToken
 #endif
+                ).ConfigureAwait(false);
 
             return JsonSerializer.Deserialize(responseStream, A2AJsonUtilities.JsonContext.Default.AgentCard) ??
                 throw new A2AClientJsonException("Failed to parse agent card JSON.");
