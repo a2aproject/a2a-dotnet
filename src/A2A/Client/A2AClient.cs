@@ -5,7 +5,7 @@ using System.Text.Json.Serialization.Metadata;
 
 namespace A2A;
 
-public class A2AClient : IA2AClient
+public sealed class A2AClient : IA2AClient
 {
     private static readonly HttpClient s_sharedClient = new();
 
@@ -79,7 +79,12 @@ public class A2AClient : IA2AClient
         JsonTypeInfo<TOutput> outputTypeInfo,
         CancellationToken cancellationToken) where TOutput : class
     {
-        using var responseStream = await SendAndReadResponseStream(jsonRpcParams, method, inputTypeInfo, cancellationToken).ConfigureAwait(false);
+        using var responseStream = await SendAndReadResponseStream(
+            jsonRpcParams,
+            method,
+            inputTypeInfo,
+            "application/json",
+            cancellationToken).ConfigureAwait(false);
 
         var responseObject = await JsonSerializer.DeserializeAsync(responseStream, A2AJsonUtilities.JsonContext.Default.JsonRpcResponse, cancellationToken) ??
             throw new InvalidOperationException("Failed to deserialize the response.");
@@ -95,7 +100,12 @@ public class A2AClient : IA2AClient
         JsonTypeInfo<TOutput> outputTypeInfo,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        using var responseStream = await SendAndReadResponseStream(jsonRpcParams, method, inputTypeInfo, cancellationToken).ConfigureAwait(false);
+        using var responseStream = await SendAndReadResponseStream(
+            jsonRpcParams,
+            method,
+            inputTypeInfo,
+            "text/event-stream",
+            cancellationToken).ConfigureAwait(false);
 
         var sseParser = SseParser.Create(responseStream, (eventType, data) =>
         {
@@ -113,6 +123,7 @@ public class A2AClient : IA2AClient
         TInput jsonRpcParams,
         string method,
         JsonTypeInfo<TInput> inputTypeInfo,
+        string expectedContentType,
         CancellationToken cancellationToken)
     {
         var response = await _httpClient.SendAsync(new(HttpMethod.Post, "")
@@ -128,6 +139,11 @@ public class A2AClient : IA2AClient
         try
         {
             response.EnsureSuccessStatusCode();
+
+            if (response.Content.Headers.ContentType?.MediaType != expectedContentType)
+            {
+                throw new InvalidOperationException($"Invalid content type. Expected '{expectedContentType}' but got '{response.Content.Headers.ContentType?.MediaType}'.");
+            }
 
             return await response.Content.ReadAsStreamAsync(
 #if NET
