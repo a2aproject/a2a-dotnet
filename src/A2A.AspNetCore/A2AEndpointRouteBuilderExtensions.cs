@@ -21,10 +21,10 @@ public static class A2ARouteBuilderExtensions
     /// <summary>
     /// Enables JSON-RPC A2A endpoints for the specified path.
     /// </summary>
-    /// <param name="endpoints">The endpoint route builder to configure</param>
-    /// <param name="taskManager">The task manager for handling A2A operations</param>
-    /// <param name="path">The base path for the A2A endpoints</param>
-    /// <returns>An endpoint convention builder for further configuration</returns>
+    /// <param name="endpoints">The endpoint route builder to configure.</param>
+    /// <param name="taskManager">The task manager for handling A2A operations.</param>
+    /// <param name="path">The base path for the A2A endpoints.</param>
+    /// <returns>An endpoint convention builder for further configuration.</returns>
     public static IEndpointConventionBuilder MapA2A(this IEndpointRouteBuilder endpoints, TaskManager taskManager, string path)
     {
         var loggerFactory = endpoints.ServiceProvider.GetRequiredService<ILoggerFactory>();
@@ -47,10 +47,10 @@ public static class A2ARouteBuilderExtensions
     /// <summary>
     /// Enables experimental HTTP A2A endpoints for the specified path.
     /// </summary>
-    /// <param name="endpoints">The endpoint route builder to configure</param>
-    /// <param name="taskManager">The task manager for handling A2A operations</param>
-    /// <param name="path">The base path for the HTTP A2A endpoints</param>
-    /// <returns>An endpoint convention builder for further configuration</returns>
+    /// <param name="endpoints">The endpoint route builder to configure.</param>
+    /// <param name="taskManager">The task manager for handling A2A operations.</param>
+    /// <param name="path">The base path for the HTTP A2A endpoints.</param>
+    /// <returns>An endpoint convention builder for further configuration.</returns>
     public static IEndpointConventionBuilder MapHttpA2A(this IEndpointRouteBuilder endpoints, TaskManager taskManager, string path)
     {
         var loggerFactory = endpoints.ServiceProvider.GetRequiredService<ILoggerFactory>();

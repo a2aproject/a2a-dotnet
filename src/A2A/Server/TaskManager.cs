@@ -77,7 +77,7 @@ public class TaskManager : ITaskManager
     /// Retrieves the task from the store, updates its status, and notifies the cancellation handler.
     /// </remarks>
     /// <param name="taskIdParams">Parameters containing the task ID to cancel.</param>
-    /// <returns>The canceled task with updated status, or null if not found</returns>
+    /// <returns>The canceled task with updated status, or null if not found.</returns>
     public async Task<AgentTask?> CancelTaskAsync(TaskIdParams? taskIdParams)
     {
         if (taskIdParams == null)
@@ -108,7 +108,7 @@ public class TaskManager : ITaskManager
     /// Looks up the task in the persistent store and returns the current state and history.
     /// </remarks>
     /// <param name="taskIdParams">Parameters containing the task ID to retrieve.</param>
-    /// <returns>The task if found in the store, null otherwise</returns>
+    /// <returns>The task if found in the store, null otherwise.</returns>
     public async Task<AgentTask?> GetTaskAsync(TaskIdParams? taskIdParams)
     {
         if (taskIdParams == null)
@@ -132,7 +132,7 @@ public class TaskManager : ITaskManager
     /// it either delegates to the OnMessageReceived handler or creates a new task.
     /// </remarks>
     /// <param name="messageSendParams">The message parameters containing the message content and optional task/context IDs.</param>
-    /// <returns>The agent's response as either a Task object or a direct Message from the handler</returns>
+    /// <returns>The agent's response as either a Task object or a direct Message from the handler.</returns>
     public async Task<A2AResponse?> SendMessageAsync(MessageSendParams messageSendParams)
     {
         using var activity = ActivitySource.StartActivity("SendMessage", ActivityKind.Server);
@@ -199,7 +199,7 @@ public class TaskManager : ITaskManager
     /// TaskStatusUpdateEvent, and TaskArtifactUpdateEvent objects as they are generated.
     /// </remarks>
     /// <param name="messageSendParams">The message parameters containing the message content and optional task/context IDs.</param>
-    /// <returns>An async enumerable that yields events as they are produced by the agent</returns>
+    /// <returns>An async enumerable that yields events as they are produced by the agent.</returns>
     public async Task<IAsyncEnumerable<A2AEvent>> SendMessageStreamAsync(MessageSendParams messageSendParams)
     {
         using var activity = ActivitySource.StartActivity("SendSubscribe", ActivityKind.Server);
@@ -279,7 +279,7 @@ public class TaskManager : ITaskManager
     /// allowing clients to reconnect to an active task stream.
     /// </remarks>
     /// <param name="taskIdParams">Parameters containing the task ID to resubscribe to.</param>
-    /// <returns>An async enumerable of events for the specified task</returns>
+    /// <returns>An async enumerable of events for the specified task.</returns>
     public IAsyncEnumerable<A2AEvent> ResubscribeAsync(TaskIdParams? taskIdParams)
     {
         if (taskIdParams == null)
@@ -302,7 +302,7 @@ public class TaskManager : ITaskManager
     /// Configures callback URLs and authentication for receiving task updates via HTTP notifications.
     /// </remarks>
     /// <param name="pushNotificationConfig">The push notification configuration containing callback URL and authentication details.</param>
-    /// <returns>The configured push notification settings with confirmation</returns>
+    /// <returns>The configured push notification settings with confirmation.</returns>
     public async Task<TaskPushNotificationConfig?> SetPushNotificationAsync(TaskPushNotificationConfig? pushNotificationConfig)
     {
         if (pushNotificationConfig is null)
@@ -321,7 +321,7 @@ public class TaskManager : ITaskManager
     /// Returns the callback URL and authentication settings configured for receiving task update notifications.
     /// </remarks>
     /// <param name="taskIdParams">Parameters containing the task ID to get push notification configuration for.</param>
-    /// <returns>The push notification configuration if found, null otherwise</returns>
+    /// <returns>The push notification configuration if found, null otherwise.</returns>
     public async Task<TaskPushNotificationConfig?> GetPushNotificationAsync(TaskIdParams? taskIdParams)
     {
         if (taskIdParams == null)

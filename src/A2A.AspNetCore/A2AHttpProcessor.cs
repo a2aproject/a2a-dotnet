@@ -29,7 +29,7 @@ public static class A2AHttpProcessor
     /// <param name="taskManager">The task manager instance containing the agent card query handler.</param>
     /// <param name="logger">Logger instance for recording operation details and errors.</param>
     /// <param name="agentUrl">The URL of the agent to retrieve the card for.</param>
-    /// <returns>An HTTP result containing the agent card JSON or an error response</returns>
+    /// <returns>An HTTP result containing the agent card JSON or an error response.</returns>
     internal static Task<IResult> GetAgentCard(TaskManager taskManager, ILogger logger, string agentUrl)
     {
         using var activity = ActivitySource.StartActivity("GetAgentCard", ActivityKind.Server);
@@ -58,7 +58,7 @@ public static class A2AHttpProcessor
     /// <param name="id">The unique identifier of the task to retrieve.</param>
     /// <param name="historyLength">Optional limit on the number of history items to return.</param>
     /// <param name="metadata">Optional JSON metadata filter for the task query.</param>
-    /// <returns>An HTTP result containing the task JSON or a not found/error response</returns>
+    /// <returns>An HTTP result containing the task JSON or a not found/error response.</returns>
     internal static async Task<IResult> GetTask(TaskManager taskManager, ILogger logger, string id, int? historyLength, string? metadata)
     {
         using var activity = ActivitySource.StartActivity("GetTask", ActivityKind.Server);
@@ -91,7 +91,7 @@ public static class A2AHttpProcessor
     /// <param name="taskManager">The task manager instance for handling task cancellation.</param>
     /// <param name="logger">Logger instance for recording operation details and errors.</param>
     /// <param name="id">The unique identifier of the task to cancel.</param>
-    /// <returns>An HTTP result containing the canceled task JSON or a not found/error response</returns>
+    /// <returns>An HTTP result containing the canceled task JSON or a not found/error response.</returns>
     internal static async Task<IResult> CancelTask(TaskManager taskManager, ILogger logger, string id)
     {
         using var activity = ActivitySource.StartActivity("CancelTask", ActivityKind.Server);
@@ -127,7 +127,7 @@ public static class A2AHttpProcessor
     /// <param name="sendParams">The message parameters containing the message content and configuration.</param>
     /// <param name="historyLength">Optional limit on the number of history items to include in processing.</param>
     /// <param name="metadata">Optional JSON metadata to include with the message request.</param>
-    /// <returns>An HTTP result containing the agent's response (Task or Message) or an error response</returns>
+    /// <returns>An HTTP result containing the agent's response (Task or Message) or an error response.</returns>
     internal static async Task<IResult> SendTaskMessage(TaskManager taskManager, ILogger logger, string? taskId, MessageSendParams sendParams, int? historyLength, string? metadata)
     {
         using var activity = ActivitySource.StartActivity("SendTaskMessage", ActivityKind.Server);
@@ -176,7 +176,7 @@ public static class A2AHttpProcessor
     /// <param name="sendParams">The message parameters containing the message content and configuration.</param>
     /// <param name="historyLength">Optional limit on the number of history items to include in processing.</param>
     /// <param name="metadata">Optional JSON metadata to include with the message request.</param>
-    /// <returns>An HTTP result that streams events as Server-Sent Events or an error response</returns>
+    /// <returns>An HTTP result that streams events as Server-Sent Events or an error response.</returns>
     internal static async Task<IResult> SendSubscribeTaskMessage(TaskManager taskManager, ILogger logger, string id, MessageSendParams sendParams, int? historyLength, string? metadata)
     {
         using var activity = ActivitySource.StartActivity("SendSubscribeTaskMessage", ActivityKind.Server);
@@ -209,10 +209,10 @@ public static class A2AHttpProcessor
     /// Returns the active event enumerator for the specified task, allowing clients
     /// to reconnect to ongoing task updates via Server-Sent Events.
     /// </remarks>
-    /// <param name="taskManager">The task manager instance containing active task event streams</param>
-    /// <param name="logger">Logger instance for recording operation details and errors</param>
-    /// <param name="id">The unique identifier of the task to resubscribe to</param>
-    /// <returns>An HTTP result that streams existing task events or an error response</returns>
+    /// <param name="taskManager">The task manager instance containing active task event streams.</param>
+    /// <param name="logger">Logger instance for recording operation details and errors.</param>
+    /// <param name="id">The unique identifier of the task to resubscribe to.</param>
+    /// <returns>An HTTP result that streams existing task events or an error response.</returns>
     internal static IResult ResubscribeTask(TaskManager taskManager, ILogger logger, string id)
     {
         using var activity = ActivitySource.StartActivity("ResubscribeTask", ActivityKind.Server);
@@ -237,11 +237,11 @@ public static class A2AHttpProcessor
     /// <remarks>
     /// Configures callback URLs and authentication settings for receiving task update notifications via HTTP.
     /// </remarks>
-    /// <param name="taskManager">The task manager instance for handling push notification configuration</param>
-    /// <param name="logger">Logger instance for recording operation details and errors</param>
-    /// <param name="id">The unique identifier of the task to configure push notifications for</param>
-    /// <param name="pushNotificationConfig">The push notification configuration containing callback URL and authentication details</param>
-    /// <returns>An HTTP result containing the configured settings or an error response</returns>
+    /// <param name="taskManager">The task manager instance for handling push notification configuration.</param>
+    /// <param name="logger">Logger instance for recording operation details and errors.</param>
+    /// <param name="id">The unique identifier of the task to configure push notifications for.</param>
+    /// <param name="pushNotificationConfig">The push notification configuration containing callback URL and authentication details.</param>
+    /// <returns>An HTTP result containing the configured settings or an error response.</returns>
     internal static async Task<IResult> SetPushNotification(TaskManager taskManager, ILogger logger, string id, PushNotificationConfig pushNotificationConfig)
     {
         using var activity = ActivitySource.StartActivity("ConfigurePushNotification", ActivityKind.Server);
@@ -276,10 +276,10 @@ public static class A2AHttpProcessor
     /// <remarks>
     /// Returns the callback URL and authentication settings configured for receiving task update notifications.
     /// </remarks>
-    /// <param name="taskManager">The task manager instance for accessing push notification configurations</param>
-    /// <param name="logger">Logger instance for recording operation details and errors</param>
-    /// <param name="id">The unique identifier of the task to get push notification configuration for</param>
-    /// <returns>An HTTP result containing the push notification configuration or a not found/error response</returns>
+    /// <param name="taskManager">The task manager instance for accessing push notification configurations.</param>
+    /// <param name="logger">Logger instance for recording operation details and errors.</param>
+    /// <param name="id">The unique identifier of the task to get push notification configuration for.</param>
+    /// <returns>An HTTP result containing the push notification configuration or a not found/error response.</returns>
     internal static async Task<IResult> GetPushNotification(TaskManager taskManager, ILogger logger, string id)
     {
         using var activity = ActivitySource.StartActivity("GetPushNotification", ActivityKind.Server);
@@ -319,7 +319,7 @@ public class A2AResponseResult : IResult
     /// <summary>
     /// Initializes a new instance of the A2AResponseResult class.
     /// </summary>
-    /// <param name="a2aResponse">The A2A response object to serialize and return in the HTTP response</param>
+    /// <param name="a2aResponse">The A2A response object to serialize and return in the HTTP response.</param>
     public A2AResponseResult(A2AResponse a2aResponse)
     {
         this.a2aResponse = a2aResponse;
@@ -331,8 +331,8 @@ public class A2AResponseResult : IResult
     /// <remarks>
     /// Sets the appropriate content type and uses the default A2A JSON serialization options.
     /// </remarks>
-    /// <param name="httpContext">The HTTP context to write the response to</param>
-    /// <returns>A task representing the asynchronous serialization operation</returns>
+    /// <param name="httpContext">The HTTP context to write the response to.</param>
+    /// <returns>A task representing the asynchronous serialization operation.</returns>
     public async Task ExecuteAsync(HttpContext httpContext)
     {
         httpContext.Response.ContentType = "application/json";
@@ -355,7 +355,7 @@ public class A2AEventStreamResult : IResult
     /// <summary>
     /// Initializes a new instance of the A2AEventStreamResult class.
     /// </summary>
-    /// <param name="taskEvents">The async enumerable stream of A2A events to send as Server-Sent Events</param>
+    /// <param name="taskEvents">The async enumerable stream of A2A events to send as Server-Sent Events.</param>
     public A2AEventStreamResult(IAsyncEnumerable<A2AEvent> taskEvents)
     {
         this.taskEvents = taskEvents;
@@ -368,8 +368,8 @@ public class A2AEventStreamResult : IResult
     /// Sets the appropriate SSE content type and formats each event according to the SSE specification.
     /// Each event is serialized as JSON and sent with the "data:" prefix followed by double newlines.
     /// </remarks>
-    /// <param name="httpContext">The HTTP context to stream the events to</param>
-    /// <returns>A task representing the asynchronous streaming operation</returns>
+    /// <param name="httpContext">The HTTP context to stream the events to.</param>
+    /// <returns>A task representing the asynchronous streaming operation.</returns>
     public async Task ExecuteAsync(HttpContext httpContext)
     {
         httpContext.Response.ContentType = "text/event-stream";

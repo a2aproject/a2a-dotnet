@@ -44,7 +44,7 @@ public class JsonRpcResponse
     /// <param name="requestId">The request ID.</param>
     /// <param name="result">The result to include.</param>
     /// <param name="resultTypeInfo">Optional type information for serialization.</param>
-    /// <returns>A JSON-RPC response object</returns>
+    /// <returns>A JSON-RPC response object.</returns>
     public static JsonRpcResponse CreateJsonRpcResponse<T>(string requestId, T result, JsonTypeInfo? resultTypeInfo = null)
     {
         resultTypeInfo ??= (JsonTypeInfo<T>)A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(T));
@@ -60,7 +60,7 @@ public class JsonRpcResponse
     /// Creates a JSON-RPC error response for invalid parameters.
     /// </summary>
     /// <param name="requestId">The request ID.</param>
-    /// <returns>A JSON-RPC error response</returns>
+    /// <returns>A JSON-RPC error response.</returns>
     public static JsonRpcResponse InvalidParamsResponse(string requestId) => new()
     {
         Id = requestId,
@@ -75,7 +75,7 @@ public class JsonRpcResponse
     /// Creates a JSON-RPC error response for task not found.
     /// </summary>
     /// <param name="requestId">The request ID.</param>
-    /// <returns>A JSON-RPC error response</returns>
+    /// <returns>A JSON-RPC error response.</returns>
     public static JsonRpcResponse TaskNotFoundResponse(string requestId) => new()
     {
         Id = requestId,
@@ -90,7 +90,7 @@ public class JsonRpcResponse
     /// Creates a JSON-RPC error response for task not cancelable.
     /// </summary>
     /// <param name="requestId">The request ID.</param>
-    /// <returns>A JSON-RPC error response</returns>
+    /// <returns>A JSON-RPC error response.</returns>
     public static JsonRpcResponse TaskNotCancelableResponse(string requestId) => new()
     {
         Id = requestId,
@@ -105,7 +105,7 @@ public class JsonRpcResponse
     /// Creates a JSON-RPC error response for method not found.
     /// </summary>
     /// <param name="requestId">The request ID.</param>
-    /// <returns>A JSON-RPC error response</returns>
+    /// <returns>A JSON-RPC error response.</returns>
     public static JsonRpcResponse MethodNotFoundResponse(string requestId) => new()
     {
         Id = requestId,
@@ -120,7 +120,7 @@ public class JsonRpcResponse
     /// Creates a JSON-RPC error response for push notification not supported.
     /// </summary>
     /// <param name="requestId">The request ID.</param>
-    /// <returns>A JSON-RPC error response</returns>
+    /// <returns>A JSON-RPC error response.</returns>
     public static JsonRpcResponse PushNotificationNotSupportedResponse(string requestId) => new()
     {
         Id = requestId,
@@ -136,7 +136,7 @@ public class JsonRpcResponse
     /// </summary>
     /// <param name="requestId">The request ID.</param>
     /// <param name="message">Optional error message.</param>
-    /// <returns>A JSON-RPC error response</returns>
+    /// <returns>A JSON-RPC error response.</returns>
     public static JsonRpcResponse InternalErrorResponse(string requestId, string? message = null) => new()
     {
         Id = requestId,
@@ -152,7 +152,7 @@ public class JsonRpcResponse
     /// </summary>
     /// <param name="requestId">The request ID.</param>
     /// <param name="message">Optional error message.</param>
-    /// <returns>A JSON-RPC error response</returns>
+    /// <returns>A JSON-RPC error response.</returns>
     public static JsonRpcResponse ParseErrorResponse(string requestId, string? message = null) => new()
     {
         Id = requestId,
@@ -168,7 +168,7 @@ public class JsonRpcResponse
     /// </summary>
     /// <param name="requestId">The request ID.</param>
     /// <param name="message">Optional error message.</param>
-    /// <returns>A JSON-RPC error response</returns>
+    /// <returns>A JSON-RPC error response.</returns>
     public static JsonRpcResponse UnsupportedOperationResponse(string requestId, string? message = null) => new()
     {
         Id = requestId,
@@ -184,7 +184,7 @@ public class JsonRpcResponse
     /// </summary>
     /// <param name="requestId">The request ID.</param>
     /// <param name="message">Optional error message.</param>
-    /// <returns>A JSON-RPC error response</returns>
+    /// <returns>A JSON-RPC error response.</returns>
     public static JsonRpcResponse ContentTypeNotSupportedResponse(string requestId, string? message = null) => new()
     {
         Id = requestId,

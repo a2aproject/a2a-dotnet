@@ -27,8 +27,8 @@ public class JsonRpcError
     /// Deserializes a JsonRpcError from a JsonElement.
     /// </summary>
     /// <param name="jsonElement">The JSON element to deserialize.</param>
-    /// <returns>A JsonRpcError instance</returns>
-    /// <exception cref="InvalidOperationException">Thrown when deserialization fails</exception>
+    /// <returns>A JsonRpcError instance.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when deserialization fails.</exception>
     public static JsonRpcError FromJson(JsonElement jsonElement) =>
         jsonElement.Deserialize(A2AJsonUtilities.JsonContext.Default.JsonRpcError) ??
         throw new InvalidOperationException("Failed to deserialize JsonRpcError.");
@@ -36,6 +36,6 @@ public class JsonRpcError
     /// <summary>
     /// Serializes a JsonRpcError to JSON.
     /// </summary>
-    /// <returns>JSON string representation</returns>
+    /// <returns>JSON string representation.</returns>
     public string ToJson() => JsonSerializer.Serialize(this, A2AJsonUtilities.JsonContext.Default.JsonRpcError);
 }

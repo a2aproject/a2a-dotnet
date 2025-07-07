@@ -45,7 +45,7 @@ public sealed class A2ACardResolver
     /// Gets the agent card asynchronously.
     /// </summary>
     /// <param name="cancellationToken">Optional cancellation token.</param>
-    /// <returns>The agent card</returns>
+    /// <returns>The agent card.</returns>
     public async Task<AgentCard> GetAgentCardAsync(CancellationToken cancellationToken = default)
     {
         if (_logger.IsEnabled(LogLevel.Information))

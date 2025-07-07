@@ -12,7 +12,7 @@ public interface IA2AClient
     /// </summary>
     /// <param name="taskSendParams">The message parameters containing the message and configuration.</param>
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
-    /// <returns>The agent's response containing a Task or Message</returns>
+    /// <returns>The agent's response containing a Task or Message.</returns>
     Task<A2AResponse> SendMessageAsync(MessageSendParams taskSendParams, CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -20,7 +20,7 @@ public interface IA2AClient
     /// </summary>
     /// <param name="taskId">The ID of the task to retrieve.</param>
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
-    /// <returns>The requested task with its current state and history</returns>
+    /// <returns>The requested task with its current state and history.</returns>
     Task<AgentTask> GetTaskAsync(string taskId, CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -28,7 +28,7 @@ public interface IA2AClient
     /// </summary>
     /// <param name="taskIdParams">Parameters containing the task ID to cancel.</param>
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
-    /// <returns>The updated task with canceled status</returns>
+    /// <returns>The updated task with canceled status.</returns>
     Task<AgentTask> CancelTaskAsync(TaskIdParams taskIdParams, CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -39,7 +39,7 @@ public interface IA2AClient
     /// </remarks>
     /// <param name="taskSendParams">The message parameters containing the message and configuration.</param>
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
-    /// <returns>An async enumerable of server-sent events containing Task, Message, TaskStatusUpdateEvent, or TaskArtifactUpdateEvent</returns>
+    /// <returns>An async enumerable of server-sent events containing Task, Message, TaskStatusUpdateEvent, or TaskArtifactUpdateEvent.</returns>
     IAsyncEnumerable<SseItem<A2AEvent>> SendMessageStreamAsync(MessageSendParams taskSendParams, CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -47,7 +47,7 @@ public interface IA2AClient
     /// </summary>
     /// <param name="taskId">The ID of the task to resubscribe to.</param>
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
-    /// <returns>An async enumerable of server-sent events containing task updates</returns>
+    /// <returns>An async enumerable of server-sent events containing task updates.</returns>
     IAsyncEnumerable<SseItem<A2AEvent>> ResubscribeToTaskAsync(string taskId, CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -55,7 +55,7 @@ public interface IA2AClient
     /// </summary>
     /// <param name="pushNotificationConfig">The push notification configuration to set.</param>
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
-    /// <returns>The configured push notification settings with confirmation</returns>
+    /// <returns>The configured push notification settings with confirmation.</returns>
     Task<TaskPushNotificationConfig> SetPushNotificationAsync(TaskPushNotificationConfig pushNotificationConfig, CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -63,6 +63,6 @@ public interface IA2AClient
     /// </summary>
     /// <param name="taskIdParams">Parameters containing the task ID.</param>
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
-    /// <returns>The push notification configuration for the specified task</returns>
+    /// <returns>The push notification configuration for the specified task.</returns>
     Task<TaskPushNotificationConfig> GetPushNotificationAsync(TaskIdParams taskIdParams, CancellationToken cancellationToken = default);
 }
