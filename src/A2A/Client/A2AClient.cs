@@ -10,7 +10,7 @@ namespace A2A;
 /// </summary>
 public sealed class A2AClient : IA2AClient
 {
-    private static readonly HttpClient s_sharedClient = new();
+    internal static readonly HttpClient s_sharedClient = new();
 
     private readonly HttpClient _httpClient;
 
