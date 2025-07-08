@@ -444,7 +444,7 @@ public class A2AClientTests
         var jsonRpcResponse = JsonSerializer.Serialize(new JsonRpcResponse
         {
             Id = "test-id",
-            Result = JsonSerializer.SerializeToNode(expectedMessage, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(A2AEvent)))
+            Result = JsonSerializer.SerializeToNode<A2AEvent>(expectedMessage, A2AJsonUtilities.DefaultOptions)
         });
         var sseStream = new MemoryStream(Encoding.UTF8.GetBytes($"event: message\ndata: {jsonRpcResponse}\n\n"));
         var response = new HttpResponseMessage(HttpStatusCode.OK)
@@ -536,7 +536,7 @@ public class A2AClientTests
         var jsonRpcResponse = JsonSerializer.Serialize(new JsonRpcResponse
         {
             Id = "test-id",
-            Result = JsonSerializer.SerializeToNode(expectedMessage, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(A2AEvent)))
+            Result = JsonSerializer.SerializeToNode<A2AEvent>(expectedMessage, A2AJsonUtilities.DefaultOptions)
         });
         var sseStream = new MemoryStream(Encoding.UTF8.GetBytes($"event: message\ndata: {jsonRpcResponse}\n\n"));
         var response = new HttpResponseMessage(HttpStatusCode.OK)
