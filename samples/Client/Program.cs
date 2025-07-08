@@ -187,6 +187,8 @@ internal sealed class Program
         {
             Message = new Message
             {
+                MessageId = Guid.NewGuid().ToString("N"),
+                ContextId = currentSessionId,
                 Role = MessageRole.User,
                 Parts =
                 [
@@ -217,6 +219,18 @@ internal sealed class Program
                     if (agentTask.Artifacts != null && agentTask.Artifacts.Count > 0)
                     {
                         Console.WriteLine($"Artifacts count: {agentTask.Artifacts.Count}");
+                    }
+                    break;
+                case Message message:
+                    taskId = message.TaskId;
+                    Console.WriteLine($"Received message {message.MessageId} with role {message.Role}");
+                    if (message.Parts.Count > 0)
+                    {
+                        Console.WriteLine($"Message parts count: {message.Parts.Count}");
+                        foreach (var part in message.Parts.OfType<TextPart>())
+                        {
+                            Console.WriteLine(part.Text);
+                        }
                     }
                     break;
                 default:
