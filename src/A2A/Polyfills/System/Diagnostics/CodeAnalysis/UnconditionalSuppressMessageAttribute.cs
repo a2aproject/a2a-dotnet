@@ -5,7 +5,7 @@
 namespace System.Diagnostics.CodeAnalysis;
 
 /// <summary>
-/// /// Suppresses reporting of a specific rule violation, allowing multiple suppressions on a
+/// Suppresses reporting of a specific rule violation, allowing multiple suppressions on a
 /// single code artifact.
 /// </summary>
 /// <remarks>

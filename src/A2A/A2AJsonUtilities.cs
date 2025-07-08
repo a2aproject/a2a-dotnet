@@ -4,7 +4,9 @@ using System.Text.Json.Serialization;
 
 namespace A2A;
 
-/// <summary>Provides a collection of utility methods for working with JSON data in the context of A2A.</summary>
+/// <summary>
+/// Provides a collection of utility methods for working with JSON data in the context of A2A.
+/// </summary>
 public static partial class A2AJsonUtilities
 {
     /// <summary>
@@ -12,7 +14,7 @@ public static partial class A2AJsonUtilities
     /// </summary>
     /// <remarks>
     /// <para>
-    /// For Native AOT or applications disabling <see cref="JsonSerializer.IsReflectionEnabledByDefault"/>, this instance 
+    /// For Native AOT or applications disabling <see cref="JsonSerializer.IsReflectionEnabledByDefault"/>, this instance
     /// includes source generated contracts for all common exchange types contained in the A2A library.
     /// </para>
     /// <para>

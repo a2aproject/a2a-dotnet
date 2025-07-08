@@ -4,21 +4,21 @@ using System.Text.Json.Serialization;
 namespace A2A;
 
 /// <summary>
-/// Information about the agent provider
+/// Represents the service provider of an agent.
 /// </summary>
 public class AgentProvider
 {
     /// <summary>
-    /// The organization name
+    /// Agent provider's organization name.
     /// </summary>
     [JsonPropertyName("organization")]
     [Required]
     public string Organization { get; set; } = string.Empty;
 
     /// <summary>
-    /// Optional URL for the provider
+    /// Agent provider's URL.
     /// </summary>
     [JsonPropertyName("url")]
     [Required]
-    public string? Url { get; set; }
+    public string Url { get; set; } = string.Empty;
 }

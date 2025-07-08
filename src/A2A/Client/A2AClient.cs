@@ -1,21 +1,29 @@
-﻿using System.Net.ServerSentEvents;
+using System.Net.ServerSentEvents;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 
 namespace A2A;
 
+/// <summary>
+/// Implementation of A2A client for communicating with agents.
+/// </summary>
 public sealed class A2AClient : IA2AClient
 {
     internal static readonly HttpClient s_sharedClient = new();
 
     private readonly HttpClient _httpClient;
 
+    /// <summary>
+    /// Initializes a new instance of the A2AClient class.
+    /// </summary>
+    /// <param name="httpClient">The HTTP client to use for requests.</param>
     public A2AClient(HttpClient? httpClient = null)
     {
         _httpClient = httpClient ?? s_sharedClient;
     }
 
+    /// <inheritdoc />
     public Task<A2AResponse> SendMessageAsync(MessageSendParams taskSendParams, CancellationToken cancellationToken = default) =>
         SendRpcRequestAsync(
             taskSendParams,
@@ -24,6 +32,7 @@ public sealed class A2AClient : IA2AClient
             A2AJsonUtilities.JsonContext.Default.A2AResponse,
             cancellationToken);
 
+    /// <inheritdoc />
     public Task<AgentTask> GetTaskAsync(string taskId, CancellationToken cancellationToken = default) =>
         SendRpcRequestAsync(
             new() { Id = taskId },
@@ -32,6 +41,7 @@ public sealed class A2AClient : IA2AClient
             A2AJsonUtilities.JsonContext.Default.AgentTask,
             cancellationToken);
 
+    /// <inheritdoc />
     public Task<AgentTask> CancelTaskAsync(TaskIdParams taskIdParams, CancellationToken cancellationToken = default) =>
         SendRpcRequestAsync(
             taskIdParams,
@@ -40,6 +50,7 @@ public sealed class A2AClient : IA2AClient
             A2AJsonUtilities.JsonContext.Default.AgentTask,
             cancellationToken);
 
+    /// <inheritdoc />
     public Task<TaskPushNotificationConfig> SetPushNotificationAsync(TaskPushNotificationConfig pushNotificationConfig, CancellationToken cancellationToken = default) =>
         SendRpcRequestAsync(
             pushNotificationConfig,
@@ -48,6 +59,7 @@ public sealed class A2AClient : IA2AClient
             A2AJsonUtilities.JsonContext.Default.TaskPushNotificationConfig,
             cancellationToken);
 
+    /// <inheritdoc />
     public Task<TaskPushNotificationConfig> GetPushNotificationAsync(TaskIdParams taskIdParams, CancellationToken cancellationToken = default) =>
         SendRpcRequestAsync(
             taskIdParams,
@@ -56,6 +68,7 @@ public sealed class A2AClient : IA2AClient
             A2AJsonUtilities.JsonContext.Default.TaskPushNotificationConfig,
             cancellationToken);
 
+    /// <inheritdoc />
     public IAsyncEnumerable<SseItem<A2AEvent>> SendMessageStreamAsync(MessageSendParams taskSendParams, CancellationToken cancellationToken = default) =>
         SendRpcSseRequestAsync(
             taskSendParams,
@@ -64,6 +77,7 @@ public sealed class A2AClient : IA2AClient
             A2AJsonUtilities.JsonContext.Default.A2AEvent,
             cancellationToken);
 
+    /// <inheritdoc />
     public IAsyncEnumerable<SseItem<A2AEvent>> ResubscribeToTaskAsync(string taskId, CancellationToken cancellationToken = default) =>
         SendRpcSseRequestAsync(
             new() { Id = taskId },
@@ -86,10 +100,14 @@ public sealed class A2AClient : IA2AClient
             "application/json",
             cancellationToken).ConfigureAwait(false);
 
-        var responseObject = await JsonSerializer.DeserializeAsync(responseStream, A2AJsonUtilities.JsonContext.Default.JsonRpcResponse, cancellationToken) ??
-            throw new InvalidOperationException("Failed to deserialize the response.");
+        var responseObject = await JsonSerializer.DeserializeAsync(responseStream, A2AJsonUtilities.JsonContext.Default.JsonRpcResponse, cancellationToken);
 
-        return responseObject.Result?.Deserialize(outputTypeInfo) ??
+        if (responseObject?.Error is { } error)
+        {
+            throw new InvalidOperationException($"JSON-RPC error ({error.Code}): {error.Message}");
+        }
+
+        return responseObject?.Result?.Deserialize(outputTypeInfo) ??
             throw new InvalidOperationException("Response does not contain a result.");
     }
 
@@ -110,7 +128,16 @@ public sealed class A2AClient : IA2AClient
         var sseParser = SseParser.Create(responseStream, (eventType, data) =>
         {
             var reader = new Utf8JsonReader(data);
-            return JsonSerializer.Deserialize(ref reader, outputTypeInfo) ?? throw new InvalidOperationException("Failed to deserialize the event.");
+
+            var responseObject = JsonSerializer.Deserialize(ref reader, A2AJsonUtilities.JsonContext.Default.JsonRpcResponse);
+
+            if (responseObject?.Error is { } error)
+            {
+                throw new InvalidOperationException($"JSON-RPC error ({error.Code}): {error.Message}");
+            }
+
+            return JsonSerializer.Deserialize(responseObject?.Result, outputTypeInfo) ??
+                throw new InvalidOperationException("Failed to deserialize the event.");
         });
 
         await foreach (var item in sseParser.EnumerateAsync(cancellationToken))
