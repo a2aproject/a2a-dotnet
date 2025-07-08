@@ -11,6 +11,7 @@ public class TaskStatusUpdateEvent : TaskUpdateEvent
     /// Gets or sets the current status of the task.
     /// </summary>
     [JsonPropertyName("status")]
+    [JsonRequired]
     public AgentTaskStatus Status { get; set; } = new AgentTaskStatus();
 
     /// <summary>

@@ -11,5 +11,6 @@ public class TextPart : Part
     /// Gets or sets the text content.
     /// </summary>
     [JsonPropertyName("text")]
+    [JsonRequired]
     public string Text { get; set; } = string.Empty;
 }

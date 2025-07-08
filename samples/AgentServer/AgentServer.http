@@ -3,7 +3,7 @@
 ### Query agent card for the echo agent
 GET {{host}}/echo/.well-known/agent.json
 
-## curl -N -X GET http://localhost:5048/echo/.well-known/agent.json
+### curl -N -X GET http://localhost:5048/echo/.well-known/agent.json
 
 ### Send a message to the echo agent
 POST {{host}}/echo
@@ -49,21 +49,19 @@ Content-Type: application/json
     }
 }
 
+### curl -N -X POST http://localhost:5048/echo -H "Content-Type: application/json" -d '{ "id": "3","jsonrpc": "2.0","method": "task/sendsubscribe","params": {"id": "1234","message": {"role": "user","parts": [{"type": "text","text": "Hello, world!"}]}}}'
 
-
-## curl -N -X POST http://localhost:5048/echo -H "Content-Type: application/json" -d '{ "id": "3","jsonrpc": "2.0","method": "task/sendsubscribe","params": {"id": "1234","message": {"role": "user","parts": [{"type": "text","text": "Hello, world!"}]}}}'
-
-###
+###  Retrieve a task
 POST {{host}}/echotasks
 Content-Type: application/json
 
 {
     "id": "3",
     "jsonrpc": "2.0",
-    "method": "task/get",
+    "method": "tasks/get",
     "params": {
         "id": "40dfa726-bc05-4fd4-aa3d-763d5972c9d0"
-        }
+     }
 }
 
 ### SendSubscribe the echo agent
@@ -132,17 +130,17 @@ Content-Type: application/json
     }
 }
 
-###
+###  Retrieve a task
 POST {{host}}/hostedclient
 Content-Type: application/json
 
 {
     "id": "d589ff00-daba-49a0-a01c-fa2a0924ada3",
     "jsonrpc": "2.0",
-    "method": "task/get",
+    "method": "tasks/get",
     "params": {
         "id": "b6d9ce5c-c457-47af-be95-6bed646ab667"
-        }
+     }
 }
 
 
@@ -179,7 +177,7 @@ Content-Type: application/json
 {
     "id": "2",
     "jsonrpc": "2.0",
-    "method": "task/get",
+    "method": "tasks/get",
     "params": {
         "id": "c65e7047-2938-432f-bae0-660d6d9fda50"
     }

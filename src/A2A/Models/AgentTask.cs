@@ -20,7 +20,7 @@ public class AgentTask : A2AResponse
     /// </summary>
     [JsonPropertyName("contextId")]
     [JsonRequired]
-    public string? ContextId { get; set; }
+    public string ContextId { get; set; } = string.Empty;
 
     /// <summary>
     /// Current status of the task.

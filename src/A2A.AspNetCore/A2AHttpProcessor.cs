@@ -252,7 +252,7 @@ public static class A2AHttpProcessor
             var taskIdParams = new TaskIdParams { Id = id };
             var result = await taskManager.SetPushNotificationAsync(new TaskPushNotificationConfig
             {
-                Id = id,
+                TaskId = id,
                 PushNotificationConfig = pushNotificationConfig
             });
 

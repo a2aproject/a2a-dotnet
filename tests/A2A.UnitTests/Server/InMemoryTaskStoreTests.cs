@@ -66,7 +66,7 @@ public class InMemoryTaskStoreTests
     {
         // Arrange
         var sut = new InMemoryTaskStore();
-        var config = new TaskPushNotificationConfig { Id = "task3", PushNotificationConfig = new PushNotificationConfig { Url = "http://test" } };
+        var config = new TaskPushNotificationConfig { TaskId = "task3", PushNotificationConfig = new PushNotificationConfig { Url = "http://test" } };
 
         // Act
         await sut.SetPushNotificationConfigAsync(config);
@@ -74,7 +74,7 @@ public class InMemoryTaskStoreTests
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal("task3", result!.Id);
+        Assert.Equal("task3", result!.TaskId);
         Assert.Equal("http://test", result.PushNotificationConfig.Url);
     }
 

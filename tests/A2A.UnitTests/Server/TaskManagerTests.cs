@@ -332,7 +332,7 @@ public class TaskManagerTests
         var sut = new TaskManager();
         var config = new TaskPushNotificationConfig
         {
-            Id = "task-push-1",
+            TaskId = "task-push-1",
             PushNotificationConfig = new PushNotificationConfig { Url = "http://callback" }
         };
 
@@ -341,7 +341,7 @@ public class TaskManagerTests
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal("task-push-1", result.Id);
+        Assert.Equal("task-push-1", result.TaskId);
         Assert.Equal("http://callback", result.PushNotificationConfig.Url);
     }
 
@@ -362,7 +362,7 @@ public class TaskManagerTests
         var sut = new TaskManager();
         var config = new TaskPushNotificationConfig
         {
-            Id = "task-push-2",
+            TaskId = "task-push-2",
             PushNotificationConfig = new PushNotificationConfig { Url = "http://callback2" }
         };
         await sut.SetPushNotificationAsync(config);
@@ -372,7 +372,7 @@ public class TaskManagerTests
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal("task-push-2", result.Id);
+        Assert.Equal("task-push-2", result.TaskId);
         Assert.Equal("http://callback2", result.PushNotificationConfig.Url);
     }
 

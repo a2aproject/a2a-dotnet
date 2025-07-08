@@ -102,14 +102,40 @@ public class ClientTests : IClassFixture<JsonSchemaFixture>
     public async Task TestSetPushNotification()
     {
         // Arrange
-        var mockHandler = new MockMessageHandler();
+        var mockHandler = new MockMessageHandler
+        {
+            // Set up the response provider for push notification
+            ResponseProvider = request =>
+                {
+                    var pushNotificationResponse = new TaskPushNotificationConfig
+                    {
+                        TaskId = "test-task",
+                        PushNotificationConfig = new PushNotificationConfig
+                        {
+                            Url = "http://example.org/notify",
+                            Token = "test-token",
+                            Authentication = new AuthenticationInfo
+                            {
+                                Schemes = ["Bearer"]
+                            }
+                        }
+                    };
+
+                    return new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        RequestMessage = request,
+                        Content = new JsonRpcContent(JsonRpcResponse.CreateJsonRpcResponse<object>("test-id", pushNotificationResponse))
+                    };
+                }
+        };
+
         var client = new A2AClient(new HttpClient(mockHandler)
         {
             BaseAddress = new Uri("http://example.org")
         });
         var pushNotificationConfig = new TaskPushNotificationConfig
         {
-            Id = "test-task",
+            TaskId = "test-task",
             PushNotificationConfig = new PushNotificationConfig()
             {
                 Url = "http://example.org/notify",
@@ -148,23 +174,35 @@ public class JsonSchemaFixture
 public class MockMessageHandler : HttpMessageHandler
 {
     public HttpRequestMessage? Request { get; private set; }
+    public Func<HttpRequestMessage, HttpResponseMessage>? ResponseProvider { get; set; }
 
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         Request = request;
-        var response = new HttpResponseMessage(HttpStatusCode.OK)
+
+        // Use custom response provider if available, otherwise create default
+        var response = ResponseProvider?.Invoke(request) ?? CreateDefaultResponse(request);
+
+        return Task.FromResult(response);
+    }
+
+    private static HttpResponseMessage CreateDefaultResponse(HttpRequestMessage request)
+    {
+        // Create a default successful response with AgentTask
+        var defaultResult = new AgentTask
+        {
+            Id = "dummy-task-id",
+            ContextId = "dummy-context-id",
+            Status = new AgentTaskStatus
+            {
+                State = TaskState.Completed,
+            }
+        };
+
+        return new HttpResponseMessage(HttpStatusCode.OK)
         {
             RequestMessage = request,
-            Content = new JsonRpcContent(JsonRpcResponse.CreateJsonRpcResponse<A2AResponse>("asdas", new AgentTask()
-            {
-                Id = "dummy-task-id",
-                ContextId = "dummy-context-id",
-                Status = new AgentTaskStatus()
-                {
-                    State = TaskState.Completed,
-                }
-            }))
+            Content = new JsonRpcContent(JsonRpcResponse.CreateJsonRpcResponse<object>("test-id", defaultResult))
         };
-        return Task.FromResult(response);
     }
 }

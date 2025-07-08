@@ -1,5 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 
 namespace A2A;
 
@@ -16,13 +15,13 @@ public class AgentInterface
     /// The core ones officially supported are JSONRPC, GRPC, and HTTP+JSON.
     /// </remarks>
     [JsonPropertyName("transport")]
-    [Required]
+    [JsonRequired]
     public required AgentTransport Transport { get; set; }
 
     /// <summary>
     /// The target URL for the agent interface.
     /// </summary>
     [JsonPropertyName("url")]
-    [Required]
+    [JsonRequired]
     public required string Url { get; set; }
 }

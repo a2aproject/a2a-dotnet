@@ -1,4 +1,3 @@
-using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
 namespace A2A;
@@ -12,14 +11,14 @@ public class AgentSkill
     /// Unique identifier for the agent's skill.
     /// </summary>
     [JsonPropertyName("id")]
-    [Required]
+    [JsonRequired]
     public string Id { get; set; } = string.Empty;
 
     /// <summary>
     /// Human readable name of the skill.
     /// </summary>
     [JsonPropertyName("name")]
-    [Required]
+    [JsonRequired]
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
@@ -29,15 +28,15 @@ public class AgentSkill
     /// Will be used by the client or a human as a hint to understand what the skill does.
     /// </remarks>
     [JsonPropertyName("description")]
-    [Required]
-    public string? Description { get; set; }
+    [JsonRequired]
+    public string Description { get; set; } = string.Empty;
 
     /// <summary>
     /// Set of tagwords describing classes of capabilities for this specific skill.
     /// </summary>
     [JsonPropertyName("tags")]
-    [Required]
-    public List<string>? Tags { get; set; }
+    [JsonRequired]
+    public List<string> Tags { get; set; } = [];
 
     /// <summary>
     /// The set of example scenarios that the skill can perform.

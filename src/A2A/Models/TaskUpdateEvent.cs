@@ -18,7 +18,8 @@ public abstract class TaskUpdateEvent : A2AEvent
     /// Gets or sets the context the task is associated with.
     /// </summary>
     [JsonPropertyName("contextId")]
-    public string? ContextId { get; set; }
+    [JsonRequired]
+    public string ContextId { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the extension metadata.

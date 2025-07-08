@@ -1,4 +1,3 @@
-using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
 namespace A2A;
@@ -13,7 +12,7 @@ public class SecurityScheme
     /// The type of the security scheme.
     /// </summary>
     [JsonPropertyName("type")]
-    [Required]
+    [JsonRequired]
     public string Type { get; set; } = string.Empty;
 }
 
@@ -26,14 +25,14 @@ public class ApiKeySecurityScheme : SecurityScheme
     /// The name of the header, query or cookie parameter to be used.
     /// </summary>
     [JsonPropertyName("name")]
-    [Required]
+    [JsonRequired]
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
     /// The location of the API key. Valid values are "query", "header", or "cookie".
     /// </summary>
     [JsonPropertyName("in")]
-    [Required]
+    [JsonRequired]
     public string In { get; set; } = string.Empty;
 }
 
@@ -50,7 +49,7 @@ public class HttpAuthSecurityScheme : SecurityScheme
     /// The value is case-insensitive, as defined in RFC7235.
     /// </remarks>
     [JsonPropertyName("scheme")]
-    [Required]
+    [JsonRequired]
     public string Scheme { get; set; } = string.Empty;
 
     /// <summary>
@@ -73,8 +72,8 @@ public class OAuth2SecurityScheme : SecurityScheme
     /// An object containing configuration information for the flow types supported.
     /// </summary>
     [JsonPropertyName("flows")]
-    [Required]
-    public string Flows { get; set; } = string.Empty;
+    [JsonRequired]
+    public OAuthFlows Flows { get; set; } = new();
 }
 
 /// <summary>
@@ -86,7 +85,7 @@ public class OpenIdConnectSecurityScheme : SecurityScheme
     /// Well-known URL to discover the [[OpenID-Connect-Discovery]] provider metadata.
     /// </summary>
     [JsonPropertyName("openIdConnectUrl")]
-    [Required]
+    [JsonRequired]
     public string OpenIdConnectUrl { get; set; } = string.Empty;
 }
 
@@ -138,7 +137,7 @@ public class AuthorizationCodeOAuthFlow
     /// This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.
     /// </remarks>
     [JsonPropertyName("authorizationUrl")]
-    [Required]
+    [JsonRequired]
     public string AuthorizationUrl { get; set; } = string.Empty;
 
     /// <summary>
@@ -148,7 +147,7 @@ public class AuthorizationCodeOAuthFlow
     /// This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.
     /// </remarks>
     [JsonPropertyName("tokenUrl")]
-    [Required]
+    [JsonRequired]
     public string TokenUrl { get; set; } = string.Empty;
 
     /// <summary>
@@ -158,7 +157,6 @@ public class AuthorizationCodeOAuthFlow
     /// This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.
     /// </remarks>
     [JsonPropertyName("refreshUrl")]
-    [Required]
     public string? RefreshUrl { get; set; }
 
     /// <summary>
@@ -168,7 +166,8 @@ public class AuthorizationCodeOAuthFlow
     /// A map between the scope name and a short description for it. The map MAY be empty.
     /// </remarks>
     [JsonPropertyName("scopes")]
-    public Dictionary<string, string>? Scopes { get; set; }
+    [JsonRequired]
+    public Dictionary<string, string> Scopes { get; set; } = new();
 }
 
 /// <summary>
@@ -183,7 +182,7 @@ public class ClientCredentialsOAuthFlow
     /// This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.
     /// </remarks>
     [JsonPropertyName("tokenUrl")]
-    [Required]
+    [JsonRequired]
     public string TokenUrl { get; set; } = string.Empty;
 
     /// <summary>
@@ -191,7 +190,6 @@ public class ClientCredentialsOAuthFlow
     /// standard requires the use of TLS.
     /// </summary>
     [JsonPropertyName("refreshUrl")]
-    [Required]
     public string? RefreshUrl { get; set; }
 
     /// <summary>
@@ -199,7 +197,8 @@ public class ClientCredentialsOAuthFlow
     /// description for it. The map MAY be empty.
     /// </summary>
     [JsonPropertyName("scopes")]
-    public Dictionary<string, string>? Scopes { get; set; }
+    [JsonRequired]
+    public Dictionary<string, string> Scopes { get; set; } = new();
 }
 
 /// <summary>
@@ -214,7 +213,7 @@ public class PasswordOAuthFlow
     /// This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.
     /// </remarks>
     [JsonPropertyName("tokenUrl")]
-    [Required]
+    [JsonRequired]
     public string TokenUrl { get; set; } = string.Empty;
 
     /// <summary>
@@ -224,7 +223,6 @@ public class PasswordOAuthFlow
     /// This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.
     /// </remarks>
     [JsonPropertyName("refreshUrl")]
-    [Required]
     public string? RefreshUrl { get; set; }
 
     /// <summary>
@@ -234,7 +232,8 @@ public class PasswordOAuthFlow
     /// A map between the scope name and a short description for it. The map MAY be empty.
     /// </remarks>
     [JsonPropertyName("scopes")]
-    public Dictionary<string, string>? Scopes { get; set; }
+    [JsonRequired]
+    public Dictionary<string, string> Scopes { get; set; } = new();
 }
 
 /// <summary>
@@ -249,7 +248,7 @@ public class ImplicitOAuthFlow
     /// This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.
     /// </remarks>
     [JsonPropertyName("authorizationUrl")]
-    [Required]
+    [JsonRequired]
     public string AuthorizationUrl { get; set; } = string.Empty;
 
     /// <summary>
@@ -259,7 +258,6 @@ public class ImplicitOAuthFlow
     /// This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.
     /// </remarks>
     [JsonPropertyName("refreshUrl")]
-    [Required]
     public string? RefreshUrl { get; set; }
 
     /// <summary>
@@ -269,5 +267,6 @@ public class ImplicitOAuthFlow
     /// A map between the scope name and a short description for it. The map MAY be empty.
     /// </remarks>
     [JsonPropertyName("scopes")]
-    public Dictionary<string, string>? Scopes { get; set; }
+    [JsonRequired]
+    public Dictionary<string, string> Scopes { get; set; } = new();
 }

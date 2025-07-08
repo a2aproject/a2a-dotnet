@@ -40,7 +40,8 @@ public class MessageSendConfiguration
     /// Accepted output modalities by the client.
     /// </summary>
     [JsonPropertyName("acceptedOutputModes")]
-    public List<string>? AcceptedOutputModes { get; set; }
+    [JsonRequired]
+    public List<string> AcceptedOutputModes { get; set; } = [];
 
     /// <summary>
     /// Where the server should send notifications when disconnected.

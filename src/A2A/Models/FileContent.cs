@@ -38,7 +38,8 @@ public class FileWithBytes : FileContent
     /// base64 encoded content of the file.
     /// </summary>
     [JsonPropertyName("bytes")]
-    public string? Bytes { get; set; }
+    [JsonRequired]
+    public string Bytes { get; set; } = string.Empty;
 
     /// <summary>
     /// URL for the File content.
@@ -68,5 +69,6 @@ public class FileWithUri : FileContent
     /// URL for the File content.
     /// </summary>
     [JsonPropertyName("uri")]
-    public string? Uri { get; set; }
+    [JsonRequired]
+    public string Uri { get; set; } = string.Empty;
 }

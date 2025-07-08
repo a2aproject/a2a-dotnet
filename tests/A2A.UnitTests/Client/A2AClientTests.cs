@@ -225,7 +225,7 @@ public class A2AClientTests
         // Arrange
         var pushConfig = new TaskPushNotificationConfig
         {
-            Id = "task-3",
+            TaskId = "task-3",
             PushNotificationConfig = new PushNotificationConfig
             {
                 Url = "http://push-url",
@@ -251,7 +251,7 @@ public class A2AClientTests
         Assert.True(Guid.TryParse(requestJson.RootElement.GetProperty("id").GetString(), out _));
         var parameters = requestJson.RootElement.GetProperty("params").Deserialize<TaskPushNotificationConfig>();
         Assert.NotNull(parameters);
-        Assert.Equal(pushConfig.Id, parameters.Id);
+        Assert.Equal(pushConfig.TaskId, parameters.TaskId);
         Assert.Equal(pushConfig.PushNotificationConfig.Url, parameters.PushNotificationConfig.Url);
         Assert.Equal(pushConfig.PushNotificationConfig.Token, parameters.PushNotificationConfig.Token);
         Assert.Equal(pushConfig.PushNotificationConfig.Authentication!.Schemes, parameters.PushNotificationConfig.Authentication!.Schemes);
@@ -263,7 +263,7 @@ public class A2AClientTests
         // Arrange
         var expectedConfig = new TaskPushNotificationConfig
         {
-            Id = "task-3",
+            TaskId = "task-3",
             PushNotificationConfig = new PushNotificationConfig
             {
                 Url = "http://push-url",
@@ -281,7 +281,7 @@ public class A2AClientTests
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal(expectedConfig.Id, result.Id);
+        Assert.Equal(expectedConfig.TaskId, result.TaskId);
         Assert.Equal(expectedConfig.PushNotificationConfig.Url, result.PushNotificationConfig.Url);
         Assert.Equal(expectedConfig.PushNotificationConfig.Token, result.PushNotificationConfig.Token);
         Assert.Equal(expectedConfig.PushNotificationConfig.Authentication!.Schemes, result.PushNotificationConfig.Authentication!.Schemes);
@@ -293,7 +293,7 @@ public class A2AClientTests
         // Arrange
         var config = new TaskPushNotificationConfig
         {
-            Id = "task-4",
+            TaskId = "task-4",
             PushNotificationConfig = new PushNotificationConfig { Url = "http://push-url2" }
         };
 
@@ -327,7 +327,7 @@ public class A2AClientTests
         // Arrange
         var expectedConfig = new TaskPushNotificationConfig
         {
-            Id = "task-4",
+            TaskId = "task-4",
             PushNotificationConfig = new PushNotificationConfig
             {
                 Url = "http://push-url2",
@@ -346,7 +346,7 @@ public class A2AClientTests
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal(expectedConfig.Id, result.Id);
+        Assert.Equal(expectedConfig.TaskId, result.TaskId);
         Assert.Equal(expectedConfig.PushNotificationConfig.Url, result.PushNotificationConfig.Url);
         Assert.Equal(expectedConfig.PushNotificationConfig.Token, result.PushNotificationConfig.Token);
         Assert.Equal(expectedConfig.PushNotificationConfig.Authentication!.Schemes, result.PushNotificationConfig.Authentication!.Schemes);

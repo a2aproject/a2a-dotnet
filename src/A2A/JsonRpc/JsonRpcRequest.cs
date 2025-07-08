@@ -15,6 +15,8 @@ public class JsonRpcRequest
     /// MUST be exactly "2.0".
     /// </remarks>
     [JsonPropertyName("jsonrpc")]
+    [JsonRequired]
+
     public string JsonRpc { get; set; } = "2.0";
 
     /// <summary>
@@ -30,6 +32,7 @@ public class JsonRpcRequest
     /// Gets or sets the string containing the name of the method to be invoked.
     /// </summary>
     [JsonPropertyName("method")]
+    [JsonRequired]
     public string Method { get; set; } = string.Empty;
 
     /// <summary>

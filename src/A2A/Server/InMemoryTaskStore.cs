@@ -46,7 +46,7 @@ public class InMemoryTaskStore : ITaskStore
     /// <inheritdoc />
     public Task SetPushNotificationConfigAsync(TaskPushNotificationConfig pushNotificationConfig)
     {
-        _pushNotificationCache[pushNotificationConfig.Id] = pushNotificationConfig;
+        _pushNotificationCache[pushNotificationConfig.TaskId] = pushNotificationConfig;
         return Task.CompletedTask;
     }
 }

@@ -12,5 +12,6 @@ public class DataPart : Part
     /// Structured data content.
     /// </summary>
     [JsonPropertyName("data")]
+    [JsonRequired]
     public Dictionary<string, JsonElement> Data { get; set; } = [];
 }

@@ -85,7 +85,7 @@ public class Message : A2AResponse
     /// </summary>
     [JsonPropertyName("messageId")]
     [JsonRequired]
-    public string? MessageId { get; set; }
+    public string MessageId { get; set; } = string.Empty;
 
     /// <summary>
     /// Identifier of task the message is related to.

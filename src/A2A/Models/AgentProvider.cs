@@ -1,4 +1,3 @@
-using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
 namespace A2A;
@@ -12,13 +11,13 @@ public class AgentProvider
     /// Agent provider's organization name.
     /// </summary>
     [JsonPropertyName("organization")]
-    [Required]
+    [JsonRequired]
     public string Organization { get; set; } = string.Empty;
 
     /// <summary>
     /// Agent provider's URL.
     /// </summary>
     [JsonPropertyName("url")]
-    [Required]
+    [JsonRequired]
     public string Url { get; set; } = string.Empty;
 }
