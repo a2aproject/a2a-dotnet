@@ -398,7 +398,7 @@ public class TaskManagerTests
             Message = new Message
             {
                 TaskId = task.Id,
-                Parts = [ new TextPart { Text = "init" } ]
+                Parts = [new TextPart { Text = "init" }]
             }
         };
 
