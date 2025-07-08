@@ -441,7 +441,6 @@ public class A2AClientTests
             TaskId = "task-456",
             ContextId = "ctx-789"
         };
-        var sseEventJson = JsonSerializer.Serialize<A2AEvent>(expectedMessage, A2AJsonUtilities.DefaultOptions);
         var jsonRpcResponse = JsonSerializer.Serialize(new JsonRpcResponse
         {
             Id = "test-id",
