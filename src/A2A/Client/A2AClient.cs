@@ -100,10 +100,14 @@ public sealed class A2AClient : IA2AClient
             "application/json",
             cancellationToken).ConfigureAwait(false);
 
-        var responseObject = await JsonSerializer.DeserializeAsync(responseStream, A2AJsonUtilities.JsonContext.Default.JsonRpcResponse, cancellationToken) ??
-            throw new InvalidOperationException("Failed to deserialize the response.");
+        var responseObject = await JsonSerializer.DeserializeAsync(responseStream, A2AJsonUtilities.JsonContext.Default.JsonRpcResponse, cancellationToken);
 
-        return responseObject.Result?.Deserialize(outputTypeInfo) ??
+        if (responseObject?.Error is { } error)
+        {
+            throw new InvalidOperationException($"JSON-RPC error ({error.Code}): {error.Message}");
+        }
+
+        return responseObject?.Result?.Deserialize(outputTypeInfo) ??
             throw new InvalidOperationException("Response does not contain a result.");
     }
 
@@ -124,7 +128,16 @@ public sealed class A2AClient : IA2AClient
         var sseParser = SseParser.Create(responseStream, (eventType, data) =>
         {
             var reader = new Utf8JsonReader(data);
-            return JsonSerializer.Deserialize(ref reader, outputTypeInfo) ?? throw new InvalidOperationException("Failed to deserialize the event.");
+
+            var responseObject = JsonSerializer.Deserialize(ref reader, A2AJsonUtilities.JsonContext.Default.JsonRpcResponse);
+
+            if (responseObject?.Error is { } error)
+            {
+                throw new InvalidOperationException($"JSON-RPC error ({error.Code}): {error.Message}");
+            }
+
+            return JsonSerializer.Deserialize(responseObject?.Result, outputTypeInfo) ??
+                throw new InvalidOperationException("Failed to deserialize the event.");
         });
 
         await foreach (var item in sseParser.EnumerateAsync(cancellationToken))
