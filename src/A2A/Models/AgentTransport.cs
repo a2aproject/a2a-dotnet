@@ -98,12 +98,12 @@ public readonly struct AgentTransport : IEquatable<AgentTransport>
             }
 
             var label = reader.GetString();
-            if (label is null)
+            if (string.IsNullOrWhiteSpace(label))
             {
-                throw new JsonException("AgentTransport string value cannot be null.");
+                throw new JsonException("AgentTransport string value cannot be null or whitespace.");
             }
 
-            return new AgentTransport(label);
+            return new AgentTransport(label!);
         }
 
         /// <summary>

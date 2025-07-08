@@ -108,4 +108,14 @@ public class AgentTransportTests
         Assert.Contains("\"transport\":\"GRPC\"", json);
         Assert.DoesNotContain("\"transport\":{\"transport\":", json);
     }
+
+    [Theory]
+    [InlineData("\"\"")]
+    [InlineData("\"   \"")]
+    public void Deserialize_ThrowsJsonException_WhenStringValueIsEmptyOrWhitespace(string invalidJson)
+    {
+        // Act & Assert
+        var exception = Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<AgentTransport>(invalidJson));
+        Assert.Equal("AgentTransport string value cannot be null or whitespace.", exception.Message);
+    }
 }
