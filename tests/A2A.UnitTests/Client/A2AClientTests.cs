@@ -570,6 +570,55 @@ public class A2AClientTests
         Assert.Equal(expectedMessage.ContextId, message.ContextId);
     }
 
+    [Fact]
+    public async Task SendMessageStreamAsync_ThrowsOnJsonRpcError()
+    {
+        // Arrange
+        var jsonRpcErrorResponse = JsonSerializer.Serialize(JsonRpcResponse.InvalidParamsResponse("test-id"));
+        var sseStream = new MemoryStream(Encoding.UTF8.GetBytes($"event: message\ndata: {jsonRpcErrorResponse}\n\n"));
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StreamContent(sseStream)
+        };
+        response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/event-stream");
+        var sut = CreateA2AClient(response);
+        var sendParams = new MessageSendParams();
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        {
+            await foreach (var _ in sut.SendMessageStreamAsync(sendParams))
+            {
+                // Should throw before yielding any items
+            }
+        });
+
+        Assert.Contains("-32602", exception.Message);
+        Assert.Contains("Invalid parameters", exception.Message);
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_ThrowsOnJsonRpcError()
+    {
+        // Arrange
+        var jsonRpcErrorResponse = JsonSerializer.Serialize(JsonRpcResponse.MethodNotFoundResponse("test-id"));
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(jsonRpcErrorResponse, Encoding.UTF8, "application/json")
+        };
+        var sut = CreateA2AClient(response);
+        var sendParams = new MessageSendParams();
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        {
+            await sut.SendMessageAsync(sendParams);
+        });
+
+        Assert.Contains("-32601", exception.Message);
+        Assert.Contains("Method not found", exception.Message);
+    }
+
     private static A2AClient CreateA2AClient<T>(T result, Action<HttpRequestMessage>? onRequest = null)
     {
         var jsonResponse = JsonSerializer.Serialize(new JsonRpcResponse
