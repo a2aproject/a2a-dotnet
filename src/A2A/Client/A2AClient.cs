@@ -124,7 +124,17 @@ public sealed class A2AClient : IA2AClient
         var sseParser = SseParser.Create(responseStream, (eventType, data) =>
         {
             var reader = new Utf8JsonReader(data);
-            return JsonSerializer.Deserialize(ref reader, outputTypeInfo) ?? throw new InvalidOperationException("Failed to deserialize the event.");
+
+            var jsonRpcResponse = JsonSerializer.Deserialize(ref reader, A2AJsonUtilities.JsonContext.Default.JsonRpcResponse) ??
+                throw new InvalidOperationException("Failed to deserialize the response.");
+
+            if (jsonRpcResponse.Result == null)
+            {
+                throw new InvalidOperationException("The response does not contain a result.");
+            }
+
+            return JsonSerializer.Deserialize(jsonRpcResponse.Result, outputTypeInfo) ??
+                throw new InvalidOperationException("Failed to deserialize the event.");
         });
 
         await foreach (var item in sseParser.EnumerateAsync(cancellationToken))

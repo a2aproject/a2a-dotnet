@@ -379,8 +379,13 @@ public class A2AClientTests
         };
 
         HttpRequestMessage? capturedRequest = null;
-        // Simulate a minimal valid SSE response (empty event stream)
-        var sseStream = new MemoryStream(Encoding.UTF8.GetBytes("event: message\ndata: {}\n\n"));
+        // Simulate a minimal valid SSE response
+        var jsonRpcResponse = JsonSerializer.Serialize(new JsonRpcResponse
+        {
+            Id = "test-id",
+            Result = JsonSerializer.SerializeToNode(new { })
+        });
+        var sseStream = new MemoryStream(Encoding.UTF8.GetBytes($"event: message\ndata: {jsonRpcResponse}\n\n"));
         var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StreamContent(sseStream)
@@ -437,8 +442,12 @@ public class A2AClientTests
             ContextId = "ctx-789"
         };
         var sseEventJson = JsonSerializer.Serialize<A2AEvent>(expectedMessage, A2AJsonUtilities.DefaultOptions);
-        var sseData = $"event: message\ndata: {sseEventJson}\n\n";
-        var sseStream = new MemoryStream(Encoding.UTF8.GetBytes(sseData));
+        var jsonRpcResponse = JsonSerializer.Serialize(new JsonRpcResponse
+        {
+            Id = "test-id",
+            Result = JsonSerializer.SerializeToNode(expectedMessage, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(A2AEvent)))
+        });
+        var sseStream = new MemoryStream(Encoding.UTF8.GetBytes($"event: message\ndata: {jsonRpcResponse}\n\n"));
         var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StreamContent(sseStream)
@@ -477,8 +486,13 @@ public class A2AClientTests
         // Arrange
         var taskId = "task-123";
         HttpRequestMessage? capturedRequest = null;
-        // Simulate a minimal valid SSE response (empty event stream)
-        var sseStream = new MemoryStream(Encoding.UTF8.GetBytes("event: message\ndata: {}\n\n"));
+        // Simulate a minimal valid SSE response
+        var jsonRpcResponse = JsonSerializer.Serialize(new JsonRpcResponse
+        {
+            Id = "test-id",
+            Result = JsonSerializer.SerializeToNode(new { })
+        });
+        var sseStream = new MemoryStream(Encoding.UTF8.GetBytes($"event: message\ndata: {jsonRpcResponse}\n\n"));
         var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StreamContent(sseStream)
@@ -520,9 +534,12 @@ public class A2AClientTests
             TaskId = "task-456",
             ContextId = "ctx-789"
         };
-        var sseEventJson = JsonSerializer.Serialize<A2AEvent>(expectedMessage, A2AJsonUtilities.DefaultOptions);
-        var sseData = $"event: message\ndata: {sseEventJson}\n\n";
-        var sseStream = new MemoryStream(Encoding.UTF8.GetBytes(sseData));
+        var jsonRpcResponse = JsonSerializer.Serialize(new JsonRpcResponse
+        {
+            Id = "test-id",
+            Result = JsonSerializer.SerializeToNode(expectedMessage, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(A2AEvent)))
+        });
+        var sseStream = new MemoryStream(Encoding.UTF8.GetBytes($"event: message\ndata: {jsonRpcResponse}\n\n"));
         var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StreamContent(sseStream)
