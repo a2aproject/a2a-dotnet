@@ -1,15 +1,17 @@
-﻿namespace A2A;
+using System.Net;
+
+namespace A2A;
 
 /// <summary>
-/// Base exception for A2A client errors
+/// Base exception for A2A client errors.
 /// </summary>
 public class A2AClientException : Exception
 {
     /// <summary>
-    /// Creates a new A2A client error
+    /// Creates a new A2A client error.
     /// </summary>
-    /// <param name="message">The error message</param>
-    /// <param name="innerException">Optional inner exception</param>
+    /// <param name="message">The error message.</param>
+    /// <param name="innerException">Optional inner exception.</param>
     public A2AClientException(string message, Exception? innerException = null)
         : base(message, innerException)
     {
@@ -17,27 +19,27 @@ public class A2AClientException : Exception
 }
 
 /// <summary>
-/// Exception for HTTP errors
+/// Exception for HTTP errors.
 /// </summary>
 public class A2AClientHTTPException : A2AClientException
 {
     /// <summary>
-    /// The HTTP status code
+    /// The HTTP status code.
     /// </summary>
-    public int StatusCode { get; }
+    public HttpStatusCode StatusCode { get; }
 
     /// <summary>
-    /// The error message
+    /// The error message.
     /// </summary>
     public string ErrorMessage { get; }
 
     /// <summary>
-    /// Creates a new HTTP error
+    /// Creates a new HTTP error.
     /// </summary>
-    /// <param name="statusCode">The HTTP status code</param>
-    /// <param name="message">The error message</param>
-    public A2AClientHTTPException(int statusCode, string message)
-        : base($"HTTP Error {statusCode}: {message}")
+    /// <param name="statusCode">The HTTP status code.</param>
+    /// <param name="message">The error message.</param>
+    public A2AClientHTTPException(HttpStatusCode statusCode, string message)
+        : base($"HTTP Error {(int)statusCode}: {message}")
     {
         StatusCode = statusCode;
         ErrorMessage = message;
@@ -45,19 +47,19 @@ public class A2AClientHTTPException : A2AClientException
 }
 
 /// <summary>
-/// Exception for JSON parsing errors
+/// Exception for JSON parsing errors.
 /// </summary>
 public class A2AClientJsonException : A2AClientException
 {
     /// <summary>
-    /// The error message
+    /// The error message.
     /// </summary>
     public string ErrorMessage { get; }
 
     /// <summary>
-    /// Creates a new JSON error
+    /// Creates a new JSON error.
     /// </summary>
-    /// <param name="message">The error message</param>
+    /// <param name="message">The error message.</param>
     public A2AClientJsonException(string message)
         : base($"JSON Error: {message}")
     {
@@ -66,12 +68,12 @@ public class A2AClientJsonException : A2AClientException
 }
 
 /// <summary>
-/// Exception for missing API key
+/// Exception for missing API key.
 /// </summary>
 public class MissingAPIKeyException : Exception
 {
     /// <summary>
-    /// Creates a new missing API key error
+    /// Creates a new missing API key error.
     /// </summary>
     public MissingAPIKeyException()
         : base("API key is required but was not provided")

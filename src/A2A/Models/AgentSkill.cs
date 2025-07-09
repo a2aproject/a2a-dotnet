@@ -4,52 +4,61 @@ using System.Text.Json.Serialization;
 namespace A2A;
 
 /// <summary>
-/// Information about a skill provided by an agent
+/// Represents a unit of capability that an agent can perform.
 /// </summary>
 public class AgentSkill
 {
     /// <summary>
-    /// The skill identifier
+    /// Unique identifier for the agent's skill.
     /// </summary>
     [JsonPropertyName("id")]
     [Required]
     public string Id { get; set; } = string.Empty;
 
     /// <summary>
-    /// The skill name
+    /// Human readable name of the skill.
     /// </summary>
     [JsonPropertyName("name")]
     [Required]
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
-    /// Optional description of the skill
+    /// Description of the skill.
     /// </summary>
+    /// <remarks>
+    /// Will be used by the client or a human as a hint to understand what the skill does.
+    /// </remarks>
     [JsonPropertyName("description")]
     [Required]
     public string? Description { get; set; }
 
     /// <summary>
-    /// Optional tags for the skill
+    /// Set of tagwords describing classes of capabilities for this specific skill.
     /// </summary>
     [JsonPropertyName("tags")]
     [Required]
     public List<string>? Tags { get; set; }
 
     /// <summary>
-    /// Optional examples of using the skill
+    /// The set of example scenarios that the skill can perform.
     /// </summary>
+    /// <remarks>
+    /// Will be used by the client as a hint to understand how the skill can be used.
+    /// </remarks>
     [JsonPropertyName("examples")]
     public List<string>? Examples { get; set; }
 
     /// <summary>
-    /// Optional input modes supported by the skill
+    /// The set of interaction modes that the skill supports (if different than the default).
     /// </summary>
+    /// <remarks>
+    /// Supported media types for input.
+    /// </remarks>
     [JsonPropertyName("inputModes")]
     public List<string>? InputModes { get; set; }
 
     /// <summary>
-    /// Optional output modes supported by the skill
+    /// Supported media types for output.
     /// </summary>
     [JsonPropertyName("outputModes")]
     public List<string>? OutputModes { get; set; }

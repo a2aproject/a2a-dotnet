@@ -3,24 +3,24 @@ using System.Text.Json.Serialization;
 namespace A2A;
 
 /// <summary>
-/// Capabilities of an agent
+/// Defines optional capabilities supported by an agent.
 /// </summary>
 public class AgentCapabilities
 {
     /// <summary>
-    /// Whether the agent supports streaming
+    /// Gets or sets a value indicating whether the agent supports SSE.
     /// </summary>
     [JsonPropertyName("streaming")]
     public bool Streaming { get; set; }
 
     /// <summary>
-    /// Whether the agent supports push notifications
+    /// Gets or sets a value indicating whether the agent can notify updates to client.
     /// </summary>
     [JsonPropertyName("pushNotifications")]
     public bool PushNotifications { get; set; }
 
     /// <summary>
-    /// Whether the agent supports state transition history
+    /// Gets or sets a value indicating whether the agent exposes status change history for tasks.
     /// </summary>
     [JsonPropertyName("stateTransitionHistory")]
     public bool StateTransitionHistory { get; set; }
