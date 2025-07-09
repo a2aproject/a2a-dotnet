@@ -12,6 +12,7 @@ public class TaskIdParams
     /// Task id.
     /// </summary>
     [JsonPropertyName("id")]
+    [JsonRequired]
     public string Id { get; set; } = string.Empty;
 
     /// <summary>

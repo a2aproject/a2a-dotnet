@@ -3,7 +3,7 @@ namespace A2A;
 /// <summary>
 /// Error for method not found.
 /// </summary>
-public class MethodNotFoundError : JsonRpcError
+public sealed class MethodNotFoundError : JsonRpcError
 {
     /// <summary>
     /// Creates a new method not found error.

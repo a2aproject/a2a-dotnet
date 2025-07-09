@@ -6,7 +6,7 @@ namespace A2A;
 /// <summary>
 /// Represents a task that can be processed by an agent.
 /// </summary>
-public class AgentTask : A2AResponse
+public sealed class AgentTask : A2AResponse
 {
     /// <summary>
     /// Unique identifier for the task.
@@ -20,7 +20,7 @@ public class AgentTask : A2AResponse
     /// </summary>
     [JsonPropertyName("contextId")]
     [JsonRequired]
-    public string? ContextId { get; set; }
+    public string ContextId { get; set; } = string.Empty;
 
     /// <summary>
     /// Current status of the task.

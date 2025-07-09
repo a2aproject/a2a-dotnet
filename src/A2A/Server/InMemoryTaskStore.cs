@@ -3,7 +3,7 @@ namespace A2A;
 /// <summary>
 /// In-memory implementation of task store for development and testing.
 /// </summary>
-public class InMemoryTaskStore : ITaskStore
+public sealed class InMemoryTaskStore : ITaskStore
 {
     private readonly Dictionary<string, AgentTask> _taskCache = [];
     private readonly Dictionary<string, TaskPushNotificationConfig> _pushNotificationCache = [];
@@ -46,7 +46,7 @@ public class InMemoryTaskStore : ITaskStore
     /// <inheritdoc />
     public Task SetPushNotificationConfigAsync(TaskPushNotificationConfig pushNotificationConfig)
     {
-        _pushNotificationCache[pushNotificationConfig.Id] = pushNotificationConfig;
+        _pushNotificationCache[pushNotificationConfig.TaskId] = pushNotificationConfig;
         return Task.CompletedTask;
     }
 }

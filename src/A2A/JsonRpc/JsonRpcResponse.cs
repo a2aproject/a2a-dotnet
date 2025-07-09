@@ -8,7 +8,7 @@ namespace A2A;
 /// <summary>
 /// Represents a JSON-RPC 2.0 Response object.
 /// </summary>
-public class JsonRpcResponse
+public sealed class JsonRpcResponse
 {
     /// <summary>
     /// Gets or sets the version of the JSON-RPC protocol. MUST be exactly "2.0".

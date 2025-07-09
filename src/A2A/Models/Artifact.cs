@@ -6,7 +6,7 @@ namespace A2A;
 /// <summary>
 /// Represents an artifact generated for a task.
 /// </summary>
-public class Artifact
+public sealed class Artifact
 {
     /// <summary>
     /// Unique identifier for the artifact.

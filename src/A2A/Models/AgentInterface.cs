@@ -1,12 +1,11 @@
-﻿using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 
 namespace A2A;
 
 /// <summary>
 /// Provides a declaration of a combination of target URL and supported transport to interact with an agent.
 /// </summary>
-public class AgentInterface
+public sealed class AgentInterface
 {
     /// <summary>
     /// The transport supported by this URL.
@@ -16,13 +15,13 @@ public class AgentInterface
     /// The core ones officially supported are JSONRPC, GRPC, and HTTP+JSON.
     /// </remarks>
     [JsonPropertyName("transport")]
-    [Required]
+    [JsonRequired]
     public required AgentTransport Transport { get; set; }
 
     /// <summary>
     /// The target URL for the agent interface.
     /// </summary>
     [JsonPropertyName("url")]
-    [Required]
+    [JsonRequired]
     public required string Url { get; set; }
 }

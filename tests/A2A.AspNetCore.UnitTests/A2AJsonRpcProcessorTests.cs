@@ -134,7 +134,7 @@ public class A2AJsonRpcProcessorTests
         var taskManager = new TaskManager();
         var config = new TaskPushNotificationConfig
         {
-            Id = "test-task",
+            TaskId = "test-task",
             PushNotificationConfig = new PushNotificationConfig()
             {
                 Url = "https://example.com/notify",
@@ -156,7 +156,7 @@ public class A2AJsonRpcProcessorTests
         var notificationConfig = JsonSerializer.Deserialize<TaskPushNotificationConfig>(BodyContent.Result, A2AJsonUtilities.DefaultOptions);
         Assert.NotNull(notificationConfig);
 
-        Assert.Equal("test-task", notificationConfig.Id);
+        Assert.Equal("test-task", notificationConfig.TaskId);
         Assert.Equal("https://example.com/notify", notificationConfig.PushNotificationConfig.Url);
     }
 
@@ -167,7 +167,7 @@ public class A2AJsonRpcProcessorTests
         var taskManager = new TaskManager();
         var config = new TaskPushNotificationConfig
         {
-            Id = "test-task",
+            TaskId = "test-task",
             PushNotificationConfig = new PushNotificationConfig()
             {
                 Url = "https://example.com/notify",
@@ -191,7 +191,7 @@ public class A2AJsonRpcProcessorTests
         var notificationConfig = JsonSerializer.Deserialize<TaskPushNotificationConfig>(BodyContent.Result, A2AJsonUtilities.DefaultOptions);
         Assert.NotNull(notificationConfig);
 
-        Assert.Equal("test-task", notificationConfig.Id);
+        Assert.Equal("test-task", notificationConfig.TaskId);
         Assert.Equal("https://example.com/notify", notificationConfig.PushNotificationConfig.Url);
     }
 

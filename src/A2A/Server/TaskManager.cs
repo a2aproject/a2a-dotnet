@@ -9,7 +9,7 @@ namespace A2A;
 /// Helps manage a task's lifecycle during execution of a request, responsible for retrieving,
 /// saving, and updating the Task object based on events received from the agent.
 /// </remarks>
-public class TaskManager : ITaskManager
+public sealed class TaskManager : ITaskManager
 {
     /// <summary>
     /// OpenTelemetry ActivitySource for tracing.

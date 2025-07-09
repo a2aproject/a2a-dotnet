@@ -1,4 +1,3 @@
-using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
 namespace A2A;
@@ -12,13 +11,13 @@ namespace A2A;
 /// - Default modalities/content types supported by the agent.
 /// - Authentication requirements.
 /// </remarks>
-public class AgentCard
+public sealed class AgentCard
 {
     /// <summary>
     /// Gets or sets the human readable name of the agent.
     /// </summary>
     [JsonPropertyName("name")]
-    [Required]
+    [JsonRequired]
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
@@ -30,8 +29,8 @@ public class AgentCard
     /// (e.g., "This agent helps users find recipes, plan meals, and get cooking instructions.")
     /// </remarks>
     [JsonPropertyName("description")]
-    [Required]
-    public string? Description { get; set; }
+    [JsonRequired]
+    public string Description { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets a URL to the address the agent is hosted at.
@@ -40,7 +39,7 @@ public class AgentCard
     /// This represents the preferred endpoint as declared by the agent.
     /// </remarks>
     [JsonPropertyName("url")]
-    [Required]
+    [JsonRequired]
     public string Url { get; set; } = string.Empty;
 
     /// <summary>
@@ -53,14 +52,14 @@ public class AgentCard
     /// Gets or sets the version of the agent - format is up to the provider.
     /// </summary>
     [JsonPropertyName("version")]
-    [Required]
+    [JsonRequired]
     public string Version { get; set; } = string.Empty;
 
     /// <summary>
     /// The version of the A2A protocol this agent supports.
     /// </summary>
     [JsonPropertyName("protocolVersion")]
-    [Required]
+    [JsonRequired]
     public string ProtocolVersion { get; set; } = "0.2.3";
 
     /// <summary>
@@ -73,7 +72,7 @@ public class AgentCard
     /// Gets or sets the optional capabilities supported by the agent.
     /// </summary>
     [JsonPropertyName("capabilities")]
-    [Required]
+    [JsonRequired]
     public AgentCapabilities Capabilities { get; set; } = new AgentCapabilities();
 
     /// <summary>
@@ -95,19 +94,21 @@ public class AgentCard
     /// This can be overridden per-skill. Supported media types for input.
     /// </remarks>
     [JsonPropertyName("defaultInputModes")]
+    [JsonRequired]
     public List<string> DefaultInputModes { get; set; } = ["text"];
 
     /// <summary>
     /// Gets or sets the supported media types for output.
     /// </summary>
     [JsonPropertyName("defaultOutputModes")]
+    [JsonRequired]
     public List<string> DefaultOutputModes { get; set; } = ["text"];
 
     /// <summary>
     /// Gets or sets the skills that are a unit of capability that an agent can perform.
     /// </summary>
     [JsonPropertyName("skills")]
-    [Required]
+    [JsonRequired]
     public List<AgentSkill> Skills { get; set; } = [];
 
     /// <summary>

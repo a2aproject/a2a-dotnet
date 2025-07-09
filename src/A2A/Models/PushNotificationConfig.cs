@@ -5,7 +5,7 @@ namespace A2A;
 /// <summary>
 /// Configuration for setting up push notifications for task updates.
 /// </summary>
-public class PushNotificationConfig
+public sealed class PushNotificationConfig
 {
     /// <summary>
     /// URL for sending the push notifications.

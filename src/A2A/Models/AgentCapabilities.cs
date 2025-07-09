@@ -5,7 +5,7 @@ namespace A2A;
 /// <summary>
 /// Defines optional capabilities supported by an agent.
 /// </summary>
-public class AgentCapabilities
+public sealed class AgentCapabilities
 {
     /// <summary>
     /// Gets or sets a value indicating whether the agent supports SSE.

@@ -5,7 +5,7 @@ namespace A2A;
 /// <summary>
 /// Parameters for querying a task, including optional history length.
 /// </summary>
-public class TaskQueryParams : TaskIdParams
+public sealed class TaskQueryParams : TaskIdParams
 {
     /// <summary>
     /// Number of recent messages to be retrieved.
