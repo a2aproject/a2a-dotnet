@@ -5,7 +5,7 @@ namespace A2A;
 /// <summary>
 /// Represents the service provider of an agent.
 /// </summary>
-public class AgentProvider
+public sealed class AgentProvider
 {
     /// <summary>
     /// Agent provider's organization name.

@@ -5,7 +5,7 @@ namespace A2A;
 /// <summary>
 /// Represents a File segment within parts.
 /// </summary>
-public class FilePart : Part
+public sealed class FilePart : Part
 {
     /// <summary>
     /// File content either as url or bytes.

@@ -5,7 +5,7 @@ namespace A2A;
 /// <summary>
 /// Represents a unit of capability that an agent can perform.
 /// </summary>
-public class AgentSkill
+public sealed class AgentSkill
 {
     /// <summary>
     /// Unique identifier for the agent's skill.

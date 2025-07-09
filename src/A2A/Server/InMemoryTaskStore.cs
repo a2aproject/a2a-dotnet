@@ -3,7 +3,7 @@ namespace A2A;
 /// <summary>
 /// In-memory implementation of task store for development and testing.
 /// </summary>
-public class InMemoryTaskStore : ITaskStore
+public sealed class InMemoryTaskStore : ITaskStore
 {
     private readonly Dictionary<string, AgentTask> _taskCache = [];
     private readonly Dictionary<string, TaskPushNotificationConfig> _pushNotificationCache = [];

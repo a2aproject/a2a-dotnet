@@ -5,7 +5,7 @@ namespace A2A;
 /// <summary>
 /// Parameters for setting or getting push notification configuration for a task.
 /// </summary>
-public class TaskPushNotificationConfig
+public sealed class TaskPushNotificationConfig
 {
     /// <summary>
     /// Task id.

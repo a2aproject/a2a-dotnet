@@ -20,7 +20,7 @@ public class FileContent
 /// <summary>
 /// Define the variant where 'bytes' is present and 'uri' is absent.
 /// </summary>
-public class FileWithBytes : FileContent
+public sealed class FileWithBytes : FileContent
 {
     /// <summary>
     /// Optional name for the file.
@@ -51,7 +51,7 @@ public class FileWithBytes : FileContent
 /// <summary>
 /// Define the variant where 'uri' is present and 'bytes' is absent.
 /// </summary>
-public class FileWithUri : FileContent
+public sealed class FileWithUri : FileContent
 {
     /// <summary>
     /// Optional name for the file.

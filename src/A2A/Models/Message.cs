@@ -22,7 +22,7 @@ public enum MessageRole
 /// <summary>
 /// JSON converter for MessageRole enum.
 /// </summary>
-public class MessageRoleConverter : JsonConverter<MessageRole>
+public sealed class MessageRoleConverter : JsonConverter<MessageRole>
 {
     /// <inheritdoc />
     public override MessageRole Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
@@ -52,7 +52,7 @@ public class MessageRoleConverter : JsonConverter<MessageRole>
 /// <summary>
 /// Represents a single message exchanged between user and agent.
 /// </summary>
-public class Message : A2AResponse
+public sealed class Message : A2AResponse
 {
     /// <summary>
     /// Message sender's role.

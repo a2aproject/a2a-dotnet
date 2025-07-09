@@ -5,7 +5,7 @@ namespace A2A;
 /// <summary>
 /// Provides a declaration of a combination of target URL and supported transport to interact with an agent.
 /// </summary>
-public class AgentInterface
+public sealed class AgentInterface
 {
     /// <summary>
     /// The transport supported by this URL.

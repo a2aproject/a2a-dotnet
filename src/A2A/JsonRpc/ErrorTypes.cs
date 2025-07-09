@@ -21,7 +21,7 @@ public class A2AClientException : Exception
 /// <summary>
 /// Exception for HTTP errors.
 /// </summary>
-public class A2AClientHTTPException : A2AClientException
+public sealed class A2AClientHTTPException : A2AClientException
 {
     /// <summary>
     /// The HTTP status code.
@@ -49,7 +49,7 @@ public class A2AClientHTTPException : A2AClientException
 /// <summary>
 /// Exception for JSON parsing errors.
 /// </summary>
-public class A2AClientJsonException : A2AClientException
+public sealed class A2AClientJsonException : A2AClientException
 {
     /// <summary>
     /// The error message.
@@ -70,7 +70,7 @@ public class A2AClientJsonException : A2AClientException
 /// <summary>
 /// Exception for missing API key.
 /// </summary>
-public class MissingAPIKeyException : Exception
+public sealed class MissingAPIKeyException : Exception
 {
     /// <summary>
     /// Creates a new missing API key error.

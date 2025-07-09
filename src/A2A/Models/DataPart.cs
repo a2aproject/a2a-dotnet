@@ -6,7 +6,7 @@ namespace A2A;
 /// <summary>
 /// Represents a structured data segment within a message part.
 /// </summary>
-public class DataPart : Part
+public sealed class DataPart : Part
 {
     /// <summary>
     /// Structured data content.

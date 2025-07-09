@@ -13,7 +13,7 @@ public class A2AClientTests
         // Arrange
         HttpRequestMessage? capturedRequest = null;
 
-        var sut = CreateA2AClient(new A2AResponse(), req => capturedRequest = req);
+        var sut = CreateA2AClient(new Message() { MessageId = "id-1", Role = MessageRole.User, Parts = [] }, req => capturedRequest = req);
 
         var sendParams = new MessageSendParams
         {
@@ -86,7 +86,9 @@ public class A2AClientTests
             TaskId = "task-456",
             ContextId = "ctx-789"
         };
-        var sut = CreateA2AClient<A2AResponse>(expectedMessage);
+
+        var sut = CreateA2AClient(expectedMessage);
+
         var sendParams = new MessageSendParams();
 
         // Act
@@ -111,11 +113,9 @@ public class A2AClientTests
     public async Task GetTaskAsync_MapsRequestParamsCorrectly()
     {
         // Arrange
-        var expectedResponse = new AgentTask { Id = "task-1", ContextId = "ctx-1" };
-
         HttpRequestMessage? capturedRequest = null;
 
-        var sut = CreateA2AClient(expectedResponse, req => capturedRequest = req);
+        var sut = CreateA2AClient(new AgentTask { Id = "id-1", ContextId = "ctx-1" }, req => capturedRequest = req);
 
         var taskId = "task-1";
 
@@ -124,9 +124,11 @@ public class A2AClientTests
 
         // Assert
         Assert.NotNull(capturedRequest);
+
         var requestJson = JsonDocument.Parse(await capturedRequest.Content!.ReadAsStringAsync());
         Assert.Equal("tasks/get", requestJson.RootElement.GetProperty("method").GetString());
         Assert.True(Guid.TryParse(requestJson.RootElement.GetProperty("id").GetString(), out _));
+
         var parameters = requestJson.RootElement.GetProperty("params").Deserialize<TaskIdParams>();
         Assert.NotNull(parameters);
         Assert.Equal(taskId, parameters.Id);
@@ -145,6 +147,7 @@ public class A2AClientTests
             History = [new Message { MessageId = "m1" }],
             Metadata = new Dictionary<string, JsonElement> { { "foo", JsonDocument.Parse("\"bar\"").RootElement } }
         };
+
         var sut = CreateA2AClient(expectedTask);
 
         // Act
@@ -180,9 +183,11 @@ public class A2AClientTests
 
         // Assert
         Assert.NotNull(capturedRequest);
+
         var requestJson = JsonDocument.Parse(await capturedRequest.Content!.ReadAsStringAsync());
         Assert.Equal("tasks/cancel", requestJson.RootElement.GetProperty("method").GetString());
         Assert.True(Guid.TryParse(requestJson.RootElement.GetProperty("id").GetString(), out _));
+
         var parameters = requestJson.RootElement.GetProperty("params").Deserialize<TaskIdParams>();
         Assert.NotNull(parameters);
         Assert.Equal(taskIdParams.Id, parameters.Id);
@@ -202,7 +207,9 @@ public class A2AClientTests
             History = [new Message { MessageId = "m1" }],
             Metadata = new Dictionary<string, JsonElement> { { "foo", JsonDocument.Parse("\"bar\"").RootElement } }
         };
+
         var sut = CreateA2AClient(expectedTask);
+
         var taskIdParams = new TaskIdParams { Id = "task-2" };
 
         // Act
@@ -223,6 +230,10 @@ public class A2AClientTests
     public async Task SetPushNotificationAsync_MapsRequestParamsCorrectly()
     {
         // Arrange
+        HttpRequestMessage? capturedRequest = null;
+
+        var sut = CreateA2AClient(new TaskPushNotificationConfig() { TaskId = "id-1", PushNotificationConfig = new PushNotificationConfig() { Url = "url-1" } }, req => capturedRequest = req);
+
         var pushConfig = new TaskPushNotificationConfig
         {
             TaskId = "task-3",
@@ -237,18 +248,16 @@ public class A2AClientTests
             }
         };
 
-        HttpRequestMessage? capturedRequest = null;
-
-        var sut = CreateA2AClient(pushConfig, req => capturedRequest = req);
-
         // Act
         await sut.SetPushNotificationAsync(pushConfig);
 
         // Assert
         Assert.NotNull(capturedRequest);
+
         var requestJson = JsonDocument.Parse(await capturedRequest.Content!.ReadAsStringAsync());
         Assert.Equal("task/pushNotification/set", requestJson.RootElement.GetProperty("method").GetString());
         Assert.True(Guid.TryParse(requestJson.RootElement.GetProperty("id").GetString(), out _));
+
         var parameters = requestJson.RootElement.GetProperty("params").Deserialize<TaskPushNotificationConfig>();
         Assert.NotNull(parameters);
         Assert.Equal(pushConfig.TaskId, parameters.TaskId);
@@ -274,6 +283,7 @@ public class A2AClientTests
                 }
             }
         };
+
         var sut = CreateA2AClient(expectedConfig);
 
         // Act
@@ -291,13 +301,9 @@ public class A2AClientTests
     public async Task GetPushNotificationAsync_MapsRequestParamsCorrectly()
     {
         // Arrange
-        var config = new TaskPushNotificationConfig
-        {
-            TaskId = "task-4",
-            PushNotificationConfig = new PushNotificationConfig { Url = "http://push-url2" }
-        };
-
         HttpRequestMessage? capturedRequest = null;
+
+        var config = new TaskPushNotificationConfig { TaskId = "task-4", PushNotificationConfig = new PushNotificationConfig { Url = "url-1" } };
 
         var sut = CreateA2AClient(config, req => capturedRequest = req);
 
@@ -312,9 +318,11 @@ public class A2AClientTests
 
         // Assert
         Assert.NotNull(capturedRequest);
+
         var requestJson = JsonDocument.Parse(await capturedRequest.Content!.ReadAsStringAsync());
         Assert.Equal("task/pushNotification/get", requestJson.RootElement.GetProperty("method").GetString());
         Assert.True(Guid.TryParse(requestJson.RootElement.GetProperty("id").GetString(), out _));
+
         var parameters = requestJson.RootElement.GetProperty("params").Deserialize<TaskIdParams>();
         Assert.NotNull(parameters);
         Assert.Equal(taskIdParams.Id, parameters.Id);
@@ -338,7 +346,9 @@ public class A2AClientTests
                 }
             }
         };
+
         var sut = CreateA2AClient(expectedConfig);
+
         var taskIdParams = new TaskIdParams { Id = "task-4" };
 
         // Act
@@ -356,6 +366,10 @@ public class A2AClientTests
     public async Task SendMessageStreamAsync_MapsRequestParamsCorrectly()
     {
         // Arrange
+        HttpRequestMessage? capturedRequest = null;
+
+        var sut = CreateA2AClient(new Message() { MessageId = "id-1", Role = MessageRole.User, Parts = [] }, req => capturedRequest = req, isSse: true);
+
         var sendParams = new MessageSendParams
         {
             Message = new Message
@@ -378,22 +392,6 @@ public class A2AClientTests
             Metadata = new Dictionary<string, JsonElement> { { "baz", JsonDocument.Parse("\"qux\"").RootElement } }
         };
 
-        HttpRequestMessage? capturedRequest = null;
-        // Simulate a minimal valid SSE response
-        var jsonRpcResponse = JsonSerializer.Serialize(new JsonRpcResponse
-        {
-            Id = "test-id",
-            Result = JsonSerializer.SerializeToNode(new { })
-        });
-        var sseStream = new MemoryStream(Encoding.UTF8.GetBytes($"event: message\ndata: {jsonRpcResponse}\n\n"));
-        var response = new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new StreamContent(sseStream)
-        };
-        response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/event-stream");
-
-        var sut = CreateA2AClient(response, req => capturedRequest = req);
-
         // Act
         await foreach (var _ in sut.SendMessageStreamAsync(sendParams))
         {
@@ -402,9 +400,11 @@ public class A2AClientTests
 
         // Assert
         Assert.NotNull(capturedRequest);
+
         var requestJson = JsonDocument.Parse(await capturedRequest.Content!.ReadAsStringAsync());
         Assert.Equal("message/stream", requestJson.RootElement.GetProperty("method").GetString());
         Assert.True(Guid.TryParse(requestJson.RootElement.GetProperty("id").GetString(), out _));
+
         var parameters = requestJson.RootElement.GetProperty("params").Deserialize<MessageSendParams>();
         Assert.NotNull(parameters);
         Assert.Equal(sendParams.Message.Parts.Count, parameters.Message.Parts.Count);
@@ -441,18 +441,9 @@ public class A2AClientTests
             TaskId = "task-456",
             ContextId = "ctx-789"
         };
-        var jsonRpcResponse = JsonSerializer.Serialize(new JsonRpcResponse
-        {
-            Id = "test-id",
-            Result = JsonSerializer.SerializeToNode<A2AEvent>(expectedMessage, A2AJsonUtilities.DefaultOptions)
-        });
-        var sseStream = new MemoryStream(Encoding.UTF8.GetBytes($"event: message\ndata: {jsonRpcResponse}\n\n"));
-        var response = new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new StreamContent(sseStream)
-        };
-        response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/event-stream");
-        var sut = CreateA2AClient(response);
+
+        var sut = CreateA2AClient(expectedMessage, isSse: true);
+
         var sendParams = new MessageSendParams();
 
         // Act
@@ -483,21 +474,11 @@ public class A2AClientTests
     public async Task ResubscribeToTaskAsync_MapsRequestParamsCorrectly()
     {
         // Arrange
-        var taskId = "task-123";
         HttpRequestMessage? capturedRequest = null;
-        // Simulate a minimal valid SSE response
-        var jsonRpcResponse = JsonSerializer.Serialize(new JsonRpcResponse
-        {
-            Id = "test-id",
-            Result = JsonSerializer.SerializeToNode(new { })
-        });
-        var sseStream = new MemoryStream(Encoding.UTF8.GetBytes($"event: message\ndata: {jsonRpcResponse}\n\n"));
-        var response = new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new StreamContent(sseStream)
-        };
-        response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/event-stream");
-        var sut = CreateA2AClient(response, req => capturedRequest = req);
+
+        var sut = CreateA2AClient(new Message() { MessageId = "id-1", Role = MessageRole.User, Parts = [] }, req => capturedRequest = req, isSse: true);
+
+        var taskId = "task-123";
 
         // Act
         await foreach (var _ in sut.ResubscribeToTaskAsync(taskId))
@@ -507,9 +488,11 @@ public class A2AClientTests
 
         // Assert
         Assert.NotNull(capturedRequest);
+
         var requestJson = JsonDocument.Parse(await capturedRequest.Content!.ReadAsStringAsync());
         Assert.Equal("tasks/resubscribe", requestJson.RootElement.GetProperty("method").GetString());
         Assert.True(Guid.TryParse(requestJson.RootElement.GetProperty("id").GetString(), out _));
+
         var parameters = requestJson.RootElement.GetProperty("params").Deserialize<TaskIdParams>();
         Assert.NotNull(parameters);
         Assert.Equal(taskId, parameters.Id);
@@ -533,18 +516,8 @@ public class A2AClientTests
             TaskId = "task-456",
             ContextId = "ctx-789"
         };
-        var jsonRpcResponse = JsonSerializer.Serialize(new JsonRpcResponse
-        {
-            Id = "test-id",
-            Result = JsonSerializer.SerializeToNode<A2AEvent>(expectedMessage, A2AJsonUtilities.DefaultOptions)
-        });
-        var sseStream = new MemoryStream(Encoding.UTF8.GetBytes($"event: message\ndata: {jsonRpcResponse}\n\n"));
-        var response = new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new StreamContent(sseStream)
-        };
-        response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/event-stream");
-        var sut = CreateA2AClient(response);
+
+        var sut = CreateA2AClient(expectedMessage, isSse: true);
 
         // Act
         SseItem<A2AEvent>? result = null;
@@ -574,14 +547,8 @@ public class A2AClientTests
     public async Task SendMessageStreamAsync_ThrowsOnJsonRpcError()
     {
         // Arrange
-        var jsonRpcErrorResponse = JsonSerializer.Serialize(JsonRpcResponse.InvalidParamsResponse("test-id"));
-        var sseStream = new MemoryStream(Encoding.UTF8.GetBytes($"event: message\ndata: {jsonRpcErrorResponse}\n\n"));
-        var response = new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new StreamContent(sseStream)
-        };
-        response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/event-stream");
-        var sut = CreateA2AClient(response);
+        var sut = CreateA2AClient(JsonRpcResponse.InvalidParamsResponse("test-id"), isSse: true);
+
         var sendParams = new MessageSendParams();
 
         // Act & Assert
@@ -601,12 +568,8 @@ public class A2AClientTests
     public async Task SendMessageAsync_ThrowsOnJsonRpcError()
     {
         // Arrange
-        var jsonRpcErrorResponse = JsonSerializer.Serialize(JsonRpcResponse.MethodNotFoundResponse("test-id"));
-        var response = new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new StringContent(jsonRpcErrorResponse, Encoding.UTF8, "application/json")
-        };
-        var sut = CreateA2AClient(response);
+        var sut = CreateA2AClient(JsonRpcResponse.MethodNotFoundResponse("test-id"));
+
         var sendParams = new MessageSendParams();
 
         // Act & Assert
@@ -619,24 +582,29 @@ public class A2AClientTests
         Assert.Contains("Method not found", exception.Message);
     }
 
-    private static A2AClient CreateA2AClient<T>(T result, Action<HttpRequestMessage>? onRequest = null)
+    private static A2AClient CreateA2AClient(object result, Action<HttpRequestMessage>? onRequest = null, bool isSse = false)
     {
-        var jsonResponse = JsonSerializer.Serialize(new JsonRpcResponse
+        var response = new JsonRpcResponse
         {
-            Id = "1",
+            Id = "test-id",
             Result = JsonSerializer.SerializeToNode(result)
-        });
+        };
+
+        return CreateA2AClient(response, onRequest, isSse);
+    }
+
+    private static A2AClient CreateA2AClient(JsonRpcResponse jsonResponse, Action<HttpRequestMessage>? onRequest = null, bool isSse = false)
+    {
+        var responseContent = JsonSerializer.Serialize(jsonResponse);
 
         var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = new StringContent(jsonResponse, Encoding.UTF8, "application/json")
+            Content = new StringContent(
+                isSse ? $"event: message\ndata: {responseContent}\n\n" : responseContent,
+                Encoding.UTF8,
+                isSse ? "text/event-stream" : "application/json")
         };
 
-        return CreateA2AClient(response, onRequest);
-    }
-
-    private static A2AClient CreateA2AClient(HttpResponseMessage response, Action<HttpRequestMessage>? onRequest = null)
-    {
         var handler = new MockHttpMessageHandler(response, onRequest);
 
         var httpClient = new HttpClient(handler)

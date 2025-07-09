@@ -8,7 +8,7 @@ namespace A2A;
 /// <remarks>
 /// Contains the TaskState and accompanying message.
 /// </remarks>
-public class AgentTaskStatus
+public sealed class AgentTaskStatus
 {
     /// <summary>
     /// The current state of the task.

@@ -11,7 +11,7 @@ namespace A2A;
 /// - Default modalities/content types supported by the agent.
 /// - Authentication requirements.
 /// </remarks>
-public class AgentCard
+public sealed class AgentCard
 {
     /// <summary>
     /// Gets or sets the human readable name of the agent.

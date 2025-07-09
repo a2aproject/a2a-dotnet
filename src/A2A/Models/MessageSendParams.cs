@@ -9,7 +9,7 @@ namespace A2A;
 /// <remarks>
 /// Sent by the client to the agent as a request. May create, continue or restart a task.
 /// </remarks>
-public class MessageSendParams
+public sealed class MessageSendParams
 {
     /// <summary>
     /// The message being sent to the server.
@@ -34,7 +34,7 @@ public class MessageSendParams
 /// <summary>
 /// Configuration for the send message request.
 /// </summary>
-public class MessageSendConfiguration
+public sealed class MessageSendConfiguration
 {
     /// <summary>
     /// Accepted output modalities by the client.

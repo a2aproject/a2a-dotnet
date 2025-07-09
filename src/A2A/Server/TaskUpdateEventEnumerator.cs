@@ -5,7 +5,7 @@ namespace A2A;
 /// <summary>
 /// Enumerator for streaming task update events to clients.
 /// </summary>
-public class TaskUpdateEventEnumerator : IAsyncEnumerable<A2AEvent>
+public sealed class TaskUpdateEventEnumerator : IAsyncEnumerable<A2AEvent>
 {
     private bool isFinal;
     private readonly ConcurrentQueue<A2AEvent> _UpdateEvents = new();

@@ -6,7 +6,7 @@ namespace A2A;
 /// <summary>
 /// Represents a JSON-RPC 2.0 Request object.
 /// </summary>
-public class JsonRpcRequest
+public sealed class JsonRpcRequest
 {
     /// <summary>
     /// Gets or sets the version of the JSON-RPC protocol.

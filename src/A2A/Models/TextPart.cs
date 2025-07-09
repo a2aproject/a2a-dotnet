@@ -5,7 +5,7 @@ namespace A2A;
 /// <summary>
 /// Represents a text segment within parts.
 /// </summary>
-public class TextPart : Part
+public sealed class TextPart : Part
 {
     /// <summary>
     /// Gets or sets the text content.
