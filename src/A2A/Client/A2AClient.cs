@@ -54,7 +54,7 @@ public sealed class A2AClient : IA2AClient
     public Task<TaskPushNotificationConfig> SetPushNotificationAsync(TaskPushNotificationConfig pushNotificationConfig, CancellationToken cancellationToken = default) =>
         SendRpcRequestAsync(
             pushNotificationConfig,
-            "task/pushNotification/set",
+            A2AMethods.TaskPushNotificationConfigSet,
             A2AJsonUtilities.JsonContext.Default.TaskPushNotificationConfig,
             A2AJsonUtilities.JsonContext.Default.TaskPushNotificationConfig,
             cancellationToken);
@@ -63,7 +63,7 @@ public sealed class A2AClient : IA2AClient
     public Task<TaskPushNotificationConfig> GetPushNotificationAsync(TaskIdParams taskIdParams, CancellationToken cancellationToken = default) =>
         SendRpcRequestAsync(
             taskIdParams,
-            "task/pushNotification/get",
+            A2AMethods.TaskPushNotificationConfigGet,
             A2AJsonUtilities.JsonContext.Default.TaskIdParams,
             A2AJsonUtilities.JsonContext.Default.TaskPushNotificationConfig,
             cancellationToken);

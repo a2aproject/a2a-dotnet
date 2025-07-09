@@ -15,6 +15,12 @@ public sealed class PushNotificationConfig
     public string Url { get; set; } = string.Empty;
 
     /// <summary>
+    /// Optional server-generated identifier for the push notification configuration to support multiple callbacks.
+    /// </summary>
+    [JsonPropertyName("id")]
+    public string? Id { get; set; }
+
+    /// <summary>
     /// Token unique to this task/session.
     /// </summary>
     [JsonPropertyName("token")]
@@ -24,5 +30,5 @@ public sealed class PushNotificationConfig
     /// Authentication details for push notifications.
     /// </summary>
     [JsonPropertyName("authentication")]
-    public AuthenticationInfo? Authentication { get; set; }
+    public PushNotificationAuthenticationInfo? Authentication { get; set; }
 }

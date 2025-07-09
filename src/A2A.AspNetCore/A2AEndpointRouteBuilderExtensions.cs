@@ -83,8 +83,8 @@ public static class A2ARouteBuilderExtensions
         // /tasks/{id}/resubscribe endpoint
         routeGroup.MapPost("/tasks/{id}/resubscribe", (string id) => A2AHttpProcessor.ResubscribeTask(taskManager, logger, id));
 
-        // /tasks/{id}/pushNotification endpoint - PUT
-        routeGroup.MapPut("/tasks/{id}/pushNotification", (string id, [FromBody] PushNotificationConfig pushNotificationConfig) =>
+        // /tasks/{id}/pushNotification endpoint - POST
+        routeGroup.MapPost("/tasks/{id}/pushNotificationConfigs", (string id, [FromBody] PushNotificationConfig pushNotificationConfig) =>
             A2AHttpProcessor.SetPushNotification(taskManager, logger, id, pushNotificationConfig));
 
         // /v1/tasks/{id}/pushNotification endpoint - GET

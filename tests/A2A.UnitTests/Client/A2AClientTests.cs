@@ -240,8 +240,9 @@ public class A2AClientTests
             PushNotificationConfig = new PushNotificationConfig
             {
                 Url = "http://push-url",
+                Id = "push-config-123",
                 Token = "tok",
-                Authentication = new AuthenticationInfo
+                Authentication = new PushNotificationAuthenticationInfo
                 {
                     Schemes = ["Bearer"],
                 }
@@ -255,13 +256,14 @@ public class A2AClientTests
         Assert.NotNull(capturedRequest);
 
         var requestJson = JsonDocument.Parse(await capturedRequest.Content!.ReadAsStringAsync());
-        Assert.Equal("task/pushNotification/set", requestJson.RootElement.GetProperty("method").GetString());
+        Assert.Equal("tasks/pushNotificationConfig/set", requestJson.RootElement.GetProperty("method").GetString());
         Assert.True(Guid.TryParse(requestJson.RootElement.GetProperty("id").GetString(), out _));
 
         var parameters = requestJson.RootElement.GetProperty("params").Deserialize<TaskPushNotificationConfig>();
         Assert.NotNull(parameters);
         Assert.Equal(pushConfig.TaskId, parameters.TaskId);
         Assert.Equal(pushConfig.PushNotificationConfig.Url, parameters.PushNotificationConfig.Url);
+        Assert.Equal(pushConfig.PushNotificationConfig.Id, parameters.PushNotificationConfig.Id);
         Assert.Equal(pushConfig.PushNotificationConfig.Token, parameters.PushNotificationConfig.Token);
         Assert.Equal(pushConfig.PushNotificationConfig.Authentication!.Schemes, parameters.PushNotificationConfig.Authentication!.Schemes);
     }
@@ -276,8 +278,9 @@ public class A2AClientTests
             PushNotificationConfig = new PushNotificationConfig
             {
                 Url = "http://push-url",
+                Id = "push-config-456",
                 Token = "tok",
-                Authentication = new AuthenticationInfo
+                Authentication = new PushNotificationAuthenticationInfo
                 {
                     Schemes = ["Bearer"],
                 }
@@ -320,7 +323,7 @@ public class A2AClientTests
         Assert.NotNull(capturedRequest);
 
         var requestJson = JsonDocument.Parse(await capturedRequest.Content!.ReadAsStringAsync());
-        Assert.Equal("task/pushNotification/get", requestJson.RootElement.GetProperty("method").GetString());
+        Assert.Equal("tasks/pushNotificationConfig/get", requestJson.RootElement.GetProperty("method").GetString());
         Assert.True(Guid.TryParse(requestJson.RootElement.GetProperty("id").GetString(), out _));
 
         var parameters = requestJson.RootElement.GetProperty("params").Deserialize<TaskIdParams>();
@@ -340,7 +343,7 @@ public class A2AClientTests
             {
                 Url = "http://push-url2",
                 Token = "tok2",
-                Authentication = new AuthenticationInfo
+                Authentication = new PushNotificationAuthenticationInfo
                 {
                     Schemes = ["Bearer"]
                 }

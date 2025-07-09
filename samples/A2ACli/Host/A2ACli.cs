@@ -233,7 +233,7 @@ public static class A2ACli
             payload.Configuration.PushNotification = new PushNotificationConfig
             {
                 Url = $"http://{notificationReceiverHost}:{notificationReceiverPort}/notify",
-                Authentication = new AuthenticationInfo
+                Authentication = new PushNotificationAuthenticationInfo
                 {
                     Schemes = ["bearer"]
                 }

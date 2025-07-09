@@ -33,12 +33,12 @@ public static class A2AMethods
     /// <summary>
     /// Method for setting push notification configuration.
     /// </summary>
-    public const string TaskPushNotificationConfigSet = "tasks/pushnotificationconfig/set";
+    public const string TaskPushNotificationConfigSet = "tasks/pushNotificationConfig/set";
 
     /// <summary>
     /// Method for getting push notification configuration.
     /// </summary>
-    public const string TaskPushNotificationConfigGet = "tasks/pushnotificationconfig/get";
+    public const string TaskPushNotificationConfigGet = "tasks/pushNotificationConfig/get";
 
     /// <summary>
     /// Determines if a method requires streaming response handling.
