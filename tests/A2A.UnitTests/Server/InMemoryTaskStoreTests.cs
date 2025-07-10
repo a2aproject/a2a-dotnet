@@ -83,7 +83,7 @@ public class InMemoryTaskStoreTests
         await sut.SetPushNotificationConfigAsync(new TaskPushNotificationConfig { TaskId = "task-id", PushNotificationConfig = new() { Id = "config-id" } });
 
         // Act
-        var result = await sut.GetPushNotificationAsync("missing", "config-missing");
+        var result = await sut.GetPushNotificationAsync("task-id", "config-missing");
 
         // Assert
         Assert.Null(result);
