@@ -11,7 +11,7 @@ namespace A2A;
 /// </summary>
 public static class A2ACli
 {
-    public static async Task<int> Main(string[] args)
+    public static Task<int> Main(string[] args)
     {
         // Create root command with options
         var rootCommand = new RootCommand("A2A CLI Client")
@@ -24,47 +24,50 @@ public static class A2ACli
         };
 
         // Replace the problematic line with the following:
-        rootCommand.SetHandler(RunCliAsync);
+        rootCommand.SetAction(RunCliAsync);
 
         // Build host with dependency injection
         //using var host = CreateHostBuilder(args).Build();
 
         // Run the command
-        return await rootCommand.InvokeAsync(args);
+        return rootCommand.Parse(args).InvokeAsync();
     }
 
-    public static async Task RunCliAsync(InvocationContext context)
+    public static async Task RunCliAsync(ParseResult parseResult, CancellationToken cancellationToken)
     {
-        string agent = context.ParseResult.GetValueForOption(s_agentOption)!;
-        string session = context.ParseResult.GetValueForOption(s_sessionOption)!;
-        bool history = context.ParseResult.GetValueForOption(s_historyOption);
-        bool usePushNotifications = context.ParseResult.GetValueForOption(s_usePushNotificationsOption);
-        string pushNotificationReceiver = context.ParseResult.GetValueForOption(s_pushNotificationReceiverOption)!;
+        string agent = parseResult.GetValue(s_agentOption)!;
+        string session = parseResult.GetValue(s_sessionOption)!;
+        bool history = parseResult.GetValue(s_historyOption);
+        bool usePushNotifications = parseResult.GetValue(s_usePushNotificationsOption);
+        string pushNotificationReceiver = parseResult.GetValue(s_pushNotificationReceiverOption)!;
 
         await RunCliAsync(agent, session, history, usePushNotifications, pushNotificationReceiver);
     }
 
     #region private
-    private static readonly Option<string> s_agentOption = new(
-                "--agent",
-                getDefaultValue: () => "http://localhost:10000",
-                description: "Agent URL");
-    private static readonly Option<string> s_sessionOption = new(
-                "--session",
-                getDefaultValue: () => "0",
-                description: "Session ID (0 for new session)");
-    private static readonly Option<bool> s_historyOption = new(
-                "--history",
-            getDefaultValue: () => false,
-                description: "Show task history");
-    private static readonly Option<bool> s_usePushNotificationsOption = new(
-                "--use-push-notifications",
-                getDefaultValue: () => false,
-                description: "Enable push notifications");
-    private static readonly Option<string> s_pushNotificationReceiverOption = new(
-                "--push-notification-receiver",
-                getDefaultValue: () => "http://localhost:5000",
-                description: "Push notification receiver URL");
+    private static readonly Option<string> s_agentOption = new("--agent")
+    {
+        DefaultValueFactory = _ => "http://localhost:10000",
+        Description = "Agent URL"
+    };
+    private static readonly Option<string> s_sessionOption = new("--session")
+    {
+        DefaultValueFactory = _ => "0",
+        Description = "Session ID (0 for new session)"
+    };
+    private static readonly Option<bool> s_historyOption = new("--history")
+    {
+        Description = "Show task history"
+    };
+    private static readonly Option<bool> s_usePushNotificationsOption = new("--use-push-notifications")
+    {
+        Description = "Enable push notifications"
+    };
+    private static readonly Option<string> s_pushNotificationReceiverOption = new("--push-notification-receiver")
+    {
+        DefaultValueFactory = _ => "http://localhost:5000",
+        Description = "Push notification receiver URL"
+    };
 
     private static readonly JsonSerializerOptions s_jsonOptions = new()
     {
