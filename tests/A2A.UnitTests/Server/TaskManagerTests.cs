@@ -360,19 +360,23 @@ public class TaskManagerTests
     {
         // Arrange
         var sut = new TaskManager();
+
+        // Create the task first
+        var task = await sut.CreateTaskAsync();
+
         var config = new TaskPushNotificationConfig
         {
-            TaskId = "task-push-2",
+            TaskId = task.Id,
             PushNotificationConfig = new PushNotificationConfig { Url = "http://callback2" }
         };
         await sut.SetPushNotificationAsync(config);
 
         // Act
-        var result = await sut.GetPushNotificationAsync(new TaskIdParams { Id = "task-push-2" });
+        var result = await sut.GetPushNotificationAsync(new GetTaskPushNotificationConfigParams { Id = task.Id });
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal("task-push-2", result.TaskId);
+        Assert.Equal(task.Id, result.TaskId);
         Assert.Equal("http://callback2", result.PushNotificationConfig.Url);
     }
 
@@ -428,5 +432,62 @@ public class TaskManagerTests
 
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() => sut.ResubscribeAsync(null));
+    }
+
+    [Fact]
+    public async Task GetPushNotificationAsync_ReturnsFirstConfig_WhenMultipleConfigsExistAndNoConfigIdSpecified()
+    {
+        // Arrange
+        var sut = new TaskManager();
+        var task = await sut.CreateTaskAsync();
+
+        // Create multiple push notification configs for the same task
+        var config1 = new TaskPushNotificationConfig
+        {
+            TaskId = task.Id,
+            PushNotificationConfig = new PushNotificationConfig
+            {
+                Id = "config-id-1",
+                Url = "http://first-config",
+                Token = "token1"
+            }
+        };
+
+        var config2 = new TaskPushNotificationConfig
+        {
+            TaskId = task.Id,
+            PushNotificationConfig = new PushNotificationConfig
+            {
+                Id = "config-id-2",
+                Url = "http://second-config",
+                Token = "token2"
+            }
+        };
+
+        var config3 = new TaskPushNotificationConfig
+        {
+            TaskId = task.Id,
+            PushNotificationConfig = new PushNotificationConfig
+            {
+                Id = "config-id-3",
+                Url = "http://third-config",
+                Token = "token3"
+            }
+        };
+
+        // Set all configs
+        await sut.SetPushNotificationAsync(config1);
+        await sut.SetPushNotificationAsync(config2);
+        await sut.SetPushNotificationAsync(config3);
+
+        // Act - Get push notification without specifying a config ID (should return first one)
+        var result = await sut.GetPushNotificationAsync(new GetTaskPushNotificationConfigParams { Id = task.Id });
+
+        // Assert - Should return the first config that was added
+        Assert.NotNull(result);
+        Assert.Equal(task.Id, result.TaskId);
+        Assert.Equal("config-id-1", result.PushNotificationConfig.Id);
+        Assert.Equal("http://first-config", result.PushNotificationConfig.Url);
+        Assert.Equal("token1", result.PushNotificationConfig.Token);
     }
 }

@@ -320,19 +320,39 @@ public sealed class TaskManager : ITaskManager
     /// <remarks>
     /// Returns the callback URL and authentication settings configured for receiving task update notifications.
     /// </remarks>
-    /// <param name="taskIdParams">Parameters containing the task ID to get push notification configuration for.</param>
+    /// <param name="notificationConfigParams">Parameters containing the task ID and optional push notification config ID.</param>
     /// <returns>The push notification configuration if found, null otherwise.</returns>
-    public async Task<TaskPushNotificationConfig?> GetPushNotificationAsync(TaskIdParams? taskIdParams)
+    public async Task<TaskPushNotificationConfig?> GetPushNotificationAsync(GetTaskPushNotificationConfigParams? notificationConfigParams)
     {
-        if (taskIdParams == null)
+        if (notificationConfigParams == null)
         {
-            throw new ArgumentNullException(nameof(taskIdParams), "TaskIdParams cannot be null.");
+            throw new ArgumentNullException(nameof(notificationConfigParams), "GetTaskPushNotificationConfigParams cannot be null.");
         }
 
         using var activity = ActivitySource.StartActivity("GetPushNotification", ActivityKind.Server);
-        activity?.SetTag("task.id", taskIdParams.Id);
+        activity?.SetTag("task.id", notificationConfigParams.Id);
+        activity?.SetTag("push.config.id", notificationConfigParams.PushNotificationConfigId);
 
-        var pushNotificationConfig = await _taskStore.GetPushNotificationAsync(taskIdParams.Id);
+        var task = await _taskStore.GetTaskAsync(notificationConfigParams.Id);
+        if (task == null)
+        {
+            activity?.SetTag("task.found", false);
+            throw new ArgumentException("Task not found or invalid TaskIdParams.");
+        }
+
+        TaskPushNotificationConfig? pushNotificationConfig = null;
+
+        if (!string.IsNullOrEmpty(notificationConfigParams.PushNotificationConfigId))
+        {
+            pushNotificationConfig = await _taskStore.GetPushNotificationAsync(notificationConfigParams.Id, notificationConfigParams.PushNotificationConfigId!);
+        }
+        else
+        {
+            var pushNotificationConfigs = await _taskStore.GetPushNotificationsAsync(notificationConfigParams.Id);
+
+            pushNotificationConfig = pushNotificationConfigs.FirstOrDefault();
+        }
+
         activity?.SetTag("config.found", pushNotificationConfig != null);
         return pushNotificationConfig;
     }

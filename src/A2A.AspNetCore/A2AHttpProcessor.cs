@@ -278,16 +278,17 @@ public static class A2AHttpProcessor
     /// </remarks>
     /// <param name="taskManager">The task manager instance for accessing push notification configurations.</param>
     /// <param name="logger">Logger instance for recording operation details and errors.</param>
-    /// <param name="id">The unique identifier of the task to get push notification configuration for.</param>
+    /// <param name="taskId">The unique identifier of the task to get push notification configuration for.</param>
+    /// <param name="notificationConfigId">The unique identifier of the push notification configuration to retrieve.</param>
     /// <returns>An HTTP result containing the push notification configuration or a not found/error response.</returns>
-    internal static async Task<IResult> GetPushNotification(TaskManager taskManager, ILogger logger, string id)
+    internal static async Task<IResult> GetPushNotification(TaskManager taskManager, ILogger logger, string taskId, string? notificationConfigId)
     {
         using var activity = ActivitySource.StartActivity("GetPushNotification", ActivityKind.Server);
-        activity?.AddTag("task.id", id);
+        activity?.AddTag("task.id", taskId);
 
         try
         {
-            var taskIdParams = new TaskIdParams { Id = id };
+            var taskIdParams = new GetTaskPushNotificationConfigParams { Id = taskId, PushNotificationConfigId = notificationConfigId };
             var result = await taskManager.GetPushNotificationAsync(taskIdParams);
 
             if (result == null)

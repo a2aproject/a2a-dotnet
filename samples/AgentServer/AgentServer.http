@@ -206,3 +206,92 @@ Content-Type: application/json
         }
     }
 }
+
+### PUSH NOTIFICATIONS
+
+### Send message to create a task for push notifications
+# @name task
+POST {{host}}/echotasks
+Content-Type: application/json
+{
+    "id": "3",
+    "jsonrpc": "2.0",
+    "method": "message/send",
+    "params": {
+          "message": {
+            "messageId": "12345",
+            "role": "user",
+            "parts": [
+                {
+                    "kind": "text",
+                    "text": "Generate an image of a cat"
+                }
+            ]
+        }
+    }
+}
+###
+
+### Set push notification for the task
+POST {{host}}/echotasks
+Content-Type: application/json
+{
+    "id": "3",
+    "jsonrpc": "2.0",
+    "method": "tasks/pushNotificationConfig/set",
+    "params": {
+          "taskId": "{{task.response.body.$.result.id}}",
+          "pushNotificationConfig": {
+              "url": "http://localhost",
+              "token": "client-token"
+          }
+    }
+}
+###
+
+@pushNotificationId=12345
+
+### Set push notification with id for the task
+POST {{host}}/echotasks
+Content-Type: application/json
+{
+    "id": "3",
+    "jsonrpc": "2.0",
+    "method": "tasks/pushNotificationConfig/set",
+    "params": {
+        "taskId": "{{task.response.body.$.result.id}}",
+        "pushNotificationConfig": {
+            "id": "{{pushNotificationId}}",
+            "url": "http://localhost",
+            "token": "client-token"
+        }
+    }
+}
+###
+
+### Get push notification for the task.
+POST {{host}}/echotasks
+Content-Type: application/json
+{
+    "id": "3",
+    "jsonrpc": "2.0",
+    "method": "tasks/pushNotificationConfig/get",
+    "params": {
+        "id": "{{task.response.body.$.result.id}}"
+    }
+}
+###
+
+### Get push notification by id for the task
+POST {{host}}/echotasks
+Content-Type: application/json
+{
+    "id": "3",
+    "jsonrpc": "2.0",
+    "method": "tasks/pushNotificationConfig/get",
+    "params": {
+        "id": "{{task.response.body.$.result.id}}",
+        "pushNotificationConfigId": "{{pushNotificationId}}"
+    }
+}
+###

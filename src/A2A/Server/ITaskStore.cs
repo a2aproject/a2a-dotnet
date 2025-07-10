@@ -16,8 +16,9 @@ public interface ITaskStore
     /// Retrieves push notification configuration for a task.
     /// </summary>
     /// <param name="taskId">The ID of the task.</param>
+    /// <param name="notificationConfigId">The ID of the push notification configuration.</param>
     /// <returns>The push notification configuration if found, null otherwise.</returns>
-    Task<TaskPushNotificationConfig?> GetPushNotificationAsync(string taskId);
+    Task<TaskPushNotificationConfig?> GetPushNotificationAsync(string taskId, string notificationConfigId);
 
     /// <summary>
     /// Updates the status of a task.
@@ -41,4 +42,11 @@ public interface ITaskStore
     /// <param name="pushNotificationConfig">The push notification configuration.</param>
     /// <returns>A task representing the operation.</returns>
     Task SetPushNotificationConfigAsync(TaskPushNotificationConfig pushNotificationConfig);
+
+    /// <summary>
+    /// Retrieves push notifications for a task.
+    /// </summary>
+    /// <param name="taskId">The ID of the task.</param>
+    /// <returns>A list of push notification configurations for the task.</returns>
+    Task<IEnumerable<TaskPushNotificationConfig>> GetPushNotificationsAsync(string taskId);
 }

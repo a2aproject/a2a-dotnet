@@ -60,11 +60,11 @@ public sealed class A2AClient : IA2AClient
             cancellationToken);
 
     /// <inheritdoc />
-    public Task<TaskPushNotificationConfig> GetPushNotificationAsync(TaskIdParams taskIdParams, CancellationToken cancellationToken = default) =>
+    public Task<TaskPushNotificationConfig> GetPushNotificationAsync(GetTaskPushNotificationConfigParams notificationConfigParams, CancellationToken cancellationToken = default) =>
         SendRpcRequestAsync(
-            taskIdParams,
+            notificationConfigParams,
             A2AMethods.TaskPushNotificationConfigGet,
-            A2AJsonUtilities.JsonContext.Default.TaskIdParams,
+            A2AJsonUtilities.JsonContext.Default.GetTaskPushNotificationConfigParams,
             A2AJsonUtilities.JsonContext.Default.TaskPushNotificationConfig,
             cancellationToken);
 
