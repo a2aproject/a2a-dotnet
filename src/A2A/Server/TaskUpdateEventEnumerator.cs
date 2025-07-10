@@ -22,6 +22,11 @@ public sealed class TaskUpdateEventEnumerator : IAsyncEnumerable<A2AEvent>
     /// <param name="taskUpdateEvent">The event to notify.</param>
     public void NotifyEvent(A2AEvent taskUpdateEvent)
     {
+        if (taskUpdateEvent is null)
+        {
+            throw new ArgumentNullException(nameof(taskUpdateEvent));
+        }
+
         // Enqueue the event to the queue
         _UpdateEvents.Enqueue(taskUpdateEvent);
         _semaphore.Release();
@@ -33,6 +38,11 @@ public sealed class TaskUpdateEventEnumerator : IAsyncEnumerable<A2AEvent>
     /// <param name="taskUpdateEvent">The final event to notify.</param>
     public void NotifyFinalEvent(A2AEvent taskUpdateEvent)
     {
+        if (taskUpdateEvent is null)
+        {
+            throw new ArgumentNullException(nameof(taskUpdateEvent));
+        }
+
         isFinal = true;
         // Enqueue the final event to the queue
         _UpdateEvents.Enqueue(taskUpdateEvent);

@@ -216,6 +216,8 @@ public class JsonRpcResponseResult : IResult
     /// <param name="jsonRpcResponse">The JSON-RPC response object to serialize and return in the HTTP response.</param>
     public JsonRpcResponseResult(JsonRpcResponse jsonRpcResponse)
     {
+        ArgumentNullException.ThrowIfNull(jsonRpcResponse);
+
         this.jsonRpcResponse = jsonRpcResponse;
     }
 
@@ -230,6 +232,8 @@ public class JsonRpcResponseResult : IResult
     /// <returns>A task representing the asynchronous serialization operation.</returns>
     public async Task ExecuteAsync(HttpContext httpContext)
     {
+        ArgumentNullException.ThrowIfNull(httpContext);
+
         httpContext.Response.ContentType = "application/json";
         httpContext.Response.StatusCode = jsonRpcResponse.Error is not null ?
             StatusCodes.Status400BadRequest :
@@ -258,6 +262,9 @@ public class JsonRpcStreamedResult : IResult
     /// <param name="requestId">The JSON-RPC request ID used for correlating responses with the original request.</param>
     public JsonRpcStreamedResult(IAsyncEnumerable<A2AEvent> events, string requestId)
     {
+        ArgumentNullException.ThrowIfNull(events);
+        ArgumentException.ThrowIfNullOrEmpty(requestId);
+
         _events = events;
         this.requestId = requestId;
     }
@@ -273,6 +280,8 @@ public class JsonRpcStreamedResult : IResult
     /// <returns>A task representing the asynchronous streaming operation.</returns>
     public async Task ExecuteAsync(HttpContext httpContext)
     {
+        ArgumentNullException.ThrowIfNull(httpContext);
+
         httpContext.Response.StatusCode = StatusCodes.Status200OK;
         httpContext.Response.ContentType = "text/event-stream";
         httpContext.Response.Headers.Append("Cache-Control", "no-cache");

@@ -78,11 +78,11 @@ public sealed class TaskManager : ITaskManager
     /// </remarks>
     /// <param name="taskIdParams">Parameters containing the task ID to cancel.</param>
     /// <returns>The canceled task with updated status, or null if not found.</returns>
-    public async Task<AgentTask?> CancelTaskAsync(TaskIdParams? taskIdParams)
+    public async Task<AgentTask?> CancelTaskAsync(TaskIdParams taskIdParams)
     {
-        if (taskIdParams == null)
+        if (taskIdParams is null)
         {
-            throw new ArgumentNullException(nameof(taskIdParams), "TaskIdParams cannot be null.");
+            throw new ArgumentNullException(nameof(taskIdParams));
         }
 
         using var activity = ActivitySource.StartActivity("CancelTask", ActivityKind.Server);
@@ -109,11 +109,11 @@ public sealed class TaskManager : ITaskManager
     /// </remarks>
     /// <param name="taskIdParams">Parameters containing the task ID to retrieve.</param>
     /// <returns>The task if found in the store, null otherwise.</returns>
-    public async Task<AgentTask?> GetTaskAsync(TaskIdParams? taskIdParams)
+    public async Task<AgentTask?> GetTaskAsync(TaskIdParams taskIdParams)
     {
-        if (taskIdParams == null)
+        if (taskIdParams is null)
         {
-            throw new ArgumentNullException(nameof(taskIdParams), "TaskIdParams cannot be null.");
+            throw new ArgumentNullException(nameof(taskIdParams));
         }
 
         using var activity = ActivitySource.StartActivity("GetTask", ActivityKind.Server);
@@ -135,6 +135,11 @@ public sealed class TaskManager : ITaskManager
     /// <returns>The agent's response as either a Task object or a direct Message from the handler.</returns>
     public async Task<A2AResponse?> SendMessageAsync(MessageSendParams messageSendParams)
     {
+        if (messageSendParams is null)
+        {
+            throw new ArgumentNullException(nameof(messageSendParams));
+        }
+
         using var activity = ActivitySource.StartActivity("SendMessage", ActivityKind.Server);
 
         AgentTask? task = null;
@@ -202,6 +207,11 @@ public sealed class TaskManager : ITaskManager
     /// <returns>An async enumerable that yields events as they are produced by the agent.</returns>
     public async Task<IAsyncEnumerable<A2AEvent>> SendMessageStreamAsync(MessageSendParams messageSendParams)
     {
+        if (messageSendParams is null)
+        {
+            throw new ArgumentNullException(nameof(messageSendParams));
+        }
+
         using var activity = ActivitySource.StartActivity("SendSubscribe", ActivityKind.Server);
         AgentTask? agentTask = null;
 
@@ -280,11 +290,11 @@ public sealed class TaskManager : ITaskManager
     /// </remarks>
     /// <param name="taskIdParams">Parameters containing the task ID to resubscribe to.</param>
     /// <returns>An async enumerable of events for the specified task.</returns>
-    public IAsyncEnumerable<A2AEvent> ResubscribeAsync(TaskIdParams? taskIdParams)
+    public IAsyncEnumerable<A2AEvent> ResubscribeAsync(TaskIdParams taskIdParams)
     {
-        if (taskIdParams == null)
+        if (taskIdParams is null)
         {
-            throw new ArgumentNullException(nameof(taskIdParams), "TaskIdParams cannot be null.");
+            throw new ArgumentNullException(nameof(taskIdParams));
         }
 
         using var activity = ActivitySource.StartActivity("Resubscribe", ActivityKind.Server);
@@ -303,11 +313,11 @@ public sealed class TaskManager : ITaskManager
     /// </remarks>
     /// <param name="pushNotificationConfig">The push notification configuration containing callback URL and authentication details.</param>
     /// <returns>The configured push notification settings with confirmation.</returns>
-    public async Task<TaskPushNotificationConfig?> SetPushNotificationAsync(TaskPushNotificationConfig? pushNotificationConfig)
+    public async Task<TaskPushNotificationConfig?> SetPushNotificationAsync(TaskPushNotificationConfig pushNotificationConfig)
     {
         if (pushNotificationConfig is null)
         {
-            throw new ArgumentException("Missing push notification config.");
+            throw new ArgumentNullException(nameof(pushNotificationConfig));
         }
 
         await _taskStore.SetPushNotificationConfigAsync(pushNotificationConfig);
@@ -322,11 +332,11 @@ public sealed class TaskManager : ITaskManager
     /// </remarks>
     /// <param name="taskIdParams">Parameters containing the task ID to get push notification configuration for.</param>
     /// <returns>The push notification configuration if found, null otherwise.</returns>
-    public async Task<TaskPushNotificationConfig?> GetPushNotificationAsync(TaskIdParams? taskIdParams)
+    public async Task<TaskPushNotificationConfig?> GetPushNotificationAsync(TaskIdParams taskIdParams)
     {
-        if (taskIdParams == null)
+        if (taskIdParams is null)
         {
-            throw new ArgumentNullException(nameof(taskIdParams), "TaskIdParams cannot be null.");
+            throw new ArgumentNullException(nameof(taskIdParams));
         }
 
         using var activity = ActivitySource.StartActivity("GetPushNotification", ActivityKind.Server);
@@ -340,6 +350,11 @@ public sealed class TaskManager : ITaskManager
     /// <inheritdoc />
     public async Task UpdateStatusAsync(string taskId, TaskState status, Message? message = null, bool final = false)
     {
+        if (string.IsNullOrEmpty(taskId))
+        {
+            throw new ArgumentNullException(nameof(taskId));
+        }
+
         using var activity = ActivitySource.StartActivity("UpdateStatus", ActivityKind.Server);
         activity?.SetTag("task.id", taskId);
         activity?.SetTag("task.status", status.ToString());
@@ -381,6 +396,15 @@ public sealed class TaskManager : ITaskManager
     /// <inheritdoc />
     public async Task ReturnArtifactAsync(string taskId, Artifact artifact)
     {
+        if (string.IsNullOrEmpty(taskId))
+        {
+            throw new ArgumentNullException(nameof(taskId));
+        }
+        else if (artifact is null)
+        {
+            throw new ArgumentNullException(nameof(artifact));
+        }
+
         using var activity = ActivitySource.StartActivity("ReturnArtifact", ActivityKind.Server);
         activity?.SetTag("task.id", taskId);
 

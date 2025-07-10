@@ -358,6 +358,8 @@ public class A2AEventStreamResult : IResult
     /// <param name="taskEvents">The async enumerable stream of A2A events to send as Server-Sent Events.</param>
     public A2AEventStreamResult(IAsyncEnumerable<A2AEvent> taskEvents)
     {
+        ArgumentNullException.ThrowIfNull(taskEvents);
+
         this.taskEvents = taskEvents;
     }
 
@@ -372,6 +374,8 @@ public class A2AEventStreamResult : IResult
     /// <returns>A task representing the asynchronous streaming operation.</returns>
     public async Task ExecuteAsync(HttpContext httpContext)
     {
+        ArgumentNullException.ThrowIfNull(httpContext);
+
         httpContext.Response.ContentType = "text/event-stream";
         await foreach (var taskEvent in taskEvents)
         {

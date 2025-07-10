@@ -10,14 +10,18 @@ public sealed class InMemoryTaskStore : ITaskStore
 
     /// <inheritdoc />
     public Task<AgentTask?> GetTaskAsync(string taskId) =>
-        Task.FromResult(
-            string.IsNullOrEmpty(taskId) ? null :
-            _taskCache.TryGetValue(taskId, out var task) ? task :
-            null);
+        string.IsNullOrEmpty(taskId)
+            ? Task.FromException<AgentTask?>(new ArgumentNullException(taskId))
+            : Task.FromResult(_taskCache.TryGetValue(taskId, out var task) ? task : null);
 
     /// <inheritdoc />
     public Task<TaskPushNotificationConfig?> GetPushNotificationAsync(string taskId)
     {
+        if (string.IsNullOrEmpty(taskId))
+        {
+            return Task.FromException<TaskPushNotificationConfig?>(new ArgumentNullException(taskId));
+        }
+
         _pushNotificationCache.TryGetValue(taskId, out var pushNotificationConfig);
         return Task.FromResult<TaskPushNotificationConfig?>(pushNotificationConfig);
     }
@@ -25,6 +29,11 @@ public sealed class InMemoryTaskStore : ITaskStore
     /// <inheritdoc />
     public Task<AgentTaskStatus> UpdateStatusAsync(string taskId, TaskState status, Message? message = null)
     {
+        if (string.IsNullOrEmpty(taskId))
+        {
+            return Task.FromException<AgentTaskStatus>(new ArgumentNullException(taskId));
+        }
+
         if (!_taskCache.TryGetValue(taskId, out var task))
         {
             throw new ArgumentException("Task not found.");
@@ -46,6 +55,11 @@ public sealed class InMemoryTaskStore : ITaskStore
     /// <inheritdoc />
     public Task SetPushNotificationConfigAsync(TaskPushNotificationConfig pushNotificationConfig)
     {
+        if (pushNotificationConfig is null)
+        {
+            return Task.FromException(new ArgumentNullException(nameof(pushNotificationConfig)));
+        }
+
         _pushNotificationCache[pushNotificationConfig.TaskId] = pushNotificationConfig;
         return Task.CompletedTask;
     }
