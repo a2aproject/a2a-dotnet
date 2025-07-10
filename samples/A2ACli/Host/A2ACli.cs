@@ -1,6 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
 using System.CommandLine;
-using System.CommandLine.Invocation;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 
@@ -33,7 +32,7 @@ public static class A2ACli
         return rootCommand.Parse(args).InvokeAsync();
     }
 
-    public static async Task RunCliAsync(ParseResult parseResult, CancellationToken cancellationToken)
+    public static Task RunCliAsync(ParseResult parseResult, CancellationToken cancellationToken)
     {
         string agent = parseResult.GetValue(s_agentOption)!;
         string session = parseResult.GetValue(s_sessionOption)!;
@@ -41,7 +40,7 @@ public static class A2ACli
         bool usePushNotifications = parseResult.GetValue(s_usePushNotificationsOption);
         string pushNotificationReceiver = parseResult.GetValue(s_pushNotificationReceiverOption)!;
 
-        await RunCliAsync(agent, session, history, usePushNotifications, pushNotificationReceiver);
+        return RunCliAsync(agent, session, history, usePushNotifications, pushNotificationReceiver, cancellationToken);
     }
 
     #region private
@@ -81,7 +80,8 @@ public static class A2ACli
         string session,
         bool history,
         bool usePushNotifications,
-        string pushNotificationReceiver)
+        string pushNotificationReceiver,
+        CancellationToken cancellationToken)
     {
         // Set up the logging
         using var loggerFactory = LoggerFactory.Create(builder =>
@@ -100,7 +100,7 @@ public static class A2ACli
         {
             // Create the card resolver and get agentUrl card
             var cardResolver = new A2ACardResolver(httpClient);
-            var card = await cardResolver.GetAgentCardAsync();
+            var card = await cardResolver.GetAgentCardAsync(cancellationToken);
 
             Console.WriteLine("======= Agent Card ========");
             Console.WriteLine(JsonSerializer.Serialize(card, s_jsonOptions));
@@ -130,12 +130,13 @@ public static class A2ACli
                     notificationReceiverHost,
                     notificationReceiverPort,
                     taskId,
-                    sessionId);
+                    sessionId,
+                    cancellationToken);
 
                 if (history && continueLoop)
                 {
                     Console.WriteLine("========= history ======== ");
-                    var taskResponse = await client.GetTaskAsync(taskId);
+                    var taskResponse = await client.GetTaskAsync(taskId, cancellationToken);
 
                     // Display history in a way similar to the Python version
                     if (taskResponse.History != null)
@@ -165,7 +166,8 @@ public static class A2ACli
         string notificationReceiverHost,
         int notificationReceiverPort,
         string taskId,
-        string sessionId)
+        string sessionId,
+        CancellationToken cancellationToken)
     {
         // Get user prompt
         Console.Write("\nWhat do you want to send to the agentUrl? (:q or quit to exit): ");
@@ -201,7 +203,7 @@ public static class A2ACli
         {
             try
             {
-                byte[] fileBytes = await File.ReadAllBytesAsync(filePath);
+                byte[] fileBytes = await File.ReadAllBytesAsync(filePath, cancellationToken);
                 string fileContent = Convert.ToBase64String(fileBytes);
                 string fileName = Path.GetFileName(filePath);
 
@@ -255,16 +257,16 @@ public static class A2ACli
         Console.WriteLine($"Send task payload => {JsonSerializer.Serialize(payload, jsonOptions)}");
         if (streaming)
         {
-            await foreach (var result in client.SendMessageStreamAsync(payload))
+            await foreach (var result in client.SendMessageStreamAsync(payload, cancellationToken))
             {
                 Console.WriteLine($"Stream event => {JsonSerializer.Serialize(result, jsonOptions)}");
             }
 
-            var taskResult = await client.GetTaskAsync(taskId);
+            var taskResult = await client.GetTaskAsync(taskId, cancellationToken);
         }
         else
         {
-            agentTask = await client.SendMessageAsync(payload) as AgentTask;
+            agentTask = await client.SendMessageAsync(payload, cancellationToken) as AgentTask;
             Console.WriteLine($"\n{JsonSerializer.Serialize(agentTask, jsonOptions)}");
             agentTask?.Artifacts?
                 .SelectMany(artifact => artifact.Parts.OfType<TextPart>())
@@ -282,7 +284,8 @@ public static class A2ACli
                 notificationReceiverHost,
                 notificationReceiverPort,
                 taskId,
-                sessionId);
+                sessionId,
+                cancellationToken);
         }
 
         // A2ATask is complete
