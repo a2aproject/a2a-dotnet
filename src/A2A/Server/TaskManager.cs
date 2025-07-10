@@ -153,7 +153,7 @@ public sealed class TaskManager : ITaskManager
             if (task == null)
             {
                 activity?.SetTag("task.found", false);
-                throw new ArgumentException("Task not found or invalid TaskIdParams.");
+                throw new ArgumentException("Task not found or invalid TaskId.");
             }
         }
 
@@ -225,7 +225,7 @@ public sealed class TaskManager : ITaskManager
             if (agentTask == null)
             {
                 activity?.SetTag("task.found", false);
-                throw new ArgumentException("Task not found or invalid TaskIdParams.");
+                throw new ArgumentException("Task not found or invalid TaskId.");
             }
         }
 
