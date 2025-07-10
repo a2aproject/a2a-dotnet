@@ -48,6 +48,8 @@ public sealed class A2ACardResolver
     /// <returns>The agent card.</returns>
     public async Task<AgentCard> GetAgentCardAsync(CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (_logger.IsEnabled(LogLevel.Information))
         {
             Debug.Assert(_agentCardPath.IsAbsoluteUri || _httpClient.BaseAddress is not null);

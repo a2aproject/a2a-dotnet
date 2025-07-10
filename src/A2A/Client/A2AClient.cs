@@ -93,6 +93,8 @@ public sealed class A2AClient : IA2AClient
         JsonTypeInfo<TOutput> outputTypeInfo,
         CancellationToken cancellationToken) where TOutput : class
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         using var responseStream = await SendAndReadResponseStream(
             jsonRpcParams,
             method,
