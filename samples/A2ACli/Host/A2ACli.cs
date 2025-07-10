@@ -1,6 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
 using System.CommandLine;
-using System.CommandLine.Invocation;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 
@@ -11,7 +10,7 @@ namespace A2A;
 /// </summary>
 public static class A2ACli
 {
-    public static async Task<int> Main(string[] args)
+    public static Task<int> Main(string[] args)
     {
         // Create root command with options
         var rootCommand = new RootCommand("A2A CLI Client")
@@ -24,47 +23,50 @@ public static class A2ACli
         };
 
         // Replace the problematic line with the following:
-        rootCommand.SetHandler(RunCliAsync);
+        rootCommand.SetAction(RunCliAsync);
 
         // Build host with dependency injection
         //using var host = CreateHostBuilder(args).Build();
 
         // Run the command
-        return await rootCommand.InvokeAsync(args);
+        return rootCommand.Parse(args).InvokeAsync();
     }
 
-    public static async Task RunCliAsync(InvocationContext context)
+    public static Task RunCliAsync(ParseResult parseResult, CancellationToken cancellationToken)
     {
-        string agent = context.ParseResult.GetValueForOption(s_agentOption)!;
-        string session = context.ParseResult.GetValueForOption(s_sessionOption)!;
-        bool history = context.ParseResult.GetValueForOption(s_historyOption);
-        bool usePushNotifications = context.ParseResult.GetValueForOption(s_usePushNotificationsOption);
-        string pushNotificationReceiver = context.ParseResult.GetValueForOption(s_pushNotificationReceiverOption)!;
+        string agent = parseResult.GetValue(s_agentOption)!;
+        string session = parseResult.GetValue(s_sessionOption)!;
+        bool history = parseResult.GetValue(s_historyOption);
+        bool usePushNotifications = parseResult.GetValue(s_usePushNotificationsOption);
+        string pushNotificationReceiver = parseResult.GetValue(s_pushNotificationReceiverOption)!;
 
-        await RunCliAsync(agent, session, history, usePushNotifications, pushNotificationReceiver);
+        return RunCliAsync(agent, session, history, usePushNotifications, pushNotificationReceiver, cancellationToken);
     }
 
     #region private
-    private static readonly Option<string> s_agentOption = new(
-                "--agent",
-                getDefaultValue: () => "http://localhost:10000",
-                description: "Agent URL");
-    private static readonly Option<string> s_sessionOption = new(
-                "--session",
-                getDefaultValue: () => "0",
-                description: "Session ID (0 for new session)");
-    private static readonly Option<bool> s_historyOption = new(
-                "--history",
-            getDefaultValue: () => false,
-                description: "Show task history");
-    private static readonly Option<bool> s_usePushNotificationsOption = new(
-                "--use-push-notifications",
-                getDefaultValue: () => false,
-                description: "Enable push notifications");
-    private static readonly Option<string> s_pushNotificationReceiverOption = new(
-                "--push-notification-receiver",
-                getDefaultValue: () => "http://localhost:5000",
-                description: "Push notification receiver URL");
+    private static readonly Option<string> s_agentOption = new("--agent")
+    {
+        DefaultValueFactory = _ => "http://localhost:10000",
+        Description = "Agent URL"
+    };
+    private static readonly Option<string> s_sessionOption = new("--session")
+    {
+        DefaultValueFactory = _ => "0",
+        Description = "Session ID (0 for new session)"
+    };
+    private static readonly Option<bool> s_historyOption = new("--history")
+    {
+        Description = "Show task history"
+    };
+    private static readonly Option<bool> s_usePushNotificationsOption = new("--use-push-notifications")
+    {
+        Description = "Enable push notifications"
+    };
+    private static readonly Option<string> s_pushNotificationReceiverOption = new("--push-notification-receiver")
+    {
+        DefaultValueFactory = _ => "http://localhost:5000",
+        Description = "Push notification receiver URL"
+    };
 
     private static readonly JsonSerializerOptions s_jsonOptions = new()
     {
@@ -78,7 +80,8 @@ public static class A2ACli
         string session,
         bool history,
         bool usePushNotifications,
-        string pushNotificationReceiver)
+        string pushNotificationReceiver,
+        CancellationToken cancellationToken)
     {
         // Set up the logging
         using var loggerFactory = LoggerFactory.Create(builder =>
@@ -97,7 +100,7 @@ public static class A2ACli
         {
             // Create the card resolver and get agentUrl card
             var cardResolver = new A2ACardResolver(httpClient);
-            var card = await cardResolver.GetAgentCardAsync();
+            var card = await cardResolver.GetAgentCardAsync(cancellationToken);
 
             Console.WriteLine("======= Agent Card ========");
             Console.WriteLine(JsonSerializer.Serialize(card, s_jsonOptions));
@@ -127,12 +130,13 @@ public static class A2ACli
                     notificationReceiverHost,
                     notificationReceiverPort,
                     taskId,
-                    sessionId);
+                    sessionId,
+                    cancellationToken);
 
                 if (history && continueLoop)
                 {
                     Console.WriteLine("========= history ======== ");
-                    var taskResponse = await client.GetTaskAsync(taskId);
+                    var taskResponse = await client.GetTaskAsync(taskId, cancellationToken);
 
                     // Display history in a way similar to the Python version
                     if (taskResponse.History != null)
@@ -162,7 +166,8 @@ public static class A2ACli
         string notificationReceiverHost,
         int notificationReceiverPort,
         string taskId,
-        string sessionId)
+        string sessionId,
+        CancellationToken cancellationToken)
     {
         // Get user prompt
         Console.Write("\nWhat do you want to send to the agentUrl? (:q or quit to exit): ");
@@ -198,7 +203,7 @@ public static class A2ACli
         {
             try
             {
-                byte[] fileBytes = await File.ReadAllBytesAsync(filePath);
+                byte[] fileBytes = await File.ReadAllBytesAsync(filePath, cancellationToken);
                 string fileContent = Convert.ToBase64String(fileBytes);
                 string fileName = Path.GetFileName(filePath);
 
@@ -252,16 +257,16 @@ public static class A2ACli
         Console.WriteLine($"Send task payload => {JsonSerializer.Serialize(payload, jsonOptions)}");
         if (streaming)
         {
-            await foreach (var result in client.SendMessageStreamAsync(payload))
+            await foreach (var result in client.SendMessageStreamAsync(payload, cancellationToken))
             {
                 Console.WriteLine($"Stream event => {JsonSerializer.Serialize(result, jsonOptions)}");
             }
 
-            var taskResult = await client.GetTaskAsync(taskId);
+            var taskResult = await client.GetTaskAsync(taskId, cancellationToken);
         }
         else
         {
-            agentTask = await client.SendMessageAsync(payload) as AgentTask;
+            agentTask = await client.SendMessageAsync(payload, cancellationToken) as AgentTask;
             Console.WriteLine($"\n{JsonSerializer.Serialize(agentTask, jsonOptions)}");
             agentTask?.Artifacts?
                 .SelectMany(artifact => artifact.Parts.OfType<TextPart>())
@@ -279,7 +284,8 @@ public static class A2ACli
                 notificationReceiverHost,
                 notificationReceiverPort,
                 taskId,
-                sessionId);
+                sessionId,
+                cancellationToken);
         }
 
         // A2ATask is complete
