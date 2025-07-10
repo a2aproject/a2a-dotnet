@@ -16,7 +16,6 @@ public sealed class JsonRpcRequest
     /// </remarks>
     [JsonPropertyName("jsonrpc")]
     [JsonRequired]
-
     public string JsonRpc { get; set; } = "2.0";
 
     /// <summary>
