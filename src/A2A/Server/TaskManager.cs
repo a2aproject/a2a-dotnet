@@ -52,6 +52,8 @@ public sealed class TaskManager : ITaskManager
     /// <inheritdoc />
     public async Task<AgentTask> CreateTaskAsync(string? contextId = null)
     {
+        contextId ??= Guid.NewGuid().ToString();
+
         using var activity = ActivitySource.StartActivity("CreateTask", ActivityKind.Server);
         activity?.SetTag("context.id", contextId);
 
@@ -59,7 +61,7 @@ public sealed class TaskManager : ITaskManager
         var task = new AgentTask
         {
             Id = Guid.NewGuid().ToString(),
-            ContextId = contextId ?? Guid.NewGuid().ToString(),
+            ContextId = contextId,
             Status = new AgentTaskStatus
             {
                 State = TaskState.Submitted,
