@@ -13,7 +13,7 @@ namespace A2A.AspNetCore;
 /// Provides methods for processing agent card queries, task operations, message sending,
 /// and push notification configuration through HTTP endpoints.
 /// </remarks>
-public static class A2AHttpProcessor
+internal static class A2AHttpProcessor
 {
     /// <summary>
     /// OpenTelemetry ActivitySource for tracing HTTP processor operations.
