@@ -13,7 +13,7 @@ public class A2AClientException : Exception
     /// <param name="message">The error message.</param>
     /// <param name="innerException">Optional inner exception.</param>
     public A2AClientException(string message, Exception? innerException = null)
-        : base(string.IsNullOrEmpty(message) ? throw new ArgumentNullException(nameof(message)) : message, innerException)
+        : base(message, innerException)
     {
     }
 }
@@ -42,7 +42,7 @@ public sealed class A2AClientHTTPException : A2AClientException
         : base($"HTTP Error {(int)statusCode}: {message}")
     {
         StatusCode = statusCode;
-        ErrorMessage = string.IsNullOrEmpty(message) ? throw new ArgumentNullException(nameof(message)) : message;
+        ErrorMessage = message;
     }
 }
 
@@ -63,7 +63,7 @@ public sealed class A2AClientJsonException : A2AClientException
     public A2AClientJsonException(string message)
         : base($"JSON Error: {message}")
     {
-        ErrorMessage = string.IsNullOrEmpty(message) ? throw new ArgumentNullException(nameof(message)) : message;
+        ErrorMessage = message;
     }
 }
 
