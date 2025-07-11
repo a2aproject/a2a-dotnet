@@ -25,7 +25,7 @@ public sealed class AgentExtension
     /// Gets or sets whether the client must follow specific requirements of the extension.
     /// </summary>
     [JsonPropertyName("required")]
-    public string? Required { get; set; }
+    public bool Required { get; set; } = false;
 
     /// <summary>
     /// Gets or sets optional configuration for the extension.
