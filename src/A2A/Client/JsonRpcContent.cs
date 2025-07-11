@@ -36,7 +36,7 @@ public sealed class JsonRpcContent : HttpContent
     private JsonRpcContent(object? contentToSerialize, JsonTypeInfo contentTypeInfo)
     {
         _contentToSerialize = contentToSerialize;
-        _contentTypeInfo = contentTypeInfo;
+        _contentTypeInfo = contentTypeInfo ?? throw new ArgumentNullException(nameof(contentTypeInfo));
         Headers.TryAddWithoutValidation("Content-Type", "application/json");
     }
 

@@ -51,7 +51,7 @@ public sealed class JsonRpcResponse
 
         return new JsonRpcResponse()
         {
-            Id = requestId,
+            Id = Verify(requestId),
             Result = result is not null ? JsonSerializer.SerializeToNode(result, resultTypeInfo) : null
         };
     }
@@ -63,7 +63,7 @@ public sealed class JsonRpcResponse
     /// <returns>A JSON-RPC error response.</returns>
     public static JsonRpcResponse InvalidParamsResponse(string requestId) => new()
     {
-        Id = requestId,
+        Id = Verify(requestId),
         Error = new JsonRpcError()
         {
             Code = -32602,
@@ -78,7 +78,7 @@ public sealed class JsonRpcResponse
     /// <returns>A JSON-RPC error response.</returns>
     public static JsonRpcResponse TaskNotFoundResponse(string requestId) => new()
     {
-        Id = requestId,
+        Id = Verify(requestId),
         Error = new JsonRpcError
         {
             Code = -32001,
@@ -93,7 +93,7 @@ public sealed class JsonRpcResponse
     /// <returns>A JSON-RPC error response.</returns>
     public static JsonRpcResponse TaskNotCancelableResponse(string requestId) => new()
     {
-        Id = requestId,
+        Id = Verify(requestId),
         Error = new JsonRpcError
         {
             Code = -32002,
@@ -108,7 +108,7 @@ public sealed class JsonRpcResponse
     /// <returns>A JSON-RPC error response.</returns>
     public static JsonRpcResponse MethodNotFoundResponse(string requestId) => new()
     {
-        Id = requestId,
+        Id = Verify(requestId),
         Error = new JsonRpcError
         {
             Code = -32601,
@@ -123,7 +123,7 @@ public sealed class JsonRpcResponse
     /// <returns>A JSON-RPC error response.</returns>
     public static JsonRpcResponse PushNotificationNotSupportedResponse(string requestId) => new()
     {
-        Id = requestId,
+        Id = Verify(requestId),
         Error = new JsonRpcError
         {
             Code = -32003,
@@ -139,7 +139,7 @@ public sealed class JsonRpcResponse
     /// <returns>A JSON-RPC error response.</returns>
     public static JsonRpcResponse InternalErrorResponse(string requestId, string? message = null) => new()
     {
-        Id = requestId,
+        Id = Verify(requestId),
         Error = new JsonRpcError
         {
             Code = -32603,
@@ -155,7 +155,7 @@ public sealed class JsonRpcResponse
     /// <returns>A JSON-RPC error response.</returns>
     public static JsonRpcResponse ParseErrorResponse(string requestId, string? message = null) => new()
     {
-        Id = requestId,
+        Id = Verify(requestId),
         Error = new JsonRpcError
         {
             Code = -32700,
@@ -171,7 +171,7 @@ public sealed class JsonRpcResponse
     /// <returns>A JSON-RPC error response.</returns>
     public static JsonRpcResponse UnsupportedOperationResponse(string requestId, string? message = null) => new()
     {
-        Id = requestId,
+        Id = Verify(requestId),
         Error = new JsonRpcError
         {
             Code = -32004,
@@ -194,4 +194,7 @@ public sealed class JsonRpcResponse
             Message = message ?? "Content type not supported",
         },
     };
+
+    private static string Verify(string requestId)
+        => string.IsNullOrEmpty(requestId) ? throw new ArgumentNullException(nameof(requestId)) : requestId;
 }

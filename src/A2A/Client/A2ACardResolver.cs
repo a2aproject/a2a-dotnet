@@ -26,9 +26,9 @@ public sealed class A2ACardResolver
         string agentCardPath = "/.well-known/agent.json",
         ILogger? logger = null)
     {
-        if (agentCardPath is null)
+        if (string.IsNullOrEmpty(agentCardPath))
         {
-            throw new ArgumentNullException(nameof(agentCardPath), "Agent card path cannot be null.");
+            throw new ArgumentNullException(nameof(agentCardPath), "Agent card path cannot be null or empty.");
         }
 
         _httpClient = httpClient ?? A2AClient.s_sharedClient;
@@ -48,6 +48,8 @@ public sealed class A2ACardResolver
     /// <returns>The agent card.</returns>
     public async Task<AgentCard> GetAgentCardAsync(CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (_logger.IsEnabled(LogLevel.Information))
         {
             Debug.Assert(_agentCardPath.IsAbsoluteUri || _httpClient.BaseAddress is not null);

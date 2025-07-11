@@ -352,7 +352,7 @@ public class TaskManagerTests
         var sut = new TaskManager();
 
         // Act & Assert
-        await Assert.ThrowsAsync<ArgumentException>(() => sut.SetPushNotificationAsync(null));
+        await Assert.ThrowsAsync<ArgumentNullException>(() => sut.SetPushNotificationAsync(null!));
     }
 
     [Fact]
@@ -387,7 +387,7 @@ public class TaskManagerTests
         var sut = new TaskManager();
 
         // Act & Assert
-        await Assert.ThrowsAsync<ArgumentNullException>(() => sut.GetPushNotificationAsync(null));
+        await Assert.ThrowsAsync<ArgumentNullException>(() => sut.GetPushNotificationAsync(null!));
     }
 
     [Fact]
@@ -431,7 +431,7 @@ public class TaskManagerTests
         var sut = new TaskManager();
 
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => sut.ResubscribeAsync(null));
+        Assert.Throws<ArgumentNullException>(() => sut.ResubscribeAsync(null!));
     }
 
     [Fact]
