@@ -165,16 +165,19 @@ public class A2AJsonRpcProcessorTests
     {
         // Arrange
         var taskManager = new TaskManager();
+
+        var task = await taskManager.CreateTaskAsync();
+
         var config = new TaskPushNotificationConfig
         {
-            TaskId = "test-task",
+            TaskId = task.Id,
             PushNotificationConfig = new PushNotificationConfig()
             {
                 Url = "https://example.com/notify",
             }
         };
         await taskManager.SetPushNotificationAsync(config);
-        var getParams = new TaskIdParams { Id = "test-task" };
+        var getParams = new GetTaskPushNotificationConfigParams { Id = task.Id };
 
         // Act
         var result = await A2AJsonRpcProcessor.SingleResponse(taskManager, "7", A2AMethods.TaskPushNotificationConfigGet, ToJsonElement(getParams));
@@ -191,8 +194,52 @@ public class A2AJsonRpcProcessorTests
         var notificationConfig = JsonSerializer.Deserialize<TaskPushNotificationConfig>(BodyContent.Result, A2AJsonUtilities.DefaultOptions);
         Assert.NotNull(notificationConfig);
 
-        Assert.Equal("test-task", notificationConfig.TaskId);
+        Assert.Equal(task.Id, notificationConfig.TaskId);
         Assert.Equal("https://example.com/notify", notificationConfig.PushNotificationConfig.Url);
+    }
+
+    [Fact]
+    public async Task SingleResponse_TaskPushNotificationConfigGet_WithConfigId_Works()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+
+        var task = await taskManager.CreateTaskAsync();
+
+        var config = new TaskPushNotificationConfig
+        {
+            TaskId = task.Id,
+            PushNotificationConfig = new PushNotificationConfig()
+            {
+                Url = "https://example.com/notify2",
+                Id = "specific-config-id"
+            }
+        };
+        await taskManager.SetPushNotificationAsync(config);
+        var getParams = new GetTaskPushNotificationConfigParams
+        {
+            Id = task.Id,
+            PushNotificationConfigId = "specific-config-id"
+        };
+
+        // Act
+        var result = await A2AJsonRpcProcessor.SingleResponse(taskManager, "8", A2AMethods.TaskPushNotificationConfigGet, ToJsonElement(getParams));
+
+        // Assert
+        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
+
+        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+
+        Assert.Equal(StatusCodes.Status200OK, StatusCode);
+        Assert.Equal("application/json", ContentType);
+        Assert.NotNull(BodyContent);
+
+        var notificationConfig = JsonSerializer.Deserialize<TaskPushNotificationConfig>(BodyContent.Result, A2AJsonUtilities.DefaultOptions);
+        Assert.NotNull(notificationConfig);
+
+        Assert.Equal(task.Id, notificationConfig.TaskId);
+        Assert.Equal("https://example.com/notify2", notificationConfig.PushNotificationConfig.Url);
+        Assert.Equal("specific-config-id", notificationConfig.PushNotificationConfig.Id);
     }
 
     [Fact]

@@ -1,10 +1,10 @@
 @host = http://localhost:5048
 
 ### Query agent card for the echo agent
-GET {{host}}/echo/card
+GET {{host}}/echo/v1/card
 
 ### Send a message to the echo agent
-POST {{host}}/echo/send
+POST {{host}}/echo/v1/message:send
 Content-Type: application/json
 
 {
@@ -19,10 +19,9 @@ Content-Type: application/json
             ]
         }
 }
-
 
 ### Send a message to the echo agent that creates a task
-POST {{host}}/echotasks/send
+POST {{host}}/echotasks/v1/message:send
 Content-Type: application/json
 
 {
@@ -38,24 +37,72 @@ Content-Type: application/json
         }
 }
 
-
-
 ###
-GET {{host}}/echo/tasks/12345
+GET {{host}}/echo/v1/tasks/12345
 
 ### SendSubscribe a task to the echo agent
-POST {{host}}/echo/tasks/sendsubscribeTaskId2/sendsubscribe
+POST {{host}}/echo/v1/tasks/sendsubscribeTaskId2/subscribe
 Content-Type: application/json
 
 {
         "message": {
+            "messageId": "12345",
             "role": "user",
             "parts": [
                 {
-                    "type": "text",
+                    "kind": "text",
                     "text": "Hello, world!"
                 }
             ]
         }
 }
 
+### PUSH NOTIFICATIONS
+
+### Send message to create a task for push notifications
+# @name task
+POST {{host}}/echotasks/v1/message:send
+Content-Type: application/json
+
+{
+        "message": {
+            "messageId": "12345",
+            "role": "user",
+            "parts": [
+                {
+                    "kind": "text",
+                    "text": "Generate an image of a cat"
+                }
+            ]
+        }
+}
+###
+
+### Set push notification for the task
+POST {{host}}/echotasks/v1/tasks/{{task.response.body.$.id}}/pushNotificationConfigs
+Content-Type: application/json
+{
+    "url": "http://localhost",
+    "token": "client-token"
+}
+###
+
+@pushNotificationId=12345
+
+### Set push notification with id for the task
+POST {{host}}/echotasks/v1/tasks/{{task.response.body.$.id}}/pushNotificationConfigs
+Content-Type: application/json
+{
+    "id": "{{pushNotificationId}}",
+    "url": "http://localhost",
+    "token": "client-token"
+}
+###
+
+### Get push notification for a task
+GET {{host}}/echotasks/v1/tasks/{{task.response.body.$.id}}/pushNotificationConfigs
+###
+
+### Get push notification by id for a task
+GET {{host}}/echotasks/v1/tasks/{{task.response.body.$.id}}/pushNotificationConfigs/{{pushNotificationId}}
+###

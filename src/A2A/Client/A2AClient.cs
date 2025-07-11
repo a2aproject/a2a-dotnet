@@ -54,17 +54,17 @@ public sealed class A2AClient : IA2AClient
     public Task<TaskPushNotificationConfig> SetPushNotificationAsync(TaskPushNotificationConfig pushNotificationConfig, CancellationToken cancellationToken = default) =>
         SendRpcRequestAsync(
             pushNotificationConfig ?? throw new ArgumentNullException(nameof(pushNotificationConfig)),
-            "task/pushNotification/set",
+            A2AMethods.TaskPushNotificationConfigSet,
             A2AJsonUtilities.JsonContext.Default.TaskPushNotificationConfig,
             A2AJsonUtilities.JsonContext.Default.TaskPushNotificationConfig,
             cancellationToken);
 
     /// <inheritdoc />
-    public Task<TaskPushNotificationConfig> GetPushNotificationAsync(TaskIdParams taskIdParams, CancellationToken cancellationToken = default) =>
+    public Task<TaskPushNotificationConfig> GetPushNotificationAsync(GetTaskPushNotificationConfigParams notificationConfigParams, CancellationToken cancellationToken = default) =>
         SendRpcRequestAsync(
-            taskIdParams ?? throw new ArgumentNullException(nameof(taskIdParams)),
-            "task/pushNotification/get",
-            A2AJsonUtilities.JsonContext.Default.TaskIdParams,
+            notificationConfigParams ?? throw new ArgumentNullException(nameof(notificationConfigParams)),
+            A2AMethods.TaskPushNotificationConfigGet,
+            A2AJsonUtilities.JsonContext.Default.GetTaskPushNotificationConfigParams,
             A2AJsonUtilities.JsonContext.Default.TaskPushNotificationConfig,
             cancellationToken);
 

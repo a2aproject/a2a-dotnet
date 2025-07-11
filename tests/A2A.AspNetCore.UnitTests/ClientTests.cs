@@ -113,8 +113,9 @@ public class ClientTests : IClassFixture<JsonSchemaFixture>
                         PushNotificationConfig = new PushNotificationConfig
                         {
                             Url = "http://example.org/notify",
+                            Id = "response-config-id",
                             Token = "test-token",
-                            Authentication = new AuthenticationInfo
+                            Authentication = new PushNotificationAuthenticationInfo
                             {
                                 Schemes = ["Bearer"]
                             }
@@ -139,8 +140,9 @@ public class ClientTests : IClassFixture<JsonSchemaFixture>
             PushNotificationConfig = new PushNotificationConfig()
             {
                 Url = "http://example.org/notify",
+                Id = "request-config-id",
                 Token = "test-token",
-                Authentication = new AuthenticationInfo()
+                Authentication = new PushNotificationAuthenticationInfo()
                 {
                     Schemes = ["Bearer"],
                 }

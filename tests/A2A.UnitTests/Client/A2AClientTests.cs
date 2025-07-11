@@ -240,8 +240,9 @@ public class A2AClientTests
             PushNotificationConfig = new PushNotificationConfig
             {
                 Url = "http://push-url",
+                Id = "push-config-123",
                 Token = "tok",
-                Authentication = new AuthenticationInfo
+                Authentication = new PushNotificationAuthenticationInfo
                 {
                     Schemes = ["Bearer"],
                 }
@@ -255,13 +256,14 @@ public class A2AClientTests
         Assert.NotNull(capturedRequest);
 
         var requestJson = JsonDocument.Parse(await capturedRequest.Content!.ReadAsStringAsync());
-        Assert.Equal("task/pushNotification/set", requestJson.RootElement.GetProperty("method").GetString());
+        Assert.Equal("tasks/pushNotificationConfig/set", requestJson.RootElement.GetProperty("method").GetString());
         Assert.True(Guid.TryParse(requestJson.RootElement.GetProperty("id").GetString(), out _));
 
         var parameters = requestJson.RootElement.GetProperty("params").Deserialize<TaskPushNotificationConfig>();
         Assert.NotNull(parameters);
         Assert.Equal(pushConfig.TaskId, parameters.TaskId);
         Assert.Equal(pushConfig.PushNotificationConfig.Url, parameters.PushNotificationConfig.Url);
+        Assert.Equal(pushConfig.PushNotificationConfig.Id, parameters.PushNotificationConfig.Id);
         Assert.Equal(pushConfig.PushNotificationConfig.Token, parameters.PushNotificationConfig.Token);
         Assert.Equal(pushConfig.PushNotificationConfig.Authentication!.Schemes, parameters.PushNotificationConfig.Authentication!.Schemes);
     }
@@ -276,8 +278,9 @@ public class A2AClientTests
             PushNotificationConfig = new PushNotificationConfig
             {
                 Url = "http://push-url",
+                Id = "push-config-456",
                 Token = "tok",
-                Authentication = new AuthenticationInfo
+                Authentication = new PushNotificationAuthenticationInfo
                 {
                     Schemes = ["Bearer"],
                 }
@@ -307,26 +310,28 @@ public class A2AClientTests
 
         var sut = CreateA2AClient(config, req => capturedRequest = req);
 
-        var taskIdParams = new TaskIdParams
+        var notificationConfigParams = new GetTaskPushNotificationConfigParams
         {
             Id = "task-4",
-            Metadata = new Dictionary<string, JsonElement> { { "meta", JsonDocument.Parse("\"val\"").RootElement } }
+            Metadata = new Dictionary<string, JsonElement> { { "meta", JsonDocument.Parse("\"val\"").RootElement } },
+            PushNotificationConfigId = "config-123"
         };
 
         // Act
-        await sut.GetPushNotificationAsync(taskIdParams);
+        await sut.GetPushNotificationAsync(notificationConfigParams);
 
         // Assert
         Assert.NotNull(capturedRequest);
 
         var requestJson = JsonDocument.Parse(await capturedRequest.Content!.ReadAsStringAsync());
-        Assert.Equal("task/pushNotification/get", requestJson.RootElement.GetProperty("method").GetString());
+        Assert.Equal("tasks/pushNotificationConfig/get", requestJson.RootElement.GetProperty("method").GetString());
         Assert.True(Guid.TryParse(requestJson.RootElement.GetProperty("id").GetString(), out _));
 
-        var parameters = requestJson.RootElement.GetProperty("params").Deserialize<TaskIdParams>();
+        var parameters = requestJson.RootElement.GetProperty("params").Deserialize<GetTaskPushNotificationConfigParams>();
         Assert.NotNull(parameters);
-        Assert.Equal(taskIdParams.Id, parameters.Id);
-        Assert.Equal(taskIdParams.Metadata!["meta"].GetString(), parameters.Metadata!["meta"].GetString());
+        Assert.Equal(notificationConfigParams.Id, parameters.Id);
+        Assert.Equal(notificationConfigParams.Metadata!["meta"].GetString(), parameters.Metadata!["meta"].GetString());
+        Assert.Equal(notificationConfigParams.PushNotificationConfigId, parameters.PushNotificationConfigId);
     }
 
     [Fact]
@@ -340,7 +345,7 @@ public class A2AClientTests
             {
                 Url = "http://push-url2",
                 Token = "tok2",
-                Authentication = new AuthenticationInfo
+                Authentication = new PushNotificationAuthenticationInfo
                 {
                     Schemes = ["Bearer"]
                 }
@@ -349,10 +354,10 @@ public class A2AClientTests
 
         var sut = CreateA2AClient(expectedConfig);
 
-        var taskIdParams = new TaskIdParams { Id = "task-4" };
+        var notificationConfigParams = new GetTaskPushNotificationConfigParams { Id = "task-4" };
 
         // Act
-        var result = await sut.GetPushNotificationAsync(taskIdParams);
+        var result = await sut.GetPushNotificationAsync(notificationConfigParams);
 
         // Assert
         Assert.NotNull(result);
@@ -360,6 +365,36 @@ public class A2AClientTests
         Assert.Equal(expectedConfig.PushNotificationConfig.Url, result.PushNotificationConfig.Url);
         Assert.Equal(expectedConfig.PushNotificationConfig.Token, result.PushNotificationConfig.Token);
         Assert.Equal(expectedConfig.PushNotificationConfig.Authentication!.Schemes, result.PushNotificationConfig.Authentication!.Schemes);
+    }
+
+    [Fact]
+    public async Task GetPushNotificationAsync_WithPushNotificationConfigId_MapsRequestCorrectly()
+    {
+        // Arrange
+        HttpRequestMessage? capturedRequest = null;
+
+        var config = new TaskPushNotificationConfig { TaskId = "task-5", PushNotificationConfig = new PushNotificationConfig { Url = "url-1" } };
+
+        var sut = CreateA2AClient(config, req => capturedRequest = req);
+
+        var notificationConfigParams = new GetTaskPushNotificationConfigParams
+        {
+            Id = "task-5",
+            PushNotificationConfigId = "specific-config-id"
+        };
+
+        // Act
+        await sut.GetPushNotificationAsync(notificationConfigParams);
+
+        // Assert
+        Assert.NotNull(capturedRequest);
+
+        var requestJson = JsonDocument.Parse(await capturedRequest.Content!.ReadAsStringAsync());
+        var parameters = requestJson.RootElement.GetProperty("params").Deserialize<GetTaskPushNotificationConfigParams>();
+        Assert.NotNull(parameters);
+        Assert.Equal(notificationConfigParams.Id, parameters.Id);
+        Assert.Equal(notificationConfigParams.PushNotificationConfigId, parameters.PushNotificationConfigId);
+        Assert.Null(parameters.Metadata);
     }
 
     [Fact]

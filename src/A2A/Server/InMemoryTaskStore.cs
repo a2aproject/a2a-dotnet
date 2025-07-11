@@ -6,7 +6,7 @@ namespace A2A;
 public sealed class InMemoryTaskStore : ITaskStore
 {
     private readonly Dictionary<string, AgentTask> _taskCache = [];
-    private readonly Dictionary<string, TaskPushNotificationConfig> _pushNotificationCache = [];
+    private readonly Dictionary<string, List<TaskPushNotificationConfig>> _pushNotificationCache = [];
 
     /// <inheritdoc />
     public Task<AgentTask?> GetTaskAsync(string taskId) =>
@@ -15,14 +15,20 @@ public sealed class InMemoryTaskStore : ITaskStore
             : Task.FromResult(_taskCache.TryGetValue(taskId, out var task) ? task : null);
 
     /// <inheritdoc />
-    public Task<TaskPushNotificationConfig?> GetPushNotificationAsync(string taskId)
+    public Task<TaskPushNotificationConfig?> GetPushNotificationAsync(string taskId, string notificationConfigId)
     {
         if (string.IsNullOrEmpty(taskId))
         {
             return Task.FromException<TaskPushNotificationConfig?>(new ArgumentNullException(taskId));
         }
 
-        _pushNotificationCache.TryGetValue(taskId, out var pushNotificationConfig);
+        if (!_pushNotificationCache.TryGetValue(taskId, out var pushNotificationConfigs))
+        {
+            return Task.FromResult<TaskPushNotificationConfig?>(null);
+        }
+
+        var pushNotificationConfig = pushNotificationConfigs.FirstOrDefault(config => config.PushNotificationConfig.Id == notificationConfigId);
+
         return Task.FromResult<TaskPushNotificationConfig?>(pushNotificationConfig);
     }
 
@@ -60,7 +66,25 @@ public sealed class InMemoryTaskStore : ITaskStore
             return Task.FromException(new ArgumentNullException(nameof(pushNotificationConfig)));
         }
 
-        _pushNotificationCache[pushNotificationConfig.TaskId] = pushNotificationConfig;
+        if (!_pushNotificationCache.TryGetValue(pushNotificationConfig.TaskId, out var pushNotificationConfigs))
+        {
+            pushNotificationConfigs = [];
+            _pushNotificationCache[pushNotificationConfig.TaskId] = pushNotificationConfigs;
+        }
+
+        pushNotificationConfigs.Add(pushNotificationConfig);
+
         return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task<IEnumerable<TaskPushNotificationConfig>> GetPushNotificationsAsync(string taskId)
+    {
+        if (!_pushNotificationCache.TryGetValue(taskId, out var pushNotificationConfigs))
+        {
+            return Task.FromResult<IEnumerable<TaskPushNotificationConfig>>([]);
+        }
+
+        return Task.FromResult<IEnumerable<TaskPushNotificationConfig>>(pushNotificationConfigs);
     }
 }

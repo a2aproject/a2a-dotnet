@@ -122,13 +122,13 @@ public static class A2AJsonRpcProcessor
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, setConfig);
                 break;
             case A2AMethods.TaskPushNotificationConfigGet:
-                var taskIdParamsGetConfig = (TaskIdParams?)parameters.Value.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(TaskIdParams))!);
-                if (taskIdParamsGetConfig == null)
+                var notificationConfigParams = (GetTaskPushNotificationConfigParams?)parameters.Value.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(GetTaskPushNotificationConfigParams))!);
+                if (notificationConfigParams == null)
                 {
                     response = JsonRpcResponse.InvalidParamsResponse(requestId);
                     break;
                 }
-                var getConfig = await taskManager.GetPushNotificationAsync(taskIdParamsGetConfig);
+                var getConfig = await taskManager.GetPushNotificationAsync(notificationConfigParams);
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, getConfig);
                 break;
             default:

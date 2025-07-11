@@ -5,7 +5,7 @@ namespace A2A;
 /// <summary>
 /// Defines authentication details for push notifications.
 /// </summary>
-public sealed class AuthenticationInfo
+public sealed class PushNotificationAuthenticationInfo
 {
     /// <summary>
     /// Supported authentication schemes - e.g. Basic, Bearer.

@@ -61,8 +61,8 @@ public interface IA2AClient
     /// <summary>
     /// Retrieves the push notification configuration for a specific task.
     /// </summary>
-    /// <param name="taskIdParams">Parameters containing the task ID.</param>
+    /// <param name="notificationConfigParams">Parameters containing the task ID and optional push notification config ID.</param>
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
     /// <returns>The push notification configuration for the specified task.</returns>
-    Task<TaskPushNotificationConfig> GetPushNotificationAsync(TaskIdParams taskIdParams, CancellationToken cancellationToken = default);
+    Task<TaskPushNotificationConfig> GetPushNotificationAsync(GetTaskPushNotificationConfigParams notificationConfigParams, CancellationToken cancellationToken = default);
 }
