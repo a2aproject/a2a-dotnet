@@ -39,4 +39,10 @@ public sealed class Artifact
     /// </summary>
     [JsonPropertyName("metadata")]
     public Dictionary<string, JsonElement>? Metadata { get; set; }
+
+    /// <summary>
+    /// The URIs of extensions that are present or contributed to this Artifact.
+    /// </summary>
+    [JsonPropertyName("extensions")]
+    public List<string>? Extensions { get; set; }
 }

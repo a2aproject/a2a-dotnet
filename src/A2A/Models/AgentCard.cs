@@ -43,6 +43,12 @@ public sealed class AgentCard
     public string Url { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets a URL to an icon for the agent. (e.g., `https://agent.example.com/icon.png`).
+    /// </summary>
+    [JsonPropertyName("iconUrl")]
+    public string? IconUrl { get; set; }
+
+    /// <summary>
     /// Gets or sets the service provider of the agent.
     /// </summary>
     [JsonPropertyName("provider")]

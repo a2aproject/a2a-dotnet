@@ -98,4 +98,10 @@ public sealed class Message : A2AResponse
     /// </summary>
     [JsonPropertyName("contextId")]
     public string? ContextId { get; set; }
+
+    /// <summary>
+    /// The URIs of extensions that are present or contributed to this Message.
+    /// </summary>
+    [JsonPropertyName("extensions")]
+    public List<string>? Extensions { get; set; }
 }
