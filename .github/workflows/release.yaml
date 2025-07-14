@@ -1,0 +1,178 @@
+# Publish new package versions of A2A .NET SDK
+# Daily and Manual Runs
+# - Triggered automatically at 07:00 UTC daily
+# - Triggered manually using GitHub Actions workflow_dispatch event
+# - Version prefix applied from Directory.Build.props
+# - Version suffix set to `ci.{github.run_number}`
+# - Package published to GitHub package registry
+#
+# Official Releases
+# - Triggered after a GitHub Release is created
+# - Version prefix applied from Directory.Build.props
+# - Version suffix applied from Directory.Build.props
+# - Package published to GitHub package registry
+# - Package published to NuGet.org
+# - Version prefix and/or suffix should be updated after each release
+
+name: Release Publishing
+
+on:
+  schedule:
+    - cron: '0 7 * * *'
+
+  workflow_dispatch:
+    inputs:
+      version_suffix_override:
+        description: Version suffix override
+        type: string
+
+  release:
+    types: [published]
+
+jobs:
+  build-all-configs:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        configuration: [Debug, Release]
+      fail-fast: false
+
+    runs-on: ${{ matrix.os }}
+
+    permissions:
+      contents: read
+
+    steps:
+    - name: Clone the repo
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      with:
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+
+    - name: Set up .NET
+      uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+      with:
+        dotnet-version: 9.0.x
+
+    - name: Build
+      run: dotnet build --configuration ${{ matrix.configuration }}
+
+    - name: Pack
+      run: dotnet pack --configuration ${{ matrix.configuration }}
+
+  build-package:
+    runs-on: windows-latest
+    needs: build-all-configs
+
+    permissions:
+      contents: read
+
+    env:
+      version_suffix_args: ${{ github.event_name != 'release' && format('--version-suffix "{0}"', inputs.version_suffix_override || format('ci.{0}', github.run_number)) || '' }}
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: |
+            9.0.x
+            8.0.x
+
+      - name: Pack
+        run: dotnet pack
+          ${{ env.version_suffix_args }}
+          --configuration Release
+          --output "${{ github.workspace }}/artifacts/packages"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() }}
+        with:
+          name: build-artifacts
+          path: ${{ github.workspace }}/artifacts
+
+  publish-github:
+    needs: build-package
+    runs-on: ubuntu-latest
+
+    permissions:
+      packages: write
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+
+      - name: Authenticate to GitHub registry
+        run: dotnet nuget add source
+          "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
+          --name "github"
+          --username ${{ github.actor }}
+          --password ${{ secrets.GITHUB_TOKEN }}
+          --store-password-in-clear-text
+
+      - name: Publish to GitHub NuGet package registry
+        run: dotnet nuget push
+            ${{github.workspace}}/build-artifacts/packages/*.nupkg
+            --source "github"
+            --api-key ${{ secrets.GITHUB_TOKEN }}
+            --skip-duplicate
+
+  publish-release:
+    if: github.event_name == 'release'
+    needs: build-package
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+
+      - name: Upload release asset
+        run: gh release upload ${{ github.event.release.tag_name }}
+          ${{ github.workspace }}/build-artifacts/packages/*.*nupkg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-nuget:
+    # Only publish to NuGet.org from the a2aproject/a2a-dotnet repository
+    if: ${{ github.event_name == 'release' && github.repository == 'a2aproject/a2a-dotnet' }}
+    needs: build-package
+    runs-on: ubuntu-latest
+
+    permissions: { }
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+
+      - name: Publish to NuGet.org (Releases only)
+        run: dotnet nuget push
+            ${{github.workspace}}/build-artifacts/packages/*.nupkg
+            --source https://api.nuget.org/v3/index.json
+            --api-key ${{ secrets.NUGET_KEY_A2A }}
+            --skip-duplicate
