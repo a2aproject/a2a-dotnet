@@ -41,7 +41,7 @@ Content-Type: application/json
 GET {{host}}/echo/v1/tasks/12345
 
 ### SendSubscribe a task to the echo agent
-POST {{host}}/echo/v1/tasks/sendsubscribeTaskId2/subscribe
+POST {{host}}/echo/tasks/sendsubscribeTaskId2/sendsubscribe
 Content-Type: application/json
 
 {
