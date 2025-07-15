@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 
 namespace A2A.AspNetCore;
 
@@ -25,7 +26,7 @@ public static class A2ARouteBuilderExtensions
     /// <param name="taskManager">The task manager for handling A2A operations.</param>
     /// <param name="path">The base path for the A2A endpoints.</param>
     /// <returns>An endpoint convention builder for further configuration.</returns>
-    public static IEndpointConventionBuilder MapA2A(this IEndpointRouteBuilder endpoints, TaskManager taskManager, string path)
+    public static IEndpointConventionBuilder MapA2A(this IEndpointRouteBuilder endpoints, TaskManager taskManager, [StringSyntax("Route")] string path)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(taskManager);
@@ -36,9 +37,9 @@ public static class A2ARouteBuilderExtensions
 
         var routeGroup = endpoints.MapGroup("");
 
-        routeGroup.MapGet($"{path}/.well-known/agent.json", (HttpRequest request) =>
+        routeGroup.MapGet(".well-known/agent.json", (HttpRequest request) =>
         {
-            var agentUrl = $"{request.Scheme}://{request.Host}{request.Path}";
+            var agentUrl = $"{request.Scheme}://{request.Host}{path}";
             var agentCard = taskManager.OnAgentCardQuery(agentUrl);
             return Results.Ok(agentCard);
         });
@@ -55,7 +56,7 @@ public static class A2ARouteBuilderExtensions
     /// <param name="taskManager">The task manager for handling A2A operations.</param>
     /// <param name="path">The base path for the HTTP A2A endpoints.</param>
     /// <returns>An endpoint convention builder for further configuration.</returns>
-    public static IEndpointConventionBuilder MapHttpA2A(this IEndpointRouteBuilder endpoints, TaskManager taskManager, string path)
+    public static IEndpointConventionBuilder MapHttpA2A(this IEndpointRouteBuilder endpoints, TaskManager taskManager, [StringSyntax("Route")] string path)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(taskManager);

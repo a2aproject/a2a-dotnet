@@ -34,22 +34,30 @@ echoAgent.Attach(echoTaskManager);
 app.MapA2A(echoTaskManager, "/echo");
 app.MapHttpA2A(echoTaskManager, "/echo");
 
-// Create instance of EchoAgent with tasks
-var echoAgentWithTasks = new EchoAgentWithTasks();
-var echoTaskManagerWithTasks = new TaskManager();
-echoAgentWithTasks.Attach(echoTaskManagerWithTasks);
-app.MapA2A(echoTaskManagerWithTasks, "/echotasks");
-app.MapHttpA2A(echoTaskManagerWithTasks, "/echotasks");
+// TODO: The code below will be refactored as part of the sample refactoring task https://github.com/a2aproject/a2a-dotnet/issues/57
 
-// Create instance of HostedClientAgent
-var hostedClientAgent = new HostedClientAgent();
-var hostedClientTaskManager = new TaskManager();
-hostedClientAgent.Attach(hostedClientTaskManager);
-app.MapA2A(hostedClientTaskManager, "/hostedclient");
+//var echoAgent = new EchoAgent();
+//var echoTaskManager = new TaskManager();
+//echoAgent.Attach(echoTaskManager);
+//app.MapA2A(echoTaskManager, "/echo");
+//app.MapHttpA2A(echoTaskManager, "/echo");
 
-var researcherAgent = new ResearcherAgent();
-var researcherTaskManager = new TaskManager();
-researcherAgent.Attach(researcherTaskManager);
-app.MapA2A(researcherTaskManager, "/researcher");
+//// Create instance of EchoAgent with tasks
+//var echoAgentWithTasks = new EchoAgentWithTasks();
+//var echoTaskManagerWithTasks = new TaskManager();
+//echoAgentWithTasks.Attach(echoTaskManagerWithTasks);
+//app.MapA2A(echoTaskManagerWithTasks, "/echotasks");
+//app.MapHttpA2A(echoTaskManagerWithTasks, "/echotasks");
+
+//// Create instance of HostedClientAgent
+//var hostedClientAgent = new HostedClientAgent();
+//var hostedClientTaskManager = new TaskManager();
+//hostedClientAgent.Attach(hostedClientTaskManager);
+//app.MapA2A(hostedClientTaskManager, "/hostedclient");
+
+//var researcherAgent = new ResearcherAgent();
+//var researcherTaskManager = new TaskManager();
+//researcherAgent.Attach(researcherTaskManager);
+//app.MapA2A(researcherTaskManager, "/researcher");
 
 app.Run();
