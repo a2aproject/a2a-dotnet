@@ -12,7 +12,6 @@ builder.Services.AddOpenTelemetry()
     .WithTracing(tracing => tracing
         .AddSource(TaskManager.ActivitySource.Name)
         .AddSource(A2AJsonRpcProcessor.ActivitySource.Name)
-        .AddSource(HostedClientAgent.ActivitySource.Name)
         .AddSource(ResearcherAgent.ActivitySource.Name)
         .AddAspNetCoreInstrumentation()
         .AddHttpClientInstrumentation()
@@ -22,42 +21,61 @@ builder.Services.AddOpenTelemetry()
             options.Endpoint = new Uri("http://localhost:4317");
             options.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.Grpc;
         })
-        );
+    );
 
 var app = builder.Build();
 
 app.UseHttpsRedirection();
 
-var echoAgent = new EchoAgent();
-var echoTaskManager = new TaskManager();
-echoAgent.Attach(echoTaskManager);
-app.MapA2A(echoTaskManager, "/echo");
-app.MapHttpA2A(echoTaskManager, "/echo");
+// Get the agent type from command line arguments
+var agentType = GetAgentTypeFromArgs(args);
 
-// TODO: The code below will be refactored as part of the sample refactoring task https://github.com/a2aproject/a2a-dotnet/issues/57
+// Create and register the specified agent
+var taskManager = new TaskManager();
 
-//var echoAgent = new EchoAgent();
-//var echoTaskManager = new TaskManager();
-//echoAgent.Attach(echoTaskManager);
-//app.MapA2A(echoTaskManager, "/echo");
-//app.MapHttpA2A(echoTaskManager, "/echo");
+switch (agentType.ToLowerInvariant())
+{
+    case "echo":
+        var echoAgent = new EchoAgent();
+        echoAgent.Attach(taskManager);
+        app.MapA2A(taskManager, "/echo");
+        app.MapHttpA2A(taskManager, "/echo");
+        break;
 
-//// Create instance of EchoAgent with tasks
-//var echoAgentWithTasks = new EchoAgentWithTasks();
-//var echoTaskManagerWithTasks = new TaskManager();
-//echoAgentWithTasks.Attach(echoTaskManagerWithTasks);
-//app.MapA2A(echoTaskManagerWithTasks, "/echotasks");
-//app.MapHttpA2A(echoTaskManagerWithTasks, "/echotasks");
+    case "echotasks":
+        var echoAgentWithTasks = new EchoAgentWithTasks();
+        echoAgentWithTasks.Attach(taskManager);
+        app.MapA2A(taskManager, "/echotasks");
+        app.MapHttpA2A(taskManager, "/echotasks");
+        break;
 
-//// Create instance of HostedClientAgent
-//var hostedClientAgent = new HostedClientAgent();
-//var hostedClientTaskManager = new TaskManager();
-//hostedClientAgent.Attach(hostedClientTaskManager);
-//app.MapA2A(hostedClientTaskManager, "/hostedclient");
+    case "researcher":
+        var researcherAgent = new ResearcherAgent();
+        researcherAgent.Attach(taskManager);
+        app.MapA2A(taskManager, "/researcher");
+        break;
 
-//var researcherAgent = new ResearcherAgent();
-//var researcherTaskManager = new TaskManager();
-//researcherAgent.Attach(researcherTaskManager);
-//app.MapA2A(researcherTaskManager, "/researcher");
+    default:
+        Console.WriteLine($"Unknown agent type: {agentType}");
+        Console.WriteLine("Available agents: echo, echotasks, researcher");
+        Environment.Exit(1);
+        return;
+}
 
 app.Run();
+
+static string GetAgentTypeFromArgs(string[] args)
+{
+    // Look for --agent parameter
+    for (int i = 0; i < args.Length - 1; i++)
+    {
+        if (args[i] == "--agent" || args[i] == "-a")
+        {
+            return args[i + 1];
+        }
+    }
+
+    // Default to echo if no agent specified
+    Console.WriteLine("No agent specified. Use --agent or -a parameter to specify agent type (echo, echotasks, researcher). Defaulting to 'echo'.");
+    return "echo";
+}
