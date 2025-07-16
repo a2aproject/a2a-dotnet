@@ -1,0 +1,179 @@
+@host = http://localhost:5048
+
+#===============================================================================
+# PUSH NOTIFICATIONS REQUESTS
+# This file contains requests for managing push notifications for tasks
+# 
+# Launch Settings Profiles:
+# - echotasks-agent: Required for all push notification operations
+#===============================================================================
+
+#===============================================================================
+# HTTP API REQUESTS
+#===============================================================================
+
+## Create task for push notifications
+# Description: Creates a task that will be used for push notification examples
+# Profile: echotasks-agent
+# @name task
+POST {{host}}/echotasks/v1/message:send
+Content-Type: application/json
+{
+        "message": {
+            "messageId": "12345",
+            "role": "user",
+            "parts": [
+                {
+                    "kind": "text",
+                    "text": "Generate an image of a cat"
+                }
+            ]
+        }
+}
+
+###
+
+## Set push notification for task
+# Description: Configures push notifications for a task
+# Profile: echotasks-agent
+POST {{host}}/echotasks/v1/tasks/{{task.response.body.$.id}}/pushNotificationConfigs
+Content-Type: application/json
+{
+    "url": "http://localhost",
+    "token": "client-token"
+}
+
+###
+
+@pushNotificationId=12345
+
+## Set push notification with ID
+# Description: Configures push notifications with a specific ID
+# Profile: echotasks-agent
+POST {{host}}/echotasks/v1/tasks/{{task.response.body.$.id}}/pushNotificationConfigs
+Content-Type: application/json
+{
+    "id": "{{pushNotificationId}}",
+    "url": "http://localhost",
+    "token": "client-token"
+}
+
+###
+
+## Get push notification for task
+# Description: Retrieves push notification configuration for a task
+# Profile: echotasks-agent
+GET {{host}}/echotasks/v1/tasks/{{task.response.body.$.id}}/pushNotificationConfigs
+
+###
+
+## Get push notification by ID
+# Description: Retrieves a specific push notification configuration by ID
+# Profile: echotasks-agent
+GET {{host}}/echotasks/v1/tasks/{{task.response.body.$.id}}/pushNotificationConfigs/{{pushNotificationId}}
+
+###
+
+#===============================================================================
+# JSON-RPC REQUESTS
+#===============================================================================
+
+## Create task for push notifications
+# Description: Creates a task that will be used for push notification examples
+# Profile: echotasks-agent
+# @name task
+POST {{host}}/echotasks
+Content-Type: application/json
+{
+    "id": "3",
+    "jsonrpc": "2.0",
+    "method": "message/send",
+    "params": {
+          "message": {
+            "messageId": "12345",
+            "role": "user",
+            "parts": [
+                {
+                    "kind": "text",
+                    "text": "Generate an image of a cat"
+                }
+            ]
+        }
+    }
+}
+
+###
+
+## Set push notification for task
+# Description: Configures push notifications for a task
+# Profile: echotasks-agent
+POST {{host}}/echotasks
+Content-Type: application/json
+{
+    "id": "3",
+    "jsonrpc": "2.0",
+    "method": "tasks/pushNotificationConfig/set",
+    "params": {
+          "taskId": "{{task.response.body.$.result.id}}",
+          "pushNotificationConfig": {
+              "url": "http://localhost",
+              "token": "client-token"
+          }
+    }
+}
+
+###
+
+## Set push notification with ID
+# Description: Configures push notifications with a specific ID
+# Profile: echotasks-agent
+POST {{host}}/echotasks
+Content-Type: application/json
+{
+    "id": "3",
+    "jsonrpc": "2.0",
+    "method": "tasks/pushNotificationConfig/set",
+    "params": {
+        "taskId": "{{task.response.body.$.result.id}}",
+        "pushNotificationConfig": {
+            "id": "{{pushNotificationId}}",
+            "url": "http://localhost",
+            "token": "client-token"
+        }
+    }
+}
+
+###
+
+## Get push notification for task
+# Description: Retrieves push notification configuration for a task
+# Profile: echotasks-agent
+POST {{host}}/echotasks
+Content-Type: application/json
+{
+    "id": "3",
+    "jsonrpc": "2.0",
+    "method": "tasks/pushNotificationConfig/get",
+    "params": {
+        "id": "{{task.response.body.$.result.id}}"
+    }
+}
+
+###
+
+## Get push notification by ID
+# Description: Retrieves a specific push notification configuration by ID
+# Profile: echotasks-agent
+POST {{host}}/echotasks
+Content-Type: application/json
+{
+    "id": "3",
+    "jsonrpc": "2.0",
+    "method": "tasks/pushNotificationConfig/get",
+    "params": {
+        "id": "{{task.response.body.$.result.id}}",
+        "pushNotificationConfigId": "{{pushNotificationId}}"
+    }
+}
+
+###

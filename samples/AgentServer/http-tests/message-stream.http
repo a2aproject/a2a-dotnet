@@ -1,0 +1,88 @@
+@host = http://localhost:5048
+
+#===============================================================================
+# MESSAGE STREAM REQUESTS
+# This file contains requests for streaming messages to agents
+# 
+# Launch Settings Profiles:
+# - echo-agent: For basic echo agent streaming requests
+# - echotasks-agent: For echo agent with task management streaming support
+#===============================================================================
+
+#===============================================================================
+# HTTP API REQUESTS
+#===============================================================================
+
+## Stream message using sendsubscribe
+# Description: Sends a streaming message using sendsubscribe pattern
+# Profile: echo-agent or echotasks-agent
+POST {{host}}/echo/tasks/sendsubscribeTaskId2/sendsubscribe
+Content-Type: application/json
+{
+        "message": {
+            "messageId": "12345",
+            "role": "user",
+            "parts": [
+                {
+                    "kind": "text",
+                    "text": "Hello, world!"
+                }
+            ]
+        }
+}
+
+###
+
+#===============================================================================
+# JSON-RPC REQUESTS
+#===============================================================================
+
+## Stream message to echo agent
+# Description: Sends a streaming message to the echo agent
+# Profile: echo-agent
+POST {{host}}/echo
+Content-Type: application/json
+{
+    "id": "3",
+    "jsonrpc": "2.0",
+    "method": "message/stream",
+    "params": {
+        "message": {
+            "messageId": "messageId2",
+            "role": "user",
+            "parts": [
+                {
+                    "kind": "text",
+                    "text": "Hello, world!"
+                }
+            ]
+        }
+    }
+}
+
+###
+
+## Stream message to echo agent with tasks
+# Description: Sends a streaming message to the echo agent with task support
+# Profile: echotasks-agent
+POST {{host}}/echotasks
+Content-Type: application/json
+{
+    "id": "3",
+    "jsonrpc": "2.0",
+    "method": "message/stream",
+    "params": {
+        "message": {
+            "messageId": "messageId2",
+            "role": "user",
+            "parts": [
+                {
+                    "kind": "text",
+                    "text": "Hello, world!"
+                }
+            ]
+        }
+    }
+}
+
+###

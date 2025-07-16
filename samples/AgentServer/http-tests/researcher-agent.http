@@ -1,0 +1,84 @@
+@host = http://localhost:5048
+
+#===============================================================================
+# RESEARCHER AGENT REQUESTS
+# This file contains requests specific to the researcher agent functionality
+# 
+# Launch Settings Profiles:
+# - researcher-agent: Required for all researcher agent operations
+#===============================================================================
+
+#===============================================================================
+# JSON-RPC REQUESTS
+# (Note: Researcher agent currently only supports JSON-RPC protocol)
+#===============================================================================
+
+## Create research task
+# Description: Creates a new research task for the researcher agent
+# Profile: researcher-agent
+POST {{host}}/researcher
+Accept: application/json
+Content-Type: application/json
+{
+    "id": "1",
+    "jsonrpc": "2.0",
+    "method": "message/send",
+    "params": {
+       "message": {
+            "messageId": "asdasdasd",
+            "role": "user",
+            "parts": [
+                {
+                    "kind": "text",
+                    "text": "Research the current price of butter"
+                }
+            ]
+        }
+    }
+}
+
+###
+
+## Retrieve research task
+# Description: Retrieves a specific research task by ID
+# Profile: researcher-agent
+POST {{host}}/researcher
+Accept: application/json
+Content-Type: application/json
+{
+    "id": "2",
+    "jsonrpc": "2.0",
+    "method": "tasks/get",
+    "params": {
+        "id": "c65e7047-2938-432f-bae0-660d6d9fda50"
+    }
+}
+
+###
+
+## Continue research task
+# Description: Continues an existing research task with additional instructions
+# Profile: researcher-agent
+POST {{host}}/researcher
+Accept: application/json
+Content-Type: application/json
+{
+    "id": "1",
+    "jsonrpc": "2.0",
+    "method": "message/send",
+    "params": {
+        "message": {
+            "messageId": "abcdef",
+            "taskId": "c65e7047-2938-432f-bae0-660d6d9fda50",
+            "role": "user",
+            "parts": [
+                {
+                    "kind": "text",
+                    "text": "go ahead"
+                }
+            ]
+        }
+    }
+}
+
+###
