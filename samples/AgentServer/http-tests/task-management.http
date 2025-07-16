@@ -4,6 +4,8 @@
 # TASK MANAGEMENT REQUESTS
 # This file contains requests for creating, retrieving, and managing tasks
 # 
+# For setup instructions and launch profile details, see: ../README.md
+# 
 # Launch Settings Profiles:
 # - echotasks-agent: Required for all task management operations
 # - researcher-agent: For researcher agent task operations

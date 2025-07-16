@@ -4,6 +4,8 @@
 # RESEARCHER AGENT REQUESTS
 # This file contains requests specific to the researcher agent functionality
 # 
+# For setup instructions and launch profile details, see: ../README.md
+# 
 # Launch Settings Profiles:
 # - researcher-agent: Required for all researcher agent operations
 #===============================================================================

@@ -4,6 +4,8 @@
 # PUSH NOTIFICATIONS REQUESTS
 # This file contains requests for managing push notifications for tasks
 # 
+# For setup instructions and launch profile details, see: ../README.md
+# 
 # Launch Settings Profiles:
 # - echotasks-agent: Required for all push notification operations
 #===============================================================================

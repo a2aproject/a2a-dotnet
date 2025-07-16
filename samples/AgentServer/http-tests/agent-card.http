@@ -4,6 +4,8 @@
 # AGENT CARD REQUESTS
 # This file contains requests for retrieving agent cards
 # 
+# For setup instructions and launch profile details, see: ../README.md
+# 
 # Launch Settings Profiles:
 # - The .well-known endpoint works with any agent profile
 # - Agent-specific endpoints require the corresponding agent profile

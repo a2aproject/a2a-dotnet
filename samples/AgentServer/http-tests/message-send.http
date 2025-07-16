@@ -4,6 +4,8 @@
 # MESSAGE SEND REQUESTS
 # This file contains requests for sending messages synchronously to agents
 # 
+# For setup instructions and launch profile details, see: ../README.md
+# 
 # Launch Settings Profiles:
 # - echo-agent: For basic echo agent requests
 # - echotasks-agent: For echo agent with task management support
