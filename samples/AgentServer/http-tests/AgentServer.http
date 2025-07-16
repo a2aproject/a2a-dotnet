@@ -1,7 +1,7 @@
 @host = http://localhost:5048
 
 ### Query agent card for the echo agent
-GET {{host}}/echo/.well-known/agent.json
+GET {{host}}/.well-known/agent.json
 
 ### curl -N -X GET http://localhost:5048/echo/.well-known/agent.json
 
