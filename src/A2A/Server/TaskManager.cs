@@ -182,7 +182,7 @@ public sealed class TaskManager : ITaskManager
         }
         else
         {
-            // Fail if Task is in terminal stateS
+            // Fail if Task is in terminal states
             if (task.Status.State is TaskState.Completed or TaskState.Canceled or TaskState.Failed or TaskState.Rejected)
             {
                 activity?.SetTag("task.terminalState", true);
@@ -191,12 +191,13 @@ public sealed class TaskManager : ITaskManager
             // If the task is found, update its status and history
             task.History ??= [];
             task.History.Add(messageSendParams.Message);
+
+            TrimHistory(messageSendParams, task);
+
             await _taskStore.SetTaskAsync(task);
             using var createActivity = ActivitySource.StartActivity("OnTaskUpdated", ActivityKind.Server);
             await OnTaskUpdated(task);
         }
-
-        TrimHistory(messageSendParams, task);
 
         return task;
     }
@@ -283,6 +284,9 @@ public sealed class TaskManager : ITaskManager
             // If the task is found, update its status and history
             agentTask.History ??= [];
             agentTask.History.Add(messageSendParams.Message);
+
+            TrimHistory(messageSendParams, agentTask);
+
             await _taskStore.SetTaskAsync(agentTask);
             enumerator = new TaskUpdateEventEnumerator();
             _taskUpdateEventEnumerators[agentTask.Id] = enumerator;
@@ -292,8 +296,6 @@ public sealed class TaskManager : ITaskManager
                 await OnTaskUpdated(agentTask);
             });
         }
-
-        TrimHistory(messageSendParams, agentTask);
 
         return enumerator;  //TODO: Clean up enumerators after use
     }
