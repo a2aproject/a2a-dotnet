@@ -290,7 +290,7 @@ public sealed class TaskManager : ITaskManager
     /// Returns the event enumerator that was previously established for the task,
     /// allowing clients to reconnect to an active task stream.
     /// </remarks>
-    /// <param name="taskIdParams">Parameters containing the task ID to resubscribe to.</param>
+    /// <param name="taskIdParams">Parameters containing the task ID to subscribe to.</param>
     /// <returns>An async enumerable of events for the specified task.</returns>
     public IAsyncEnumerable<A2AEvent> SubscribeToTaskAsync(TaskIdParams taskIdParams)
     {

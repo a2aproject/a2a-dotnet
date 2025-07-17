@@ -127,7 +127,7 @@ internal static class A2AHttpProcessor
     /// <returns>An HTTP result containing the agent's response (Task or Message) or an error response.</returns>
     internal static async Task<IResult> SendMessage(TaskManager taskManager, ILogger logger, MessageSendParams sendParams)
     {
-        using var activity = ActivitySource.StartActivity("SendTaskMessage", ActivityKind.Server);
+        using var activity = ActivitySource.StartActivity("SendMessage", ActivityKind.Server);
         try
         {
             var a2aResponse = await taskManager.SendMessageAsync(sendParams);
@@ -158,7 +158,7 @@ internal static class A2AHttpProcessor
     /// <returns>An HTTP result that streams events as Server-Sent Events or an error response.</returns>
     internal static async Task<IResult> SendMessageStream(TaskManager taskManager, ILogger logger, MessageSendParams sendParams)
     {
-        using var activity = ActivitySource.StartActivity("SendSubscribeTaskMessage", ActivityKind.Server);
+        using var activity = ActivitySource.StartActivity("SendMessageStream", ActivityKind.Server);
         activity?.AddTag("task.id", sendParams.Message.TaskId);
 
         try

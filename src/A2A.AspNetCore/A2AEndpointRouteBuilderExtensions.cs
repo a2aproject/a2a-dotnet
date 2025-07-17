@@ -93,7 +93,7 @@ public static class A2ARouteBuilderExtensions
         routeGroup.MapPost("/v1/message:send", ([FromBody] MessageSendParams sendParams) =>
             A2AHttpProcessor.SendMessage(taskManager, logger, sendParams));
 
-        // /v1/message:send endpoint
+        // /v1/message:stream endpoint
         routeGroup.MapPost("/v1/message:stream", ([FromBody] MessageSendParams sendParams) =>
             A2AHttpProcessor.SendMessageStream(taskManager, logger, sendParams));
 
