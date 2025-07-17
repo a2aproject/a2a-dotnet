@@ -28,11 +28,29 @@ public static class A2AJsonRpcProcessor
     /// based on the method name and dispatches accordingly.
     /// </remarks>
     /// <param name="taskManager">The task manager instance for handling A2A operations.</param>
-    /// <param name="rpcRequest">The parsed JSON-RPC request containing method, parameters, and request ID.</param>
+    /// <param name="rpcRequestBody">The JSON-RPC request containing method, parameters, and request ID.</param>
     /// <returns>An HTTP result containing either a single JSON-RPC response or a streaming SSE response.</returns>
-    internal static async Task<IResult> ProcessRequest(TaskManager taskManager, JsonRpcRequest rpcRequest)
+    internal static async Task<IResult> ProcessRequest(TaskManager taskManager, Stream rpcRequestBody)
     {
         using var activity = ActivitySource.StartActivity("HandleA2ARequest", ActivityKind.Server);
+
+        JsonRpcRequest rpcRequest;
+        try
+        {
+            rpcRequest = (JsonRpcRequest)(await JsonSerializer.DeserializeAsync(rpcRequestBody, jsonTypeInfo: A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcRequest))))!;
+        }
+        catch (JsonException)
+        {
+            return Results.BadRequest(new JsonRpcResponse
+            {
+                Error = new JsonRpcError
+                {
+                    Code = -32700,
+                    Message = "Invalid JSON payload",
+                }
+            });
+        }
+
         activity?.AddTag("request.id", rpcRequest.Id);
         activity?.AddTag("request.method", rpcRequest.Method);
 
