@@ -123,31 +123,13 @@ internal static class A2AHttpProcessor
     /// </remarks>
     /// <param name="taskManager">The task manager instance for handling message processing.</param>
     /// <param name="logger">Logger instance for recording operation details and errors.</param>
-    /// <param name="taskId">Optional task ID to send the message to. If null, a new task may be created.</param>
     /// <param name="sendParams">The message parameters containing the message content and configuration.</param>
-    /// <param name="historyLength">Optional limit on the number of history items to include in processing.</param>
-    /// <param name="metadata">Optional JSON metadata to include with the message request.</param>
     /// <returns>An HTTP result containing the agent's response (Task or Message) or an error response.</returns>
-    internal static async Task<IResult> SendTaskMessage(TaskManager taskManager, ILogger logger, string? taskId, MessageSendParams sendParams, int? historyLength, string? metadata)
+    internal static async Task<IResult> SendMessage(TaskManager taskManager, ILogger logger, MessageSendParams sendParams)
     {
         using var activity = ActivitySource.StartActivity("SendTaskMessage", ActivityKind.Server);
-        if (taskId != null)
-        {
-            activity?.AddTag("task.id", taskId);
-        }
-
         try
         {
-            if (taskId != null)
-            {
-                sendParams.Message.TaskId = taskId;
-            }
-            sendParams.Configuration = new MessageSendConfiguration
-            {
-                HistoryLength = historyLength
-            };
-            sendParams.Metadata = string.IsNullOrWhiteSpace(metadata) ? null : (Dictionary<string, JsonElement>?)JsonSerializer.Deserialize(metadata, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(Dictionary<string, JsonElement>)));
-
             var a2aResponse = await taskManager.SendMessageAsync(sendParams);
             if (a2aResponse == null)
             {
@@ -172,25 +154,15 @@ internal static class A2AHttpProcessor
     /// </remarks>
     /// <param name="taskManager">The task manager instance for handling streaming message processing.</param>
     /// <param name="logger">Logger instance for recording operation details and errors.</param>
-    /// <param name="id">The unique identifier of the task to send the message to.</param>
     /// <param name="sendParams">The message parameters containing the message content and configuration.</param>
-    /// <param name="historyLength">Optional limit on the number of history items to include in processing.</param>
-    /// <param name="metadata">Optional JSON metadata to include with the message request.</param>
     /// <returns>An HTTP result that streams events as Server-Sent Events or an error response.</returns>
-    internal static async Task<IResult> SendSubscribeTaskMessage(TaskManager taskManager, ILogger logger, string id, MessageSendParams sendParams, int? historyLength, string? metadata)
+    internal static async Task<IResult> SendMessageStream(TaskManager taskManager, ILogger logger, MessageSendParams sendParams)
     {
         using var activity = ActivitySource.StartActivity("SendSubscribeTaskMessage", ActivityKind.Server);
-        activity?.AddTag("task.id", id);
+        activity?.AddTag("task.id", sendParams.Message.TaskId);
 
         try
         {
-            sendParams.Message.TaskId = id;
-            sendParams.Configuration = new MessageSendConfiguration()
-            {
-                HistoryLength = historyLength
-            };
-            sendParams.Metadata = string.IsNullOrWhiteSpace(metadata) ? null : (Dictionary<string, JsonElement>?)JsonSerializer.Deserialize(metadata, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(Dictionary<string, JsonElement>)));
-
             var taskEvents = await taskManager.SendMessageStreamAsync(sendParams);
 
             return new A2AEventStreamResult(taskEvents);
@@ -213,20 +185,20 @@ internal static class A2AHttpProcessor
     /// <param name="logger">Logger instance for recording operation details and errors.</param>
     /// <param name="id">The unique identifier of the task to resubscribe to.</param>
     /// <returns>An HTTP result that streams existing task events or an error response.</returns>
-    internal static IResult ResubscribeTask(TaskManager taskManager, ILogger logger, string id)
+    internal static IResult SubscribeTask(TaskManager taskManager, ILogger logger, string id)
     {
-        using var activity = ActivitySource.StartActivity("ResubscribeTask", ActivityKind.Server);
+        using var activity = ActivitySource.StartActivity("SubscribeTask", ActivityKind.Server);
         activity?.AddTag("task.id", id);
 
         try
         {
-            var taskEvents = taskManager.ResubscribeAsync(new TaskIdParams { Id = id });
+            var taskEvents = taskManager.SubscribeToTaskAsync(new TaskIdParams { Id = id });
 
             return new A2AEventStreamResult(taskEvents);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error resubscribing to task");
+            logger.LogError(ex, "Error subscribing to task");
             return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
         }
     }

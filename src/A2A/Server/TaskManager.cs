@@ -292,14 +292,14 @@ public sealed class TaskManager : ITaskManager
     /// </remarks>
     /// <param name="taskIdParams">Parameters containing the task ID to resubscribe to.</param>
     /// <returns>An async enumerable of events for the specified task.</returns>
-    public IAsyncEnumerable<A2AEvent> ResubscribeAsync(TaskIdParams taskIdParams)
+    public IAsyncEnumerable<A2AEvent> SubscribeToTaskAsync(TaskIdParams taskIdParams)
     {
         if (taskIdParams is null)
         {
             throw new ArgumentNullException(nameof(taskIdParams));
         }
 
-        using var activity = ActivitySource.StartActivity("Resubscribe", ActivityKind.Server);
+        using var activity = ActivitySource.StartActivity("SubscribeToTask", ActivityKind.Server);
         activity?.SetTag("task.id", taskIdParams.Id);
 
         return _taskUpdateEventEnumerators.TryGetValue(taskIdParams.Id, out var enumerator) ?

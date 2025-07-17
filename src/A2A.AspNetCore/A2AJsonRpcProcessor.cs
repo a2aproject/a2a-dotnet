@@ -172,7 +172,7 @@ public static class A2AJsonRpcProcessor
                     return new JsonRpcResponseResult(JsonRpcResponse.InvalidParamsResponse(requestId));
                 }
 
-                var taskEvents = taskManager.ResubscribeAsync(taskIdParams);
+                var taskEvents = taskManager.SubscribeToTaskAsync(taskIdParams);
                 return new JsonRpcStreamedResult(taskEvents, requestId);
             case A2AMethods.MessageStream:
                 try

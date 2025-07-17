@@ -391,7 +391,7 @@ public class TaskManagerTests
     }
 
     [Fact]
-    public async Task ResubscribeAsync_ReturnsEnumerator_WhenTaskExists()
+    public async Task SubscribeToTaskAsync_ReturnsEnumerator_WhenTaskExists()
     {
         // Arrange
         var sut = new TaskManager();
@@ -409,29 +409,29 @@ public class TaskManagerTests
         // Register the enumerator for the taskId
         var enumerator = await sut.SendMessageStreamAsync(sendParams);
 
-        // Now, ResubscribeAsync should return the same enumerator instance for the taskId
-        var result = sut.ResubscribeAsync(new TaskIdParams { Id = task.Id });
+        // Now, SubscribeToTaskAsync should return the same enumerator instance for the taskId
+        var result = sut.SubscribeToTaskAsync(new TaskIdParams { Id = task.Id });
         Assert.Same(enumerator, result);
     }
 
     [Fact]
-    public void ResubscribeAsync_Throws_WhenTaskDoesNotExist()
+    public void SubscribeToTaskAsync_Throws_WhenTaskDoesNotExist()
     {
         // Arrange
         var sut = new TaskManager();
 
         // Act & Assert
-        Assert.Throws<ArgumentException>(() => sut.ResubscribeAsync(new TaskIdParams { Id = "notfound" }));
+        Assert.Throws<ArgumentException>(() => sut.SubscribeToTaskAsync(new TaskIdParams { Id = "notfound" }));
     }
 
     [Fact]
-    public void ResubscribeAsync_ThrowsOnNullParams()
+    public void SubscribeToTaskAsync_ThrowsOnNullParams()
     {
         // Arrange
         var sut = new TaskManager();
 
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => sut.ResubscribeAsync(null!));
+        Assert.Throws<ArgumentNullException>(() => sut.SubscribeToTaskAsync(null!));
     }
 
     [Fact]

@@ -79,8 +79,7 @@ public static class A2ARouteBuilderExtensions
         routeGroup.MapPost("/v1/tasks/{id}:cancel", (string id) => A2AHttpProcessor.CancelTask(taskManager, logger, id));
 
         // /v1/tasks/{id}:subscribe endpoint
-        routeGroup.MapGet("/v1/tasks/{id}:subscribe", (string id, [FromBody] MessageSendParams sendParams, int? historyLength, string? metadata) =>
-            A2AHttpProcessor.SendSubscribeTaskMessage(taskManager, logger, id, sendParams, historyLength, metadata));
+        routeGroup.MapGet("/v1/tasks/{id}:subscribe", (string id) => A2AHttpProcessor.SubscribeTask(taskManager, logger, id));
 
         // /v1/tasks/{id}/pushNotificationConfigs endpoint - POST
         routeGroup.MapPost("/v1/tasks/{id}/pushNotificationConfigs", (string id, [FromBody] PushNotificationConfig pushNotificationConfig) =>
@@ -91,8 +90,12 @@ public static class A2ARouteBuilderExtensions
             A2AHttpProcessor.GetPushNotification(taskManager, logger, id, notificationConfigId));
 
         // /v1/message:send endpoint
-        routeGroup.MapPost("/v1/message:send", ([FromBody] MessageSendParams sendParams, int? historyLength, string? metadata) =>
-            A2AHttpProcessor.SendTaskMessage(taskManager, logger, null, sendParams, historyLength, metadata));
+        routeGroup.MapPost("/v1/message:send", ([FromBody] MessageSendParams sendParams) =>
+            A2AHttpProcessor.SendMessage(taskManager, logger, sendParams));
+
+        // /v1/message:send endpoint
+        routeGroup.MapPost("/v1/message:stream", ([FromBody] MessageSendParams sendParams) =>
+            A2AHttpProcessor.SendMessageStream(taskManager, logger, sendParams));
 
         return routeGroup;
     }

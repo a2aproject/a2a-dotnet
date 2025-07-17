@@ -71,12 +71,14 @@ public class A2AHttpProcessorTests
         });
         var taskManager = new TaskManager(taskStore: taskStore);
         var logger = NullLogger.Instance;
-        var id = "testId";
-        var sendParams = new MessageSendParams();
-        var historyLength = 10;
+        var sendParams = new MessageSendParams
+        {
+            Message = { TaskId = "testId" },
+            Configuration = new() { HistoryLength = 10 }
+        };
 
         // Act
-        var result = await A2AHttpProcessor.SendTaskMessage(taskManager, logger, id, sendParams, historyLength, null);
+        var result = await A2AHttpProcessor.SendMessage(taskManager, logger, sendParams);
 
         // Assert
         Assert.NotNull(result);
