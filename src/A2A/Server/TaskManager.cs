@@ -195,7 +195,20 @@ public sealed class TaskManager : ITaskManager
             using var createActivity = ActivitySource.StartActivity("OnTaskUpdated", ActivityKind.Server);
             await OnTaskUpdated(task);
         }
+
+        TrimHistory(messageSendParams, task);
+
         return task;
+    }
+
+    private static void TrimHistory(MessageSendParams messageSendParams, AgentTask task)
+    {
+        // Trim history if historyLength is specified
+        if (messageSendParams.Configuration?.HistoryLength.HasValue is true && task.History?.Count > messageSendParams.Configuration.HistoryLength.Value)
+        {
+            int count = messageSendParams.Configuration.HistoryLength.Value;
+            task.History = [.. task.History.Skip(Math.Max(0, task.History.Count - count))];
+        }
     }
 
     /// <summary>
@@ -279,6 +292,8 @@ public sealed class TaskManager : ITaskManager
                 await OnTaskUpdated(agentTask);
             });
         }
+
+        TrimHistory(messageSendParams, agentTask);
 
         return enumerator;  //TODO: Clean up enumerators after use
     }
