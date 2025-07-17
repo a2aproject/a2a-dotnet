@@ -490,4 +490,42 @@ public class TaskManagerTests
         Assert.Equal("http://first-config", result.PushNotificationConfig.Url);
         Assert.Equal("token1", result.PushNotificationConfig.Token);
     }
+
+    [Fact]
+    public async Task SendMessageAsync_RespectsHistoryLength()
+    {
+        var taskManager = new TaskManager();
+        var taskSendParams = new MessageSendParams
+        {
+            Message = new Message
+            {
+                Parts = [new TextPart { Text = "First" }]
+            },
+        };
+        // Create initial task
+        var task = await taskManager.SendMessageAsync(taskSendParams) as AgentTask;
+        Assert.NotNull(task);
+        // Add more messages to history
+        for (int i = 2; i <= 5; i++)
+        {
+            var updateParams = new MessageSendParams
+            {
+                Message = new Message { TaskId = task.Id, Parts = [new TextPart { Text = $"Msg{i}" }] },
+            };
+            await taskManager.SendMessageAsync(updateParams);
+        }
+        // Request with historyLength = 3
+        var checkParams = new MessageSendParams
+        {
+            Message = new Message { TaskId = task.Id, Parts = [new TextPart { Text = "Check" }] },
+            Configuration = new() { HistoryLength = 3 }
+        };
+        var resultTask = await taskManager.SendMessageAsync(checkParams) as AgentTask;
+        Assert.NotNull(resultTask);
+        Assert.NotNull(resultTask.History);
+        Assert.Equal(3, resultTask.History.Count);
+        Assert.Equal("Msg4", (resultTask.History[0].Parts[0] as TextPart)?.Text);
+        Assert.Equal("Msg5", (resultTask.History[1].Parts[0] as TextPart)?.Text);
+        Assert.Equal("Check", (resultTask.History[2].Parts[0] as TextPart)?.Text);
+    }
 }
