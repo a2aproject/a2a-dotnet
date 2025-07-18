@@ -54,9 +54,16 @@ public interface ITaskManager
     /// <remarks>
     /// The task is immediately persisted to the task store.
     /// </remarks>
-    /// <param name="contextId">Optional context ID for the task. If null, a new GUID is generated.</param>
-    /// <returns>The created task with Submitted status and unique identifiers.</returns>
-    Task<AgentTask> CreateTaskAsync(string? contextId = null);
+    /// <param name="contextId">
+    /// Optional context ID for the task. If null, a new GUID is generated.
+    /// </param>
+    /// <param name="taskId">
+    /// Optional task ID for the task. If null, a new GUID is generated.
+    /// </param>
+    /// <returns>
+    /// The created <see cref="AgentTask"/> with <see cref="TaskState.Submitted"/> status and unique identifiers.
+    /// </returns>
+    Task<AgentTask> CreateTaskAsync(string? contextId = null, string? taskId = null);
 
     /// <summary>
     /// Adds an artifact to a task and notifies any active event streams.
