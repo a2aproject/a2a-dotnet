@@ -263,7 +263,7 @@ public static class A2AJsonRpcProcessor
     /// Validates the 'id' field of a JSON-RPC request.
     /// </summary>
     /// <param name="rootElement">The root JSON element containing the request.</param>
-    /// <returns>The extracted request ID as a string, or null if not present or null.</returns>
+    /// <returns>The extracted request ID as a string, or null if not present.</returns>
     /// <exception cref="A2AException">Thrown when the 'id' field has an invalid type.</exception>
     private static string? ValidateIdField(JsonElement rootElement)
     {
