@@ -189,8 +189,15 @@ public static class A2AJsonRpcProcessor
                     var taskIdParamsCancel = TryDeserialize(parameters.Value, (JsonTypeInfo<TaskIdParams>)A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(TaskIdParams)), requestId, out errResp);
                     if (errResp != null || taskIdParamsCancel == null)
                         return new JsonRpcResponseResult(errResp ?? JsonRpcResponse.InvalidParamsResponse(requestId));
-                    var cancelledTask = await taskManager.CancelTaskAsync(taskIdParamsCancel);
-                    response = JsonRpcResponse.CreateJsonRpcResponse(requestId, cancelledTask);
+                    try
+                    {
+                        var cancelledTask = await taskManager.CancelTaskAsync(taskIdParamsCancel);
+                        response = JsonRpcResponse.CreateJsonRpcResponse(requestId, cancelledTask);
+                    }
+                    catch (KeyNotFoundException)
+                    {
+                        response = JsonRpcResponse.TaskNotFoundResponse(requestId);
+                    }
                     break;
                 case A2AMethods.TaskPushNotificationConfigSet:
                     var taskPushNotificationConfig = TryDeserialize(parameters.Value, (JsonTypeInfo<TaskPushNotificationConfig>)A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(TaskPushNotificationConfig))!, requestId, out errResp);

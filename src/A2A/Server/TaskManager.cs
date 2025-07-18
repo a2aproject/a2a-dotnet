@@ -100,7 +100,7 @@ public sealed class TaskManager : ITaskManager
         }
 
         activity?.SetTag("task.found", false);
-        throw new ArgumentException("Task not found or invalid TaskIdParams.");
+        throw new KeyNotFoundException("Task not found or invalid TaskIdParams.");
     }
 
     /// <summary>
