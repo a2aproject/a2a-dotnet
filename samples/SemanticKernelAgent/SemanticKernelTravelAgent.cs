@@ -25,7 +25,7 @@ public class CurrencyPlugin
     /// Initialize a new instance of the CurrencyPlugin
     /// </summary>
     /// <param name="logger">Logger for the plugin</param>
-    /// <param name="httpClientFactory">HTTP client factory for making API requests</param>
+    /// <param name="httpClient">HTTP client for making requests</param>
     public CurrencyPlugin(ILogger<CurrencyPlugin> logger, HttpClient httpClient)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -107,8 +107,8 @@ public class SemanticKernelTravelAgent : IDisposable
     /// Initializes a new instance of the SemanticKernelTravelAgent
     /// </summary>
     /// <param name="configuration">Application configuration</param>
-    /// <param name="logger">Logger for the agent</param>
     /// <param name="httpClient">HTTP client</param>
+    /// <param name="logger">Logger for the agent</param>
     public SemanticKernelTravelAgent(
         IConfiguration configuration,
         HttpClient httpClient,
@@ -135,7 +135,7 @@ public class SemanticKernelTravelAgent : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    public void Attach(TaskManager taskManager)
+    public void Attach(ITaskManager taskManager)
     {
         _taskManager = taskManager;
         taskManager.OnTaskCreated = ExecuteAgentTask;
@@ -208,7 +208,7 @@ public class SemanticKernelTravelAgent : IDisposable
     private readonly CurrencyPlugin _currencyPlugin;
     private readonly HttpClient _httpClient;
     private readonly ChatCompletionAgent _agent;
-    private TaskManager? _taskManager;
+    private ITaskManager? _taskManager;
 
     public List<string> SupportedContentTypes { get; } = ["text", "text/plain"];
 
