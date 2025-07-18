@@ -206,10 +206,9 @@ public sealed class TaskManager : ITaskManager
     {
         // Trim history if historyLength is specified
         if (messageSendParams.Configuration?.HistoryLength is { } historyLength && task.History?.Count > historyLength)
-{
-    task.History = [.. task.History.Skip(Math.Max(0, task.History.Count - historyLength))];
-}
-
+        {
+            task.History = [.. task.History.Skip(Math.Max(0, task.History.Count - historyLength))];
+        }
     }
 
     /// <summary>
