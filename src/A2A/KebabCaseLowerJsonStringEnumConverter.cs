@@ -14,7 +14,7 @@ public sealed class KebabCaseLowerJsonStringEnumConverter<TEnum>() :
     where TEnum : struct, Enum;
 
 /// <summary>
-/// A JSON string enum converter that converts enum values to kebab-case lower strings.
+/// A JSON string enum converter that converts enum values to snake_case lower strings.
 /// </summary>
 /// <typeparam name="TEnum">The type of the enum to convert.</typeparam>
 [EditorBrowsable(EditorBrowsableState.Never)]
