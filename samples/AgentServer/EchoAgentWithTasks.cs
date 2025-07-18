@@ -4,9 +4,9 @@ namespace AgentServer;
 
 public class EchoAgentWithTasks
 {
-    private TaskManager? _taskManager;
+    private ITaskManager? _taskManager;
 
-    public void Attach(TaskManager taskManager)
+    public void Attach(ITaskManager taskManager)
     {
         _taskManager = taskManager;
         taskManager.OnTaskCreated = ProcessMessage;
