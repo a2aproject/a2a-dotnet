@@ -171,17 +171,9 @@ public static class A2AJsonRpcProcessor
                 var taskEvents = taskManager.SubscribeToTaskAsync(taskIdParams);
                 return new JsonRpcStreamedResult(taskEvents, requestId);
             case A2AMethods.MessageStream:
-                try
-                {
-                    var taskSendParams = DeserializeOrThrow<MessageSendParams>(parameters.Value);
-                    var sendEvents = await taskManager.SendMessageStreamAsync(taskSendParams);
-                    return new JsonRpcStreamedResult(sendEvents, requestId);
-                }
-                catch (Exception ex)
-                {
-                    activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-                    return new JsonRpcResponseResult(JsonRpcResponse.InternalErrorResponse(requestId, ex.Message));
-                }
+                var taskSendParams = DeserializeOrThrow<MessageSendParams>(parameters.Value);
+                var sendEvents = await taskManager.SendMessageStreamAsync(taskSendParams);
+                return new JsonRpcStreamedResult(sendEvents, requestId);
             default:
                 activity?.SetStatus(ActivityStatusCode.Error, "Invalid method");
                 return new JsonRpcResponseResult(JsonRpcResponse.MethodNotFoundResponse(requestId));
