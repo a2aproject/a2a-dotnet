@@ -63,7 +63,7 @@ public sealed class JsonRpcResponse
     /// <returns>A JSON-RPC error response.</returns>
     public static JsonRpcResponse InvalidParamsResponse(string requestId) => new()
     {
-        Id = Verify(requestId),
+        Id = requestId,
         Error = new JsonRpcError()
         {
             Code = -32602,
@@ -108,7 +108,7 @@ public sealed class JsonRpcResponse
     /// <returns>A JSON-RPC error response.</returns>
     public static JsonRpcResponse MethodNotFoundResponse(string requestId) => new()
     {
-        Id = Verify(requestId),
+        Id = requestId,
         Error = new JsonRpcError
         {
             Code = -32601,
@@ -155,11 +155,27 @@ public sealed class JsonRpcResponse
     /// <returns>A JSON-RPC error response.</returns>
     public static JsonRpcResponse ParseErrorResponse(string requestId, string? message = null) => new()
     {
-        Id = Verify(requestId),
+        Id = requestId,
         Error = new JsonRpcError
         {
             Code = -32700,
             Message = message ?? "Invalid JSON payload",
+        },
+    };
+
+    /// <summary>
+    /// Creates a JSON-RPC error response for invalid RPC content.
+    /// </summary>
+    /// <param name="requestId">The request ID.</param>
+    /// <param name="message">Optional error message.</param>
+    /// <returns>A JSON-RPC error response.</returns>
+    public static JsonRpcResponse InvalidJsonRpcResponse(string requestId, string? message = null) => new()
+    {
+        Id = requestId,
+        Error = new JsonRpcError
+        {
+            Code = -32600,
+            Message = message ?? "Invalid JSON-RPC request",
         },
     };
 

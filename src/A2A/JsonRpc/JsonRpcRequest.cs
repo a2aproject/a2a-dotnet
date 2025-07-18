@@ -15,7 +15,7 @@ public sealed class JsonRpcRequest
     /// MUST be exactly "2.0".
     /// </remarks>
     [JsonPropertyName("jsonrpc")]
-    [JsonRequired]
+    // [JsonRequired] - we have to reject this with a special payload
     public string JsonRpc { get; set; } = "2.0";
 
     /// <summary>
@@ -31,7 +31,7 @@ public sealed class JsonRpcRequest
     /// Gets or sets the string containing the name of the method to be invoked.
     /// </summary>
     [JsonPropertyName("method")]
-    [JsonRequired]
+    // [JsonRequired] - we have to reject this with a special payload
     public string Method { get; set; } = string.Empty;
 
     /// <summary>

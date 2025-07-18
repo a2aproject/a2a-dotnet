@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Net.ServerSentEvents;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 namespace A2A.AspNetCore;
 
@@ -34,40 +35,86 @@ public static class A2AJsonRpcProcessor
     {
         using var activity = ActivitySource.StartActivity("HandleA2ARequest", ActivityKind.Server);
 
-        JsonRpcRequest rpcRequest;
+        JsonDocument rpcRequestJson;
+        JsonRpcRequest? rpcRequest;
         try
         {
-            rpcRequest = (JsonRpcRequest)(await JsonSerializer.DeserializeAsync(rpcRequestBody, jsonTypeInfo: A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcRequest))))!;
+            rpcRequestJson = await JsonDocument.ParseAsync(rpcRequestBody);
+            rpcRequest = (JsonRpcRequest)rpcRequestJson.Deserialize(jsonTypeInfo: A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcRequest)))!;
+        }
+        catch (JsonException idEx) when (idEx.Message.StartsWith("The JSON value could not be converted to System.String. Path: $.id", StringComparison.Ordinal))
+        {
+            return new JsonRpcResponseResult(JsonRpcResponse.InvalidJsonRpcResponse(string.Empty));
         }
         catch (JsonException)
         {
-            return Results.BadRequest(new JsonRpcResponse
+            return new JsonRpcResponseResult(JsonRpcResponse.ParseErrorResponse(string.Empty));
+        }
+
+        if (rpcRequestJson.RootElement.TryGetProperty("id", out var id))
+        {
+            if (id.ValueKind is not JsonValueKind.String)
             {
-                Error = new JsonRpcError
+                return new JsonRpcResponseResult(JsonRpcResponse.ParseErrorResponse(string.Empty));
+            }
+        }
+
+        if (rpcRequest.JsonRpc is not "2.0" || string.IsNullOrWhiteSpace(rpcRequest.Method))
+        {
+            return new JsonRpcResponseResult(JsonRpcResponse.InvalidJsonRpcResponse(rpcRequest.Id));
+        }
+        else if (!A2AMethods.IsValid(rpcRequest.Method))
+        {
+            return new JsonRpcResponseResult(JsonRpcResponse.MethodNotFoundResponse(rpcRequest.Id));
+        }
+        else if (rpcRequest.Params is null or { ValueKind: not JsonValueKind.Object })
+        {
+            return new JsonRpcResponseResult(JsonRpcResponse.InvalidParamsResponse(rpcRequest.Id));
+        }
+        else if (string.IsNullOrWhiteSpace(rpcRequest.Id))
+        {   // Why don't we put this up with the JsonRpc check?
+            // Because the a2a-tck compliance test suite sends a payload that doesn't have request id OR method, and expects it to fail with the method error.
+            return new JsonRpcResponseResult(JsonRpcResponse.InvalidJsonRpcResponse(rpcRequest.Id));
+        }
+        else
+        {
+            var response = new JsonRpcResponse
+            {
+                Id = rpcRequest.Id,
+            };
+
+            activity?.AddTag("request.id", rpcRequest.Id);
+            activity?.AddTag("request.method", rpcRequest.Method);
+
+            var parsedParameters = rpcRequest.Params;
+            try
+            {
+                // Dispatch based on return type
+                if (A2AMethods.IsStreamingMethod(rpcRequest.Method))
                 {
-                    Code = -32700,
-                    Message = "Invalid JSON payload",
+                    return await StreamResponse(taskManager, rpcRequest.Id, rpcRequest.Method, parsedParameters);
                 }
-            });
-        }
 
-        activity?.AddTag("request.id", rpcRequest.Id);
-        activity?.AddTag("request.method", rpcRequest.Method);
+                return await SingleResponse(taskManager, rpcRequest.Id, rpcRequest.Method, parsedParameters);
+            }
+            catch (ArgumentNullException e)
+            {
+                if (e.ParamName is "requestId")
+                {
+                    response = JsonRpcResponse.InvalidJsonRpcResponse(rpcRequest.Id);
+                }
+                else
+                {
+                    response = JsonRpcResponse.InvalidParamsResponse(rpcRequest.Id);
+                }
+            }
+            catch (Exception e)
+            {
+                response = JsonRpcResponse.InternalErrorResponse(rpcRequest.Id, e.Message);
+                return new JsonRpcResponseResult(response, StatusCodes.Status500InternalServerError);
+            }
 
-        var parsedParameters = rpcRequest.Params;
-        // Dispatch based on return type
-        if (A2AMethods.IsStreamingMethod(rpcRequest.Method))
-        {
-            return await StreamResponse(taskManager, rpcRequest.Id, rpcRequest.Method, parsedParameters);
-        }
-
-        try
-        {
-            return await SingleResponse(taskManager, rpcRequest.Id, rpcRequest.Method, parsedParameters);
-        }
-        catch (Exception e)
-        {
-            return new JsonRpcResponseResult(JsonRpcResponse.InternalErrorResponse(rpcRequest.Id, e.Message));
+            return new JsonRpcResponseResult(response);
         }
     }
 
@@ -90,71 +137,95 @@ public static class A2AJsonRpcProcessor
         activity?.SetTag("request.method", method);
 
         JsonRpcResponse? response = null;
+        int statusCode = StatusCodes.Status200OK;
 
         if (parameters == null)
         {
             activity?.SetStatus(ActivityStatusCode.Error, "Invalid parameters");
-            return new JsonRpcResponseResult(JsonRpcResponse.InvalidParamsResponse(requestId));
+            response = JsonRpcResponse.InvalidParamsResponse(requestId);
+            return new JsonRpcResponseResult(response, statusCode);
         }
 
-        switch (method)
+        // Local function to handle deserialization and error trapping
+        T? TryDeserialize<T>(JsonElement element, JsonTypeInfo<T> typeInfo, string reqId, out JsonRpcResponse? errorResponse)
         {
-            case A2AMethods.MessageSend:
-                var taskSendParams = (MessageSendParams?)parameters.Value.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(MessageSendParams))); //TODO stop the double parsing
-                if (taskSendParams == null)
-                {
-                    response = JsonRpcResponse.InvalidParamsResponse(requestId);
-                    break;
-                }
-                var a2aResponse = await taskManager.SendMessageAsync(taskSendParams);
-                response = JsonRpcResponse.CreateJsonRpcResponse(requestId, a2aResponse);
-                break;
-            case A2AMethods.TaskGet:
-                var taskIdParams = (TaskQueryParams?)parameters.Value.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(TaskQueryParams)));
-                if (taskIdParams == null)
-                {
-                    response = JsonRpcResponse.InvalidParamsResponse(requestId);
-                    break;
-                }
-                var getAgentTask = await taskManager.GetTaskAsync(taskIdParams);
-                response = JsonRpcResponse.CreateJsonRpcResponse(requestId, getAgentTask);
-                break;
-            case A2AMethods.TaskCancel:
-                var taskIdParamsCancel = (TaskIdParams?)parameters.Value.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(TaskIdParams)));
-                if (taskIdParamsCancel == null)
-                {
-                    response = JsonRpcResponse.InvalidParamsResponse(requestId);
-                    break;
-                }
-                var cancelledTask = await taskManager.CancelTaskAsync(taskIdParamsCancel);
-                response = JsonRpcResponse.CreateJsonRpcResponse(requestId, cancelledTask);
-                break;
-            case A2AMethods.TaskPushNotificationConfigSet:
-                var taskPushNotificationConfig = (TaskPushNotificationConfig?)parameters.Value.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(TaskPushNotificationConfig))!);
-                if (taskPushNotificationConfig == null)
-                {
-                    response = JsonRpcResponse.InvalidParamsResponse(requestId);
-                    break;
-                }
-                var setConfig = await taskManager.SetPushNotificationAsync(taskPushNotificationConfig);
-                response = JsonRpcResponse.CreateJsonRpcResponse(requestId, setConfig);
-                break;
-            case A2AMethods.TaskPushNotificationConfigGet:
-                var notificationConfigParams = (GetTaskPushNotificationConfigParams?)parameters.Value.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(GetTaskPushNotificationConfigParams))!);
-                if (notificationConfigParams == null)
-                {
-                    response = JsonRpcResponse.InvalidParamsResponse(requestId);
-                    break;
-                }
-                var getConfig = await taskManager.GetPushNotificationAsync(notificationConfigParams);
-                response = JsonRpcResponse.CreateJsonRpcResponse(requestId, getConfig);
-                break;
-            default:
-                response = JsonRpcResponse.MethodNotFoundResponse(requestId);
-                break;
+            try
+            {
+                errorResponse = null;
+                return element.Deserialize(typeInfo);
+            }
+            catch (JsonException)
+            {
+                errorResponse = JsonRpcResponse.InvalidParamsResponse(reqId);
+                return default;
+            }
+            catch (InvalidOperationException)
+            {
+                errorResponse = JsonRpcResponse.InvalidParamsResponse(reqId);
+                return default;
+            }
         }
 
-        return new JsonRpcResponseResult(response);
+        try
+        {
+            switch (method)
+            {
+                case A2AMethods.MessageSend:
+                    JsonRpcResponse? errResp;
+                    var taskSendParams = TryDeserialize(parameters.Value, (JsonTypeInfo<MessageSendParams>)A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(MessageSendParams)), requestId, out errResp);
+                    if (errResp != null || taskSendParams == null)
+                        return new JsonRpcResponseResult(errResp ?? JsonRpcResponse.InvalidParamsResponse(requestId));
+                    var a2aResponse = await taskManager.SendMessageAsync(taskSendParams);
+                    response = JsonRpcResponse.CreateJsonRpcResponse(requestId, a2aResponse);
+                    break;
+                case A2AMethods.TaskGet:
+                    var taskIdParams = TryDeserialize(parameters.Value, (JsonTypeInfo<TaskQueryParams>)A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(TaskQueryParams)), requestId, out errResp);
+                    if (errResp != null || taskIdParams == null)
+                        return new JsonRpcResponseResult(errResp ?? JsonRpcResponse.InvalidParamsResponse(requestId));
+                    var getAgentTask = await taskManager.GetTaskAsync(taskIdParams);
+                    response = JsonRpcResponse.CreateJsonRpcResponse(requestId, getAgentTask);
+                    break;
+                case A2AMethods.TaskCancel:
+                    var taskIdParamsCancel = TryDeserialize(parameters.Value, (JsonTypeInfo<TaskIdParams>)A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(TaskIdParams)), requestId, out errResp);
+                    if (errResp != null || taskIdParamsCancel == null)
+                        return new JsonRpcResponseResult(errResp ?? JsonRpcResponse.InvalidParamsResponse(requestId));
+                    var cancelledTask = await taskManager.CancelTaskAsync(taskIdParamsCancel);
+                    response = JsonRpcResponse.CreateJsonRpcResponse(requestId, cancelledTask);
+                    break;
+                case A2AMethods.TaskPushNotificationConfigSet:
+                    var taskPushNotificationConfig = TryDeserialize(parameters.Value, (JsonTypeInfo<TaskPushNotificationConfig>)A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(TaskPushNotificationConfig))!, requestId, out errResp);
+                    if (errResp != null || taskPushNotificationConfig == null)
+                        return new JsonRpcResponseResult(errResp ?? JsonRpcResponse.InvalidParamsResponse(requestId));
+                    var setConfig = await taskManager.SetPushNotificationAsync(taskPushNotificationConfig);
+                    response = JsonRpcResponse.CreateJsonRpcResponse(requestId, setConfig);
+                    break;
+                case A2AMethods.TaskPushNotificationConfigGet:
+                    var notificationConfigParams = TryDeserialize(parameters.Value, (JsonTypeInfo<GetTaskPushNotificationConfigParams>)A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(GetTaskPushNotificationConfigParams))!, requestId, out errResp);
+                    if (errResp != null || notificationConfigParams == null)
+                        return new JsonRpcResponseResult(errResp ?? JsonRpcResponse.InvalidParamsResponse(requestId));
+                    var getConfig = await taskManager.GetPushNotificationAsync(notificationConfigParams);
+                    response = JsonRpcResponse.CreateJsonRpcResponse(requestId, getConfig);
+                    break;
+                default:
+                    response = JsonRpcResponse.MethodNotFoundResponse(requestId);
+                    statusCode = StatusCodes.Status404NotFound;
+                    return new JsonRpcResponseResult(response, statusCode);
+            }
+        }
+        catch (ArgumentException argX)
+        {
+            response = JsonRpcResponse.InvalidParamsResponse(requestId);
+            response.Error!.Message = argX.Message;
+            return new JsonRpcResponseResult(response);
+        }
+        catch (Exception ex)
+        {
+            response = JsonRpcResponse.InternalErrorResponse(requestId, ex.Message);
+            statusCode = StatusCodes.Status500InternalServerError;
+            return new JsonRpcResponseResult(response, statusCode);
+        }
+
+        return new JsonRpcResponseResult(response, statusCode);
     }
 
     /// <summary>
@@ -208,11 +279,11 @@ public static class A2AJsonRpcProcessor
                 catch (Exception ex)
                 {
                     activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-                    return new JsonRpcResponseResult(JsonRpcResponse.InternalErrorResponse(requestId, ex.Message));
+                    return new JsonRpcResponseResult(JsonRpcResponse.InternalErrorResponse(requestId, ex.Message), StatusCodes.Status500InternalServerError);
                 }
             default:
                 activity?.SetStatus(ActivityStatusCode.Error, "Invalid method");
-                return new JsonRpcResponseResult(JsonRpcResponse.MethodNotFoundResponse(requestId));
+                return new JsonRpcResponseResult(JsonRpcResponse.MethodNotFoundResponse(requestId), StatusCodes.Status404NotFound);
         }
     }
 }
@@ -227,16 +298,19 @@ public static class A2AJsonRpcProcessor
 public class JsonRpcResponseResult : IResult
 {
     private readonly JsonRpcResponse jsonRpcResponse;
+    private readonly int statusCode;
 
     /// <summary>
     /// Initializes a new instance of the JsonRpcResponseResult class.
     /// </summary>
     /// <param name="jsonRpcResponse">The JSON-RPC response object to serialize and return in the HTTP response.</param>
-    public JsonRpcResponseResult(JsonRpcResponse jsonRpcResponse)
+    /// <param name="statusCode">The HTTP status code to set for the response.</param>
+    public JsonRpcResponseResult(JsonRpcResponse jsonRpcResponse, int statusCode = StatusCodes.Status200OK)
     {
         ArgumentNullException.ThrowIfNull(jsonRpcResponse);
 
         this.jsonRpcResponse = jsonRpcResponse;
+        this.statusCode = statusCode;
     }
 
     /// <summary>
@@ -253,9 +327,7 @@ public class JsonRpcResponseResult : IResult
         ArgumentNullException.ThrowIfNull(httpContext);
 
         httpContext.Response.ContentType = "application/json";
-        httpContext.Response.StatusCode = jsonRpcResponse.Error is not null ?
-            StatusCodes.Status400BadRequest :
-            StatusCodes.Status200OK;
+        httpContext.Response.StatusCode = statusCode;
 
         await JsonSerializer.SerializeAsync(httpContext.Response.Body, jsonRpcResponse, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcResponse)));
     }
