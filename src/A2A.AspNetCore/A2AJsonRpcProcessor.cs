@@ -38,13 +38,13 @@ public static class A2AJsonRpcProcessor
 
         try
         {
-            rpcRequest = await ReadAndValidateJsonRpcRequest(request);
+            rpcRequest = (JsonRpcRequest?)await JsonSerializer.DeserializeAsync(request.Body, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcRequest)));
 
-            activity?.AddTag("request.id", rpcRequest.Id);
-            activity?.AddTag("request.method", rpcRequest.Method);
+            activity?.AddTag("request.id", rpcRequest!.Id);
+            activity?.AddTag("request.method", rpcRequest!.Method);
 
             // Dispatch based on return type
-            if (A2AMethods.IsStreamingMethod(rpcRequest.Method))
+            if (A2AMethods.IsStreamingMethod(rpcRequest!.Method))
             {
                 return await StreamResponse(taskManager, rpcRequest.Id, rpcRequest.Method, rpcRequest.Params);
             }
@@ -205,149 +205,6 @@ public static class A2AJsonRpcProcessor
             default:
                 activity?.SetStatus(ActivityStatusCode.Error, "Invalid method");
                 return new JsonRpcResponseResult(JsonRpcResponse.MethodNotFoundResponse(requestId));
-        }
-    }
-
-    /// <summary>
-    /// Reads a JSON-RPC request from the HTTP request body and validates it.
-    /// </summary>
-    /// <remarks>
-    /// This method parses the JSON request body and validates all JSON-RPC 2.0 protocol fields
-    /// including 'jsonrpc', 'method', 'id', and 'params' fields according to the specification.
-    /// </remarks>
-    /// <param name="request">The HTTP request containing the JSON-RPC request body.</param>
-    /// <returns>A validated and deserialized JsonRpcRequest object.</returns>
-    private static async Task<JsonRpcRequest> ReadAndValidateJsonRpcRequest(HttpRequest request)
-    {
-        JsonDocument? jsonDoc = null;
-        string? requestId = null;
-
-        try
-        {
-            // Parse the JSON document first to validate structure
-            jsonDoc = await JsonDocument.ParseAsync(request.Body);
-
-            JsonElement rootElement = jsonDoc.RootElement;
-
-            // Validate the JSON-RPC request structure
-            requestId = ValidateIdField(rootElement);
-
-            ValidateJsonRpcField(rootElement, requestId);
-
-            ValidateMethodField(rootElement, requestId);
-
-            ValidateParamsField(rootElement, requestId);
-
-            // Deserialize the JSON-RPC request
-            var rpcRequest = (JsonRpcRequest?)JsonSerializer.Deserialize(rootElement, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcRequest)));
-            if (rpcRequest == null)
-            {
-                throw new A2AException("No JSON-RPC request found in the body.", A2AErrorCode.InvalidRequest)
-                    .WithRequestId(requestId);
-            }
-
-            return rpcRequest;
-        }
-        catch (JsonException ex)
-        {
-            throw new A2AException("Invalid JSON-RPC request payload.", ex, A2AErrorCode.ParseError)
-                .WithRequestId(requestId);
-        }
-        finally
-        {
-            jsonDoc?.Dispose();
-        }
-    }
-
-    /// <summary>
-    /// Validates the 'id' field of a JSON-RPC request.
-    /// </summary>
-    /// <param name="rootElement">The root JSON element containing the request.</param>
-    /// <returns>The extracted request ID as a string, or null if not present.</returns>
-    /// <exception cref="A2AException">Thrown when the 'id' field has an invalid type.</exception>
-    private static string? ValidateIdField(JsonElement rootElement)
-    {
-        if (rootElement.TryGetProperty("id", out var idElement))
-        {
-            if (idElement.ValueKind != JsonValueKind.String &&
-                idElement.ValueKind != JsonValueKind.Number &&
-                idElement.ValueKind != JsonValueKind.Null)
-            {
-                throw new A2AException("Invalid JSON-RPC request: 'id' field must be a string, number, or null.", A2AErrorCode.InvalidRequest);
-            }
-
-            // TODO: Handle is as number rather than converting to string
-            return idElement.ValueKind == JsonValueKind.Null ? null : idElement.ToString();
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Validates the 'jsonrpc' field of a JSON-RPC request.
-    /// </summary>
-    /// <param name="rootElement">The root JSON element containing the request.</param>
-    /// <param name="requestId">The request ID for error context.</param>
-    /// <exception cref="A2AException">Thrown when the 'jsonrpc' field is missing or invalid.</exception>
-    private static void ValidateJsonRpcField(JsonElement rootElement, string? requestId)
-    {
-        if (rootElement.TryGetProperty("jsonrpc", out var jsonRpcElement))
-        {
-            if (jsonRpcElement.GetString() != "2.0")
-            {
-                throw new A2AException("Invalid JSON-RPC request: 'jsonrpc' field must be '2.0'.", A2AErrorCode.InvalidRequest)
-                    .WithRequestId(requestId);
-            }
-        }
-        else
-        {
-            throw new A2AException("Invalid JSON-RPC request: missing 'jsonrpc' field.", A2AErrorCode.InvalidRequest)
-                .WithRequestId(requestId);
-        }
-    }
-
-    /// <summary>
-    /// Validates the 'method' field of a JSON-RPC request.
-    /// </summary>
-    /// <param name="rootElement">The root JSON element containing the request.</param>
-    /// <param name="requestId">The request ID for error context.</param>
-    /// <exception cref="A2AException">Thrown when the 'method' field is missing or invalid.</exception>
-    private static void ValidateMethodField(JsonElement rootElement, string? requestId)
-    {
-        if (rootElement.TryGetProperty("method", out var methodElement))
-        {
-            var method = methodElement.GetString();
-            if (string.IsNullOrEmpty(method))
-            {
-                throw new A2AException("Invalid JSON-RPC request: missing 'method' field.", A2AErrorCode.InvalidRequest)
-                    .WithRequestId(requestId);
-            }
-
-            if (!A2AMethods.IsValidMethod(method))
-            {
-                throw new A2AException("Invalid JSON-RPC request: 'method' field is not a valid A2A method.", A2AErrorCode.MethodNotFound)
-                    .WithRequestId(requestId);
-            }
-        }
-        else
-        {
-            throw new A2AException("Invalid JSON-RPC request: missing 'method' field.", A2AErrorCode.InvalidRequest)
-                .WithRequestId(requestId);
-        }
-    }
-
-    /// <summary>
-    /// Validates the 'params' field of a JSON-RPC request.
-    /// </summary>
-    /// <param name="rootElement">The root JSON element containing the request.</param>
-    /// <param name="requestId">The request ID for error context.</param>
-    /// <exception cref="A2AException">Thrown when the 'params' field has an invalid type.</exception>
-    private static void ValidateParamsField(JsonElement rootElement, string? requestId)
-    {
-        if (rootElement.TryGetProperty("params", out var paramsElement) && paramsElement.ValueKind != JsonValueKind.Object)
-        {
-            throw new A2AException("Invalid JSON-RPC request: 'params' field must be an object.", A2AErrorCode.InvalidParams)
-                .WithRequestId(requestId);
         }
     }
 }

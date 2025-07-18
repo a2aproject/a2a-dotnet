@@ -6,6 +6,7 @@ namespace A2A;
 /// <summary>
 /// Represents a JSON-RPC 2.0 Request object.
 /// </summary>
+[JsonConverter(typeof(JsonRpcRequestConverter))]
 public sealed class JsonRpcRequest
 {
     /// <summary>

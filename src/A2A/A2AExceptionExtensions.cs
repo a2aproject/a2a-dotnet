@@ -1,11 +1,9 @@
-﻿using System.Text.Json;
-
-namespace A2A.AspNetCore
+﻿namespace A2A.AspNetCore
 {
     /// <summary>
     /// Provides extension methods for <see cref="A2AException"/>.
     /// </summary>
-    internal static class A2AExceptionExtensions
+    public static class A2AExceptionExtensions
     {
         private const string RequestIdKey = "RequestId";
 
@@ -20,9 +18,12 @@ namespace A2A.AspNetCore
         /// The request ID can be later retrieved using the <see cref="GetRequestId"/> method.
         /// This is useful for correlating exceptions with specific HTTP requests in logging and debugging scenarios.
         /// </remarks>
-        internal static A2AException WithRequestId(this A2AException exception, string? requestId)
+        public static A2AException WithRequestId(this A2AException exception, string? requestId)
         {
-            ArgumentNullException.ThrowIfNull(exception);
+            if (exception is null)
+            {
+                throw new ArgumentNullException(nameof(exception));
+            }
 
             exception.Data[RequestIdKey] = requestId;
 
@@ -42,9 +43,12 @@ namespace A2A.AspNetCore
         /// If the stored value is not a string or doesn't exist, null is returned.
         /// This method is typically used in exception handlers to correlate exceptions with specific HTTP requests.
         /// </remarks>
-        internal static string? GetRequestId(this A2AException exception)
+        public static string? GetRequestId(this A2AException exception)
         {
-            ArgumentNullException.ThrowIfNull(exception);
+            if (exception is null)
+            {
+                throw new ArgumentNullException(nameof(exception));
+            }
 
             if (exception.Data[RequestIdKey] is string requestIdString)
             {
