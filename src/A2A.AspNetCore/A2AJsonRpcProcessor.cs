@@ -90,70 +90,50 @@ public static class A2AJsonRpcProcessor
         switch (method)
         {
             case A2AMethods.MessageSend:
-                MessageSendParams? taskSendParams;
-                try
-                {
-                    taskSendParams = parameters.Value.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(MessageSendParams))) as MessageSendParams;
-                }
-                catch (JsonException)
-                {
-                    taskSendParams = null;
-                }
-
-                if (taskSendParams == null)
-                {
-                    response = JsonRpcResponse.InvalidParamsResponse(requestId);
-                    break;
-                }
+                var taskSendParams = DeserializeOrThrow<MessageSendParams>();
                 var a2aResponse = await taskManager.SendMessageAsync(taskSendParams);
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, a2aResponse);
                 break;
             case A2AMethods.TaskGet:
-                var taskIdParams = (TaskQueryParams?)parameters.Value.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(TaskQueryParams)));
-                if (taskIdParams == null)
-                {
-                    response = JsonRpcResponse.InvalidParamsResponse(requestId);
-                    break;
-                }
+                var taskIdParams = DeserializeOrThrow<TaskQueryParams>();
                 var getAgentTask = await taskManager.GetTaskAsync(taskIdParams);
                 response = getAgentTask is null
                     ? JsonRpcResponse.TaskNotFoundResponse(requestId)
                     : JsonRpcResponse.CreateJsonRpcResponse(requestId, getAgentTask);
                 break;
             case A2AMethods.TaskCancel:
-                var taskIdParamsCancel = (TaskIdParams?)parameters.Value.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(TaskIdParams)));
-                if (taskIdParamsCancel == null)
-                {
-                    response = JsonRpcResponse.InvalidParamsResponse(requestId);
-                    break;
-                }
-
+                var taskIdParamsCancel = DeserializeOrThrow<TaskIdParams>();
                 var cancelledTask = await taskManager.CancelTaskAsync(taskIdParamsCancel);
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, cancelledTask);
                 break;
             case A2AMethods.TaskPushNotificationConfigSet:
-                var taskPushNotificationConfig = (TaskPushNotificationConfig?)parameters.Value.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(TaskPushNotificationConfig))!);
-                if (taskPushNotificationConfig == null)
-                {
-                    response = JsonRpcResponse.InvalidParamsResponse(requestId);
-                    break;
-                }
+                var taskPushNotificationConfig = DeserializeOrThrow<TaskPushNotificationConfig>();
                 var setConfig = await taskManager.SetPushNotificationAsync(taskPushNotificationConfig);
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, setConfig);
                 break;
             case A2AMethods.TaskPushNotificationConfigGet:
-                var notificationConfigParams = (GetTaskPushNotificationConfigParams?)parameters.Value.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(GetTaskPushNotificationConfigParams))!);
-                if (notificationConfigParams == null)
-                {
-                    response = JsonRpcResponse.InvalidParamsResponse(requestId);
-                    break;
-                }
+                var notificationConfigParams = DeserializeOrThrow<GetTaskPushNotificationConfigParams>();
                 var getConfig = await taskManager.GetPushNotificationAsync(notificationConfigParams);
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, getConfig);
                 break;
             default:
                 response = JsonRpcResponse.MethodNotFoundResponse(requestId);
                 break;
+        }
+
+        T DeserializeOrThrow<T>() where T : class
+        {
+            T? parms;
+            try
+            {
+                parms = parameters.Value.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(T))) as T;
+            }
+            catch (JsonException)
+            {
+                parms = null;
+            }
+
+            return parms ?? throw new A2AException("Invalid parameters", A2AErrorCode.InvalidParams);
         }
 
         return new JsonRpcResponseResult(response);
