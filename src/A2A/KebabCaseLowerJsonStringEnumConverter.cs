@@ -12,3 +12,12 @@ namespace A2A;
 public sealed class KebabCaseLowerJsonStringEnumConverter<TEnum>() :
     JsonStringEnumConverter<TEnum>(JsonNamingPolicy.KebabCaseLower)
     where TEnum : struct, Enum;
+
+/// <summary>
+/// A JSON string enum converter that converts enum values to kebab-case lower strings.
+/// </summary>
+/// <typeparam name="TEnum">The type of the enum to convert.</typeparam>
+[EditorBrowsable(EditorBrowsableState.Never)]
+public sealed class SnakeCaseLowerJsonStringEnumConverter<TEnum>() :
+    JsonStringEnumConverter<TEnum>(JsonNamingPolicy.SnakeCaseLower)
+    where TEnum : struct, Enum;

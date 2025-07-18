@@ -5,7 +5,7 @@ namespace A2A;
 /// <summary>
 /// Represents the possible states of a Task.
 /// </summary>
-[JsonConverter(typeof(KebabCaseLowerJsonStringEnumConverter<TaskState>))]
+[JsonConverter(typeof(SnakeCaseLowerJsonStringEnumConverter<TaskState>))]
 public enum TaskState
 {
     /// <summary>
