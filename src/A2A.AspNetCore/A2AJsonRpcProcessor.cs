@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
 using System.Text.Json;
 
@@ -29,7 +28,6 @@ public static class A2AJsonRpcProcessor
     /// <param name="taskManager">The task manager instance for handling A2A operations.</param>
     /// <param name="request">Http request containing the JSON-RPC request body.</param>
     /// <returns>An HTTP result containing either a single JSON-RPC response or a streaming SSE response.</returns>
-    [Produces("text/event-stream")]
     internal static async Task<IResult> ProcessRequest(ITaskManager taskManager, HttpRequest request)
     {
         using var activity = ActivitySource.StartActivity("HandleA2ARequest", ActivityKind.Server);
