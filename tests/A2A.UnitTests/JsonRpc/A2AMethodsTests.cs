@@ -1,4 +1,6 @@
-﻿namespace A2A.UnitTests.JsonRpc;
+﻿using System.Reflection;
+
+namespace A2A.UnitTests.JsonRpc;
 
 public class A2AMethodsTests
 {
@@ -45,23 +47,6 @@ public class A2AMethodsTests
     }
 
     [Theory]
-    [InlineData(A2AMethods.MessageSend)]
-    [InlineData(A2AMethods.MessageStream)]
-    [InlineData(A2AMethods.TaskGet)]
-    [InlineData(A2AMethods.TaskCancel)]
-    [InlineData(A2AMethods.TaskResubscribe)]
-    [InlineData(A2AMethods.TaskPushNotificationConfigSet)]
-    [InlineData(A2AMethods.TaskPushNotificationConfigGet)]
-    public void IsValidMethod_ReturnsTrue_ForValidMethods(string method)
-    {
-        // Act
-        var result = A2AMethods.IsValidMethod(method);
-
-        // Assert
-        Assert.True(result);
-    }
-
-    [Theory]
     [InlineData("unknown/method")]
     [InlineData("message/ssend")]
     [InlineData("invalid")]
@@ -83,5 +68,28 @@ public class A2AMethodsTests
 
         // Assert
         Assert.False(result);
+    }
+
+    [Fact]
+    public void IsValidMethod_ReturnsTrue_ForAllDefinedMethods()
+    {
+        // Arrange: Use reflection to get all const string fields from A2AMethods
+        var methodFields = typeof(A2AMethods)
+            .GetFields(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .Where(field => field.IsLiteral && field.FieldType == typeof(string))
+            .ToList();
+
+        // Assert we found some methods (sanity check)
+        Assert.NotEmpty(methodFields);
+
+        // Act & Assert: Each method constant should be valid
+        foreach (var field in methodFields)
+        {
+            var methodValue = (string)field.GetValue(null)!;
+            var isValid = A2AMethods.IsValidMethod(methodValue);
+
+            Assert.True(isValid, $"Method '{methodValue}' (from field '{field.Name}') should be valid but IsValidMethod returned false. " +
+                                 "This likely means the method constant was added to A2AMethods but not included in the IsValidMethod implementation.");
+        }
     }
 }
