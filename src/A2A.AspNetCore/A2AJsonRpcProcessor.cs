@@ -128,15 +128,8 @@ public static class A2AJsonRpcProcessor
                     break;
                 }
 
-                try
-                {
-                    var cancelledTask = await taskManager.CancelTaskAsync(taskIdParamsCancel);
-                    response = JsonRpcResponse.CreateJsonRpcResponse(requestId, cancelledTask);
-                }
-                catch (KeyNotFoundException)
-                {
-                    response = JsonRpcResponse.TaskNotFoundResponse(requestId);
-                }
+                var cancelledTask = await taskManager.CancelTaskAsync(taskIdParamsCancel);
+                response = JsonRpcResponse.CreateJsonRpcResponse(requestId, cancelledTask);
                 break;
             case A2AMethods.TaskPushNotificationConfigSet:
                 var taskPushNotificationConfig = (TaskPushNotificationConfig?)parameters.Value.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(TaskPushNotificationConfig))!);
