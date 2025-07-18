@@ -120,7 +120,7 @@ public class JsonRpcRequestConverterTests
     [InlineData("message/stream")]
     [InlineData("tasks/get")]
     [InlineData("tasks/cancel")]
-    [InlineData("tasks/resubscribe")]
+    [InlineData("tasks/subscribe")]
     [InlineData("tasks/pushNotificationConfig/set")]
     [InlineData("tasks/pushNotificationConfig/get")]
     public void Read_ValidMethods_ReturnsCorrectMethod(string method)
@@ -464,7 +464,7 @@ public class JsonRpcRequestConverterTests
     [InlineData("message/stream")]
     [InlineData("tasks/get")]
     [InlineData("tasks/cancel")]
-    [InlineData("tasks/resubscribe")]
+    [InlineData("tasks/subscribe")]
     [InlineData("tasks/pushNotificationConfig/set")]
     [InlineData("tasks/pushNotificationConfig/get")]
     public void RoundTrip_AllValidMethods_PreservesMethod(string method)

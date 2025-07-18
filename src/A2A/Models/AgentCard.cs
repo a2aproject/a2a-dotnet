@@ -133,7 +133,7 @@ public sealed class AgentCard
     /// The client can use any of the supported transports.
     /// </remarks>
     [JsonPropertyName("additionalInterfaces")]
-    public List<AgentInterface>? AdditionalInterfaces { get; set; }
+    public List<AgentInterface> AdditionalInterfaces { get; set; } = [];
 
     /// <summary>
     /// The transport of the preferred endpoint.

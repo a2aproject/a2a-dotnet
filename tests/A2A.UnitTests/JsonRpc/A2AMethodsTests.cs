@@ -21,7 +21,7 @@ public class A2AMethodsTests
     public void IsStreamingMethod_ReturnsTrue_ForTaskResubscribe()
     {
         // Arrange
-        var method = A2AMethods.TaskResubscribe;
+        var method = A2AMethods.TaskSubscribe;
 
         // Act
         var result = A2AMethods.IsStreamingMethod(method);

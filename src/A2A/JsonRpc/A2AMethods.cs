@@ -28,7 +28,7 @@ public static class A2AMethods
     /// <summary>
     /// Method for resubscribing to task updates.
     /// </summary>
-    public const string TaskResubscribe = "tasks/resubscribe";
+    public const string TaskSubscribe = "tasks/subscribe";
 
     /// <summary>
     /// Method for setting push notification configuration.
@@ -45,12 +45,12 @@ public static class A2AMethods
     /// </summary>
     /// <param name="method">The method name to check.</param>
     /// <returns>True if the method requires streaming, false otherwise.</returns>
-    public static bool IsStreamingMethod(string method) => method is MessageStream or TaskResubscribe;
+    public static bool IsStreamingMethod(string method) => method is MessageStream or TaskSubscribe;
 
     /// <summary>
     /// Determines if a method name is valid for A2A JSON-RPC.
     /// </summary>
     /// <param name="method">The method name to validate.</param>
     /// <returns>True if the method is valid, false otherwise.</returns>
-    public static bool IsValidMethod(string method) => method is MessageSend or MessageStream or TaskGet or TaskCancel or TaskResubscribe or TaskPushNotificationConfigSet or TaskPushNotificationConfigGet;
+    public static bool IsValidMethod(string method) => method is MessageSend or MessageStream or TaskGet or TaskCancel or TaskSubscribe or TaskPushNotificationConfigSet or TaskPushNotificationConfigGet;
 }

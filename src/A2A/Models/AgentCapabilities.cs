@@ -29,5 +29,5 @@ public sealed class AgentCapabilities
     /// Extensions supported by this agent.
     /// </summary>
     [JsonPropertyName("extensions")]
-    public List<AgentExtension>? Extensions { get; set; }
+    public List<AgentExtension> Extensions { get; set; } = [];
 }

@@ -78,10 +78,10 @@ public sealed class A2AClient : IA2AClient
             cancellationToken);
 
     /// <inheritdoc />
-    public IAsyncEnumerable<SseItem<A2AEvent>> ResubscribeToTaskAsync(string taskId, CancellationToken cancellationToken = default) =>
+    public IAsyncEnumerable<SseItem<A2AEvent>> SubscribeToTaskAsync(string taskId, CancellationToken cancellationToken = default) =>
         SendRpcSseRequestAsync(
             new() { Id = string.IsNullOrEmpty(taskId) ? throw new ArgumentNullException(nameof(taskId)) : taskId },
-            A2AMethods.TaskResubscribe,
+            A2AMethods.TaskSubscribe,
             A2AJsonUtilities.JsonContext.Default.TaskIdParams,
             A2AJsonUtilities.JsonContext.Default.A2AEvent,
             cancellationToken);
