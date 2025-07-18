@@ -48,11 +48,9 @@ public static class A2AMethods
     public static bool IsStreamingMethod(string method) => method is MessageStream or TaskResubscribe;
 
     /// <summary>
-    /// Determines if the specified method name is a valid A2A JSON-RPC method.
+    /// Determines if a method name is valid for A2A JSON-RPC.
     /// </summary>
     /// <param name="method">The method name to validate.</param>
-    /// <returns>
-    /// <c>true</c> if the method is a valid A2A JSON-RPC method; otherwise, <c>false</c>.
-    /// </returns>
+    /// <returns>True if the method is valid, false otherwise.</returns>
     public static bool IsValidMethod(string method) => method is MessageSend or MessageStream or TaskGet or TaskCancel or TaskResubscribe or TaskPushNotificationConfigSet or TaskPushNotificationConfigGet;
 }
