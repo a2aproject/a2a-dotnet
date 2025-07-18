@@ -370,7 +370,11 @@ internal static class A2AHttpProcessor
 
             A2AErrorCode.ContentTypeNotSupported => Results.Problem(detail: exception.Message, statusCode: StatusCodes.Status422UnprocessableEntity),
 
-            A2AErrorCode.InternalError or _ => Results.Problem(detail: exception.Message, statusCode: StatusCodes.Status500InternalServerError)
+            A2AErrorCode.InternalError => Results.Problem(detail: exception.Message, statusCode: StatusCodes.Status500InternalServerError),
+
+            // Default case for unhandled error codes - this should never happen with current A2AErrorCode enum values
+            // but provides a safety net for future enum additions or unexpected values
+            _ => Results.Problem(detail: exception.Message, statusCode: StatusCodes.Status500InternalServerError)
         };
     }
 }

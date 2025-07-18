@@ -116,4 +116,28 @@ public class A2AHttpProcessorTests
         Assert.NotNull(result);
         Assert.Equal(expectedStatusCode, ((IStatusCodeHttpResult)result).StatusCode);
     }
+
+    [Fact]
+    public async Task GetTask_WithUnknownA2AErrorCode_ShouldReturn500InternalServerError()
+    {
+        // Arrange
+        var mockTaskStore = new Mock<ITaskStore>();
+        // Create an A2AException with an unknown/invalid error code by casting an integer that doesn't correspond to any enum value
+        var unknownErrorCode = (A2AErrorCode)(-99999);
+        mockTaskStore
+            .Setup(ts => ts.GetTaskAsync(It.IsAny<string>()))
+            .ThrowsAsync(new A2AException("Test exception with unknown error code", unknownErrorCode));
+
+        var taskManager = new TaskManager(taskStore: mockTaskStore.Object);
+        var logger = NullLogger.Instance;
+        var id = "testId";
+        var historyLength = 10;
+
+        // Act
+        var result = await A2AHttpProcessor.GetTask(taskManager, logger, id, historyLength, null);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(StatusCodes.Status500InternalServerError, ((IStatusCodeHttpResult)result).StatusCode);
+    }
 }
