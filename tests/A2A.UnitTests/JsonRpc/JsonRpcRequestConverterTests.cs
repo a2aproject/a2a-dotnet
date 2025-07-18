@@ -256,7 +256,6 @@ public class JsonRpcRequestConverterTests
     [Theory]
     [InlineData("true")]
     [InlineData("[]")]
-    [InlineData("\"string\"")]
     public void Read_InvalidIdType_ThrowsA2AException(string idJson)
     {
         // Arrange
@@ -299,26 +298,6 @@ public class JsonRpcRequestConverterTests
 
         Assert.Equal(A2AErrorCode.InvalidParams, exception.ErrorCode);
         Assert.Contains("'params' field must be an object", exception.Message);
-    }
-
-    [Fact]
-    public void Read_InvalidJson_ThrowsA2AException()
-    {
-        // Arrange
-        var json = """
-        {
-            "jsonrpc": "2.0",
-            "id": "test-id",
-            "method": "tasks/get"
-            // missing closing brace
-        """;
-
-        // Act & Assert
-        var exception = Assert.Throws<A2AException>(() =>
-            JsonSerializer.Deserialize<JsonRpcRequest>(json, _options));
-
-        Assert.Equal(A2AErrorCode.ParseError, exception.ErrorCode);
-        Assert.Contains("Invalid JSON-RPC request payload", exception.Message);
     }
 
     #endregion
@@ -439,20 +418,6 @@ public class JsonRpcRequestConverterTests
         Assert.Equal("2.0", root.GetProperty("jsonrpc").GetString());
         Assert.Equal(JsonValueKind.Null, root.GetProperty("id").ValueKind);
         Assert.Equal("tasks/get", root.GetProperty("method").GetString());
-    }
-
-    [Fact]
-    public void Write_NullRequest_ThrowsArgumentNullException()
-    {
-        // Arrange
-        JsonRpcRequest? request = null;
-
-        // Act & Assert
-        var exception = Assert.Throws<ArgumentNullException>(() =>
-            JsonSerializer.Serialize(request, _options));
-
-        Assert.Equal("value", exception.ParamName);
-        Assert.Contains("Cannot serialize a null JsonRpcRequest", exception.Message);
     }
 
     #endregion

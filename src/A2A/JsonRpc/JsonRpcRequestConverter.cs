@@ -142,10 +142,15 @@ internal sealed class JsonRpcRequestConverter : JsonConverter<JsonRpcRequest>
     /// <returns>The 'params' element if it exists and is valid.</returns>
     private static JsonElement? ReadAndValidateParamsField(JsonElement rootElement, string? requestId)
     {
-        if (rootElement.TryGetProperty("params", out var paramsElement) && paramsElement.ValueKind != JsonValueKind.Object)
+        if (rootElement.TryGetProperty("params", out var paramsElement))
         {
-            throw new A2AException("Invalid JSON-RPC request: 'params' field must be an object.", A2AErrorCode.InvalidParams)
-                .WithRequestId(requestId);
+            if (paramsElement.ValueKind != JsonValueKind.Object &&
+                paramsElement.ValueKind != JsonValueKind.Undefined &&
+                paramsElement.ValueKind != JsonValueKind.Null)
+            {
+                throw new A2AException("Invalid JSON-RPC request: 'params' field must be an object or null.", A2AErrorCode.InvalidParams)
+                    .WithRequestId(requestId);
+            }
         }
 
         return paramsElement.ValueKind == JsonValueKind.Null || paramsElement.ValueKind == JsonValueKind.Undefined

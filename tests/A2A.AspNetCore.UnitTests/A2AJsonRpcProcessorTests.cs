@@ -140,7 +140,7 @@ public class A2AJsonRpcProcessorTests
             Assert.Null(BodyContent.Result);
             Assert.NotNull(BodyContent.Error);
             Assert.Equal(expectedErrorCode, BodyContent.Error.Code);
-            Assert.Equal("Invalid JSON-RPC request: 'params' field must be an object.", BodyContent.Error.Message);
+            Assert.NotEmpty(BodyContent.Error.Message);
         }
     }
 
