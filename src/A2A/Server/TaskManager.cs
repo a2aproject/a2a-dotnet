@@ -231,7 +231,6 @@ public sealed class TaskManager : ITaskManager
             if (agentTask == null)
             {
                 activity?.SetTag("task.found", false);
-                throw new ArgumentException("Task not found or invalid TaskId.");
             }
         }
 
