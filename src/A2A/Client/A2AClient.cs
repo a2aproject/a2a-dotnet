@@ -106,7 +106,7 @@ public sealed class A2AClient : IA2AClient
 
         if (responseObject?.Error is { } error)
         {
-            throw new InvalidOperationException($"JSON-RPC error ({error.Code}): {error.Message}");
+            throw new A2AException(error.Message, (A2AErrorCode)error.Code);
         }
 
         return responseObject?.Result?.Deserialize(outputTypeInfo) ??
@@ -135,7 +135,7 @@ public sealed class A2AClient : IA2AClient
 
             if (responseObject?.Error is { } error)
             {
-                throw new InvalidOperationException($"JSON-RPC error ({error.Code}): {error.Message}");
+                throw new A2AException(error.Message, (A2AErrorCode)error.Code);
             }
 
             return JsonSerializer.Deserialize(responseObject?.Result, outputTypeInfo) ??

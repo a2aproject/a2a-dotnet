@@ -25,7 +25,7 @@ public sealed class JsonRpcRequest
     /// Numbers SHOULD NOT contain fractional parts.
     /// </remarks>
     [JsonPropertyName("id")]
-    public string Id { get; set; } = string.Empty;
+    public string? Id { get; set; }
 
     /// <summary>
     /// Gets or sets the string containing the name of the method to be invoked.

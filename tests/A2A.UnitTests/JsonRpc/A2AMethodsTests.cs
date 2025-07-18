@@ -43,4 +43,45 @@ public class A2AMethodsTests
         // Assert
         Assert.False(result);
     }
+
+    [Theory]
+    [InlineData(A2AMethods.MessageSend)]
+    [InlineData(A2AMethods.MessageStream)]
+    [InlineData(A2AMethods.TaskGet)]
+    [InlineData(A2AMethods.TaskCancel)]
+    [InlineData(A2AMethods.TaskResubscribe)]
+    [InlineData(A2AMethods.TaskPushNotificationConfigSet)]
+    [InlineData(A2AMethods.TaskPushNotificationConfigGet)]
+    public void IsValidMethod_ReturnsTrue_ForValidMethods(string method)
+    {
+        // Act
+        var result = A2AMethods.IsValidMethod(method);
+
+        // Assert
+        Assert.True(result);
+    }
+
+    [Theory]
+    [InlineData("unknown/method")]
+    [InlineData("message/ssend")]
+    [InlineData("invalid")]
+    [InlineData("")]
+    public void IsValidMethod_ReturnsFalse_ForInvalidMethods(string method)
+    {
+        // Act
+        var result = A2AMethods.IsValidMethod(method);
+
+        // Assert
+        Assert.False(result);
+    }
+
+    [Fact]
+    public void IsValidMethod_ReturnsFalse_ForNullMethod()
+    {
+        // Act
+        var result = A2AMethods.IsValidMethod(null!);
+
+        // Assert
+        Assert.False(result);
+    }
 }
