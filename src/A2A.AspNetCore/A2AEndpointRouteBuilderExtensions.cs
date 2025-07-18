@@ -44,7 +44,7 @@ public static class A2ARouteBuilderExtensions
             return Results.Ok(agentCard);
         });
 
-        routeGroup.MapPost(path, ([FromBody] JsonRpcRequest rpcRequest) => A2AJsonRpcProcessor.ProcessRequest(taskManager, rpcRequest));
+        routeGroup.MapPost(path, (HttpRequest request) => A2AJsonRpcProcessor.ProcessRequest(taskManager, request));
 
         return routeGroup;
     }

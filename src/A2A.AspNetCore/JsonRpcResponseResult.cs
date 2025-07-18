@@ -39,9 +39,7 @@ public class JsonRpcResponseResult : IResult
         ArgumentNullException.ThrowIfNull(httpContext);
 
         httpContext.Response.ContentType = "application/json";
-        httpContext.Response.StatusCode = jsonRpcResponse.Error is not null ?
-            StatusCodes.Status400BadRequest :
-            StatusCodes.Status200OK;
+        httpContext.Response.StatusCode = StatusCodes.Status200OK;
 
         await JsonSerializer.SerializeAsync(httpContext.Response.Body, jsonRpcResponse, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcResponse)));
     }

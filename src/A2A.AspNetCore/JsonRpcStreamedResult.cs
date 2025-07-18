@@ -15,17 +15,16 @@ namespace A2A.AspNetCore;
 public class JsonRpcStreamedResult : IResult
 {
     private readonly IAsyncEnumerable<A2AEvent> _events;
-    private readonly string requestId;
+    private readonly string? requestId;
 
     /// <summary>
     /// Initializes a new instance of the JsonRpcStreamedResult class.
     /// </summary>
     /// <param name="events">The async enumerable stream of A2A events to send as Server-Sent Events.</param>
     /// <param name="requestId">The JSON-RPC request ID used for correlating responses with the original request.</param>
-    public JsonRpcStreamedResult(IAsyncEnumerable<A2AEvent> events, string requestId)
+    public JsonRpcStreamedResult(IAsyncEnumerable<A2AEvent> events, string? requestId)
     {
         ArgumentNullException.ThrowIfNull(events);
-        ArgumentException.ThrowIfNullOrEmpty(requestId);
 
         _events = events;
         this.requestId = requestId;

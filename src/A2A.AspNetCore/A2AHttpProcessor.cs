@@ -40,6 +40,11 @@ internal static class A2AHttpProcessor
 
             return Task.FromResult(Results.Ok(agentCard));
         }
+        catch (A2AException ex)
+        {
+            logger.LogError(ex, "A2A error retrieving agent card");
+            return Task.FromResult(MapA2AExceptionToHttpResult(ex));
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error retrieving agent card");
@@ -75,6 +80,11 @@ internal static class A2AHttpProcessor
 
             return agentTask is not null ? new A2AResponseResult(agentTask) : Results.NotFound();
         }
+        catch (A2AException ex)
+        {
+            logger.LogError(ex, "A2A error retrieving task");
+            return MapA2AExceptionToHttpResult(ex);
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error retrieving task");
@@ -107,6 +117,11 @@ internal static class A2AHttpProcessor
 
             return new A2AResponseResult(agentTask);
         }
+        catch (A2AException ex)
+        {
+            logger.LogError(ex, "A2A error cancelling task");
+            return MapA2AExceptionToHttpResult(ex);
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error cancelling task");
@@ -138,6 +153,11 @@ internal static class A2AHttpProcessor
 
             return new A2AResponseResult(a2aResponse);
         }
+        catch (A2AException ex)
+        {
+            logger.LogError(ex, "A2A error sending message to task");
+            return MapA2AExceptionToHttpResult(ex);
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error sending message to task");
@@ -167,6 +187,11 @@ internal static class A2AHttpProcessor
 
             return new A2AEventStreamResult(taskEvents);
         }
+        catch (A2AException ex)
+        {
+            logger.LogError(ex, "A2A error sending subscribe message to task");
+            return MapA2AExceptionToHttpResult(ex);
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error sending subscribe message to task");
@@ -195,6 +220,11 @@ internal static class A2AHttpProcessor
             var taskEvents = taskManager.SubscribeToTaskAsync(new TaskIdParams { Id = id });
 
             return new A2AEventStreamResult(taskEvents);
+        }
+        catch (A2AException ex)
+        {
+            logger.LogError(ex, "A2A error resubscribing to task");
+            return MapA2AExceptionToHttpResult(ex);
         }
         catch (Exception ex)
         {
@@ -235,6 +265,11 @@ internal static class A2AHttpProcessor
 
             return Results.Ok(result);
         }
+        catch (A2AException ex)
+        {
+            logger.LogError(ex, "A2A error configuring push notification");
+            return MapA2AExceptionToHttpResult(ex);
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error configuring push notification");
@@ -270,11 +305,49 @@ internal static class A2AHttpProcessor
 
             return Results.Ok(result);
         }
+        catch (A2AException ex)
+        {
+            logger.LogError(ex, "A2A error retrieving push notification");
+            return MapA2AExceptionToHttpResult(ex);
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error retrieving push notification");
             return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
         }
+    }
+
+    /// <summary>
+    /// Maps an A2AException to an appropriate HTTP result based on the error code.
+    /// </summary>
+    /// <param name="exception">The A2AException to map to an HTTP result.</param>
+    /// <returns>An HTTP result with the appropriate status code and error message.</returns>
+    private static IResult MapA2AExceptionToHttpResult(A2AException exception)
+    {
+        return exception.ErrorCode switch
+        {
+            A2AErrorCode.TaskNotFound or
+            A2AErrorCode.MethodNotFound => Results.NotFound(exception.Message),
+
+            A2AErrorCode.TaskNotCancelable or
+            A2AErrorCode.UnsupportedOperation or
+            A2AErrorCode.InvalidRequest or
+            A2AErrorCode.InvalidParams or
+            A2AErrorCode.ParseError => Results.Problem(detail: exception.Message, statusCode: StatusCodes.Status400BadRequest),
+
+            // Return HTTP 400 for now. Later we may want to return 501 Not Implemented in case 
+            // push notifications are advertised by agent card(AgentCard.capabilities.pushNotifications: true)
+            // but there's no server-side support for them.
+            A2AErrorCode.PushNotificationNotSupported => Results.Problem(detail: exception.Message, statusCode: StatusCodes.Status400BadRequest),
+
+            A2AErrorCode.ContentTypeNotSupported => Results.Problem(detail: exception.Message, statusCode: StatusCodes.Status422UnprocessableEntity),
+
+            A2AErrorCode.InternalError => Results.Problem(detail: exception.Message, statusCode: StatusCodes.Status500InternalServerError),
+
+            // Default case for unhandled error codes - this should never happen with current A2AErrorCode enum values
+            // but provides a safety net for future enum additions or unexpected values
+            _ => Results.Problem(detail: exception.Message, statusCode: StatusCodes.Status500InternalServerError)
+        };
     }
 }
 

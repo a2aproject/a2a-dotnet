@@ -26,28 +26,38 @@ public static class A2AJsonRpcProcessor
     /// based on the method name and dispatches accordingly.
     /// </remarks>
     /// <param name="taskManager">The task manager instance for handling A2A operations.</param>
-    /// <param name="rpcRequest">The parsed JSON-RPC request containing method, parameters, and request ID.</param>
+    /// <param name="request">Http request containing the JSON-RPC request body.</param>
     /// <returns>An HTTP result containing either a single JSON-RPC response or a streaming SSE response.</returns>
-    internal static async Task<IResult> ProcessRequest(ITaskManager taskManager, JsonRpcRequest rpcRequest)
+    internal static async Task<IResult> ProcessRequest(ITaskManager taskManager, HttpRequest request)
     {
         using var activity = ActivitySource.StartActivity("HandleA2ARequest", ActivityKind.Server);
-        activity?.AddTag("request.id", rpcRequest.Id);
-        activity?.AddTag("request.method", rpcRequest.Method);
 
-        var parsedParameters = rpcRequest.Params;
-        // Dispatch based on return type
-        if (A2AMethods.IsStreamingMethod(rpcRequest.Method))
-        {
-            return await StreamResponse(taskManager, rpcRequest.Id, rpcRequest.Method, parsedParameters);
-        }
+        JsonRpcRequest? rpcRequest = null;
 
         try
         {
-            return await SingleResponse(taskManager, rpcRequest.Id, rpcRequest.Method, parsedParameters);
+            rpcRequest = (JsonRpcRequest?)await JsonSerializer.DeserializeAsync(request.Body, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcRequest)));
+
+            activity?.AddTag("request.id", rpcRequest!.Id);
+            activity?.AddTag("request.method", rpcRequest!.Method);
+
+            // Dispatch based on return type
+            if (A2AMethods.IsStreamingMethod(rpcRequest!.Method))
+            {
+                return await StreamResponse(taskManager, rpcRequest.Id, rpcRequest.Method, rpcRequest.Params);
+            }
+
+            return await SingleResponse(taskManager, rpcRequest.Id, rpcRequest.Method, rpcRequest.Params);
         }
-        catch (Exception e)
+        catch (A2AException ex)
         {
-            return new JsonRpcResponseResult(JsonRpcResponse.InternalErrorResponse(rpcRequest.Id, e.Message));
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            return new JsonRpcResponseResult(JsonRpcResponse.CreateJsonRpcErrorResponse(rpcRequest?.Id ?? ex.GetRequestId(), ex));
+        }
+        catch (Exception ex)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            return new JsonRpcResponseResult(JsonRpcResponse.InternalErrorResponse(rpcRequest?.Id, ex.Message));
         }
     }
 
@@ -63,7 +73,7 @@ public static class A2AJsonRpcProcessor
     /// <param name="method">The JSON-RPC method name to execute.</param>
     /// <param name="parameters">The JSON parameters for the method call.</param>
     /// <returns>A JSON-RPC response result containing the operation result or error.</returns>
-    internal static async Task<JsonRpcResponseResult> SingleResponse(ITaskManager taskManager, string requestId, string method, JsonElement? parameters)
+    internal static async Task<JsonRpcResponseResult> SingleResponse(ITaskManager taskManager, string? requestId, string method, JsonElement? parameters)
     {
         using var activity = ActivitySource.StartActivity($"SingleResponse/{method}", ActivityKind.Server);
         activity?.SetTag("request.id", requestId);
@@ -149,7 +159,7 @@ public static class A2AJsonRpcProcessor
     /// <param name="method">The JSON-RPC streaming method name to execute.</param>
     /// <param name="parameters">The JSON parameters for the streaming method call.</param>
     /// <returns>An HTTP result that streams JSON-RPC responses as Server-Sent Events or an error response.</returns>
-    internal static async Task<IResult> StreamResponse(ITaskManager taskManager, string requestId, string method, JsonElement? parameters)
+    internal static async Task<IResult> StreamResponse(ITaskManager taskManager, string? requestId, string method, JsonElement? parameters)
     {
         using var activity = ActivitySource.StartActivity("StreamResponse", ActivityKind.Server);
         activity?.SetTag("request.id", requestId);
