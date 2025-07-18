@@ -42,7 +42,7 @@ public class A2ACardResolverTests
     }
 
     [Fact]
-    public async Task GetAgentCardAsync_ThrowsOnInvalidJson()
+    public async Task GetAgentCardAsync_ThrowsA2AExceptionOnInvalidJson()
     {
         // Arrange
         var response = new HttpResponseMessage(HttpStatusCode.OK)
@@ -54,11 +54,11 @@ public class A2ACardResolverTests
         var resolver = new A2ACardResolver(httpClient);
 
         // Act & Assert
-        await Assert.ThrowsAsync<A2AClientJsonException>(() => resolver.GetAgentCardAsync());
+        await Assert.ThrowsAsync<A2AException>(() => resolver.GetAgentCardAsync());
     }
 
     [Fact]
-    public async Task GetAgentCardAsync_ThrowsOnHttpError()
+    public async Task GetAgentCardAsync_ThrowsA2AExceptionOnHttpError()
     {
         // Arrange
         var response = new HttpResponseMessage(HttpStatusCode.InternalServerError);
@@ -67,6 +67,8 @@ public class A2ACardResolverTests
         var resolver = new A2ACardResolver(httpClient);
 
         // Act & Assert
-        await Assert.ThrowsAsync<A2AClientHTTPException>(() => resolver.GetAgentCardAsync());
+        var exception = await Assert.ThrowsAsync<A2AException>(() => resolver.GetAgentCardAsync());
+        Assert.NotNull(exception.InnerException);
+        Assert.IsType<HttpRequestException>(exception.InnerException);
     }
 }

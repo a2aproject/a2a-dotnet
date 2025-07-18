@@ -47,8 +47,6 @@ public static class A2AMethods
     /// <returns>True if the method requires streaming, false otherwise.</returns>
     public static bool IsStreamingMethod(string method) => method is MessageStream or TaskResubscribe;
 
-    private static readonly string[] AllMethods = [MessageSend, MessageStream, TaskGet, TaskCancel, TaskResubscribe, TaskPushNotificationConfigSet, TaskPushNotificationConfigGet];
-
     /// <summary>
     /// Determines if the specified method name is a valid A2A JSON-RPC method.
     /// </summary>
@@ -56,5 +54,5 @@ public static class A2AMethods
     /// <returns>
     /// <c>true</c> if the method is a valid A2A JSON-RPC method; otherwise, <c>false</c>.
     /// </returns>
-    public static bool IsValid(string method) => AllMethods.Contains(method);
+    public static bool IsValidMethod(string method) => method is MessageSend or MessageStream or TaskGet or TaskCancel or TaskResubscribe or TaskPushNotificationConfigSet or TaskPushNotificationConfigGet;
 }

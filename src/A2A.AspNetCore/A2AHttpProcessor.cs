@@ -30,7 +30,7 @@ internal static class A2AHttpProcessor
     /// <param name="logger">Logger instance for recording operation details and errors.</param>
     /// <param name="agentUrl">The URL of the agent to retrieve the card for.</param>
     /// <returns>An HTTP result containing the agent card JSON or an error response.</returns>
-    internal static Task<IResult> GetAgentCard(TaskManager taskManager, ILogger logger, string agentUrl)
+    internal static Task<IResult> GetAgentCard(ITaskManager taskManager, ILogger logger, string agentUrl)
     {
         using var activity = ActivitySource.StartActivity("GetAgentCard", ActivityKind.Server);
 
@@ -39,6 +39,11 @@ internal static class A2AHttpProcessor
             var agentCard = taskManager.OnAgentCardQuery(agentUrl);
 
             return Task.FromResult(Results.Ok(agentCard));
+        }
+        catch (A2AException ex)
+        {
+            logger.LogError(ex, "A2A error retrieving agent card");
+            return Task.FromResult(MapA2AExceptionToHttpResult(ex));
         }
         catch (Exception ex)
         {
@@ -59,7 +64,7 @@ internal static class A2AHttpProcessor
     /// <param name="historyLength">Optional limit on the number of history items to return.</param>
     /// <param name="metadata">Optional JSON metadata filter for the task query.</param>
     /// <returns>An HTTP result containing the task JSON or a not found/error response.</returns>
-    internal static async Task<IResult> GetTask(TaskManager taskManager, ILogger logger, string id, int? historyLength, string? metadata)
+    internal static async Task<IResult> GetTask(ITaskManager taskManager, ILogger logger, string id, int? historyLength, string? metadata)
     {
         using var activity = ActivitySource.StartActivity("GetTask", ActivityKind.Server);
         activity?.AddTag("task.id", id);
@@ -74,6 +79,11 @@ internal static class A2AHttpProcessor
             });
 
             return agentTask is not null ? new A2AResponseResult(agentTask) : Results.NotFound();
+        }
+        catch (A2AException ex)
+        {
+            logger.LogError(ex, "A2A error retrieving task");
+            return MapA2AExceptionToHttpResult(ex);
         }
         catch (Exception ex)
         {
@@ -92,7 +102,7 @@ internal static class A2AHttpProcessor
     /// <param name="logger">Logger instance for recording operation details and errors.</param>
     /// <param name="id">The unique identifier of the task to cancel.</param>
     /// <returns>An HTTP result containing the canceled task JSON or a not found/error response.</returns>
-    internal static async Task<IResult> CancelTask(TaskManager taskManager, ILogger logger, string id)
+    internal static async Task<IResult> CancelTask(ITaskManager taskManager, ILogger logger, string id)
     {
         using var activity = ActivitySource.StartActivity("CancelTask", ActivityKind.Server);
         activity?.AddTag("task.id", id);
@@ -106,6 +116,11 @@ internal static class A2AHttpProcessor
             }
 
             return new A2AResponseResult(agentTask);
+        }
+        catch (A2AException ex)
+        {
+            logger.LogError(ex, "A2A error cancelling task");
+            return MapA2AExceptionToHttpResult(ex);
         }
         catch (Exception ex)
         {
@@ -128,7 +143,7 @@ internal static class A2AHttpProcessor
     /// <param name="historyLength">Optional limit on the number of history items to include in processing.</param>
     /// <param name="metadata">Optional JSON metadata to include with the message request.</param>
     /// <returns>An HTTP result containing the agent's response (Task or Message) or an error response.</returns>
-    internal static async Task<IResult> SendTaskMessage(TaskManager taskManager, ILogger logger, string? taskId, MessageSendParams sendParams, int? historyLength, string? metadata)
+    internal static async Task<IResult> SendTaskMessage(ITaskManager taskManager, ILogger logger, string? taskId, MessageSendParams sendParams, int? historyLength, string? metadata)
     {
         using var activity = ActivitySource.StartActivity("SendTaskMessage", ActivityKind.Server);
         if (taskId != null)
@@ -156,6 +171,11 @@ internal static class A2AHttpProcessor
 
             return new A2AResponseResult(a2aResponse);
         }
+        catch (A2AException ex)
+        {
+            logger.LogError(ex, "A2A error sending message to task");
+            return MapA2AExceptionToHttpResult(ex);
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error sending message to task");
@@ -177,7 +197,7 @@ internal static class A2AHttpProcessor
     /// <param name="historyLength">Optional limit on the number of history items to include in processing.</param>
     /// <param name="metadata">Optional JSON metadata to include with the message request.</param>
     /// <returns>An HTTP result that streams events as Server-Sent Events or an error response.</returns>
-    internal static async Task<IResult> SendSubscribeTaskMessage(TaskManager taskManager, ILogger logger, string id, MessageSendParams sendParams, int? historyLength, string? metadata)
+    internal static async Task<IResult> SendSubscribeTaskMessage(ITaskManager taskManager, ILogger logger, string id, MessageSendParams sendParams, int? historyLength, string? metadata)
     {
         using var activity = ActivitySource.StartActivity("SendSubscribeTaskMessage", ActivityKind.Server);
         activity?.AddTag("task.id", id);
@@ -194,6 +214,11 @@ internal static class A2AHttpProcessor
             var taskEvents = await taskManager.SendMessageStreamAsync(sendParams);
 
             return new A2AEventStreamResult(taskEvents);
+        }
+        catch (A2AException ex)
+        {
+            logger.LogError(ex, "A2A error sending subscribe message to task");
+            return MapA2AExceptionToHttpResult(ex);
         }
         catch (Exception ex)
         {
@@ -213,7 +238,7 @@ internal static class A2AHttpProcessor
     /// <param name="logger">Logger instance for recording operation details and errors.</param>
     /// <param name="id">The unique identifier of the task to resubscribe to.</param>
     /// <returns>An HTTP result that streams existing task events or an error response.</returns>
-    internal static IResult ResubscribeTask(TaskManager taskManager, ILogger logger, string id)
+    internal static IResult ResubscribeTask(ITaskManager taskManager, ILogger logger, string id)
     {
         using var activity = ActivitySource.StartActivity("ResubscribeTask", ActivityKind.Server);
         activity?.AddTag("task.id", id);
@@ -223,6 +248,11 @@ internal static class A2AHttpProcessor
             var taskEvents = taskManager.ResubscribeAsync(new TaskIdParams { Id = id });
 
             return new A2AEventStreamResult(taskEvents);
+        }
+        catch (A2AException ex)
+        {
+            logger.LogError(ex, "A2A error resubscribing to task");
+            return MapA2AExceptionToHttpResult(ex);
         }
         catch (Exception ex)
         {
@@ -242,7 +272,7 @@ internal static class A2AHttpProcessor
     /// <param name="id">The unique identifier of the task to configure push notifications for.</param>
     /// <param name="pushNotificationConfig">The push notification configuration containing callback URL and authentication details.</param>
     /// <returns>An HTTP result containing the configured settings or an error response.</returns>
-    internal static async Task<IResult> SetPushNotification(TaskManager taskManager, ILogger logger, string id, PushNotificationConfig pushNotificationConfig)
+    internal static async Task<IResult> SetPushNotification(ITaskManager taskManager, ILogger logger, string id, PushNotificationConfig pushNotificationConfig)
     {
         using var activity = ActivitySource.StartActivity("ConfigurePushNotification", ActivityKind.Server);
         activity?.AddTag("task.id", id);
@@ -263,6 +293,11 @@ internal static class A2AHttpProcessor
 
             return Results.Ok(result);
         }
+        catch (A2AException ex)
+        {
+            logger.LogError(ex, "A2A error configuring push notification");
+            return MapA2AExceptionToHttpResult(ex);
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error configuring push notification");
@@ -281,7 +316,7 @@ internal static class A2AHttpProcessor
     /// <param name="taskId">The unique identifier of the task to get push notification configuration for.</param>
     /// <param name="notificationConfigId">The unique identifier of the push notification configuration to retrieve.</param>
     /// <returns>An HTTP result containing the push notification configuration or a not found/error response.</returns>
-    internal static async Task<IResult> GetPushNotification(TaskManager taskManager, ILogger logger, string taskId, string? notificationConfigId)
+    internal static async Task<IResult> GetPushNotification(ITaskManager taskManager, ILogger logger, string taskId, string? notificationConfigId)
     {
         using var activity = ActivitySource.StartActivity("GetPushNotification", ActivityKind.Server);
         activity?.AddTag("task.id", taskId);
@@ -298,11 +333,49 @@ internal static class A2AHttpProcessor
 
             return Results.Ok(result);
         }
+        catch (A2AException ex)
+        {
+            logger.LogError(ex, "A2A error retrieving push notification");
+            return MapA2AExceptionToHttpResult(ex);
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error retrieving push notification");
             return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
         }
+    }
+
+    /// <summary>
+    /// Maps an A2AException to an appropriate HTTP result based on the error code.
+    /// </summary>
+    /// <param name="exception">The A2AException to map to an HTTP result.</param>
+    /// <returns>An HTTP result with the appropriate status code and error message.</returns>
+    private static IResult MapA2AExceptionToHttpResult(A2AException exception)
+    {
+        return exception.ErrorCode switch
+        {
+            A2AErrorCode.TaskNotFound or
+            A2AErrorCode.MethodNotFound => Results.NotFound(exception.Message),
+
+            A2AErrorCode.TaskNotCancelable or
+            A2AErrorCode.UnsupportedOperation or
+            A2AErrorCode.InvalidRequest or
+            A2AErrorCode.InvalidParams or
+            A2AErrorCode.ParseError => Results.Problem(detail: exception.Message, statusCode: StatusCodes.Status400BadRequest),
+
+            // Return HTTP 400 for now. Later we may want to return 501 Not Implemented in case 
+            // push notifications are advertised by agent card(AgentCard.capabilities.pushNotifications: true)
+            // but there's no server-side support for them.
+            A2AErrorCode.PushNotificationNotSupported => Results.Problem(detail: exception.Message, statusCode: StatusCodes.Status400BadRequest),
+
+            A2AErrorCode.ContentTypeNotSupported => Results.Problem(detail: exception.Message, statusCode: StatusCodes.Status422UnprocessableEntity),
+
+            A2AErrorCode.InternalError => Results.Problem(detail: exception.Message, statusCode: StatusCodes.Status500InternalServerError),
+
+            // Default case for unhandled error codes - this should never happen with current A2AErrorCode enum values
+            // but provides a safety net for future enum additions or unexpected values
+            _ => Results.Problem(detail: exception.Message, statusCode: StatusCodes.Status500InternalServerError)
+        };
     }
 }
 

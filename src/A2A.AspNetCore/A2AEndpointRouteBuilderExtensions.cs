@@ -26,7 +26,7 @@ public static class A2ARouteBuilderExtensions
     /// <param name="taskManager">The task manager for handling A2A operations.</param>
     /// <param name="path">The base path for the A2A endpoints.</param>
     /// <returns>An endpoint convention builder for further configuration.</returns>
-    public static IEndpointConventionBuilder MapA2A(this IEndpointRouteBuilder endpoints, TaskManager taskManager, [StringSyntax("Route")] string path)
+    public static IEndpointConventionBuilder MapA2A(this IEndpointRouteBuilder endpoints, ITaskManager taskManager, [StringSyntax("Route")] string path)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(taskManager);
@@ -44,7 +44,7 @@ public static class A2ARouteBuilderExtensions
             return Results.Ok(agentCard);
         });
 
-        routeGroup.MapPost(path, ([FromBody] Stream rpcRequest) => A2AJsonRpcProcessor.ProcessRequest(taskManager, rpcRequest));
+        routeGroup.MapPost(path, (HttpRequest request) => A2AJsonRpcProcessor.ProcessRequest(taskManager, request));
 
         return routeGroup;
     }
@@ -56,7 +56,7 @@ public static class A2ARouteBuilderExtensions
     /// <param name="taskManager">The task manager for handling A2A operations.</param>
     /// <param name="path">The base path for the HTTP A2A endpoints.</param>
     /// <returns>An endpoint convention builder for further configuration.</returns>
-    public static IEndpointConventionBuilder MapHttpA2A(this IEndpointRouteBuilder endpoints, TaskManager taskManager, [StringSyntax("Route")] string path)
+    public static IEndpointConventionBuilder MapHttpA2A(this IEndpointRouteBuilder endpoints, ITaskManager taskManager, [StringSyntax("Route")] string path)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(taskManager);

@@ -36,4 +36,45 @@ public class JsonRpcErrorResponseTests
         // Assert
         Assert.Equal(42, sut.Result!.GetValue<int>());
     }
+
+    [Fact]
+    public void CreateJsonRpcErrorResponse_WithValidException_CreatesCorrectResponse()
+    {
+        // Arrange
+        const string requestId = "test-request-123";
+        const string errorMessage = "Test error message";
+        const A2AErrorCode errorCode = A2AErrorCode.InvalidParams;
+        var exception = new A2AException(errorMessage, errorCode);
+
+        // Act
+        var response = JsonRpcResponse.CreateJsonRpcErrorResponse(requestId, exception);
+
+        // Assert
+        Assert.Equal(requestId, response.Id);
+        Assert.Equal("2.0", response.JsonRpc);
+        Assert.Null(response.Result);
+        Assert.NotNull(response.Error);
+        Assert.Equal((int)errorCode, response.Error.Code);
+        Assert.Equal(errorMessage, response.Error.Message);
+    }
+
+    [Fact]
+    public void CreateJsonRpcErrorResponse_WithNullRequestId_CreatesCorrectResponse()
+    {
+        // Arrange
+        const string errorMessage = "Test error message";
+        const A2AErrorCode errorCode = A2AErrorCode.MethodNotFound;
+        var exception = new A2AException(errorMessage, errorCode);
+
+        // Act
+        var response = JsonRpcResponse.CreateJsonRpcErrorResponse(null, exception);
+
+        // Assert
+        Assert.Null(response.Id);
+        Assert.Equal("2.0", response.JsonRpc);
+        Assert.Null(response.Result);
+        Assert.NotNull(response.Error);
+        Assert.Equal((int)errorCode, response.Error.Code);
+        Assert.Equal(errorMessage, response.Error.Message);
+    }
 }
