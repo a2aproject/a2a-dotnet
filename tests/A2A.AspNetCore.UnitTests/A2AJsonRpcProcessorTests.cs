@@ -39,11 +39,11 @@ public class A2AJsonRpcProcessorTests
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
         var (_, _, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
 
-        if (isValid) // Invalid ID case
+        if (isValid)
         {
             Assert.NotNull(BodyContent.Result);
         }
-        else // Valid ID cases
+        else
         {
             Assert.NotNull(BodyContent.Error);
             Assert.Equal(-32600, BodyContent.Error.Code); // Invalid request
