@@ -1,0 +1,34 @@
+@host = http://localhost:5048
+
+#===============================================================================
+# AGENT CARD REQUESTS
+# This file contains requests for retrieving agent cards
+# 
+# For setup instructions and launch profile details, see: ../README.md
+# 
+# Launch Settings Profiles:
+# - The .well-known endpoint works with any agent profile
+# - Agent-specific endpoints require the corresponding agent profile
+#===============================================================================
+
+#===============================================================================
+# HTTP API REQUESTS
+#===============================================================================
+
+## Get agent card
+# Description: Retrieves the agent card for the echo agent
+# Profile: echo-agent or echotasks-agent
+GET {{host}}/echo/v1/card
+
+###
+
+#===============================================================================
+# JSON-RPC REQUESTS
+#===============================================================================
+
+## Get agent card
+# Description: Retrieves the agent card at the application root
+# Profile: Any agent profile (echo-agent, echotasks-agent, researcher-agent)
+GET {{host}}/.well-known/agent.json
+
+###

@@ -4,7 +4,7 @@ namespace A2A;
 
 public class ResearcherAgent
 {
-    private TaskManager? _taskManager;
+    private ITaskManager? _taskManager;
     private readonly Dictionary<string, AgentState> _agentStates = [];
     public static readonly ActivitySource ActivitySource = new("A2A.ResearcherAgent", "1.0.0");
 
@@ -15,7 +15,7 @@ public class ResearcherAgent
         Researching
     }
 
-    public void Attach(TaskManager taskManager)
+    public void Attach(ITaskManager taskManager)
     {
         _taskManager = taskManager;
         _taskManager.OnTaskCreated = async (task) =>

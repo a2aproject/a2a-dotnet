@@ -23,7 +23,7 @@ public sealed class JsonRpcResponse
     /// MUST contain a String, Number. Numbers SHOULD NOT contain fractional parts.
     /// </remarks>
     [JsonPropertyName("id")]
-    public string Id { get; set; } = string.Empty;
+    public string? Id { get; set; }
 
     /// <summary>
     /// Gets or sets the result object on success.
@@ -45,14 +45,33 @@ public sealed class JsonRpcResponse
     /// <param name="result">The result to include.</param>
     /// <param name="resultTypeInfo">Optional type information for serialization.</param>
     /// <returns>A JSON-RPC response object.</returns>
-    public static JsonRpcResponse CreateJsonRpcResponse<T>(string requestId, T result, JsonTypeInfo? resultTypeInfo = null)
+    public static JsonRpcResponse CreateJsonRpcResponse<T>(string? requestId, T result, JsonTypeInfo? resultTypeInfo = null)
     {
         resultTypeInfo ??= (JsonTypeInfo<T>)A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(T));
 
         return new JsonRpcResponse()
         {
-            Id = Verify(requestId),
+            Id = requestId,
             Result = result is not null ? JsonSerializer.SerializeToNode(result, resultTypeInfo) : null
+        };
+    }
+
+    /// <summary>
+    /// Creates a JSON-RPC error response for a given exception.
+    /// </summary>
+    /// <param name="requestId">The request ID.</param>
+    /// <param name="exception">The exception containing error details.</param>
+    /// <returns>A JSON-RPC error response.</returns>
+    public static JsonRpcResponse CreateJsonRpcErrorResponse(string? requestId, A2AException exception)
+    {
+        return new JsonRpcResponse()
+        {
+            Id = requestId,
+            Error = new JsonRpcError
+            {
+                Code = (int)exception.ErrorCode,
+                Message = exception.Message,
+            }
         };
     }
 
@@ -60,14 +79,31 @@ public sealed class JsonRpcResponse
     /// Creates a JSON-RPC error response for invalid parameters.
     /// </summary>
     /// <param name="requestId">The request ID.</param>
+    /// <param name="message">The error message.</param>
     /// <returns>A JSON-RPC error response.</returns>
-    public static JsonRpcResponse InvalidParamsResponse(string requestId) => new()
+    public static JsonRpcResponse InvalidParamsResponse(string? requestId, string? message = null) => new()
     {
-        Id = Verify(requestId),
+        Id = requestId,
         Error = new JsonRpcError()
         {
-            Code = -32602,
-            Message = "Invalid parameters",
+            Code = (int)A2AErrorCode.InvalidParams,
+            Message = message ?? "Invalid parameters",
+        },
+    };
+
+    /// <summary>
+    /// Creates a JSON-RPC error response for invalid request.
+    /// </summary>
+    /// <param name="requestId">The request ID.</param>
+    /// <param name="message">Optional error message.</param>
+    /// <returns>A JSON-RPC error response.</returns>
+    public static JsonRpcResponse InvalidRequestResponse(string? requestId, string? message = null) => new()
+    {
+        Id = requestId,
+        Error = new JsonRpcError
+        {
+            Code = (int)A2AErrorCode.InvalidRequest,
+            Message = message ?? "Request payload validation error",
         },
     };
 
@@ -75,14 +111,15 @@ public sealed class JsonRpcResponse
     /// Creates a JSON-RPC error response for task not found.
     /// </summary>
     /// <param name="requestId">The request ID.</param>
+    /// <param name="message">The error message.</param>
     /// <returns>A JSON-RPC error response.</returns>
-    public static JsonRpcResponse TaskNotFoundResponse(string requestId) => new()
+    public static JsonRpcResponse TaskNotFoundResponse(string? requestId, string? message = null) => new()
     {
-        Id = Verify(requestId),
+        Id = requestId,
         Error = new JsonRpcError
         {
-            Code = -32001,
-            Message = "Task not found",
+            Code = (int)A2AErrorCode.TaskNotFound,
+            Message = message ?? "Task not found",
         },
     };
 
@@ -90,14 +127,15 @@ public sealed class JsonRpcResponse
     /// Creates a JSON-RPC error response for task not cancelable.
     /// </summary>
     /// <param name="requestId">The request ID.</param>
+    /// <param name="message">The error message.</param>
     /// <returns>A JSON-RPC error response.</returns>
-    public static JsonRpcResponse TaskNotCancelableResponse(string requestId) => new()
+    public static JsonRpcResponse TaskNotCancelableResponse(string? requestId, string? message = null) => new()
     {
-        Id = Verify(requestId),
+        Id = requestId,
         Error = new JsonRpcError
         {
-            Code = -32002,
-            Message = "Task cannot be canceled",
+            Code = (int)A2AErrorCode.TaskNotCancelable,
+            Message = message ?? "Task cannot be canceled",
         },
     };
 
@@ -105,14 +143,15 @@ public sealed class JsonRpcResponse
     /// Creates a JSON-RPC error response for method not found.
     /// </summary>
     /// <param name="requestId">The request ID.</param>
+    /// <param name="message">The error message.</param>
     /// <returns>A JSON-RPC error response.</returns>
-    public static JsonRpcResponse MethodNotFoundResponse(string requestId) => new()
+    public static JsonRpcResponse MethodNotFoundResponse(string? requestId, string? message = null) => new()
     {
-        Id = Verify(requestId),
+        Id = requestId,
         Error = new JsonRpcError
         {
-            Code = -32601,
-            Message = "Method not found",
+            Code = (int)A2AErrorCode.MethodNotFound,
+            Message = message ?? "Method not found",
         },
     };
 
@@ -120,14 +159,15 @@ public sealed class JsonRpcResponse
     /// Creates a JSON-RPC error response for push notification not supported.
     /// </summary>
     /// <param name="requestId">The request ID.</param>
+    /// <param name="message">The error message.</param>
     /// <returns>A JSON-RPC error response.</returns>
-    public static JsonRpcResponse PushNotificationNotSupportedResponse(string requestId) => new()
+    public static JsonRpcResponse PushNotificationNotSupportedResponse(string? requestId, string? message = null) => new()
     {
-        Id = Verify(requestId),
+        Id = requestId,
         Error = new JsonRpcError
         {
-            Code = -32003,
-            Message = "Push notification not supported",
+            Code = (int)A2AErrorCode.PushNotificationNotSupported,
+            Message = message ?? "Push notification not supported",
         },
     };
 
@@ -135,14 +175,14 @@ public sealed class JsonRpcResponse
     /// Creates a JSON-RPC error response for internal error.
     /// </summary>
     /// <param name="requestId">The request ID.</param>
-    /// <param name="message">Optional error message.</param>
+    /// <param name="message">The error message.</param>
     /// <returns>A JSON-RPC error response.</returns>
-    public static JsonRpcResponse InternalErrorResponse(string requestId, string? message = null) => new()
+    public static JsonRpcResponse InternalErrorResponse(string? requestId, string? message = null) => new()
     {
-        Id = Verify(requestId),
+        Id = requestId,
         Error = new JsonRpcError
         {
-            Code = -32603,
+            Code = (int)A2AErrorCode.InternalError,
             Message = message ?? "Internal error",
         },
     };
@@ -151,15 +191,15 @@ public sealed class JsonRpcResponse
     /// Creates a JSON-RPC error response for parse error.
     /// </summary>
     /// <param name="requestId">The request ID.</param>
-    /// <param name="message">Optional error message.</param>
+    /// <param name="message">The error message.</param>
     /// <returns>A JSON-RPC error response.</returns>
-    public static JsonRpcResponse ParseErrorResponse(string requestId, string? message = null) => new()
+    public static JsonRpcResponse ParseErrorResponse(string? requestId, string? message = null) => new()
     {
-        Id = Verify(requestId),
+        Id = requestId,
         Error = new JsonRpcError
         {
-            Code = -32700,
-            Message = message ?? "Invalid JSON payload",
+            Code = (int)A2AErrorCode.ParseError,
+            Message = message ?? "Invalid JSON payload"
         },
     };
 
@@ -167,14 +207,14 @@ public sealed class JsonRpcResponse
     /// Creates a JSON-RPC error response for unsupported operation.
     /// </summary>
     /// <param name="requestId">The request ID.</param>
-    /// <param name="message">Optional error message.</param>
+    /// <param name="message">The error message.</param>
     /// <returns>A JSON-RPC error response.</returns>
-    public static JsonRpcResponse UnsupportedOperationResponse(string requestId, string? message = null) => new()
+    public static JsonRpcResponse UnsupportedOperationResponse(string? requestId, string? message = null) => new()
     {
-        Id = Verify(requestId),
+        Id = requestId,
         Error = new JsonRpcError
         {
-            Code = -32004,
+            Code = (int)A2AErrorCode.UnsupportedOperation,
             Message = message ?? "Unsupported operation",
         },
     };
@@ -183,18 +223,15 @@ public sealed class JsonRpcResponse
     /// Creates a JSON-RPC error response for content type not supported.
     /// </summary>
     /// <param name="requestId">The request ID.</param>
-    /// <param name="message">Optional error message.</param>
+    /// <param name="message">The error message.</param>
     /// <returns>A JSON-RPC error response.</returns>
-    public static JsonRpcResponse ContentTypeNotSupportedResponse(string requestId, string? message = null) => new()
+    public static JsonRpcResponse ContentTypeNotSupportedResponse(string? requestId, string? message = null) => new()
     {
         Id = requestId,
         Error = new JsonRpcError
         {
-            Code = -32005,
+            Code = (int)A2AErrorCode.ContentTypeNotSupported,
             Message = message ?? "Content type not supported",
         },
     };
-
-    private static string Verify(string requestId)
-        => string.IsNullOrEmpty(requestId) ? throw new ArgumentNullException(nameof(requestId)) : requestId;
 }

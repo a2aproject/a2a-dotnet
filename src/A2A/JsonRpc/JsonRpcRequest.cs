@@ -6,6 +6,7 @@ namespace A2A;
 /// <summary>
 /// Represents a JSON-RPC 2.0 Request object.
 /// </summary>
+[JsonConverter(typeof(JsonRpcRequestConverter))]
 public sealed class JsonRpcRequest
 {
     /// <summary>
@@ -15,7 +16,7 @@ public sealed class JsonRpcRequest
     /// MUST be exactly "2.0".
     /// </remarks>
     [JsonPropertyName("jsonrpc")]
-    [JsonRequired]
+    // [JsonRequired] - we have to reject this with a special payload
     public string JsonRpc { get; set; } = "2.0";
 
     /// <summary>
@@ -25,13 +26,13 @@ public sealed class JsonRpcRequest
     /// Numbers SHOULD NOT contain fractional parts.
     /// </remarks>
     [JsonPropertyName("id")]
-    public string Id { get; set; } = string.Empty;
+    public string? Id { get; set; }
 
     /// <summary>
     /// Gets or sets the string containing the name of the method to be invoked.
     /// </summary>
     [JsonPropertyName("method")]
-    [JsonRequired]
+    // [JsonRequired] - we have to reject this with a special payload
     public string Method { get; set; } = string.Empty;
 
     /// <summary>

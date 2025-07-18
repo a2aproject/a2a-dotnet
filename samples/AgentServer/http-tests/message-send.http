@@ -1,0 +1,110 @@
+@host = http://localhost:5048
+
+#===============================================================================
+# MESSAGE SEND REQUESTS
+# This file contains requests for sending messages synchronously to agents
+# 
+# For setup instructions and launch profile details, see: ../README.md
+# 
+# Launch Settings Profiles:
+# - echo-agent: For basic echo agent requests
+# - echotasks-agent: For echo agent with task management support
+#===============================================================================
+
+#===============================================================================
+# HTTP API REQUESTS
+#===============================================================================
+
+## Send message to echo agent
+# Description: Sends a simple "Hello, world!" message to the echo agent
+# Profile: echo-agent
+POST {{host}}/echo/v1/message:send
+Content-Type: application/json
+{
+        "message": {
+            "messageId": "12345",
+            "role": "user",
+            "parts": [
+                {
+                    "kind": "text",
+                    "text": "Hello, world!"
+                }
+            ]
+        }
+}
+
+###
+
+## Send message to echo agent with tasks
+# Description: Sends a message to the echo agent that creates a task
+# Profile: echotasks-agent
+POST {{host}}/echotasks/v1/message:send
+Content-Type: application/json
+{
+        "message": {
+            "messageId": "12345",
+            "role": "user",
+            "parts": [
+                {
+                    "kind": "text",
+                    "text": "Hello, world!"
+                }
+            ]
+        }
+}
+
+###
+
+#===============================================================================
+# JSON-RPC REQUESTS
+#===============================================================================
+
+## Send message to echo agent
+# Description: Sends a simple "Hello, world!" message to the echo agent
+# Profile: echo-agent
+POST {{host}}/echo
+Content-Type: application/json
+{
+    "id": "3",
+    "jsonrpc": "2.0",
+    "method": "message/send",
+    "params": {
+          "message": {
+            "messageId": "12345",
+            "role": "user",
+            "parts": [
+                {
+                    "kind": "text",
+                    "text": "Hello, world!"
+                }
+            ]
+        }
+    }
+}
+
+###
+
+## Send message to echo agent with tasks
+# Description: Sends a message to the echo agent that uses task management
+# Profile: echotasks-agent
+POST {{host}}/echotasks
+Content-Type: application/json
+{
+    "id": "3",
+    "jsonrpc": "2.0",
+    "method": "message/send",
+    "params": {
+          "message": {
+            "messageId": "12345",
+            "role": "user",
+            "parts": [
+                {
+                    "kind": "text",
+                    "text": "Hello, world!"
+                }
+            ]
+        }
+    }
+}
+
+###

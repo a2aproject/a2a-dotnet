@@ -587,7 +587,7 @@ public class A2AClientTests
         var sendParams = new MessageSendParams();
 
         // Act & Assert
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        var exception = await Assert.ThrowsAsync<A2AException>(async () =>
         {
             await foreach (var _ in sut.SendMessageStreamAsync(sendParams))
             {
@@ -595,7 +595,7 @@ public class A2AClientTests
             }
         });
 
-        Assert.Contains("-32602", exception.Message);
+        Assert.Equal(A2AErrorCode.InvalidParams, exception.ErrorCode);
         Assert.Contains("Invalid parameters", exception.Message);
     }
 
@@ -608,12 +608,12 @@ public class A2AClientTests
         var sendParams = new MessageSendParams();
 
         // Act & Assert
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        var exception = await Assert.ThrowsAsync<A2AException>(async () =>
         {
             await sut.SendMessageAsync(sendParams);
         });
 
-        Assert.Contains("-32601", exception.Message);
+        Assert.Equal(A2AErrorCode.MethodNotFound, exception.ErrorCode);
         Assert.Contains("Method not found", exception.Message);
     }
 

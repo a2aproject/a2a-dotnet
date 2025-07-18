@@ -59,7 +59,7 @@ public class TaskManagerTests
 
         Assert.Equal(TaskState.Submitted, task.Status.State);
 
-        var retrievedTask = await taskManager.GetTaskAsync(new TaskIdParams { Id = task.Id });
+        var retrievedTask = await taskManager.GetTaskAsync(new TaskQueryParams { Id = task.Id });
         Assert.NotNull(retrievedTask);
         Assert.Equal(task.Id, retrievedTask.Id);
         Assert.Equal(TaskState.Submitted, retrievedTask.Status.State);
@@ -171,7 +171,7 @@ public class TaskManagerTests
                 ]
         }
         );
-        var completedTask = await taskManager.GetTaskAsync(new TaskIdParams { Id = task.Id });
+        var completedTask = await taskManager.GetTaskAsync(new TaskQueryParams { Id = task.Id });
         Assert.NotNull(completedTask);
         Assert.Equal(task.Id, completedTask.Id);
         Assert.Equal(TaskState.Completed, completedTask.Status.State);
@@ -211,7 +211,7 @@ public class TaskManagerTests
         };
         await taskManager.ReturnArtifactAsync(task.Id, artifact);
         await taskManager.UpdateStatusAsync(task.Id, TaskState.Completed);
-        var completedTask = await taskManager.GetTaskAsync(new TaskIdParams { Id = task.Id });
+        var completedTask = await taskManager.GetTaskAsync(new TaskQueryParams { Id = task.Id });
         Assert.NotNull(completedTask);
         Assert.Equal(task.Id, completedTask.Id);
         Assert.Equal(TaskState.Completed, completedTask.Status.State);
@@ -391,7 +391,7 @@ public class TaskManagerTests
     }
 
     [Fact]
-    public async Task ResubscribeAsync_ReturnsEnumerator_WhenTaskExists()
+    public async Task SubscribeToTaskAsync_ReturnsEnumerator_WhenTaskExists()
     {
         // Arrange
         var sut = new TaskManager();
@@ -409,29 +409,29 @@ public class TaskManagerTests
         // Register the enumerator for the taskId
         var enumerator = await sut.SendMessageStreamAsync(sendParams);
 
-        // Now, ResubscribeAsync should return the same enumerator instance for the taskId
-        var result = sut.ResubscribeAsync(new TaskIdParams { Id = task.Id });
+        // Now, SubscribeToTaskAsync should return the same enumerator instance for the taskId
+        var result = sut.SubscribeToTaskAsync(new TaskIdParams { Id = task.Id });
         Assert.Same(enumerator, result);
     }
 
     [Fact]
-    public void ResubscribeAsync_Throws_WhenTaskDoesNotExist()
+    public void SubscribeToTaskAsync_Throws_WhenTaskDoesNotExist()
     {
         // Arrange
         var sut = new TaskManager();
 
         // Act & Assert
-        Assert.Throws<ArgumentException>(() => sut.ResubscribeAsync(new TaskIdParams { Id = "notfound" }));
+        Assert.Throws<ArgumentException>(() => sut.SubscribeToTaskAsync(new TaskIdParams { Id = "notfound" }));
     }
 
     [Fact]
-    public void ResubscribeAsync_ThrowsOnNullParams()
+    public void SubscribeToTaskAsync_ThrowsOnNullParams()
     {
         // Arrange
         var sut = new TaskManager();
 
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => sut.ResubscribeAsync(null!));
+        Assert.Throws<ArgumentNullException>(() => sut.SubscribeToTaskAsync(null!));
     }
 
     [Fact]
@@ -489,5 +489,43 @@ public class TaskManagerTests
         Assert.Equal("config-id-1", result.PushNotificationConfig.Id);
         Assert.Equal("http://first-config", result.PushNotificationConfig.Url);
         Assert.Equal("token1", result.PushNotificationConfig.Token);
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_RespectsHistoryLength()
+    {
+        var taskManager = new TaskManager();
+        var taskSendParams = new MessageSendParams
+        {
+            Message = new Message
+            {
+                Parts = [new TextPart { Text = "First" }]
+            },
+        };
+        // Create initial task
+        var task = await taskManager.SendMessageAsync(taskSendParams) as AgentTask;
+        Assert.NotNull(task);
+        // Add more messages to history
+        for (int i = 2; i <= 5; i++)
+        {
+            var updateParams = new MessageSendParams
+            {
+                Message = new Message { TaskId = task.Id, Parts = [new TextPart { Text = $"Msg{i}" }] },
+            };
+            await taskManager.SendMessageAsync(updateParams);
+        }
+        // Request with historyLength = 3
+        var checkParams = new MessageSendParams
+        {
+            Message = new Message { TaskId = task.Id, Parts = [new TextPart { Text = "Check" }] },
+            Configuration = new() { HistoryLength = 3 }
+        };
+        var resultTask = await taskManager.SendMessageAsync(checkParams) as AgentTask;
+        Assert.NotNull(resultTask);
+        Assert.NotNull(resultTask.History);
+        Assert.Equal(3, resultTask.History.Count);
+        Assert.Equal("Msg4", (resultTask.History[0].Parts[0] as TextPart)?.Text);
+        Assert.Equal("Msg5", (resultTask.History[1].Parts[0] as TextPart)?.Text);
+        Assert.Equal("Check", (resultTask.History[2].Parts[0] as TextPart)?.Text);
     }
 }
