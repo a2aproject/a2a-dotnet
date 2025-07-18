@@ -30,7 +30,7 @@ internal static class A2AHttpProcessor
     /// <param name="logger">Logger instance for recording operation details and errors.</param>
     /// <param name="agentUrl">The URL of the agent to retrieve the card for.</param>
     /// <returns>An HTTP result containing the agent card JSON or an error response.</returns>
-    internal static Task<IResult> GetAgentCard(TaskManager taskManager, ILogger logger, string agentUrl)
+    internal static Task<IResult> GetAgentCard(ITaskManager taskManager, ILogger logger, string agentUrl)
     {
         using var activity = ActivitySource.StartActivity("GetAgentCard", ActivityKind.Server);
 
@@ -59,7 +59,7 @@ internal static class A2AHttpProcessor
     /// <param name="historyLength">Optional limit on the number of history items to return.</param>
     /// <param name="metadata">Optional JSON metadata filter for the task query.</param>
     /// <returns>An HTTP result containing the task JSON or a not found/error response.</returns>
-    internal static async Task<IResult> GetTask(TaskManager taskManager, ILogger logger, string id, int? historyLength, string? metadata)
+    internal static async Task<IResult> GetTask(ITaskManager taskManager, ILogger logger, string id, int? historyLength, string? metadata)
     {
         using var activity = ActivitySource.StartActivity("GetTask", ActivityKind.Server);
         activity?.AddTag("task.id", id);
@@ -92,7 +92,7 @@ internal static class A2AHttpProcessor
     /// <param name="logger">Logger instance for recording operation details and errors.</param>
     /// <param name="id">The unique identifier of the task to cancel.</param>
     /// <returns>An HTTP result containing the canceled task JSON or a not found/error response.</returns>
-    internal static async Task<IResult> CancelTask(TaskManager taskManager, ILogger logger, string id)
+    internal static async Task<IResult> CancelTask(ITaskManager taskManager, ILogger logger, string id)
     {
         using var activity = ActivitySource.StartActivity("CancelTask", ActivityKind.Server);
         activity?.AddTag("task.id", id);
@@ -125,7 +125,7 @@ internal static class A2AHttpProcessor
     /// <param name="logger">Logger instance for recording operation details and errors.</param>
     /// <param name="sendParams">The message parameters containing the message content and configuration.</param>
     /// <returns>An HTTP result containing the agent's response (Task or Message) or an error response.</returns>
-    internal static async Task<IResult> SendMessage(TaskManager taskManager, ILogger logger, MessageSendParams sendParams)
+    internal static async Task<IResult> SendMessage(ITaskManager taskManager, ILogger logger, MessageSendParams sendParams)
     {
         using var activity = ActivitySource.StartActivity("SendMessage", ActivityKind.Server);
         try
@@ -156,7 +156,7 @@ internal static class A2AHttpProcessor
     /// <param name="logger">Logger instance for recording operation details and errors.</param>
     /// <param name="sendParams">The message parameters containing the message content and configuration.</param>
     /// <returns>An HTTP result that streams events as Server-Sent Events or an error response.</returns>
-    internal static async Task<IResult> SendMessageStream(TaskManager taskManager, ILogger logger, MessageSendParams sendParams)
+    internal static async Task<IResult> SendMessageStream(ITaskManager taskManager, ILogger logger, MessageSendParams sendParams)
     {
         using var activity = ActivitySource.StartActivity("SendMessageStream", ActivityKind.Server);
         activity?.AddTag("task.id", sendParams.Message.TaskId);
@@ -185,7 +185,7 @@ internal static class A2AHttpProcessor
     /// <param name="logger">Logger instance for recording operation details and errors.</param>
     /// <param name="id">The unique identifier of the task to resubscribe to.</param>
     /// <returns>An HTTP result that streams existing task events or an error response.</returns>
-    internal static IResult SubscribeTask(TaskManager taskManager, ILogger logger, string id)
+    internal static IResult SubscribeTask(ITaskManager taskManager, ILogger logger, string id)
     {
         using var activity = ActivitySource.StartActivity("SubscribeTask", ActivityKind.Server);
         activity?.AddTag("task.id", id);
@@ -214,7 +214,7 @@ internal static class A2AHttpProcessor
     /// <param name="id">The unique identifier of the task to configure push notifications for.</param>
     /// <param name="pushNotificationConfig">The push notification configuration containing callback URL and authentication details.</param>
     /// <returns>An HTTP result containing the configured settings or an error response.</returns>
-    internal static async Task<IResult> SetPushNotification(TaskManager taskManager, ILogger logger, string id, PushNotificationConfig pushNotificationConfig)
+    internal static async Task<IResult> SetPushNotification(ITaskManager taskManager, ILogger logger, string id, PushNotificationConfig pushNotificationConfig)
     {
         using var activity = ActivitySource.StartActivity("ConfigurePushNotification", ActivityKind.Server);
         activity?.AddTag("task.id", id);
@@ -253,7 +253,7 @@ internal static class A2AHttpProcessor
     /// <param name="taskId">The unique identifier of the task to get push notification configuration for.</param>
     /// <param name="notificationConfigId">The unique identifier of the push notification configuration to retrieve.</param>
     /// <returns>An HTTP result containing the push notification configuration or a not found/error response.</returns>
-    internal static async Task<IResult> GetPushNotification(TaskManager taskManager, ILogger logger, string taskId, string? notificationConfigId)
+    internal static async Task<IResult> GetPushNotification(ITaskManager taskManager, ILogger logger, string taskId, string? notificationConfigId)
     {
         using var activity = ActivitySource.StartActivity("GetPushNotification", ActivityKind.Server);
         activity?.AddTag("task.id", taskId);
