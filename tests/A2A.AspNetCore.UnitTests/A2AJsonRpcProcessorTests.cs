@@ -22,7 +22,8 @@ public class A2AJsonRpcProcessorTests
         };
 
         // Act
-        var result = await A2AJsonRpcProcessor.ProcessRequest(taskManager, req);
+        var result = await A2AJsonRpcProcessor.ProcessRequest(taskManager,
+            new MemoryStream(JsonSerializer.SerializeToUtf8Bytes(req, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcRequest)))));
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -56,14 +57,15 @@ public class A2AJsonRpcProcessorTests
         };
 
         // Act
-        var result = await A2AJsonRpcProcessor.ProcessRequest(taskManager, req);
+        var result = await A2AJsonRpcProcessor.ProcessRequest(taskManager,
+            new MemoryStream(JsonSerializer.SerializeToUtf8Bytes(req, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcRequest)))));
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
 
         var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
 
-        Assert.Equal(StatusCodes.Status400BadRequest, StatusCode);
+        Assert.Equal(StatusCodes.Status200OK, StatusCode);
         Assert.Equal("application/json", ContentType);
 
         Assert.NotNull(BodyContent);
@@ -256,7 +258,7 @@ public class A2AJsonRpcProcessorTests
 
         var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
 
-        Assert.Equal(StatusCodes.Status400BadRequest, StatusCode);
+        Assert.Equal(StatusCodes.Status200OK, StatusCode);
         Assert.Equal("application/json", ContentType);
 
         Assert.NotNull(BodyContent);
