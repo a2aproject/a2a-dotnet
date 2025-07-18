@@ -90,7 +90,16 @@ public static class A2AJsonRpcProcessor
         switch (method)
         {
             case A2AMethods.MessageSend:
-                var taskSendParams = (MessageSendParams?)parameters.Value.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(MessageSendParams))); //TODO stop the double parsing
+                MessageSendParams? taskSendParams;
+                try
+                {
+                    taskSendParams = parameters.Value.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(MessageSendParams))) as MessageSendParams;
+                }
+                catch (JsonException)
+                {
+                    taskSendParams = null;
+                }
+
                 if (taskSendParams == null)
                 {
                     response = JsonRpcResponse.InvalidParamsResponse(requestId);
