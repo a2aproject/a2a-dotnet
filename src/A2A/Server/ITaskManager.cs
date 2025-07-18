@@ -140,7 +140,7 @@ public interface ITaskManager
     /// </remarks>
     /// <param name="taskIdParams">Parameters containing the task ID to resubscribe to.</param>
     /// <returns>An async enumerable of events for the specified task.</returns>
-    IAsyncEnumerable<A2AEvent> ResubscribeAsync(TaskIdParams taskIdParams);
+    IAsyncEnumerable<A2AEvent> SubscribeToTaskAsync(TaskIdParams taskIdParams);
 
     /// <summary>
     /// Sets or updates the push notification configuration for a specific task.

@@ -18,7 +18,7 @@
 ## Stream message using sendsubscribe
 # Description: Sends a streaming message using sendsubscribe pattern
 # Profile: echo-agent or echotasks-agent
-POST {{host}}/echo/tasks/sendsubscribeTaskId2/sendsubscribe
+POST {{host}}/echo/v1/message:stream
 Content-Type: application/json
 {
         "message": {
