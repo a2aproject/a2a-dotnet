@@ -9,6 +9,11 @@ namespace A2A;
 /// </summary>
 internal sealed class JsonRpcRequestConverter : JsonConverter<JsonRpcRequest>
 {
+    /// <summary>
+    /// The supported JSON-RPC version.
+    /// </summary>
+    private const string JsonRpcSupportedVersion = "2.0";
+
     public override JsonRpcRequest? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         string? requestId = null;
@@ -91,7 +96,7 @@ internal sealed class JsonRpcRequestConverter : JsonConverter<JsonRpcRequest>
         {
             var jsonRpc = jsonRpcElement.GetString();
 
-            if (jsonRpc != "2.0")
+            if (jsonRpc != JsonRpcSupportedVersion)
             {
                 throw new A2AException("Invalid JSON-RPC request: 'jsonrpc' field must be '2.0'.", A2AErrorCode.InvalidRequest)
                     .WithRequestId(requestId);
