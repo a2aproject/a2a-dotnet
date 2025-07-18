@@ -111,7 +111,7 @@ public sealed class TaskManager : ITaskManager
     /// </remarks>
     /// <param name="taskIdParams">Parameters containing the task ID to retrieve.</param>
     /// <returns>The task if found in the store, null otherwise.</returns>
-    public async Task<AgentTask?> GetTaskAsync(TaskIdParams taskIdParams)
+    public async Task<AgentTask?> GetTaskAsync(TaskQueryParams taskIdParams)
     {
         if (taskIdParams is null)
         {
@@ -123,6 +123,9 @@ public sealed class TaskManager : ITaskManager
 
         var task = await _taskStore.GetTaskAsync(taskIdParams.Id);
         activity?.SetTag("task.found", task != null);
+
+        task?.TrimHistory(taskIdParams.HistoryLength);
+
         return task;
     }
 
@@ -191,7 +194,7 @@ public sealed class TaskManager : ITaskManager
             task.History ??= [];
             task.History.Add(messageSendParams.Message);
 
-            TrimHistory(messageSendParams, task);
+            task.TrimHistory(messageSendParams.Configuration?.HistoryLength);
 
             await _taskStore.SetTaskAsync(task);
             using var createActivity = ActivitySource.StartActivity("OnTaskUpdated", ActivityKind.Server);
@@ -199,15 +202,6 @@ public sealed class TaskManager : ITaskManager
         }
 
         return task;
-    }
-
-    private static void TrimHistory(MessageSendParams messageSendParams, AgentTask task)
-    {
-        // Trim history if historyLength is specified
-        if (messageSendParams.Configuration?.HistoryLength is { } historyLength && task.History?.Count > historyLength)
-        {
-            task.History = [.. task.History.Skip(Math.Max(0, task.History.Count - historyLength))];
-        }
     }
 
     /// <summary>
@@ -283,7 +277,7 @@ public sealed class TaskManager : ITaskManager
             agentTask.History ??= [];
             agentTask.History.Add(messageSendParams.Message);
 
-            TrimHistory(messageSendParams, agentTask);
+            agentTask.TrimHistory(messageSendParams.Configuration?.HistoryLength);
 
             await _taskStore.SetTaskAsync(agentTask);
             enumerator = new TaskUpdateEventEnumerator();

@@ -107,7 +107,7 @@ public interface ITaskManager
     /// </remarks>
     /// <param name="taskIdParams">Parameters containing the task ID to retrieve.</param>
     /// <returns>The task if found in the store, null otherwise.</returns>
-    Task<AgentTask?> GetTaskAsync(TaskIdParams taskIdParams);
+    Task<AgentTask?> GetTaskAsync(TaskQueryParams taskIdParams);
 
     /// <summary>
     /// Processes a message request and returns a response, either from an existing task or by creating a new one.

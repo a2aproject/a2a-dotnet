@@ -59,7 +59,7 @@ public class TaskManagerTests
 
         Assert.Equal(TaskState.Submitted, task.Status.State);
 
-        var retrievedTask = await taskManager.GetTaskAsync(new TaskIdParams { Id = task.Id });
+        var retrievedTask = await taskManager.GetTaskAsync(new TaskQueryParams { Id = task.Id });
         Assert.NotNull(retrievedTask);
         Assert.Equal(task.Id, retrievedTask.Id);
         Assert.Equal(TaskState.Submitted, retrievedTask.Status.State);
@@ -171,7 +171,7 @@ public class TaskManagerTests
                 ]
         }
         );
-        var completedTask = await taskManager.GetTaskAsync(new TaskIdParams { Id = task.Id });
+        var completedTask = await taskManager.GetTaskAsync(new TaskQueryParams { Id = task.Id });
         Assert.NotNull(completedTask);
         Assert.Equal(task.Id, completedTask.Id);
         Assert.Equal(TaskState.Completed, completedTask.Status.State);
@@ -211,7 +211,7 @@ public class TaskManagerTests
         };
         await taskManager.ReturnArtifactAsync(task.Id, artifact);
         await taskManager.UpdateStatusAsync(task.Id, TaskState.Completed);
-        var completedTask = await taskManager.GetTaskAsync(new TaskIdParams { Id = task.Id });
+        var completedTask = await taskManager.GetTaskAsync(new TaskQueryParams { Id = task.Id });
         Assert.NotNull(completedTask);
         Assert.Equal(task.Id, completedTask.Id);
         Assert.Equal(TaskState.Completed, completedTask.Status.State);
