@@ -116,7 +116,9 @@ public static class A2AJsonRpcProcessor
                     break;
                 }
                 var getAgentTask = await taskManager.GetTaskAsync(taskIdParams);
-                response = JsonRpcResponse.CreateJsonRpcResponse(requestId, getAgentTask);
+                response = getAgentTask is null
+                    ? JsonRpcResponse.TaskNotFoundResponse(requestId)
+                    : JsonRpcResponse.CreateJsonRpcResponse(requestId, getAgentTask);
                 break;
             case A2AMethods.TaskCancel:
                 var taskIdParamsCancel = (TaskIdParams?)parameters.Value.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(TaskIdParams)));
