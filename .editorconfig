@@ -272,9 +272,6 @@ dotnet_naming_style.begins_with_i.required_suffix =
 dotnet_naming_style.begins_with_i.word_separator = 
 dotnet_naming_style.begins_with_i.capitalization = pascal_case
 
-# EA0002: Use 'System.TimeProvider' to make the code easier to test
-dotnet_diagnostic.EA0002.severity = warning
-
 dotnet_naming_style.asyncsuffix.required_prefix = 
 dotnet_naming_style.asyncsuffix.required_suffix = Async
 dotnet_naming_style.asyncsuffix.word_separator = 
