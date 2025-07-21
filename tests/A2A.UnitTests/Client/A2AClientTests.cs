@@ -506,7 +506,7 @@ public class A2AClientTests
     }
 
     [Fact]
-    public async Task ResubscribeToTaskAsync_MapsRequestParamsCorrectly()
+    public async Task SubscribeToTaskAsync_MapsRequestParamsCorrectly()
     {
         // Arrange
         HttpRequestMessage? capturedRequest = null;
@@ -534,7 +534,7 @@ public class A2AClientTests
     }
 
     [Fact]
-    public async Task ResubscribeToTaskAsync_MapsResponseCorrectly()
+    public async Task SubscribeToTaskAsync_MapsResponseCorrectly()
     {
         // Arrange
         var expectedMessage = new Message
