@@ -25,7 +25,7 @@ public class CurrencyPlugin
     /// Initialize a new instance of the CurrencyPlugin
     /// </summary>
     /// <param name="logger">Logger for the plugin</param>
-    /// <param name="httpClient">The HTTP client to use for API calls</param>
+    /// <param name="httpClient">HTTP client for making API requests</param>
     public CurrencyPlugin(ILogger<CurrencyPlugin> logger, HttpClient httpClient)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
