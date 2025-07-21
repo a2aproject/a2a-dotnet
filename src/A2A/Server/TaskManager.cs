@@ -53,6 +53,8 @@ public sealed class TaskManager : ITaskManager
     /// <inheritdoc />
     public async Task<AgentTask> CreateTaskAsync(string? contextId = null, string? taskId = null, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         contextId ??= Guid.NewGuid().ToString();
 
         using var activity = ActivitySource.StartActivity("CreateTask", ActivityKind.Server);
@@ -76,6 +78,8 @@ public sealed class TaskManager : ITaskManager
     /// <inheritdoc />
     public async Task<AgentTask?> CancelTaskAsync(TaskIdParams taskIdParams, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (taskIdParams is null)
         {
             throw new ArgumentNullException(nameof(taskIdParams));
@@ -100,6 +104,8 @@ public sealed class TaskManager : ITaskManager
     /// <inheritdoc />
     public async Task<AgentTask?> GetTaskAsync(TaskQueryParams taskIdParams, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (taskIdParams is null)
         {
             throw new ArgumentNullException(nameof(taskIdParams));
@@ -119,6 +125,8 @@ public sealed class TaskManager : ITaskManager
     /// <inheritdoc />
     public async Task<A2AResponse?> SendMessageAsync(MessageSendParams messageSendParams, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (messageSendParams is null)
         {
             throw new ArgumentNullException(nameof(messageSendParams));
@@ -186,6 +194,8 @@ public sealed class TaskManager : ITaskManager
     /// <inheritdoc />
     public async Task<IAsyncEnumerable<A2AEvent>> SendMessageStreamAsync(MessageSendParams messageSendParams, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (messageSendParams is null)
         {
             throw new ArgumentNullException(nameof(messageSendParams));
@@ -269,6 +279,8 @@ public sealed class TaskManager : ITaskManager
     /// <inheritdoc />
     public IAsyncEnumerable<A2AEvent> SubscribeToTaskAsync(TaskIdParams taskIdParams, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (taskIdParams is null)
         {
             throw new ArgumentNullException(nameof(taskIdParams));
@@ -285,6 +297,8 @@ public sealed class TaskManager : ITaskManager
     /// <inheritdoc />
     public async Task<TaskPushNotificationConfig?> SetPushNotificationAsync(TaskPushNotificationConfig pushNotificationConfig, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (pushNotificationConfig is null)
         {
             throw new ArgumentNullException(nameof(pushNotificationConfig));
@@ -297,6 +311,8 @@ public sealed class TaskManager : ITaskManager
     /// <inheritdoc />
     public async Task<TaskPushNotificationConfig?> GetPushNotificationAsync(GetTaskPushNotificationConfigParams? notificationConfigParams, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (notificationConfigParams is null)
         {
             throw new ArgumentNullException(nameof(notificationConfigParams), "GetTaskPushNotificationConfigParams cannot be null.");
@@ -333,6 +349,8 @@ public sealed class TaskManager : ITaskManager
     /// <inheritdoc />
     public async Task UpdateStatusAsync(string taskId, TaskState status, Message? message = null, bool final = false, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (string.IsNullOrEmpty(taskId))
         {
             throw new ArgumentNullException(nameof(taskId));
@@ -379,6 +397,8 @@ public sealed class TaskManager : ITaskManager
     /// <inheritdoc />
     public async Task ReturnArtifactAsync(string taskId, Artifact artifact, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (string.IsNullOrEmpty(taskId))
         {
             throw new ArgumentNullException(nameof(taskId));
