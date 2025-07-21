@@ -10,7 +10,7 @@ public class EchoAgent
         taskManager.OnAgentCardQuery = GetAgentCard;
     }
 
-    private Task<Message> ProcessMessage(MessageSendParams messageSendParams)
+    private Task<Message> ProcessMessage(MessageSendParams messageSendParams, CancellationToken _)
     {
         // Process the message
         var messageText = messageSendParams.Message.Parts.OfType<TextPart>().First().Text;
@@ -29,7 +29,7 @@ public class EchoAgent
         return Task.FromResult(message);
     }
 
-    private AgentCard GetAgentCard(string agentUrl)
+    private AgentCard GetAgentCard(string agentUrl, CancellationToken _)
     {
         var capabilities = new AgentCapabilities()
         {

@@ -103,7 +103,7 @@ public class A2AHttpProcessorTests
         // Arrange
         var mockTaskStore = new Mock<ITaskStore>();
         mockTaskStore
-            .Setup(ts => ts.GetTaskAsync(It.IsAny<string>()))
+            .Setup(ts => ts.GetTaskAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new A2AException("Test exception", errorCode));
 
         var taskManager = new TaskManager(taskStore: mockTaskStore.Object);
@@ -127,7 +127,7 @@ public class A2AHttpProcessorTests
         // Create an A2AException with an unknown/invalid error code by casting an integer that doesn't correspond to any enum value
         var unknownErrorCode = (A2AErrorCode)(-99999);
         mockTaskStore
-            .Setup(ts => ts.GetTaskAsync(It.IsAny<string>()))
+            .Setup(ts => ts.GetTaskAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new A2AException("Test exception with unknown error code", unknownErrorCode));
 
         var taskManager = new TaskManager(taskStore: mockTaskStore.Object);

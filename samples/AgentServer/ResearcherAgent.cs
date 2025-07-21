@@ -18,7 +18,7 @@ public class ResearcherAgent
     public void Attach(ITaskManager taskManager)
     {
         _taskManager = taskManager;
-        _taskManager.OnTaskCreated = async (task) =>
+        _taskManager.OnTaskCreated = async (task, _) =>
         {
             // Initialize the agent state for the task
             _agentStates[task.Id] = AgentState.Planning;
@@ -26,7 +26,7 @@ public class ResearcherAgent
             var message = ((TextPart?)task.History?.Last()?.Parts?.FirstOrDefault())?.Text ?? string.Empty;
             await Invoke(task.Id, message);
         };
-        _taskManager.OnTaskUpdated = async (task) =>
+        _taskManager.OnTaskUpdated = async (task, _) =>
         {
             // Note that the updated callback is helpful to know not to initialize the agent state again.
             var message = ((TextPart?)task.History?.Last()?.Parts?.FirstOrDefault())?.Text ?? string.Empty;
@@ -136,7 +136,7 @@ public class ResearcherAgent
         _agentStates[taskId] = AgentState.WaitingForFeedbackOnPlan;
     }
 
-    private AgentCard GetAgentCard(string agentUrl)
+    private AgentCard GetAgentCard(string agentUrl, CancellationToken _)
     {
         var capabilities = new AgentCapabilities()
         {

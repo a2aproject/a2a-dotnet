@@ -14,7 +14,7 @@ public interface ITaskManager
     /// <remarks>
     /// Used when the task is configured to process simple messages without tasks.
     /// </remarks>
-    Func<MessageSendParams, Task<Message>>? OnMessageReceived { get; set; }
+    Func<MessageSendParams, CancellationToken, Task<Message>>? OnMessageReceived { get; set; }
 
     /// <summary>
     /// Gets or sets the handler for when a task is created.
@@ -22,7 +22,7 @@ public interface ITaskManager
     /// <remarks>
     /// Called after a new task object is created and persisted.
     /// </remarks>
-    Func<AgentTask, Task> OnTaskCreated { get; set; }
+    Func<AgentTask, CancellationToken, Task> OnTaskCreated { get; set; }
 
     /// <summary>
     /// Gets or sets the handler for when a task is cancelled.
@@ -30,7 +30,7 @@ public interface ITaskManager
     /// <remarks>
     /// Called after a task's status is updated to Canceled.
     /// </remarks>
-    Func<AgentTask, Task> OnTaskCancelled { get; set; }
+    Func<AgentTask, CancellationToken, Task> OnTaskCancelled { get; set; }
 
     /// <summary>
     /// Gets or sets the handler for when a task is updated.
@@ -38,7 +38,7 @@ public interface ITaskManager
     /// <remarks>
     /// Called after an existing task's history or status is modified.
     /// </remarks>
-    Func<AgentTask, Task> OnTaskUpdated { get; set; }
+    Func<AgentTask, CancellationToken, Task> OnTaskUpdated { get; set; }
 
     /// <summary>
     /// Gets or sets the handler for when an agent card is queried.
@@ -46,7 +46,7 @@ public interface ITaskManager
     /// <remarks>
     /// Returns agent capability information for a given agent URL.
     /// </remarks>
-    Func<string, AgentCard> OnAgentCardQuery { get; set; }
+    Func<string, CancellationToken, AgentCard> OnAgentCardQuery { get; set; }
 
     /// <summary>
     /// Creates a new agent task with a unique ID and initial status.
@@ -60,10 +60,11 @@ public interface ITaskManager
     /// <param name="taskId">
     /// Optional task ID for the task. If null, a new GUID is generated.
     /// </param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>
     /// The created <see cref="AgentTask"/> with <see cref="TaskState.Submitted"/> status and unique identifiers.
     /// </returns>
-    Task<AgentTask> CreateTaskAsync(string? contextId = null, string? taskId = null);
+    Task<AgentTask> CreateTaskAsync(string? contextId = null, string? taskId = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Adds an artifact to a task and notifies any active event streams.
@@ -73,8 +74,9 @@ public interface ITaskManager
     /// </remarks>
     /// <param name="taskId">The ID of the task to add the artifact to.</param>
     /// <param name="artifact">The artifact to add to the task.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    Task ReturnArtifactAsync(string taskId, Artifact artifact);
+    Task ReturnArtifactAsync(string taskId, Artifact artifact, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Updates the status of a task and optionally adds a message to its history.
@@ -86,8 +88,9 @@ public interface ITaskManager
     /// <param name="status">The new task status to set.</param>
     /// <param name="message">Optional message to add to the task history along with the status update.</param>
     /// <param name="final">Whether this is a final status update that should close any active streams.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    Task UpdateStatusAsync(string taskId, TaskState status, Message? message = null, bool final = false);
+    Task UpdateStatusAsync(string taskId, TaskState status, Message? message = null, bool final = false, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Cancels a task by setting its status to Canceled and invoking the cancellation handler.
@@ -96,8 +99,9 @@ public interface ITaskManager
     /// Retrieves the task from the store, updates its status, and notifies the cancellation handler.
     /// </remarks>
     /// <param name="taskIdParams">Parameters containing the task ID to cancel.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>The canceled task with updated status, or null if not found.</returns>
-    Task<AgentTask?> CancelTaskAsync(TaskIdParams taskIdParams);
+    Task<AgentTask?> CancelTaskAsync(TaskIdParams taskIdParams, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Retrieves a task by its ID from the task store.
@@ -106,8 +110,9 @@ public interface ITaskManager
     /// Looks up the task in the persistent store and returns the current state and history.
     /// </remarks>
     /// <param name="taskIdParams">Parameters containing the task ID to retrieve.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>The task if found in the store, null otherwise.</returns>
-    Task<AgentTask?> GetTaskAsync(TaskQueryParams taskIdParams);
+    Task<AgentTask?> GetTaskAsync(TaskQueryParams taskIdParams, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Processes a message request and returns a response, either from an existing task or by creating a new one.
@@ -117,8 +122,9 @@ public interface ITaskManager
     /// it either delegates to the OnMessageReceived handler or creates a new task.
     /// </remarks>
     /// <param name="messageSendParams">The message parameters containing the message content and optional task/context IDs.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>The agent's response as either a Task object or a direct Message from the handler.</returns>
-    Task<A2AResponse?> SendMessageAsync(MessageSendParams messageSendParams);
+    Task<A2AResponse?> SendMessageAsync(MessageSendParams messageSendParams, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Processes a message request and returns a stream of events as they occur.
@@ -128,8 +134,9 @@ public interface ITaskManager
     /// TaskStatusUpdateEvent, and TaskArtifactUpdateEvent objects as they are generated.
     /// </remarks>
     /// <param name="messageSendParams">The message parameters containing the message content and optional task/context IDs.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>An async enumerable that yields events as they are produced by the agent.</returns>
-    Task<IAsyncEnumerable<A2AEvent>> SendMessageStreamAsync(MessageSendParams messageSendParams);
+    Task<IAsyncEnumerable<A2AEvent>> SendMessageStreamAsync(MessageSendParams messageSendParams, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Resubscribes to an existing task's event stream to receive ongoing updates.
@@ -139,8 +146,9 @@ public interface ITaskManager
     /// allowing clients to reconnect to an active task stream.
     /// </remarks>
     /// <param name="taskIdParams">Parameters containing the task ID to resubscribe to.</param>
+    /// <param name="cancellationToken"> A cancellation token that can be used to cancel the operation.</param>
     /// <returns>An async enumerable of events for the specified task.</returns>
-    IAsyncEnumerable<A2AEvent> SubscribeToTaskAsync(TaskIdParams taskIdParams);
+    IAsyncEnumerable<A2AEvent> SubscribeToTaskAsync(TaskIdParams taskIdParams, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Sets or updates the push notification configuration for a specific task.
@@ -149,8 +157,9 @@ public interface ITaskManager
     /// Configures callback URLs and authentication for receiving task updates via HTTP notifications.
     /// </remarks>
     /// <param name="pushNotificationConfig">The push notification configuration containing callback URL and authentication details.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>The configured push notification settings with confirmation.</returns>
-    Task<TaskPushNotificationConfig?> SetPushNotificationAsync(TaskPushNotificationConfig pushNotificationConfig);
+    Task<TaskPushNotificationConfig?> SetPushNotificationAsync(TaskPushNotificationConfig pushNotificationConfig, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Retrieves the push notification configuration for a specific task.
@@ -159,6 +168,7 @@ public interface ITaskManager
     /// Returns the callback URL and authentication settings configured for receiving task update notifications.
     /// </remarks>
     /// <param name="notificationConfigParams">Parameters containing the task ID and optional push notification config ID.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>The push notification configuration if found, null otherwise.</returns>
-    Task<TaskPushNotificationConfig?> GetPushNotificationAsync(GetTaskPushNotificationConfigParams? notificationConfigParams);
+    Task<TaskPushNotificationConfig?> GetPushNotificationAsync(GetTaskPushNotificationConfigParams? notificationConfigParams, CancellationToken cancellationToken = default);
 }

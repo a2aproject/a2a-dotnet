@@ -25,7 +25,7 @@ public class CurrencyPlugin
     /// Initialize a new instance of the CurrencyPlugin
     /// </summary>
     /// <param name="logger">Logger for the plugin</param>
-    /// <param name="httpClientFactory">HTTP client factory for making API requests</param>
+    /// <param name="httpClient">The HTTP client to use for API calls</param>
     public CurrencyPlugin(ILogger<CurrencyPlugin> logger, HttpClient httpClient)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -143,32 +143,32 @@ public class SemanticKernelTravelAgent : IDisposable
         taskManager.OnAgentCardQuery = GetAgentCard;
     }
 
-    public async Task ExecuteAgentTask(AgentTask task)
+    public async Task ExecuteAgentTask(AgentTask task, CancellationToken cancellationToken)
     {
         if (_taskManager == null)
         {
             throw new InvalidOperationException("TaskManager is not attached.");
         }
 
-        await _taskManager.UpdateStatusAsync(task.Id, TaskState.Working);
+        await _taskManager.UpdateStatusAsync(task.Id, TaskState.Working, cancellationToken: cancellationToken);
 
         // Get message from the user
         var userMessage = task.History!.Last().Parts.First().AsTextPart().Text;
 
         // Get the response from the agent
         var artifact = new Artifact();
-        await foreach (AgentResponseItem<ChatMessageContent> response in _agent.InvokeAsync(userMessage))
+        await foreach (AgentResponseItem<ChatMessageContent> response in _agent.InvokeAsync(userMessage, cancellationToken: cancellationToken))
         {
             var content = response.Message.Content;
             artifact.Parts.Add(new TextPart() { Text = content! });
         }
 
         // Return as artifacts
-        await _taskManager.ReturnArtifactAsync(task.Id, artifact);
-        await _taskManager.UpdateStatusAsync(task.Id, TaskState.Completed);
+        await _taskManager.ReturnArtifactAsync(task.Id, artifact, cancellationToken);
+        await _taskManager.UpdateStatusAsync(task.Id, TaskState.Completed, cancellationToken: cancellationToken);
     }
 
-    public static AgentCard GetAgentCard(string agentUrl)
+    public static AgentCard GetAgentCard(string agentUrl, CancellationToken _)
     {
         var capabilities = new AgentCapabilities()
         {

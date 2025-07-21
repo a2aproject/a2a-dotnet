@@ -236,7 +236,7 @@ public class A2AJsonRpcProcessorTests
         var queryParams = new TaskQueryParams { Id = task.Id };
 
         // Act
-        var result = await A2AJsonRpcProcessor.SingleResponse(taskManager, "4", A2AMethods.TaskGet, ToJsonElement(queryParams));
+        var result = await A2AJsonRpcProcessor.SingleResponse(taskManager, "4", A2AMethods.TaskGet, ToJsonElement(queryParams), CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -262,7 +262,7 @@ public class A2AJsonRpcProcessorTests
         var cancelParams = new TaskIdParams { Id = newTask.Id };
 
         // Act
-        var result = await A2AJsonRpcProcessor.SingleResponse(taskManager, "5", A2AMethods.TaskCancel, ToJsonElement(cancelParams));
+        var result = await A2AJsonRpcProcessor.SingleResponse(taskManager, "5", A2AMethods.TaskCancel, ToJsonElement(cancelParams), CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -294,7 +294,7 @@ public class A2AJsonRpcProcessorTests
         };
 
         // Act
-        var result = await A2AJsonRpcProcessor.SingleResponse(taskManager, "6", A2AMethods.TaskPushNotificationConfigSet, ToJsonElement(config));
+        var result = await A2AJsonRpcProcessor.SingleResponse(taskManager, "6", A2AMethods.TaskPushNotificationConfigSet, ToJsonElement(config), CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -332,7 +332,7 @@ public class A2AJsonRpcProcessorTests
         var getParams = new GetTaskPushNotificationConfigParams { Id = task.Id };
 
         // Act
-        var result = await A2AJsonRpcProcessor.SingleResponse(taskManager, "7", A2AMethods.TaskPushNotificationConfigGet, ToJsonElement(getParams));
+        var result = await A2AJsonRpcProcessor.SingleResponse(taskManager, "7", A2AMethods.TaskPushNotificationConfigGet, ToJsonElement(getParams), CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -375,7 +375,7 @@ public class A2AJsonRpcProcessorTests
         };
 
         // Act
-        var result = await A2AJsonRpcProcessor.SingleResponse(taskManager, "8", A2AMethods.TaskPushNotificationConfigGet, ToJsonElement(getParams));
+        var result = await A2AJsonRpcProcessor.SingleResponse(taskManager, "8", A2AMethods.TaskPushNotificationConfigGet, ToJsonElement(getParams), CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -401,7 +401,7 @@ public class A2AJsonRpcProcessorTests
         var taskManager = new TaskManager();
 
         // Act
-        var result = await A2AJsonRpcProcessor.StreamResponse(taskManager, "10", A2AMethods.MessageStream, null);
+        var result = await A2AJsonRpcProcessor.StreamResponse(taskManager, "10", A2AMethods.MessageStream, null, CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);

@@ -9,13 +9,13 @@ public sealed class InMemoryTaskStore : ITaskStore
     private readonly Dictionary<string, List<TaskPushNotificationConfig>> _pushNotificationCache = [];
 
     /// <inheritdoc />
-    public Task<AgentTask?> GetTaskAsync(string taskId) =>
+    public Task<AgentTask?> GetTaskAsync(string taskId, CancellationToken cancellationToken = default) =>
         string.IsNullOrEmpty(taskId)
             ? Task.FromException<AgentTask?>(new ArgumentNullException(taskId))
             : Task.FromResult(_taskCache.TryGetValue(taskId, out var task) ? task : null);
 
     /// <inheritdoc />
-    public Task<TaskPushNotificationConfig?> GetPushNotificationAsync(string taskId, string notificationConfigId)
+    public Task<TaskPushNotificationConfig?> GetPushNotificationAsync(string taskId, string notificationConfigId, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(taskId))
         {
@@ -33,7 +33,7 @@ public sealed class InMemoryTaskStore : ITaskStore
     }
 
     /// <inheritdoc />
-    public Task<AgentTaskStatus> UpdateStatusAsync(string taskId, TaskState status, Message? message = null)
+    public Task<AgentTaskStatus> UpdateStatusAsync(string taskId, TaskState status, Message? message = null, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(taskId))
         {
@@ -52,14 +52,14 @@ public sealed class InMemoryTaskStore : ITaskStore
     }
 
     /// <inheritdoc />
-    public Task SetTaskAsync(AgentTask task)
+    public Task SetTaskAsync(AgentTask task, CancellationToken cancellationToken = default)
     {
         _taskCache[task.Id] = task;
         return Task.CompletedTask;
     }
 
     /// <inheritdoc />
-    public Task SetPushNotificationConfigAsync(TaskPushNotificationConfig pushNotificationConfig)
+    public Task SetPushNotificationConfigAsync(TaskPushNotificationConfig pushNotificationConfig, CancellationToken cancellationToken = default)
     {
         if (pushNotificationConfig is null)
         {
@@ -78,7 +78,7 @@ public sealed class InMemoryTaskStore : ITaskStore
     }
 
     /// <inheritdoc />
-    public Task<IEnumerable<TaskPushNotificationConfig>> GetPushNotificationsAsync(string taskId)
+    public Task<IEnumerable<TaskPushNotificationConfig>> GetPushNotificationsAsync(string taskId, CancellationToken cancellationToken = default)
     {
         if (!_pushNotificationCache.TryGetValue(taskId, out var pushNotificationConfigs))
         {

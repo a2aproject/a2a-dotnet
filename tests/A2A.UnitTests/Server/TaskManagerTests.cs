@@ -19,7 +19,7 @@ public class TaskManagerTests
             },
         };
         string messageReceived = string.Empty;
-        taskManager.OnMessageReceived = (messageSendParams) =>
+        taskManager.OnMessageReceived = (messageSendParams, _) =>
         {
             messageReceived = messageSendParams.Message.Parts.OfType<TextPart>().First().Text;
             return Task.FromResult(new Message
@@ -96,7 +96,7 @@ public class TaskManagerTests
     {
         var taskManager = new TaskManager()
         {
-            OnTaskUpdated = (task) =>
+            OnTaskUpdated = (task, _) =>
             {
                 task.Status.State = TaskState.Working;
                 return Task.CompletedTask;
@@ -224,9 +224,9 @@ public class TaskManagerTests
     public async Task CreateSendSubscribeTask()
     {
         var taskManager = new TaskManager();
-        taskManager.OnTaskCreated = async (task) =>
+        taskManager.OnTaskCreated = async (task, ct) =>
         {
-            await taskManager.UpdateStatusAsync(task.Id, TaskState.Working, final: true);
+            await taskManager.UpdateStatusAsync(task.Id, TaskState.Working, final: true, cancellationToken: ct);
         };
 
         var taskSendParams = new MessageSendParams
@@ -254,9 +254,9 @@ public class TaskManagerTests
     public async Task EnsureTaskIsFirstReturnedEventFromMessageStream()
     {
         var taskManager = new TaskManager();
-        taskManager.OnTaskCreated = async (task) =>
+        taskManager.OnTaskCreated = async (task, ct) =>
         {
-            await taskManager.UpdateStatusAsync(task.Id, TaskState.Working, final: true);
+            await taskManager.UpdateStatusAsync(task.Id, TaskState.Working, final: true, cancellationToken: ct);
         };
 
         var taskSendParams = new MessageSendParams
