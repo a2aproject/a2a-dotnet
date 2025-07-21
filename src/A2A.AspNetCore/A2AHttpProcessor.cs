@@ -79,7 +79,7 @@ internal static class A2AHttpProcessor
                 Id = id,
                 HistoryLength = historyLength,
                 Metadata = string.IsNullOrWhiteSpace(metadata) ? null : (Dictionary<string, JsonElement>?)JsonSerializer.Deserialize(metadata, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(Dictionary<string, JsonElement>)))
-            }, cancellationToken);
+            }, cancellationToken).ConfigureAwait(false);
 
             return agentTask is not null ? new A2AResponseResult(agentTask) : Results.NotFound();
         }
@@ -113,7 +113,7 @@ internal static class A2AHttpProcessor
 
         try
         {
-            var agentTask = await taskManager.CancelTaskAsync(new TaskIdParams { Id = id }, cancellationToken);
+            var agentTask = await taskManager.CancelTaskAsync(new TaskIdParams { Id = id }, cancellationToken).ConfigureAwait(false);
             if (agentTask == null)
             {
                 return Results.NotFound();
@@ -150,7 +150,7 @@ internal static class A2AHttpProcessor
         using var activity = ActivitySource.StartActivity("SendMessage", ActivityKind.Server);
         try
         {
-            var a2aResponse = await taskManager.SendMessageAsync(sendParams, cancellationToken);
+            var a2aResponse = await taskManager.SendMessageAsync(sendParams, cancellationToken).ConfigureAwait(false);
             if (a2aResponse == null)
             {
                 return Results.NotFound();
@@ -189,7 +189,7 @@ internal static class A2AHttpProcessor
 
         try
         {
-            var taskEvents = await taskManager.SendMessageStreamAsync(sendParams, cancellationToken);
+            var taskEvents = await taskManager.SendMessageStreamAsync(sendParams, cancellationToken).ConfigureAwait(false);
 
             return new A2AEventStreamResult(taskEvents);
         }
@@ -264,7 +264,7 @@ internal static class A2AHttpProcessor
             {
                 TaskId = id,
                 PushNotificationConfig = pushNotificationConfig
-            }, cancellationToken);
+            }, cancellationToken).ConfigureAwait(false);
 
             if (result == null)
             {
@@ -305,7 +305,7 @@ internal static class A2AHttpProcessor
         try
         {
             var taskIdParams = new GetTaskPushNotificationConfigParams { Id = taskId, PushNotificationConfigId = notificationConfigId };
-            var result = await taskManager.GetPushNotificationAsync(taskIdParams, cancellationToken);
+            var result = await taskManager.GetPushNotificationAsync(taskIdParams, cancellationToken).ConfigureAwait(false);
 
             if (result == null)
             {
@@ -392,7 +392,7 @@ public class A2AResponseResult : IResult
     {
         httpContext.Response.ContentType = "application/json";
 
-        await JsonSerializer.SerializeAsync(httpContext.Response.Body, a2aResponse, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(A2AResponse)));
+        await JsonSerializer.SerializeAsync(httpContext.Response.Body, a2aResponse, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(A2AResponse))).ConfigureAwait(false);
     }
 }
 
@@ -444,8 +444,8 @@ internal sealed class A2AEventStreamResult : IResult
             await foreach (var taskEvent in taskEvents)
             {
                 var json = JsonSerializer.Serialize(taskEvent, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(A2AEvent)));
-                await httpContext.Response.BodyWriter.WriteAsync(Encoding.UTF8.GetBytes($"data: {json}\n\n"), httpContext.RequestAborted);
-                await httpContext.Response.BodyWriter.FlushAsync(httpContext.RequestAborted);
+                await httpContext.Response.BodyWriter.WriteAsync(Encoding.UTF8.GetBytes($"data: {json}\n\n"), httpContext.RequestAborted).ConfigureAwait(false);
+                await httpContext.Response.BodyWriter.FlushAsync(httpContext.RequestAborted).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException)

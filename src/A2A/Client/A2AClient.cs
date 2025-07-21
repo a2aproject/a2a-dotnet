@@ -102,7 +102,7 @@ public sealed class A2AClient : IA2AClient
             "application/json",
             cancellationToken).ConfigureAwait(false);
 
-        var responseObject = await JsonSerializer.DeserializeAsync(responseStream, A2AJsonUtilities.JsonContext.Default.JsonRpcResponse, cancellationToken);
+        var responseObject = await JsonSerializer.DeserializeAsync(responseStream, A2AJsonUtilities.JsonContext.Default.JsonRpcResponse, cancellationToken).ConfigureAwait(false);
 
         if (responseObject?.Error is { } error)
         {
@@ -163,7 +163,7 @@ public sealed class A2AClient : IA2AClient
                 Method = method,
                 Params = JsonSerializer.SerializeToElement(jsonRpcParams, inputTypeInfo),
             })
-        }, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        }, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
 
         try
         {
@@ -178,7 +178,7 @@ public sealed class A2AClient : IA2AClient
 #if NET
                 cancellationToken
 #endif
-                );
+                ).ConfigureAwait(false);
         }
         catch
         {
