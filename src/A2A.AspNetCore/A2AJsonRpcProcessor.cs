@@ -27,8 +27,9 @@ public static class A2AJsonRpcProcessor
     /// </remarks>
     /// <param name="taskManager">The task manager instance for handling A2A operations.</param>
     /// <param name="request">Http request containing the JSON-RPC request body.</param>
+    /// <param name="cancellationToken">The cancellation token to cancel the operation if needed.</param>
     /// <returns>An HTTP result containing either a single JSON-RPC response or a streaming SSE response.</returns>
-    internal static async Task<IResult> ProcessRequest(ITaskManager taskManager, HttpRequest request)
+    internal static async Task<IResult> ProcessRequest(ITaskManager taskManager, HttpRequest request, CancellationToken cancellationToken)
     {
         using var activity = ActivitySource.StartActivity("HandleA2ARequest", ActivityKind.Server);
 
@@ -36,7 +37,7 @@ public static class A2AJsonRpcProcessor
 
         try
         {
-            rpcRequest = (JsonRpcRequest?)await JsonSerializer.DeserializeAsync(request.Body, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcRequest)));
+            rpcRequest = (JsonRpcRequest?)await JsonSerializer.DeserializeAsync(request.Body, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcRequest)), cancellationToken);
 
             activity?.AddTag("request.id", rpcRequest!.Id);
             activity?.AddTag("request.method", rpcRequest!.Method);

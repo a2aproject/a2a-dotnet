@@ -33,7 +33,7 @@ public class A2AJsonRpcProcessorTests
         var httpRequest = CreateHttpRequestFromJson(jsonRequest);
 
         // Act
-        var result = await A2AJsonRpcProcessor.ProcessRequest(taskManager, httpRequest);
+        var result = await A2AJsonRpcProcessor.ProcessRequest(taskManager, httpRequest, CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -84,7 +84,7 @@ public class A2AJsonRpcProcessorTests
         var httpRequest = CreateHttpRequestFromJson(jsonRequest);
 
         // Act
-        var result = await A2AJsonRpcProcessor.ProcessRequest(taskManager, httpRequest);
+        var result = await A2AJsonRpcProcessor.ProcessRequest(taskManager, httpRequest, CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -129,7 +129,7 @@ public class A2AJsonRpcProcessorTests
         var httpRequest = CreateHttpRequestFromJson(jsonRequest);
 
         // Act
-        var result = await A2AJsonRpcProcessor.ProcessRequest(taskManager, httpRequest);
+        var result = await A2AJsonRpcProcessor.ProcessRequest(taskManager, httpRequest, CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -172,7 +172,7 @@ public class A2AJsonRpcProcessorTests
         var httpRequest = CreateHttpRequest(req);
 
         // Act
-        var result = await A2AJsonRpcProcessor.ProcessRequest(taskManager, httpRequest);
+        var result = await A2AJsonRpcProcessor.ProcessRequest(taskManager, httpRequest, CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -208,7 +208,7 @@ public class A2AJsonRpcProcessorTests
         var httpRequest = CreateHttpRequest(req);
 
         // Act
-        var result = await A2AJsonRpcProcessor.ProcessRequest(taskManager, httpRequest);
+        var result = await A2AJsonRpcProcessor.ProcessRequest(taskManager, httpRequest, CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
