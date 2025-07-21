@@ -9,12 +9,12 @@ public class EchoAgentWithTasks
     public void Attach(ITaskManager taskManager)
     {
         _taskManager = taskManager;
-        taskManager.OnTaskCreated = ProcessMessage;
-        taskManager.OnTaskUpdated = ProcessMessage;
+        taskManager.OnTaskCreated = ProcessMessageAsync;
+        taskManager.OnTaskUpdated = ProcessMessageAsync;
         taskManager.OnAgentCardQuery = GetAgentCard;
     }
 
-    private async Task ProcessMessage(AgentTask task, CancellationToken cancellationToken)
+    private async Task ProcessMessageAsync(AgentTask task, CancellationToken cancellationToken)
     {
         // Process the message
         var messageText = task.History!.Last().Parts.OfType<TextPart>().First().Text;

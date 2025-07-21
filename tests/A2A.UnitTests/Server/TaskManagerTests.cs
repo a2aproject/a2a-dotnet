@@ -421,7 +421,7 @@ public class TaskManagerTests
         var sut = new TaskManager();
 
         // Act & Assert
-        Assert.Throws<ArgumentException>(() => sut.SubscribeToTaskAsync(new TaskIdParams { Id = "notfound" }));
+        Assert.Throws<ArgumentException>(() => sut.SubscribeToTaskAsync(new TaskIdParams { Id = "notfound" }, cancellationToken: CancellationToken.None));
     }
 
     [Fact]

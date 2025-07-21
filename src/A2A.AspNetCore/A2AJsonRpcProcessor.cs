@@ -29,7 +29,7 @@ public static class A2AJsonRpcProcessor
     /// <param name="request">Http request containing the JSON-RPC request body.</param>
     /// <param name="cancellationToken">The cancellation token to cancel the operation if needed.</param>
     /// <returns>An HTTP result containing either a single JSON-RPC response or a streaming SSE response.</returns>
-    internal static async Task<IResult> ProcessRequest(ITaskManager taskManager, HttpRequest request, CancellationToken cancellationToken)
+    internal static async Task<IResult> ProcessRequestAsync(ITaskManager taskManager, HttpRequest request, CancellationToken cancellationToken)
     {
         using var activity = ActivitySource.StartActivity("HandleA2ARequest", ActivityKind.Server);
 
@@ -45,10 +45,10 @@ public static class A2AJsonRpcProcessor
             // Dispatch based on return type
             if (A2AMethods.IsStreamingMethod(rpcRequest!.Method))
             {
-                return await StreamResponse(taskManager, rpcRequest.Id, rpcRequest.Method, rpcRequest.Params, cancellationToken);
+                return await StreamResponseAsync(taskManager, rpcRequest.Id, rpcRequest.Method, rpcRequest.Params, cancellationToken);
             }
 
-            return await SingleResponse(taskManager, rpcRequest.Id, rpcRequest.Method, rpcRequest.Params, cancellationToken);
+            return await SingleResponseAsync(taskManager, rpcRequest.Id, rpcRequest.Method, rpcRequest.Params, cancellationToken);
         }
         catch (A2AException ex)
         {
@@ -75,7 +75,7 @@ public static class A2AJsonRpcProcessor
     /// <param name="parameters">The JSON parameters for the method call.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>A JSON-RPC response result containing the operation result or error.</returns>
-    internal static async Task<JsonRpcResponseResult> SingleResponse(ITaskManager taskManager, string? requestId, string method, JsonElement? parameters, CancellationToken cancellationToken)
+    internal static async Task<JsonRpcResponseResult> SingleResponseAsync(ITaskManager taskManager, string? requestId, string method, JsonElement? parameters, CancellationToken cancellationToken)
     {
         using var activity = ActivitySource.StartActivity($"SingleResponse/{method}", ActivityKind.Server);
         activity?.SetTag("request.id", requestId);
@@ -154,7 +154,7 @@ public static class A2AJsonRpcProcessor
     /// <param name="parameters">The JSON parameters for the streaming method call.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>An HTTP result that streams JSON-RPC responses as Server-Sent Events or an error response.</returns>
-    internal static async Task<IResult> StreamResponse(ITaskManager taskManager, string? requestId, string method, JsonElement? parameters, CancellationToken cancellationToken)
+    internal static async Task<IResult> StreamResponseAsync(ITaskManager taskManager, string? requestId, string method, JsonElement? parameters, CancellationToken cancellationToken)
     {
         using var activity = ActivitySource.StartActivity("StreamResponse", ActivityKind.Server);
         activity?.SetTag("request.id", requestId);

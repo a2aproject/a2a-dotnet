@@ -31,7 +31,7 @@ internal static class A2AHttpProcessor
     /// <param name="agentUrl">The URL of the agent to retrieve the card for.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>An HTTP result containing the agent card JSON or an error response.</returns>
-    internal static Task<IResult> GetAgentCard(ITaskManager taskManager, ILogger logger, string agentUrl, CancellationToken cancellationToken)
+    internal static Task<IResult> GetAgentCardAsync(ITaskManager taskManager, ILogger logger, string agentUrl, CancellationToken cancellationToken)
     {
         using var activity = ActivitySource.StartActivity("GetAgentCard", ActivityKind.Server);
 
@@ -66,7 +66,7 @@ internal static class A2AHttpProcessor
     /// <param name="metadata">Optional JSON metadata filter for the task query.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>An HTTP result containing the task JSON or a not found/error response.</returns>
-    internal static async Task<IResult> GetTask(ITaskManager taskManager, ILogger logger, string id, int? historyLength, string? metadata, CancellationToken cancellationToken)
+    internal static async Task<IResult> GetTaskAsync(ITaskManager taskManager, ILogger logger, string id, int? historyLength, string? metadata, CancellationToken cancellationToken)
     {
         using var activity = ActivitySource.StartActivity("GetTask", ActivityKind.Server);
         activity?.AddTag("task.id", id);
@@ -105,7 +105,7 @@ internal static class A2AHttpProcessor
     /// <param name="id">The unique identifier of the task to cancel.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>An HTTP result containing the canceled task JSON or a not found/error response.</returns>
-    internal static async Task<IResult> CancelTask(ITaskManager taskManager, ILogger logger, string id, CancellationToken cancellationToken)
+    internal static async Task<IResult> CancelTaskAsync(ITaskManager taskManager, ILogger logger, string id, CancellationToken cancellationToken)
     {
         using var activity = ActivitySource.StartActivity("CancelTask", ActivityKind.Server);
         activity?.AddTag("task.id", id);
@@ -144,7 +144,7 @@ internal static class A2AHttpProcessor
     /// <param name="sendParams">The message parameters containing the message content and configuration.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>An HTTP result containing the agent's response (Task or Message) or an error response.</returns>
-    internal static async Task<IResult> SendMessage(ITaskManager taskManager, ILogger logger, MessageSendParams sendParams, CancellationToken cancellationToken)
+    internal static async Task<IResult> SendMessageAsync(ITaskManager taskManager, ILogger logger, MessageSendParams sendParams, CancellationToken cancellationToken)
     {
         using var activity = ActivitySource.StartActivity("SendMessage", ActivityKind.Server);
         try
@@ -181,7 +181,7 @@ internal static class A2AHttpProcessor
     /// <param name="sendParams">The message parameters containing the message content and configuration.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>An HTTP result that streams events as Server-Sent Events or an error response.</returns>
-    internal static async Task<IResult> SendMessageStream(ITaskManager taskManager, ILogger logger, MessageSendParams sendParams, CancellationToken cancellationToken)
+    internal static async Task<IResult> SendMessageStreamAsync(ITaskManager taskManager, ILogger logger, MessageSendParams sendParams, CancellationToken cancellationToken)
     {
         using var activity = ActivitySource.StartActivity("SendMessageStream", ActivityKind.Server);
         activity?.AddTag("task.id", sendParams.Message.TaskId);
@@ -251,7 +251,7 @@ internal static class A2AHttpProcessor
     /// <param name="pushNotificationConfig">The push notification configuration containing callback URL and authentication details.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>An HTTP result containing the configured settings or an error response.</returns>
-    internal static async Task<IResult> SetPushNotification(ITaskManager taskManager, ILogger logger, string id, PushNotificationConfig pushNotificationConfig, CancellationToken cancellationToken)
+    internal static async Task<IResult> SetPushNotificationAsync(ITaskManager taskManager, ILogger logger, string id, PushNotificationConfig pushNotificationConfig, CancellationToken cancellationToken)
     {
         using var activity = ActivitySource.StartActivity("ConfigurePushNotification", ActivityKind.Server);
         activity?.AddTag("task.id", id);
@@ -296,7 +296,7 @@ internal static class A2AHttpProcessor
     /// <param name="notificationConfigId">The unique identifier of the push notification configuration to retrieve.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>An HTTP result containing the push notification configuration or a not found/error response.</returns>
-    internal static async Task<IResult> GetPushNotification(ITaskManager taskManager, ILogger logger, string taskId, string? notificationConfigId, CancellationToken cancellationToken)
+    internal static async Task<IResult> GetPushNotificationAsync(ITaskManager taskManager, ILogger logger, string taskId, string? notificationConfigId, CancellationToken cancellationToken)
     {
         using var activity = ActivitySource.StartActivity("GetPushNotification", ActivityKind.Server);
         activity?.AddTag("task.id", taskId);

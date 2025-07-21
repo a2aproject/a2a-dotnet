@@ -95,7 +95,7 @@ public sealed class A2AClient : IA2AClient
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        using var responseStream = await SendAndReadResponseStream(
+        using var responseStream = await SendAndReadResponseStreamAsync(
             jsonRpcParams,
             method,
             inputTypeInfo,
@@ -120,7 +120,7 @@ public sealed class A2AClient : IA2AClient
         JsonTypeInfo<TOutput> outputTypeInfo,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        using var responseStream = await SendAndReadResponseStream(
+        using var responseStream = await SendAndReadResponseStreamAsync(
             jsonRpcParams,
             method,
             inputTypeInfo,
@@ -148,7 +148,7 @@ public sealed class A2AClient : IA2AClient
         }
     }
 
-    private async ValueTask<Stream> SendAndReadResponseStream<TInput>(
+    private async ValueTask<Stream> SendAndReadResponseStreamAsync<TInput>(
         TInput jsonRpcParams,
         string method,
         JsonTypeInfo<TInput> inputTypeInfo,
