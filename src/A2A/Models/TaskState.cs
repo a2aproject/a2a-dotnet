@@ -5,6 +5,9 @@ namespace A2A;
 /// <summary>
 /// Represents the possible states of a Task.
 /// </summary>
+#if NET8_0_OR_GREATER
+[Microsoft.Extensions.EnumStrings.EnumStrings]
+#endif
 [JsonConverter(typeof(KebabCaseLowerJsonStringEnumConverter<TaskState>))]
 public enum TaskState
 {

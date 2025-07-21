@@ -358,7 +358,15 @@ public sealed class TaskManager : ITaskManager
 
         using var activity = ActivitySource.StartActivity("UpdateStatus", ActivityKind.Server);
         activity?.SetTag("task.id", taskId);
-        activity?.SetTag("task.status", status.ToString());
+        activity?.SetTag("task.status",
+#if NET8_0_OR_GREATER
+            status.ToInvariantString()
+#else
+#pragma warning disable EA0006 // Replace uses of 'Enum.GetName' and 'Enum.ToString' for improved performance
+            status.ToString()
+#pragma warning restore EA0006 // Replace uses of 'Enum.GetName' and 'Enum.ToString' for improved performance
+#endif
+            );
         activity?.SetTag("task.finalStatus", final);
 
         try
