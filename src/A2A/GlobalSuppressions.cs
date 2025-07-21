@@ -6,3 +6,4 @@
 using System.Diagnostics.CodeAnalysis;
 
 [assembly: SuppressMessage("Reliability", "EA0002:Use 'System.TimeProvider' to make the code easier to test", Justification = "Not going to adhere to this (yet)", Scope = "module")]
+[assembly: SuppressMessage("Performance", "EA0006:Replace uses of 'Enum.GetName' and 'Enum.ToString' for improved performance", Justification = "Not going to adhere to this (yet)", Scope = "module")]
