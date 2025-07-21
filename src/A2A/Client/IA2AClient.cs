@@ -43,9 +43,9 @@ public interface IA2AClient
     IAsyncEnumerable<SseItem<A2AEvent>> SendMessageStreamAsync(MessageSendParams taskSendParams, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Resubscribes to a task's event stream to receive ongoing updates.
+    /// Subscribes to a task's event stream to receive ongoing updates.
     /// </summary>
-    /// <param name="taskId">The ID of the task to resubscribe to.</param>
+    /// <param name="taskId">The ID of the task to subscribe to.</param>
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
     /// <returns>An async enumerable of server-sent events containing task updates.</returns>
     IAsyncEnumerable<SseItem<A2AEvent>> SubscribeToTaskAsync(string taskId, CancellationToken cancellationToken = default);

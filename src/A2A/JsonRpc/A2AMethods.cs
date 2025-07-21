@@ -26,7 +26,7 @@ public static class A2AMethods
     public const string TaskCancel = "tasks/cancel";
 
     /// <summary>
-    /// Method for resubscribing to task updates.
+    /// Method for subscribing to task updates.
     /// </summary>
     public const string TaskSubscribe = "tasks/subscribe";
 
