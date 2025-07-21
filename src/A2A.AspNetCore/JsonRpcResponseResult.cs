@@ -41,6 +41,6 @@ public class JsonRpcResponseResult : IResult
         httpContext.Response.ContentType = "application/json";
         httpContext.Response.StatusCode = StatusCodes.Status200OK;
 
-        await JsonSerializer.SerializeAsync(httpContext.Response.Body, jsonRpcResponse, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcResponse)));
+        await JsonSerializer.SerializeAsync(httpContext.Response.Body, jsonRpcResponse, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcResponse))).ConfigureAwait(false);
     }
 }

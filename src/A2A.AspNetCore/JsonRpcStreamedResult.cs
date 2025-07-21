@@ -56,6 +56,6 @@ public class JsonRpcStreamedResult : IResult
                 using Utf8JsonWriter json = new(writer, new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
                 JsonSerializer.Serialize(json, item.Data, responseTypeInfo);
             },
-            httpContext.RequestAborted);
+            httpContext.RequestAborted).ConfigureAwait(false);
     }
 }
