@@ -227,9 +227,9 @@ public sealed class TaskManager : ITaskManager
             if (OnMessageReceived != null)
             {
                 var message = await OnMessageReceived(messageSendParams, cancellationToken);
-                return YieldSingleEvent(message, cancellationToken);
+                return YieldSingleEventAsync(message, cancellationToken);
 
-                static async IAsyncEnumerable<A2AEvent> YieldSingleEvent(A2AEvent evt, [EnumeratorCancellation] CancellationToken ct)
+                static async IAsyncEnumerable<A2AEvent> YieldSingleEventAsync(A2AEvent evt, [EnumeratorCancellation] CancellationToken ct)
                 {
                     if (ct.IsCancellationRequested)
                     {
