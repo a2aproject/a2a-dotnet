@@ -84,12 +84,12 @@ internal static class A2AHttpProcessor
         }
         catch (A2AException ex)
         {
-            logger.LogError(ex, "A2A error retrieving task");
+            logger.AAErrorRetrievingTask(ex);
             return MapA2AExceptionToHttpResult(ex);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error retrieving task");
+            logger.ErrorRetrievingTask(ex);
             return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
         }
     }
@@ -194,12 +194,12 @@ internal static class A2AHttpProcessor
         }
         catch (A2AException ex)
         {
-            logger.LogError(ex, "A2A error sending subscribe message to task");
+            logger.AAErrorSendingSubscribeMessageToTask(ex);
             return MapA2AExceptionToHttpResult(ex);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error sending subscribe message to task");
+            logger.ErrorSendingSubscribeMessageToTask(ex);
             return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
         }
     }
@@ -315,12 +315,12 @@ internal static class A2AHttpProcessor
         }
         catch (A2AException ex)
         {
-            logger.LogError(ex, "A2A error retrieving push notification");
+            logger.AAErrorRetrievingPushNotification(ex);
             return MapA2AExceptionToHttpResult(ex);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error retrieving push notification");
+            logger.ErrorRetrievingPushNotification(ex);
             return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
         }
     }

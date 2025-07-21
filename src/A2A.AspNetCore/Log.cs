@@ -37,5 +37,23 @@ namespace A2A.AspNetCore
 
         [LoggerMessage(9, LogLevel.Error, "Error configuring push notification")]
         internal static partial void ErrorConfiguringPushNotification(this ILogger logger, Exception exception);
+
+        [LoggerMessage(10, LogLevel.Error, "A2A error retrieving task")]
+        internal static partial void AAErrorRetrievingTask(this ILogger logger, Exception exception);
+
+        [LoggerMessage(11, LogLevel.Error, "Error retrieving task")]
+        internal static partial void ErrorRetrievingTask(this ILogger logger, Exception exception);
+
+        [LoggerMessage(12, LogLevel.Error, "A2A error retrieving push notification")]
+        internal static partial void AAErrorRetrievingPushNotification(this ILogger logger, Exception exception);
+
+        [LoggerMessage(13, LogLevel.Error, "Error retrieving push notification")]
+        internal static partial void ErrorRetrievingPushNotification(this ILogger logger, Exception exception);
+
+        [LoggerMessage(14, LogLevel.Error, "A2A error sending subscribe message to task")]
+        internal static partial void AAErrorSendingSubscribeMessageToTask(this ILogger logger, Exception exception);
+
+        [LoggerMessage(15, LogLevel.Error, "Error sending subscribe message to task")]
+        internal static partial void ErrorSendingSubscribeMessageToTask(this ILogger logger, Exception exception);
     }
 }
