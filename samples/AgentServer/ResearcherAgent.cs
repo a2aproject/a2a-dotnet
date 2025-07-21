@@ -62,7 +62,7 @@ public class ResearcherAgent
             case AgentState.WaitingForFeedbackOnPlan:
                 if (message == "go ahead")  // Dumb check for now to avoid using an LLM
                 {
-                    await DoResearchAsync(taskId, message);
+                    await DoResearchAsync(taskId, message, cancellationToken);
                 }
                 else
                 {
@@ -76,12 +76,12 @@ public class ResearcherAgent
                 }
                 break;
             case AgentState.Researching:
-                await DoResearchAsync(taskId, message);
+                await DoResearchAsync(taskId, message, cancellationToken);
                 break;
         }
     }
 
-    private async Task DoResearchAsync(string taskId, string message)
+    private async Task DoResearchAsync(string taskId, string message, CancellationToken cancellationToken)
     {
         if (_taskManager == null)
         {
@@ -93,19 +93,21 @@ public class ResearcherAgent
         activity?.SetTag("message", message);
 
         _agentStates[taskId] = AgentState.Researching;
-        await _taskManager.UpdateStatusAsync(taskId, TaskState.Working);
+        await _taskManager.UpdateStatusAsync(taskId, TaskState.Working, cancellationToken: cancellationToken);
 
         await _taskManager.ReturnArtifactAsync(
             taskId,
             new Artifact()
             {
                 Parts = [new TextPart() { Text = $"{message} received." }],
-            });
+            },
+            cancellationToken);
 
         await _taskManager.UpdateStatusAsync(taskId, TaskState.Completed, new Message()
         {
             Parts = [new TextPart() { Text = "Task completed successfully" }],
-        });
+        },
+        cancellationToken: cancellationToken);
     }
     private async Task DoPlanningAsync(string taskId, string message, CancellationToken cancellationToken)
     {
