@@ -138,12 +138,12 @@ public class SemanticKernelTravelAgent : IDisposable
     public void Attach(ITaskManager taskManager)
     {
         _taskManager = taskManager;
-        taskManager.OnTaskCreated = ExecuteAgentTask;
-        taskManager.OnTaskUpdated = ExecuteAgentTask;
+        taskManager.OnTaskCreated = ExecuteAgentTaskAsync;
+        taskManager.OnTaskUpdated = ExecuteAgentTaskAsync;
         taskManager.OnAgentCardQuery = GetAgentCard;
     }
 
-    public async Task ExecuteAgentTask(AgentTask task, CancellationToken cancellationToken)
+    public async Task ExecuteAgentTaskAsync(AgentTask task, CancellationToken cancellationToken)
     {
         if (_taskManager == null)
         {

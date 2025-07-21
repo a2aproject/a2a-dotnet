@@ -14,7 +14,7 @@ public class A2AHttpProcessorTests
         var logger = NullLogger.Instance;
 
         // Act
-        var result = await A2AHttpProcessor.GetAgentCard(taskManager, logger, "http://example.com", CancellationToken.None);
+        var result = await A2AHttpProcessor.GetAgentCardAsync(taskManager, logger, "http://example.com", CancellationToken.None);
 
         // Assert
         Assert.NotNull(result);
@@ -34,7 +34,7 @@ public class A2AHttpProcessorTests
         var historyLength = 10;
 
         // Act
-        var result = await A2AHttpProcessor.GetTask(taskManager, logger, id, historyLength, null, CancellationToken.None);
+        var result = await A2AHttpProcessor.GetTaskAsync(taskManager, logger, id, historyLength, null, CancellationToken.None);
 
         // Assert
         Assert.NotNull(result);
@@ -55,7 +55,7 @@ public class A2AHttpProcessorTests
         var id = "testId";
 
         // Act
-        var result = await A2AHttpProcessor.CancelTask(taskManager, logger, id, CancellationToken.None);
+        var result = await A2AHttpProcessor.CancelTaskAsync(taskManager, logger, id, CancellationToken.None);
 
         // Assert
         Assert.NotNull(result);
@@ -80,7 +80,7 @@ public class A2AHttpProcessorTests
         };
 
         // Act
-        var result = await A2AHttpProcessor.SendMessage(taskManager, logger, sendParams, CancellationToken.None);
+        var result = await A2AHttpProcessor.SendMessageAsync(taskManager, logger, sendParams, CancellationToken.None);
 
         // Assert
         Assert.NotNull(result);
@@ -112,7 +112,7 @@ public class A2AHttpProcessorTests
         var historyLength = 10;
 
         // Act
-        var result = await A2AHttpProcessor.GetTask(taskManager, logger, id, historyLength, null, CancellationToken.None);
+        var result = await A2AHttpProcessor.GetTaskAsync(taskManager, logger, id, historyLength, null, CancellationToken.None);
 
         // Assert
         Assert.NotNull(result);
@@ -136,7 +136,7 @@ public class A2AHttpProcessorTests
         var historyLength = 10;
 
         // Act
-        var result = await A2AHttpProcessor.GetTask(taskManager, logger, id, historyLength, null, CancellationToken.None);
+        var result = await A2AHttpProcessor.GetTaskAsync(taskManager, logger, id, historyLength, null, CancellationToken.None);
 
         // Assert
         Assert.NotNull(result);
