@@ -75,7 +75,7 @@ public sealed class A2ACardResolver
         }
         catch (JsonException ex)
         {
-            _logger.FailedToParseAgentCardJSON(ex);
+            _logger.FailedToParseAgentCardJson(ex);
             throw new A2AException($"Failed to parse JSON: {ex.Message}");
         }
         catch (HttpRequestException ex)
@@ -86,7 +86,7 @@ public sealed class A2ACardResolver
 #endif
                 HttpStatusCode.InternalServerError;
 
-            _logger.HTTPRequestFailedWithStatusCodeStatusCode(ex, statusCode);
+            _logger.HttpRequestFailedWithStatusCode(ex, statusCode);
             throw new A2AException("HTTP request failed", ex);
         }
     }
