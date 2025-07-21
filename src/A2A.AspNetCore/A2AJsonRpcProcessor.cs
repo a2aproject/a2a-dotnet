@@ -124,12 +124,12 @@ public static class A2AJsonRpcProcessor
         return new JsonRpcResponseResult(response);
     }
 
-    private static T DeserializeOrThrow<T>(JsonElement? jsonParamValue) where T : class
+    private static T DeserializeOrThrow<T>(JsonElement jsonParamValue) where T : class
     {
         T? parms;
         try
         {
-            parms = jsonParamValue?.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(T))) as T;
+            parms = jsonParamValue.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(T))) as T;
         }
         catch (JsonException)
         {
