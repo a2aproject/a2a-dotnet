@@ -24,20 +24,20 @@ public class ResearcherAgent
             _agentStates[task.Id] = AgentState.Planning;
             // Ignore other content in the task, just assume it is a text message.
             var message = ((TextPart?)task.History?.Last()?.Parts?.FirstOrDefault())?.Text ?? string.Empty;
-            await Invoke(task.Id, message, cancellationToken);
+            await InvokeAsync(task.Id, message, cancellationToken);
         };
         _taskManager.OnTaskUpdated = async (task, cancellationToken) =>
         {
             // Note that the updated callback is helpful to know not to initialize the agent state again.
             var message = ((TextPart?)task.History?.Last()?.Parts?.FirstOrDefault())?.Text ?? string.Empty;
-            await Invoke(task.Id, message, cancellationToken);
+            await InvokeAsync(task.Id, message, cancellationToken);
         };
         _taskManager.OnAgentCardQuery = GetAgentCard;
     }
 
     // This is the main entry point for the agent. It is called when a task is created or updated.
     // It probably should have a cancellation token to enable the process to be cancelled.
-    public async Task Invoke(string taskId, string message, CancellationToken cancellationToken)
+    public async Task InvokeAsync(string taskId, string message, CancellationToken cancellationToken)
     {
         if (_taskManager == null)
         {
@@ -52,7 +52,7 @@ public class ResearcherAgent
         switch (_agentStates[taskId])
         {
             case AgentState.Planning:
-                await DoPlanning(taskId, message, cancellationToken);
+                await DoPlanningAsync(taskId, message, cancellationToken);
                 await _taskManager.UpdateStatusAsync(taskId, TaskState.InputRequired, new Message()
                 {
                     Parts = [new TextPart() { Text = "When ready say go ahead" }],
@@ -62,12 +62,12 @@ public class ResearcherAgent
             case AgentState.WaitingForFeedbackOnPlan:
                 if (message == "go ahead")  // Dumb check for now to avoid using an LLM
                 {
-                    await DoResearch(taskId, message);
+                    await DoResearchAsync(taskId, message, cancellationToken);
                 }
                 else
                 {
                     // Take the message and redo planning
-                    await DoPlanning(taskId, message, cancellationToken);
+                    await DoPlanningAsync(taskId, message, cancellationToken);
                     await _taskManager.UpdateStatusAsync(taskId, TaskState.InputRequired, new Message()
                     {
                         Parts = [new TextPart() { Text = "When ready say go ahead" }],
@@ -76,12 +76,12 @@ public class ResearcherAgent
                 }
                 break;
             case AgentState.Researching:
-                await DoResearch(taskId, message);
+                await DoResearchAsync(taskId, message, cancellationToken);
                 break;
         }
     }
 
-    private async Task DoResearch(string taskId, string message)
+    private async Task DoResearchAsync(string taskId, string message, CancellationToken cancellationToken)
     {
         if (_taskManager == null)
         {
@@ -93,21 +93,23 @@ public class ResearcherAgent
         activity?.SetTag("message", message);
 
         _agentStates[taskId] = AgentState.Researching;
-        await _taskManager.UpdateStatusAsync(taskId, TaskState.Working);
+        await _taskManager.UpdateStatusAsync(taskId, TaskState.Working, cancellationToken: cancellationToken);
 
         await _taskManager.ReturnArtifactAsync(
             taskId,
             new Artifact()
             {
                 Parts = [new TextPart() { Text = $"{message} received." }],
-            });
+            },
+            cancellationToken);
 
         await _taskManager.UpdateStatusAsync(taskId, TaskState.Completed, new Message()
         {
             Parts = [new TextPart() { Text = "Task completed successfully" }],
-        });
+        },
+        cancellationToken: cancellationToken);
     }
-    private async Task DoPlanning(string taskId, string message, CancellationToken cancellationToken)
+    private async Task DoPlanningAsync(string taskId, string message, CancellationToken cancellationToken)
     {
         if (_taskManager == null)
         {
