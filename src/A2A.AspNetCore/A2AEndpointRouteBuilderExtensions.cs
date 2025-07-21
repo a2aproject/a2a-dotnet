@@ -68,8 +68,8 @@ public static class A2ARouteBuilderExtensions
         var routeGroup = endpoints.MapGroup(path);
 
         // /v1/card endpoint - Agent discovery
-        routeGroup.MapGet("/v1/card", async context => await
-            A2AHttpProcessor.GetAgentCard(taskManager, logger, $"{context.Request.Scheme}://{context.Request.Host}{path}"));
+        routeGroup.MapGet("/v1/card", (HttpRequest request) =>
+            A2AHttpProcessor.GetAgentCard(taskManager, logger, $"{request.Scheme}://{request.Host}{path}"));
 
         // /v1/tasks/{id} endpoint
         routeGroup.MapGet("/v1/tasks/{id}", (string id, [FromQuery] int? historyLength, [FromQuery] string? metadata) =>

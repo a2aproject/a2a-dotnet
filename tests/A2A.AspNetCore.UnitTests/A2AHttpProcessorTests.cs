@@ -7,14 +7,14 @@ namespace A2A.AspNetCore.Tests;
 public class A2AHttpProcessorTests
 {
     [Fact]
-    public async Task GetAgentCard_ShouldReturnNotNull()
+    public void GetAgentCard_ShouldReturnNotNull()
     {
         // Arrange
         var taskManager = new TaskManager();
         var logger = NullLogger.Instance;
 
         // Act
-        var result = await A2AHttpProcessor.GetAgentCard(taskManager, logger, "http://example.com");
+        var result = A2AHttpProcessor.GetAgentCard(taskManager, logger, "http://example.com");
 
         // Assert
         Assert.NotNull(result);
