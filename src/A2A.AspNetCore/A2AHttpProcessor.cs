@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Text;
@@ -402,15 +403,11 @@ public class A2AResponseResult : IResult
 /// Implements IResult to provide real-time streaming of task events including Task objects,
 /// TaskStatusUpdateEvent, and TaskArtifactUpdateEvent objects.
 /// </remarks>
-public class A2AEventStreamResult : IResult
+internal sealed class A2AEventStreamResult : IResult
 {
     private readonly IAsyncEnumerable<A2AEvent> taskEvents;
 
-    /// <summary>
-    /// Initializes a new instance of the A2AEventStreamResult class.
-    /// </summary>
-    /// <param name="taskEvents">The async enumerable stream of A2A events to send as Server-Sent Events.</param>
-    public A2AEventStreamResult(IAsyncEnumerable<A2AEvent> taskEvents)
+    internal A2AEventStreamResult(IAsyncEnumerable<A2AEvent> taskEvents)
     {
         ArgumentNullException.ThrowIfNull(taskEvents);
 
@@ -431,11 +428,29 @@ public class A2AEventStreamResult : IResult
         ArgumentNullException.ThrowIfNull(httpContext);
 
         httpContext.Response.ContentType = "text/event-stream";
-        await foreach (var taskEvent in taskEvents)
+
+        // .NET 10 Preview 3 has introduced ServerSentEventsResult<T> (and TypedResults.ServerSentEventsResult),
+        // but we need to support .NET 8 and 9, so we implement our own SSE result
+        // and mimic what the forementioned types do.
+        httpContext.Response.Headers.CacheControl = "no-cache,no-store";
+        httpContext.Response.Headers.Pragma = "no-cache";
+        httpContext.Response.Headers.ContentEncoding = "identity";
+
+        var bufferingFeature = httpContext.Features.GetRequiredFeature<IHttpResponseBodyFeature>();
+        bufferingFeature.DisableBuffering();
+
+        try
         {
-            var json = JsonSerializer.Serialize(taskEvent, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(A2AEvent)));
-            await httpContext.Response.BodyWriter.WriteAsync(Encoding.UTF8.GetBytes($"data: {json}\n\n"));
-            await httpContext.Response.BodyWriter.FlushAsync();
+            await foreach (var taskEvent in taskEvents)
+            {
+                var json = JsonSerializer.Serialize(taskEvent, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(A2AEvent)));
+                await httpContext.Response.BodyWriter.WriteAsync(Encoding.UTF8.GetBytes($"data: {json}\n\n"), httpContext.RequestAborted);
+                await httpContext.Response.BodyWriter.FlushAsync(httpContext.RequestAborted);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Closed connection
         }
     }
 }
