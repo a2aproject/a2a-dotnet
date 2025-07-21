@@ -506,7 +506,7 @@ public class A2AClientTests
     }
 
     [Fact]
-    public async Task ResubscribeToTaskAsync_MapsRequestParamsCorrectly()
+    public async Task SubscribeToTaskAsync_MapsRequestParamsCorrectly()
     {
         // Arrange
         HttpRequestMessage? capturedRequest = null;
@@ -516,7 +516,7 @@ public class A2AClientTests
         var taskId = "task-123";
 
         // Act
-        await foreach (var _ in sut.ResubscribeToTaskAsync(taskId))
+        await foreach (var _ in sut.SubscribeToTaskAsync(taskId))
         {
             break; // Only need to trigger the request
         }
@@ -525,7 +525,7 @@ public class A2AClientTests
         Assert.NotNull(capturedRequest);
 
         var requestJson = JsonDocument.Parse(await capturedRequest.Content!.ReadAsStringAsync());
-        Assert.Equal("tasks/resubscribe", requestJson.RootElement.GetProperty("method").GetString());
+        Assert.Equal("tasks/subscribe", requestJson.RootElement.GetProperty("method").GetString());
         Assert.True(Guid.TryParse(requestJson.RootElement.GetProperty("id").GetString(), out _));
 
         var parameters = requestJson.RootElement.GetProperty("params").Deserialize<TaskIdParams>();
@@ -534,7 +534,7 @@ public class A2AClientTests
     }
 
     [Fact]
-    public async Task ResubscribeToTaskAsync_MapsResponseCorrectly()
+    public async Task SubscribeToTaskAsync_MapsResponseCorrectly()
     {
         // Arrange
         var expectedMessage = new Message
@@ -556,7 +556,7 @@ public class A2AClientTests
 
         // Act
         SseItem<A2AEvent>? result = null;
-        await foreach (var item in sut.ResubscribeToTaskAsync("task-123"))
+        await foreach (var item in sut.SubscribeToTaskAsync("task-123"))
         {
             result = item;
             break;
