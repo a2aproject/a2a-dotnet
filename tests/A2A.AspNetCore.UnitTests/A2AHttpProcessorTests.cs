@@ -19,6 +19,7 @@ public class A2AHttpProcessorTests
         // Assert
         Assert.NotNull(result);
     }
+
     [Fact]
     public async Task GetTask_ShouldReturnNotNull()
     {

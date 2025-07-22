@@ -6,12 +6,17 @@ public class EchoAgent
 {
     public void Attach(ITaskManager taskManager)
     {
-        taskManager.OnMessageReceived = ProcessMessage;
-        taskManager.OnAgentCardQuery = GetAgentCard;
+        taskManager.OnMessageReceived = ProcessMessageAsync;
+        taskManager.OnAgentCardQuery = GetAgentCardAsync;
     }
 
-    private Task<Message> ProcessMessage(MessageSendParams messageSendParams, CancellationToken _)
+    private Task<Message> ProcessMessageAsync(MessageSendParams messageSendParams, CancellationToken cancellationToken)
     {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return Task.FromCanceled<Message>(cancellationToken);
+        }
+
         // Process the message
         var messageText = messageSendParams.Message.Parts.OfType<TextPart>().First().Text;
 
@@ -29,15 +34,20 @@ public class EchoAgent
         return Task.FromResult(message);
     }
 
-    private AgentCard GetAgentCard(string agentUrl, CancellationToken _)
+    private Task<AgentCard> GetAgentCardAsync(string agentUrl, CancellationToken cancellationToken)
     {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return Task.FromCanceled<AgentCard>(cancellationToken);
+        }
+
         var capabilities = new AgentCapabilities()
         {
             Streaming = true,
             PushNotifications = false,
         };
 
-        return new AgentCard()
+        return Task.FromResult(new AgentCard()
         {
             Name = "Echo Agent",
             Description = "Agent which will echo every message it receives.",
@@ -47,6 +57,6 @@ public class EchoAgent
             DefaultOutputModes = ["text"],
             Capabilities = capabilities,
             Skills = [],
-        };
+        });
     }
 }

@@ -46,7 +46,7 @@ public interface ITaskManager
     /// <remarks>
     /// Returns agent capability information for a given agent URL.
     /// </remarks>
-    Func<string, CancellationToken, AgentCard> OnAgentCardQuery { get; set; }
+    Func<string, CancellationToken, Task<AgentCard>> OnAgentCardQuery { get; set; }
 
     /// <summary>
     /// Creates a new agent task with a unique ID and initial status.

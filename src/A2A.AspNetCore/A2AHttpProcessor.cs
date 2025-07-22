@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Logging;
+
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
@@ -33,26 +34,12 @@ internal static class A2AHttpProcessor
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>An HTTP result containing the agent card JSON or an error response.</returns>
     internal static Task<IResult> GetAgentCardAsync(ITaskManager taskManager, ILogger logger, string agentUrl, CancellationToken cancellationToken)
-    {
-        using var activity = ActivitySource.StartActivity("GetAgentCard", ActivityKind.Server);
-
-        try
+        => WithExceptionHandlingAsync(logger, "GetAgentCard", ct =>
         {
-            var agentCard = taskManager.OnAgentCardQuery(agentUrl, cancellationToken);
+            var agentCard = taskManager.OnAgentCardQuery(agentUrl, ct);
 
             return Task.FromResult(Results.Ok(agentCard));
-        }
-        catch (A2AException ex)
-        {
-            logger.AAErrorRetrievingAgentCard(ex);
-            return Task.FromResult(MapA2AExceptionToHttpResult(ex));
-        }
-        catch (Exception ex)
-        {
-            logger.ErrorRetrievingAgentCard(ex);
-            return Task.FromResult(Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError));
-        }
-    }
+        }, cancellationToken: cancellationToken);
 
     /// <summary>
     /// Processes a request to retrieve a specific task by its ID.
@@ -67,33 +54,18 @@ internal static class A2AHttpProcessor
     /// <param name="metadata">Optional JSON metadata filter for the task query.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>An HTTP result containing the task JSON or a not found/error response.</returns>
-    internal static async Task<IResult> GetTaskAsync(ITaskManager taskManager, ILogger logger, string id, int? historyLength, string? metadata, CancellationToken cancellationToken)
-    {
-        using var activity = ActivitySource.StartActivity("GetTask", ActivityKind.Server);
-        activity?.AddTag("task.id", id);
-
-        try
+    internal static Task<IResult> GetTaskAsync(ITaskManager taskManager, ILogger logger, string id, int? historyLength, string? metadata, CancellationToken cancellationToken)
+        => WithExceptionHandlingAsync(logger, "GetTask", async ct =>
         {
             var agentTask = await taskManager.GetTaskAsync(new TaskQueryParams()
             {
                 Id = id,
                 HistoryLength = historyLength,
                 Metadata = string.IsNullOrWhiteSpace(metadata) ? null : (Dictionary<string, JsonElement>?)JsonSerializer.Deserialize(metadata, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(Dictionary<string, JsonElement>)))
-            }, cancellationToken).ConfigureAwait(false);
+            }, ct).ConfigureAwait(false);
 
             return agentTask is not null ? new A2AResponseResult(agentTask) : Results.NotFound();
-        }
-        catch (A2AException ex)
-        {
-            logger.AAErrorRetrievingTask(ex);
-            return MapA2AExceptionToHttpResult(ex);
-        }
-        catch (Exception ex)
-        {
-            logger.ErrorRetrievingTask(ex);
-            return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
-        }
-    }
+        }, id, cancellationToken: cancellationToken);
 
     /// <summary>
     /// Processes a request to cancel a specific task by setting its status to Canceled.
@@ -106,32 +78,17 @@ internal static class A2AHttpProcessor
     /// <param name="id">The unique identifier of the task to cancel.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>An HTTP result containing the canceled task JSON or a not found/error response.</returns>
-    internal static async Task<IResult> CancelTaskAsync(ITaskManager taskManager, ILogger logger, string id, CancellationToken cancellationToken)
-    {
-        using var activity = ActivitySource.StartActivity("CancelTask", ActivityKind.Server);
-        activity?.AddTag("task.id", id);
-
-        try
+    internal static Task<IResult> CancelTaskAsync(ITaskManager taskManager, ILogger logger, string id, CancellationToken cancellationToken)
+        => WithExceptionHandlingAsync(logger, "CancelTask", async ct =>
         {
-            var agentTask = await taskManager.CancelTaskAsync(new TaskIdParams { Id = id }, cancellationToken).ConfigureAwait(false);
+            var agentTask = await taskManager.CancelTaskAsync(new TaskIdParams { Id = id }, ct).ConfigureAwait(false);
             if (agentTask == null)
             {
                 return Results.NotFound();
             }
 
             return new A2AResponseResult(agentTask);
-        }
-        catch (A2AException ex)
-        {
-            logger.AAErrorCancellingTask(ex);
-            return MapA2AExceptionToHttpResult(ex);
-        }
-        catch (Exception ex)
-        {
-            logger.ErrorCancellingTask(ex);
-            return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
-        }
-    }
+        }, id, cancellationToken: cancellationToken);
 
     /// <summary>
     /// Processes a request to send a message to a task and return a single response.
@@ -145,30 +102,17 @@ internal static class A2AHttpProcessor
     /// <param name="sendParams">The message parameters containing the message content and configuration.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>An HTTP result containing the agent's response (Task or Message) or an error response.</returns>
-    internal static async Task<IResult> SendMessageAsync(ITaskManager taskManager, ILogger logger, MessageSendParams sendParams, CancellationToken cancellationToken)
-    {
-        using var activity = ActivitySource.StartActivity("SendMessage", ActivityKind.Server);
-        try
+    internal static Task<IResult> SendMessageAsync(ITaskManager taskManager, ILogger logger, MessageSendParams sendParams, CancellationToken cancellationToken)
+        => WithExceptionHandlingAsync(logger, "SendMessage", async ct =>
         {
-            var a2aResponse = await taskManager.SendMessageAsync(sendParams, cancellationToken).ConfigureAwait(false);
+            var a2aResponse = await taskManager.SendMessageAsync(sendParams, ct).ConfigureAwait(false);
             if (a2aResponse == null)
             {
                 return Results.NotFound();
             }
 
             return new A2AResponseResult(a2aResponse);
-        }
-        catch (A2AException ex)
-        {
-            logger.AAErrorSendingMessageToTask(ex);
-            return MapA2AExceptionToHttpResult(ex);
-        }
-        catch (Exception ex)
-        {
-            logger.ErrorSendingMessageToTask(ex);
-            return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
-        }
-    }
+        }, cancellationToken: cancellationToken);
 
     /// <summary>
     /// Processes a request to send a message to a task and return a stream of events.
@@ -182,28 +126,13 @@ internal static class A2AHttpProcessor
     /// <param name="sendParams">The message parameters containing the message content and configuration.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>An HTTP result that streams events as Server-Sent Events or an error response.</returns>
-    internal static async Task<IResult> SendMessageStreamAsync(ITaskManager taskManager, ILogger logger, MessageSendParams sendParams, CancellationToken cancellationToken)
-    {
-        using var activity = ActivitySource.StartActivity("SendMessageStream", ActivityKind.Server);
-        activity?.AddTag("task.id", sendParams.Message.TaskId);
-
-        try
+    internal static Task<IResult> SendMessageStreamAsync(ITaskManager taskManager, ILogger logger, MessageSendParams sendParams, CancellationToken cancellationToken)
+        => WithExceptionHandlingAsync(logger, "SendMessageStream", async ct =>
         {
-            var taskEvents = await taskManager.SendMessageStreamAsync(sendParams, cancellationToken).ConfigureAwait(false);
+            var taskEvents = await taskManager.SendMessageStreamAsync(sendParams, ct).ConfigureAwait(false);
 
             return new A2AEventStreamResult(taskEvents);
-        }
-        catch (A2AException ex)
-        {
-            logger.AAErrorSendingSubscribeMessageToTask(ex);
-            return MapA2AExceptionToHttpResult(ex);
-        }
-        catch (Exception ex)
-        {
-            logger.ErrorSendingSubscribeMessageToTask(ex);
-            return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
-        }
-    }
+        }, sendParams.Message.TaskId, cancellationToken: cancellationToken);
 
     /// <summary>
     /// Processes a request to resubscribe to an existing task's event stream.
@@ -218,27 +147,12 @@ internal static class A2AHttpProcessor
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>An HTTP result that streams existing task events or an error response.</returns>
     internal static IResult SubscribeTask(ITaskManager taskManager, ILogger logger, string id, CancellationToken cancellationToken)
-    {
-        using var activity = ActivitySource.StartActivity("SubscribeTask", ActivityKind.Server);
-        activity?.AddTag("task.id", id);
-
-        try
+        => WithExceptionHandling(logger, "SubscribeTask", () =>
         {
             var taskEvents = taskManager.SubscribeToTaskAsync(new TaskIdParams { Id = id }, cancellationToken);
 
             return new A2AEventStreamResult(taskEvents);
-        }
-        catch (A2AException ex)
-        {
-            logger.AAErrorSubscribingToTask(ex);
-            return MapA2AExceptionToHttpResult(ex);
-        }
-        catch (Exception ex)
-        {
-            logger.ErrorSubscribingToTask(ex);
-            return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
-        }
-    }
+        }, id);
 
     /// <summary>
     /// Processes a request to set or update push notification configuration for a specific task.
@@ -252,19 +166,15 @@ internal static class A2AHttpProcessor
     /// <param name="pushNotificationConfig">The push notification configuration containing callback URL and authentication details.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>An HTTP result containing the configured settings or an error response.</returns>
-    internal static async Task<IResult> SetPushNotificationAsync(ITaskManager taskManager, ILogger logger, string id, PushNotificationConfig pushNotificationConfig, CancellationToken cancellationToken)
-    {
-        using var activity = ActivitySource.StartActivity("ConfigurePushNotification", ActivityKind.Server);
-        activity?.AddTag("task.id", id);
-
-        try
+    internal static Task<IResult> SetPushNotificationAsync(ITaskManager taskManager, ILogger logger, string id, PushNotificationConfig pushNotificationConfig, CancellationToken cancellationToken)
+        => WithExceptionHandlingAsync(logger, "ConfigurePushNotification", async ct =>
         {
             var taskIdParams = new TaskIdParams { Id = id };
             var result = await taskManager.SetPushNotificationAsync(new TaskPushNotificationConfig
             {
                 TaskId = id,
                 PushNotificationConfig = pushNotificationConfig
-            }, cancellationToken).ConfigureAwait(false);
+            }, ct).ConfigureAwait(false);
 
             if (result == null)
             {
@@ -272,18 +182,7 @@ internal static class A2AHttpProcessor
             }
 
             return Results.Ok(result);
-        }
-        catch (A2AException ex)
-        {
-            logger.AAErrorConfiguringPushNotification(ex);
-            return MapA2AExceptionToHttpResult(ex);
-        }
-        catch (Exception ex)
-        {
-            logger.ErrorConfiguringPushNotification(ex);
-            return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
-        }
-    }
+        }, id, cancellationToken: cancellationToken);
 
     /// <summary>
     /// Processes a request to retrieve the push notification configuration for a specific task.
@@ -297,15 +196,11 @@ internal static class A2AHttpProcessor
     /// <param name="notificationConfigId">The unique identifier of the push notification configuration to retrieve.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>An HTTP result containing the push notification configuration or a not found/error response.</returns>
-    internal static async Task<IResult> GetPushNotificationAsync(ITaskManager taskManager, ILogger logger, string taskId, string? notificationConfigId, CancellationToken cancellationToken)
-    {
-        using var activity = ActivitySource.StartActivity("GetPushNotification", ActivityKind.Server);
-        activity?.AddTag("task.id", taskId);
-
-        try
+    internal static Task<IResult> GetPushNotificationAsync(ITaskManager taskManager, ILogger logger, string taskId, string? notificationConfigId, CancellationToken cancellationToken)
+        => WithExceptionHandlingAsync(logger, "GetPushNotification", async ct =>
         {
             var taskIdParams = new GetTaskPushNotificationConfigParams { Id = taskId, PushNotificationConfigId = notificationConfigId };
-            var result = await taskManager.GetPushNotificationAsync(taskIdParams, cancellationToken).ConfigureAwait(false);
+            var result = await taskManager.GetPushNotificationAsync(taskIdParams, ct).ConfigureAwait(false);
 
             if (result == null)
             {
@@ -313,15 +208,71 @@ internal static class A2AHttpProcessor
             }
 
             return Results.Ok(result);
+        }, taskId, cancellationToken: cancellationToken);
+
+    /// <summary>
+    /// Provides centralized exception handling for HTTP A2A endpoints.
+    /// </summary>
+    /// <param name="logger">Logger instance for recording operation details and errors.</param>
+    /// <param name="activityName">Name of the operation for logging purposes.</param>
+    /// <param name="operation">The operation to execute with exception handling.</param>
+    /// <param name="taskId">Optional task ID to include in the activity for tracing.</param>
+    /// <param name="cancellationToken">Cancellation token for the async operation</param>
+    /// <returns>A task that represents the HTTP result with proper error handling.</returns>
+    private static async Task<IResult> WithExceptionHandlingAsync(ILogger logger, string activityName,
+        Func<CancellationToken, Task<IResult>> operation, string? taskId = null, CancellationToken cancellationToken = default)
+    {
+        using var activity = ActivitySource.StartActivity(activityName, ActivityKind.Server);
+        if (taskId is not null)
+        {
+            activity?.AddTag("task.id", taskId);
+        }
+
+        try
+        {
+            return await operation(cancellationToken);
         }
         catch (A2AException ex)
         {
-            logger.AAErrorRetrievingPushNotification(ex);
+            logger.A2AErrorInActivityName(ex, activityName);
             return MapA2AExceptionToHttpResult(ex);
         }
         catch (Exception ex)
         {
-            logger.ErrorRetrievingPushNotification(ex);
+            logger.UnexpectedErrorInActivityName(ex, activityName);
+            return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+        }
+    }
+
+    /// <summary>
+    /// Provides centralized exception handling for HTTP A2A endpoints.
+    /// </summary>
+    /// <param name="logger">Logger instance for recording operation details and errors.</param>
+    /// <param name="activityName">Name of the operation for logging purposes.</param>
+    /// <param name="operation">The operation to execute with exception handling.</param>
+    /// <param name="taskId">Optional task ID to include in the activity for tracing.</param>
+    /// <returns>A task that represents the HTTP result with proper error handling.</returns>
+    private static IResult WithExceptionHandling(ILogger logger, string activityName,
+        Func<IResult> operation, string? taskId = null)
+    {
+        using var activity = ActivitySource.StartActivity(activityName, ActivityKind.Server);
+        if (taskId is not null)
+        {
+            activity?.AddTag("task.id", taskId);
+        }
+
+        try
+        {
+            return operation();
+        }
+        catch (A2AException ex)
+        {
+            logger.A2AErrorInActivityName(ex, activityName);
+            return MapA2AExceptionToHttpResult(ex);
+        }
+        catch (Exception ex)
+        {
+            logger.UnexpectedErrorInActivityName(ex, activityName);
             return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
         }
     }
