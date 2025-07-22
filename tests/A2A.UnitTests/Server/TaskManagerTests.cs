@@ -352,11 +352,8 @@ public class TaskManagerTests
         var sut = new TaskManager();
 
         // Act & Assert
-        try
-        {
-            await sut.SetPushNotificationAsync(null!);
-        }
-        catch (A2AException x) when (x.ErrorCode is A2AErrorCode.InvalidParams) { }
+        var ex = await Assert.ThrowsAsync<A2AException>(() => sut.SetPushNotificationAsync(null!));
+        Assert.Equal(A2AErrorCode.InvalidParams, ex.ErrorCode);
     }
 
     [Fact]
@@ -391,11 +388,8 @@ public class TaskManagerTests
         var sut = new TaskManager();
 
         // Act & Assert
-        try
-        {
-            await sut.GetPushNotificationAsync(null!);
-        }
-        catch (A2AException x) when (x.ErrorCode is A2AErrorCode.InvalidParams) { }
+        var ex = await Assert.ThrowsAsync<A2AException>(() => sut.GetPushNotificationAsync(null!));
+        Assert.Equal(A2AErrorCode.InvalidParams, ex.ErrorCode);
     }
 
     [Fact(Skip = "Move to IAsyncEnumerable complicates assertion of same objects")]
@@ -429,7 +423,8 @@ public class TaskManagerTests
         var sut = new TaskManager();
 
         // Act & Assert
-        Assert.Throws<A2AException>(() => sut.SubscribeToTaskAsync(new TaskIdParams { Id = "notfound" }));
+        var ex = Assert.Throws<A2AException>(() => sut.SubscribeToTaskAsync(new TaskIdParams { Id = "notfound" }));
+        Assert.Equal(A2AErrorCode.TaskNotFound, ex.ErrorCode);
     }
 
     [Fact]
@@ -439,7 +434,8 @@ public class TaskManagerTests
         var sut = new TaskManager();
 
         // Act & Assert
-        Assert.Throws<A2AException>(() => sut.SubscribeToTaskAsync(null!));
+        var ex = Assert.Throws<A2AException>(() => sut.SubscribeToTaskAsync(null!));
+        Assert.Equal(A2AErrorCode.InvalidParams, ex.ErrorCode);
     }
 
     [Fact]
@@ -603,7 +599,7 @@ public class TaskManagerTests
         cts.Cancel();
 
         // Act & Assert
-        await Assert.ThrowsAsync<OperationCanceledException>(() => taskManager.SendMessageStreamAsync(messageSendParams, cts.Token).ToArrayAsync(cts.Token).AsTask());
+        await Assert.ThrowsAsync<OperationCanceledException>(() => taskManager.SendMessageStreamAsync(messageSendParams, cts.Token).ToArrayAsync().AsTask());
     }
 
     [Fact]
