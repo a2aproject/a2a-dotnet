@@ -17,7 +17,7 @@ public sealed class InMemoryTaskStore : ITaskStore
         }
 
         return string.IsNullOrEmpty(taskId)
-            ? Task.FromException<AgentTask?>(new ArgumentNullException(taskId))
+            ? Task.FromException<AgentTask?>(new ArgumentNullException(nameof(taskId)))
             : Task.FromResult(_taskCache.TryGetValue(taskId, out var task) ? task : null);
     }
 
@@ -31,7 +31,7 @@ public sealed class InMemoryTaskStore : ITaskStore
 
         if (string.IsNullOrEmpty(taskId))
         {
-            return Task.FromException<TaskPushNotificationConfig?>(new ArgumentNullException(taskId));
+            return Task.FromException<TaskPushNotificationConfig?>(new ArgumentNullException(nameof(taskId)));
         }
 
         if (!_pushNotificationCache.TryGetValue(taskId, out var pushNotificationConfigs))
@@ -54,7 +54,7 @@ public sealed class InMemoryTaskStore : ITaskStore
 
         if (string.IsNullOrEmpty(taskId))
         {
-            return Task.FromException<AgentTaskStatus>(new ArgumentNullException(taskId));
+            return Task.FromException<AgentTaskStatus>(new ArgumentNullException(nameof(taskId)));
         }
 
         if (!_taskCache.TryGetValue(taskId, out var task))
