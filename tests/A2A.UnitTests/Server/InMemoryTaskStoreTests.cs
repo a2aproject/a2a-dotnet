@@ -175,4 +175,108 @@ public class InMemoryTaskStoreTests
         Assert.NotNull(result);
         Assert.Empty(result);
     }
+
+    [Fact]
+    public async Task GetTaskAsync_ShouldReturnCanceledTask_WhenCancellationTokenIsCanceled()
+    {
+        // Arrange
+        var sut = new InMemoryTaskStore();
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        // Act
+        var task = sut.GetTaskAsync("test-id", cts.Token);
+
+        // Assert
+        Assert.True(task.IsCanceled);
+        await Assert.ThrowsAsync<TaskCanceledException>(() => task);
+    }
+
+    [Fact]
+    public async Task GetPushNotificationAsync_ShouldReturnCanceledTask_WhenCancellationTokenIsCanceled()
+    {
+        // Arrange
+        var sut = new InMemoryTaskStore();
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        // Act
+        var task = sut.GetPushNotificationAsync("test-id", "config-id", cts.Token);
+
+        // Assert
+        Assert.True(task.IsCanceled);
+        await Assert.ThrowsAsync<TaskCanceledException>(() => task);
+    }
+
+    [Fact]
+    public async Task UpdateStatusAsync_ShouldReturnCanceledTask_WhenCancellationTokenIsCanceled()
+    {
+        // Arrange
+        var sut = new InMemoryTaskStore();
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        // Act
+        var task = sut.UpdateStatusAsync("test-id", TaskState.Working, cancellationToken: cts.Token);
+
+        // Assert
+        Assert.True(task.IsCanceled);
+        await Assert.ThrowsAsync<TaskCanceledException>(() => task);
+    }
+
+    [Fact]
+    public async Task SetTaskAsync_ShouldReturnCanceledTask_WhenCancellationTokenIsCanceled()
+    {
+        // Arrange
+        var sut = new InMemoryTaskStore();
+        var agentTask = new AgentTask { Id = "test-id", Status = new AgentTaskStatus { State = TaskState.Submitted } };
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        // Act
+        var task = sut.SetTaskAsync(agentTask, cts.Token);
+
+        // Assert
+        Assert.True(task.IsCanceled);
+        await Assert.ThrowsAsync<TaskCanceledException>(() => task);
+    }
+
+    [Fact]
+    public async Task SetPushNotificationConfigAsync_ShouldReturnCanceledTask_WhenCancellationTokenIsCanceled()
+    {
+        // Arrange
+        var sut = new InMemoryTaskStore();
+        var config = new TaskPushNotificationConfig();
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        // Act
+        var task = sut.SetPushNotificationConfigAsync(config, cts.Token);
+
+        // Assert
+        Assert.True(task.IsCanceled);
+        await Assert.ThrowsAsync<TaskCanceledException>(() => task);
+    }
+
+    [Fact]
+    public async Task GetPushNotificationsAsync_ShouldReturnCanceledTask_WhenCancellationTokenIsCanceled()
+    {
+        // Arrange
+        var sut = new InMemoryTaskStore();
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        // Act
+        var task = sut.GetPushNotificationsAsync("test-id", cts.Token);
+
+        // Assert
+        Assert.True(task.IsCanceled);
+        await Assert.ThrowsAsync<TaskCanceledException>(() => task);
+    }
 }
