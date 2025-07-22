@@ -25,7 +25,7 @@ namespace A2A.UnitTests.Client
             await sut.CopyToAsync(ms);
 
             ms.Position = 0;
-            using var doc = JsonDocument.Parse(ms);
+            using var doc = await JsonDocument.ParseAsync(ms);
 
             // Assert
             Assert.Equal("application/json", sut.Headers.ContentType!.MediaType);
@@ -51,7 +51,7 @@ namespace A2A.UnitTests.Client
             var ms = new MemoryStream();
             await sut.CopyToAsync(ms);
             ms.Position = 0;
-            using var doc = JsonDocument.Parse(ms);
+            using var doc = await JsonDocument.ParseAsync(ms);
 
             // Assert
             Assert.Equal("application/json", sut.Headers.ContentType!.MediaType);
