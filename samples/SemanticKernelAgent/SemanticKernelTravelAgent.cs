@@ -140,7 +140,7 @@ public class SemanticKernelTravelAgent : IDisposable
         _taskManager = taskManager;
         taskManager.OnTaskCreated = ExecuteAgentTaskAsync;
         taskManager.OnTaskUpdated = ExecuteAgentTaskAsync;
-        taskManager.OnAgentCardQuery = GetAgentCard;
+        taskManager.OnAgentCardQuery = GetAgentCardAsync;
     }
 
     public async Task ExecuteAgentTaskAsync(AgentTask task, CancellationToken cancellationToken)
@@ -168,8 +168,13 @@ public class SemanticKernelTravelAgent : IDisposable
         await _taskManager.UpdateStatusAsync(task.Id, TaskState.Completed, cancellationToken: cancellationToken);
     }
 
-    public static AgentCard GetAgentCard(string agentUrl, CancellationToken _)
+    public static Task<AgentCard> GetAgentCardAsync(string agentUrl, CancellationToken cancellationToken)
     {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return Task.FromCanceled<AgentCard>(cancellationToken);
+        }
+
         var capabilities = new AgentCapabilities()
         {
             Streaming = false,
@@ -189,7 +194,7 @@ public class SemanticKernelTravelAgent : IDisposable
             ],
         };
 
-        return new AgentCard()
+        return Task.FromResult(new AgentCard()
         {
             Name = "SK Travel Agent",
             Description = "Semantic Kernel-based travel agent providing comprehensive trip planning services including currency exchange and personalized activity planning.",
@@ -199,7 +204,7 @@ public class SemanticKernelTravelAgent : IDisposable
             DefaultOutputModes = ["text"],
             Capabilities = capabilities,
             Skills = [skillTripPlanning],
-        };
+        });
     }
 
     #region private
