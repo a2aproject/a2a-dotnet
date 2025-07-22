@@ -34,11 +34,11 @@ internal static class A2AHttpProcessor
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>An HTTP result containing the agent card JSON or an error response.</returns>
     internal static Task<IResult> GetAgentCardAsync(ITaskManager taskManager, ILogger logger, string agentUrl, CancellationToken cancellationToken)
-        => WithExceptionHandlingAsync(logger, "GetAgentCard", ct =>
+        => WithExceptionHandlingAsync(logger, "GetAgentCard", async ct =>
         {
-            var agentCard = taskManager.OnAgentCardQuery(agentUrl, ct);
+            var agentCard = await taskManager.OnAgentCardQuery(agentUrl, ct);
 
-            return Task.FromResult(Results.Ok(agentCard));
+            return Results.Ok(agentCard);
         }, cancellationToken: cancellationToken);
 
     /// <summary>

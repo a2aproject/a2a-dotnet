@@ -1,13 +1,18 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Http.Json;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using System.Text.Json;
 
 namespace A2A.AspNetCore.Tests;
 
 public class A2AHttpProcessorTests
 {
     [Fact]
-    public async Task GetAgentCard_ShouldReturnNotNull()
+    public async Task GetAgentCard_ShouldReturnValidJsonResult()
     {
         // Arrange
         var taskManager = new TaskManager();
@@ -15,9 +20,12 @@ public class A2AHttpProcessorTests
 
         // Act
         var result = await A2AHttpProcessor.GetAgentCardAsync(taskManager, logger, "http://example.com", CancellationToken.None);
+        (int statusCode, string? contentType, AgentCard agentCard) = await GetAgentCardResponse(result);
 
         // Assert
-        Assert.NotNull(result);
+        Assert.Equal(StatusCodes.Status200OK, statusCode);
+        Assert.Equal("application/json; charset=utf-8", contentType);
+        Assert.Equal("Unknown", agentCard.Name);
     }
 
     [Fact]
@@ -142,5 +150,24 @@ public class A2AHttpProcessorTests
         // Assert
         Assert.NotNull(result);
         Assert.Equal(StatusCodes.Status500InternalServerError, ((IStatusCodeHttpResult)result).StatusCode);
+    }
+
+    private static async Task<(int statusCode, string? contentType, AgentCard agentCard)> GetAgentCardResponse(IResult responseResult)
+    {
+        ServiceCollection services = new();
+        services.AddSingleton<ILoggerFactory>(new NullLoggerFactory());
+        services.Configure<JsonOptions>(jsonOptions => jsonOptions.SerializerOptions.TypeInfoResolver = A2AJsonUtilities.DefaultOptions.TypeInfoResolver);
+        using ServiceProvider serviceProvider = services.BuildServiceProvider();
+        HttpContext context = new DefaultHttpContext()
+        {
+            RequestServices = serviceProvider
+        };
+        using MemoryStream memoryStream = new();
+        context.Response.Body = memoryStream;
+
+        await responseResult.ExecuteAsync(context);
+
+        context.Response.Body.Position = 0;
+        return (context.Response.StatusCode, context.Response.ContentType, JsonSerializer.Deserialize<AgentCard>(context.Response.Body, A2AJsonUtilities.DefaultOptions)!);
     }
 }
