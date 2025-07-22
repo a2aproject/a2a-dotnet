@@ -20,7 +20,7 @@ public class A2AHttpProcessorTests
 
         // Act
         var result = await A2AHttpProcessor.GetAgentCardAsync(taskManager, logger, "http://example.com", CancellationToken.None);
-        (int statusCode, string? contentType, AgentCard agentCard) = await GetAgentCardResponse((Ok<AgentCard>)result);
+        (int statusCode, string? contentType, AgentCard agentCard) = await GetAgentCardResponse(result);
 
         // Assert
         Assert.Equal(StatusCodes.Status200OK, statusCode);
@@ -152,14 +152,15 @@ public class A2AHttpProcessorTests
         Assert.Equal(StatusCodes.Status500InternalServerError, ((IStatusCodeHttpResult)result).StatusCode);
     }
 
-    private static async Task<(int statusCode, string? contentType, AgentCard agentCard)> GetAgentCardResponse(Ok<AgentCard> responseResult)
+    private static async Task<(int statusCode, string? contentType, AgentCard agentCard)> GetAgentCardResponse(IResult responseResult)
     {
         ServiceCollection services = new();
         services.AddSingleton<ILoggerFactory>(new NullLoggerFactory());
         services.Configure<JsonOptions>(jsonOptions => jsonOptions.SerializerOptions.TypeInfoResolver = A2AJsonUtilities.DefaultOptions.TypeInfoResolver);
+        using ServiceProvider serviceProvider = services.BuildServiceProvider();
         HttpContext context = new DefaultHttpContext()
         {
-            RequestServices = services.BuildServiceProvider()
+            RequestServices = serviceProvider
         };
         using MemoryStream memoryStream = new();
         context.Response.Body = memoryStream;
