@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Logging;
+
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
@@ -125,10 +126,10 @@ internal static class A2AHttpProcessor
     /// <param name="sendParams">The message parameters containing the message content and configuration.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>An HTTP result that streams events as Server-Sent Events or an error response.</returns>
-    internal static Task<IResult> SendMessageStreamAsync(ITaskManager taskManager, ILogger logger, MessageSendParams sendParams, CancellationToken cancellationToken)
-        => WithExceptionHandlingAsync(logger, "SendMessageStream", async () =>
+    internal static IResult SendMessageStream(ITaskManager taskManager, ILogger logger, MessageSendParams sendParams, CancellationToken cancellationToken)
+        => WithExceptionHandling(logger, "SendMessageStream", () =>
         {
-            var taskEvents = await taskManager.SendMessageStreamAsync(sendParams, cancellationToken).ConfigureAwait(false);
+            var taskEvents = taskManager.SendMessageStreamAsync(sendParams, cancellationToken);
 
             return new A2AEventStreamResult(taskEvents);
         }, sendParams.Message.TaskId);

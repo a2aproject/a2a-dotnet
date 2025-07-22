@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+
 using System.Diagnostics;
 using System.Text.Json;
 
@@ -45,7 +46,7 @@ public static class A2AJsonRpcProcessor
             // Dispatch based on return type
             if (A2AMethods.IsStreamingMethod(rpcRequest!.Method))
             {
-                return await StreamResponseAsync(taskManager, rpcRequest.Id, rpcRequest.Method, rpcRequest.Params, cancellationToken).ConfigureAwait(false);
+                return StreamResponse(taskManager, rpcRequest.Id, rpcRequest.Method, rpcRequest.Params, cancellationToken);
             }
 
             return await SingleResponseAsync(taskManager, rpcRequest.Id, rpcRequest.Method, rpcRequest.Params, cancellationToken).ConfigureAwait(false);
@@ -154,7 +155,7 @@ public static class A2AJsonRpcProcessor
     /// <param name="parameters">The JSON parameters for the streaming method call.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>An HTTP result that streams JSON-RPC responses as Server-Sent Events or an error response.</returns>
-    internal static async Task<IResult> StreamResponseAsync(ITaskManager taskManager, string? requestId, string method, JsonElement? parameters, CancellationToken cancellationToken)
+    internal static IResult StreamResponse(ITaskManager taskManager, string? requestId, string method, JsonElement? parameters, CancellationToken cancellationToken)
     {
         using var activity = ActivitySource.StartActivity("StreamResponse", ActivityKind.Server);
         activity?.SetTag("request.id", requestId);
@@ -173,7 +174,7 @@ public static class A2AJsonRpcProcessor
                 return new JsonRpcStreamedResult(taskEvents, requestId);
             case A2AMethods.MessageStream:
                 var taskSendParams = DeserializeOrThrow<MessageSendParams>(parameters.Value);
-                var sendEvents = await taskManager.SendMessageStreamAsync(taskSendParams, cancellationToken).ConfigureAwait(false);
+                var sendEvents = taskManager.SendMessageStreamAsync(taskSendParams, cancellationToken);
                 return new JsonRpcStreamedResult(sendEvents, requestId);
             default:
                 activity?.SetStatus(ActivityStatusCode.Error, "Invalid method");
