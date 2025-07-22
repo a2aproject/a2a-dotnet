@@ -7,7 +7,7 @@
 		
 		<IsPackable>false</IsPackable>
 		<IsTestProject>true</IsTestProject>
-		<NoWarn>$(NoWarn);CS8602;CS8604;CS8625</NoWarn>
+		<NoWarn>$(NoWarn);CS8602;CS8604;CS8625;IDE1006</NoWarn>
 		<RootNamespace>A2A.AspNetCore.Tests</RootNamespace>
 	</PropertyGroup>
 

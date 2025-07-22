@@ -78,10 +78,10 @@ public sealed class A2AClient : IA2AClient
             cancellationToken);
 
     /// <inheritdoc />
-    public IAsyncEnumerable<SseItem<A2AEvent>> ResubscribeToTaskAsync(string taskId, CancellationToken cancellationToken = default) =>
+    public IAsyncEnumerable<SseItem<A2AEvent>> SubscribeToTaskAsync(string taskId, CancellationToken cancellationToken = default) =>
         SendRpcSseRequestAsync(
             new() { Id = string.IsNullOrEmpty(taskId) ? throw new ArgumentNullException(nameof(taskId)) : taskId },
-            A2AMethods.TaskResubscribe,
+            A2AMethods.TaskSubscribe,
             A2AJsonUtilities.JsonContext.Default.TaskIdParams,
             A2AJsonUtilities.JsonContext.Default.A2AEvent,
             cancellationToken);
@@ -95,14 +95,14 @@ public sealed class A2AClient : IA2AClient
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        using var responseStream = await SendAndReadResponseStream(
+        using var responseStream = await SendAndReadResponseStreamAsync(
             jsonRpcParams,
             method,
             inputTypeInfo,
             "application/json",
             cancellationToken).ConfigureAwait(false);
 
-        var responseObject = await JsonSerializer.DeserializeAsync(responseStream, A2AJsonUtilities.JsonContext.Default.JsonRpcResponse, cancellationToken);
+        var responseObject = await JsonSerializer.DeserializeAsync(responseStream, A2AJsonUtilities.JsonContext.Default.JsonRpcResponse, cancellationToken).ConfigureAwait(false);
 
         if (responseObject?.Error is { } error)
         {
@@ -120,7 +120,7 @@ public sealed class A2AClient : IA2AClient
         JsonTypeInfo<TOutput> outputTypeInfo,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        using var responseStream = await SendAndReadResponseStream(
+        using var responseStream = await SendAndReadResponseStreamAsync(
             jsonRpcParams,
             method,
             inputTypeInfo,
@@ -148,7 +148,7 @@ public sealed class A2AClient : IA2AClient
         }
     }
 
-    private async ValueTask<Stream> SendAndReadResponseStream<TInput>(
+    private async ValueTask<Stream> SendAndReadResponseStreamAsync<TInput>(
         TInput jsonRpcParams,
         string method,
         JsonTypeInfo<TInput> inputTypeInfo,
@@ -163,7 +163,7 @@ public sealed class A2AClient : IA2AClient
                 Method = method,
                 Params = JsonSerializer.SerializeToElement(jsonRpcParams, inputTypeInfo),
             })
-        }, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        }, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
 
         try
         {
@@ -178,7 +178,7 @@ public sealed class A2AClient : IA2AClient
 #if NET
                 cancellationToken
 #endif
-                );
+                ).ConfigureAwait(false);
         }
         catch
         {

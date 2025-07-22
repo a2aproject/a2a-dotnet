@@ -55,7 +55,7 @@ public sealed class TaskUpdateEventEnumerator : IAsyncEnumerable<A2AEvent>
         while (!isFinal || !_UpdateEvents.IsEmpty)
         {
             // Wait for an event to be available
-            await _semaphore.WaitAsync(cancellationToken);
+            await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
             if (_UpdateEvents.TryDequeue(out var taskUpdateEvent))
             {
                 yield return taskUpdateEvent;

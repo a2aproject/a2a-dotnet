@@ -19,7 +19,7 @@ public class TaskManagerTests
             },
         };
         string messageReceived = string.Empty;
-        taskManager.OnMessageReceived = (messageSendParams) =>
+        taskManager.OnMessageReceived = (messageSendParams, _) =>
         {
             messageReceived = messageSendParams.Message.Parts.OfType<TextPart>().First().Text;
             return Task.FromResult(new Message
@@ -96,7 +96,7 @@ public class TaskManagerTests
     {
         var taskManager = new TaskManager()
         {
-            OnTaskUpdated = (task) =>
+            OnTaskUpdated = (task, _) =>
             {
                 task.Status.State = TaskState.Working;
                 return Task.CompletedTask;
@@ -224,9 +224,9 @@ public class TaskManagerTests
     public async Task CreateSendSubscribeTask()
     {
         var taskManager = new TaskManager();
-        taskManager.OnTaskCreated = async (task) =>
+        taskManager.OnTaskCreated = async (task, ct) =>
         {
-            await taskManager.UpdateStatusAsync(task.Id, TaskState.Working, final: true);
+            await taskManager.UpdateStatusAsync(task.Id, TaskState.Working, final: true, cancellationToken: ct);
         };
 
         var taskSendParams = new MessageSendParams
@@ -254,9 +254,9 @@ public class TaskManagerTests
     public async Task EnsureTaskIsFirstReturnedEventFromMessageStream()
     {
         var taskManager = new TaskManager();
-        taskManager.OnTaskCreated = async (task) =>
+        taskManager.OnTaskCreated = async (task, ct) =>
         {
-            await taskManager.UpdateStatusAsync(task.Id, TaskState.Working, final: true);
+            await taskManager.UpdateStatusAsync(task.Id, TaskState.Working, final: true, cancellationToken: ct);
         };
 
         var taskSendParams = new MessageSendParams
@@ -527,5 +527,143 @@ public class TaskManagerTests
         Assert.Equal("Msg4", (resultTask.History[0].Parts[0] as TextPart)?.Text);
         Assert.Equal("Msg5", (resultTask.History[1].Parts[0] as TextPart)?.Text);
         Assert.Equal("Check", (resultTask.History[2].Parts[0] as TextPart)?.Text);
+    }
+
+    [Fact]
+    public async Task CreateTaskAsync_ShouldThrowOperationCanceledException_WhenCancellationTokenIsCanceled()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<OperationCanceledException>(() => taskManager.CreateTaskAsync(cancellationToken: cts.Token));
+    }
+
+    [Fact]
+    public async Task CancelTaskAsync_ShouldThrowOperationCanceledException_WhenCancellationTokenIsCanceled()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+        var taskIdParams = new TaskIdParams { Id = "test-id" };
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<OperationCanceledException>(() => taskManager.CancelTaskAsync(taskIdParams, cts.Token));
+    }
+
+    [Fact]
+    public async Task GetTaskAsync_ShouldThrowOperationCanceledException_WhenCancellationTokenIsCanceled()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+        var taskQueryParams = new TaskQueryParams { Id = "test-id" };
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<OperationCanceledException>(() => taskManager.GetTaskAsync(taskQueryParams, cts.Token));
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_ShouldThrowOperationCanceledException_WhenCancellationTokenIsCanceled()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+        var messageSendParams = new MessageSendParams();
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<OperationCanceledException>(() => taskManager.SendMessageAsync(messageSendParams, cts.Token));
+    }
+
+    [Fact]
+    public async Task SendMessageStreamAsync_ShouldThrowOperationCanceledException_WhenCancellationTokenIsCanceled()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+        var messageSendParams = new MessageSendParams();
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<OperationCanceledException>(() => taskManager.SendMessageStreamAsync(messageSendParams, cts.Token));
+    }
+
+    [Fact]
+    public void SubscribeToTaskAsync_ShouldThrowOperationCanceledException_WhenCancellationTokenIsCanceled()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+        var taskIdParams = new TaskIdParams { Id = "test-id" };
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        // Act & Assert
+        Assert.Throws<OperationCanceledException>(() => taskManager.SubscribeToTaskAsync(taskIdParams, cts.Token));
+    }
+
+    [Fact]
+    public async Task SetPushNotificationAsync_ShouldThrowOperationCanceledException_WhenCancellationTokenIsCanceled()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+        var pushNotificationConfig = new TaskPushNotificationConfig();
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<OperationCanceledException>(() => taskManager.SetPushNotificationAsync(pushNotificationConfig, cts.Token));
+    }
+
+    [Fact]
+    public async Task GetPushNotificationAsync_ShouldThrowOperationCanceledException_WhenCancellationTokenIsCanceled()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+        var notificationConfigParams = new GetTaskPushNotificationConfigParams { Id = "test-id" };
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<OperationCanceledException>(() => taskManager.GetPushNotificationAsync(notificationConfigParams, cts.Token));
+    }
+
+    [Fact]
+    public async Task UpdateStatusAsync_ShouldThrowOperationCanceledException_WhenCancellationTokenIsCanceled()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<OperationCanceledException>(() => taskManager.UpdateStatusAsync("test-id", TaskState.Working, cancellationToken: cts.Token));
+    }
+
+    [Fact]
+    public async Task ReturnArtifactAsync_ShouldThrowOperationCanceledException_WhenCancellationTokenIsCanceled()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+        var artifact = new Artifact();
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<OperationCanceledException>(() => taskManager.ReturnArtifactAsync("test-id", artifact, cts.Token));
     }
 }

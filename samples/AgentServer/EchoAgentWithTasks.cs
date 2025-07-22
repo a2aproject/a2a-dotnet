@@ -9,12 +9,12 @@ public class EchoAgentWithTasks
     public void Attach(ITaskManager taskManager)
     {
         _taskManager = taskManager;
-        taskManager.OnTaskCreated = ProcessMessage;
-        taskManager.OnTaskUpdated = ProcessMessage;
+        taskManager.OnTaskCreated = ProcessMessageAsync;
+        taskManager.OnTaskUpdated = ProcessMessageAsync;
         taskManager.OnAgentCardQuery = GetAgentCard;
     }
 
-    private async Task ProcessMessage(AgentTask task)
+    private async Task ProcessMessageAsync(AgentTask task, CancellationToken cancellationToken)
     {
         // Process the message
         var messageText = task.History!.Last().Parts.OfType<TextPart>().First().Text;
@@ -24,11 +24,11 @@ public class EchoAgentWithTasks
             Parts = [new TextPart() {
                 Text = $"Echo: {messageText}"
             }]
-        });
-        await _taskManager!.UpdateStatusAsync(task.Id, TaskState.Completed, final: true);
+        }, cancellationToken);
+        await _taskManager!.UpdateStatusAsync(task.Id, TaskState.Completed, final: true, cancellationToken: cancellationToken);
     }
 
-    private AgentCard GetAgentCard(string agentUrl)
+    private AgentCard GetAgentCard(string agentUrl, CancellationToken _)
     {
         var capabilities = new AgentCapabilities()
         {

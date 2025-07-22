@@ -37,14 +37,14 @@ public static class A2ARouteBuilderExtensions
 
         var routeGroup = endpoints.MapGroup("");
 
-        routeGroup.MapGet(".well-known/agent.json", (HttpRequest request) =>
+        routeGroup.MapGet(".well-known/agent.json", (HttpRequest request, CancellationToken cancellationToken) =>
         {
             var agentUrl = $"{request.Scheme}://{request.Host}{path}";
-            var agentCard = taskManager.OnAgentCardQuery(agentUrl);
+            var agentCard = taskManager.OnAgentCardQuery(agentUrl, cancellationToken);
             return Results.Ok(agentCard);
         });
 
-        routeGroup.MapPost(path, (HttpRequest request) => A2AJsonRpcProcessor.ProcessRequest(taskManager, request));
+        routeGroup.MapPost(path, (HttpRequest request, CancellationToken cancellationToken) => A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, request, cancellationToken));
 
         return routeGroup;
     }
@@ -68,34 +68,34 @@ public static class A2ARouteBuilderExtensions
         var routeGroup = endpoints.MapGroup(path);
 
         // /v1/card endpoint - Agent discovery
-        routeGroup.MapGet("/v1/card", (HttpRequest request) =>
-            A2AHttpProcessor.GetAgentCard(taskManager, logger, $"{request.Scheme}://{request.Host}{path}"));
+        routeGroup.MapGet("/v1/card", async (HttpRequest request, CancellationToken cancellationToken) =>
+            await A2AHttpProcessor.GetAgentCardAsync(taskManager, logger, $"{request.Scheme}://{request.Host}{path}", cancellationToken).ConfigureAwait(false));
 
         // /v1/tasks/{id} endpoint
-        routeGroup.MapGet("/v1/tasks/{id}", (string id, [FromQuery] int? historyLength, [FromQuery] string? metadata) =>
-            A2AHttpProcessor.GetTask(taskManager, logger, id, historyLength, metadata));
+        routeGroup.MapGet("/v1/tasks/{id}", (string id, [FromQuery] int? historyLength, [FromQuery] string? metadata, CancellationToken cancellationToken) =>
+            A2AHttpProcessor.GetTaskAsync(taskManager, logger, id, historyLength, metadata, cancellationToken));
 
         // /v1/tasks/{id}:cancel endpoint
-        routeGroup.MapPost("/v1/tasks/{id}:cancel", (string id) => A2AHttpProcessor.CancelTask(taskManager, logger, id));
+        routeGroup.MapPost("/v1/tasks/{id}:cancel", (string id, CancellationToken cancellationToken) => A2AHttpProcessor.CancelTaskAsync(taskManager, logger, id, cancellationToken));
 
         // /v1/tasks/{id}:subscribe endpoint
-        routeGroup.MapGet("/v1/tasks/{id}:subscribe", (string id) => A2AHttpProcessor.SubscribeTask(taskManager, logger, id));
+        routeGroup.MapGet("/v1/tasks/{id}:subscribe", (string id, CancellationToken cancellationToken) => A2AHttpProcessor.SubscribeTask(taskManager, logger, id, cancellationToken));
 
         // /v1/tasks/{id}/pushNotificationConfigs endpoint - POST
-        routeGroup.MapPost("/v1/tasks/{id}/pushNotificationConfigs", (string id, [FromBody] PushNotificationConfig pushNotificationConfig) =>
-            A2AHttpProcessor.SetPushNotification(taskManager, logger, id, pushNotificationConfig));
+        routeGroup.MapPost("/v1/tasks/{id}/pushNotificationConfigs", (string id, [FromBody] PushNotificationConfig pushNotificationConfig, CancellationToken cancellationToken) =>
+            A2AHttpProcessor.SetPushNotificationAsync(taskManager, logger, id, pushNotificationConfig, cancellationToken));
 
         // /v1/tasks/{id}/pushNotificationConfigs endpoint - GET
-        routeGroup.MapGet("/v1/tasks/{id}/pushNotificationConfigs/{notificationConfigId?}", (string id, string? notificationConfigId) =>
-            A2AHttpProcessor.GetPushNotification(taskManager, logger, id, notificationConfigId));
+        routeGroup.MapGet("/v1/tasks/{id}/pushNotificationConfigs/{notificationConfigId?}", (string id, string? notificationConfigId, CancellationToken cancellationToken) =>
+            A2AHttpProcessor.GetPushNotificationAsync(taskManager, logger, id, notificationConfigId, cancellationToken));
 
         // /v1/message:send endpoint
-        routeGroup.MapPost("/v1/message:send", ([FromBody] MessageSendParams sendParams) =>
-            A2AHttpProcessor.SendMessage(taskManager, logger, sendParams));
+        routeGroup.MapPost("/v1/message:send", ([FromBody] MessageSendParams sendParams, CancellationToken cancellationToken) =>
+            A2AHttpProcessor.SendMessageAsync(taskManager, logger, sendParams, cancellationToken));
 
         // /v1/message:stream endpoint
-        routeGroup.MapPost("/v1/message:stream", ([FromBody] MessageSendParams sendParams) =>
-            A2AHttpProcessor.SendMessageStream(taskManager, logger, sendParams));
+        routeGroup.MapPost("/v1/message:stream", ([FromBody] MessageSendParams sendParams, CancellationToken cancellationToken) =>
+            A2AHttpProcessor.SendMessageStreamAsync(taskManager, logger, sendParams, cancellationToken));
 
         return routeGroup;
     }

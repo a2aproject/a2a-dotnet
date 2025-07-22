@@ -28,6 +28,10 @@
     <PackageReference Include="Microsoft.Extensions.Logging" />
     <PackageReference Include="System.Linq.AsyncEnumerable" />
     <PackageReference Include="System.Net.ServerSentEvents" />
+      <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      </PackageReference>
   </ItemGroup>
 
 	<ItemGroup>

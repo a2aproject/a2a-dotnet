@@ -3,15 +3,13 @@
     <!-- Enable central package management, https://learn.microsoft.com/en-us/nuget/consume-packages/Central-Package-Management -->
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
-  
   <ItemGroup>
     <!-- Product dependencies netstandard -->
+    <PackageVersion Include="Microsoft.VisualStudio.Threading.Analyzers" Version="17.14.15" />
     <PackageVersion Include="System.Text.Json" Version="8.0.5" />
-
     <!-- Product dependencies shared -->
     <PackageVersion Include="System.Net.ServerSentEvents" Version="10.0.0-preview.5.25277.114" />
     <PackageVersion Include="System.Linq.AsyncEnumerable" Version="10.0.0-preview.5.25277.114" />
-
     <!-- Testing / samples dependencies -->
     <PackageVersion Include="JsonSchema.Net" Version="7.3.4" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.6" />
@@ -28,13 +26,11 @@
     <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.12.0" />
     <PackageVersion Include="Polly" Version="8.4.2" />
     <PackageVersion Include="System.CommandLine" Version="2.0.0-beta5.25306.1" />
-
     <!-- Build / infrastructure dependencies -->
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.0" />
-
     <!-- Code analyzers -->
     <PackageVersion Include="Roslynator.Analyzers" Version="4.13.1" />
     <PackageReference Include="Roslynator.Analyzers">

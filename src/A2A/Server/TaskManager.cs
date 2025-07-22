@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 namespace A2A;
 
@@ -21,19 +22,19 @@ public sealed class TaskManager : ITaskManager
     private readonly Dictionary<string, TaskUpdateEventEnumerator> _taskUpdateEventEnumerators = [];
 
     /// <inheritdoc />
-    public Func<MessageSendParams, Task<Message>>? OnMessageReceived { get; set; }
+    public Func<MessageSendParams, CancellationToken, Task<Message>>? OnMessageReceived { get; set; }
 
     /// <inheritdoc />
-    public Func<AgentTask, Task> OnTaskCreated { get; set; } = static _ => Task.CompletedTask;
+    public Func<AgentTask, CancellationToken, Task> OnTaskCreated { get; set; } = static (_, _) => Task.CompletedTask;
 
     /// <inheritdoc />
-    public Func<AgentTask, Task> OnTaskCancelled { get; set; } = static _ => Task.CompletedTask;
+    public Func<AgentTask, CancellationToken, Task> OnTaskCancelled { get; set; } = static (_, _) => Task.CompletedTask;
 
     /// <inheritdoc />
-    public Func<AgentTask, Task> OnTaskUpdated { get; set; } = static _ => Task.CompletedTask;
+    public Func<AgentTask, CancellationToken, Task> OnTaskUpdated { get; set; } = static (_, _) => Task.CompletedTask;
 
     /// <inheritdoc />
-    public Func<string, AgentCard> OnAgentCardQuery { get; set; } = static agentUrl => new AgentCard() { Name = "Unknown", Url = agentUrl };
+    public Func<string, CancellationToken, AgentCard> OnAgentCardQuery { get; set; } = static (agentUrl, _) => new AgentCard() { Name = "Unknown", Url = agentUrl };
 
     /// <summary>
     /// Initializes a new instance of the TaskManager class.
@@ -50,8 +51,10 @@ public sealed class TaskManager : ITaskManager
     }
 
     /// <inheritdoc />
-    public async Task<AgentTask> CreateTaskAsync(string? contextId = null, string? taskId = null)
+    public async Task<AgentTask> CreateTaskAsync(string? contextId = null, string? taskId = null, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         contextId ??= Guid.NewGuid().ToString();
 
         using var activity = ActivitySource.StartActivity("CreateTask", ActivityKind.Server);
@@ -68,20 +71,15 @@ public sealed class TaskManager : ITaskManager
                 Timestamp = DateTime.UtcNow
             }
         };
-        await _taskStore.SetTaskAsync(task);
+        await _taskStore.SetTaskAsync(task, cancellationToken).ConfigureAwait(false);
         return task;
     }
 
-    /// <summary>
-    /// Cancels a task by setting its status to Canceled and invoking the cancellation handler.
-    /// </summary>
-    /// <remarks>
-    /// Retrieves the task from the store, updates its status, and notifies the cancellation handler.
-    /// </remarks>
-    /// <param name="taskIdParams">Parameters containing the task ID to cancel.</param>
-    /// <returns>The canceled task with updated status, or null if not found.</returns>
-    public async Task<AgentTask?> CancelTaskAsync(TaskIdParams taskIdParams)
+    /// <inheritdoc />
+    public async Task<AgentTask?> CancelTaskAsync(TaskIdParams taskIdParams, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (taskIdParams is null)
         {
             throw new ArgumentNullException(nameof(taskIdParams));
@@ -90,12 +88,12 @@ public sealed class TaskManager : ITaskManager
         using var activity = ActivitySource.StartActivity("CancelTask", ActivityKind.Server);
         activity?.SetTag("task.id", taskIdParams.Id);
 
-        var task = await _taskStore.GetTaskAsync(taskIdParams.Id);
+        var task = await _taskStore.GetTaskAsync(taskIdParams.Id, cancellationToken).ConfigureAwait(false);
         if (task != null)
         {
             activity?.SetTag("task.found", true);
-            await _taskStore.UpdateStatusAsync(task.Id, TaskState.Canceled);
-            await OnTaskCancelled(task);
+            await _taskStore.UpdateStatusAsync(task.Id, TaskState.Canceled, cancellationToken: cancellationToken).ConfigureAwait(false);
+            await OnTaskCancelled(task, cancellationToken).ConfigureAwait(false);
             return task;
         }
 
@@ -103,16 +101,11 @@ public sealed class TaskManager : ITaskManager
         throw new A2AException("Task not found or invalid TaskIdParams.", A2AErrorCode.TaskNotFound);
     }
 
-    /// <summary>
-    /// Retrieves a task by its ID from the task store.
-    /// </summary>
-    /// <remarks>
-    /// Looks up the task in the persistent store and returns the current state and history.
-    /// </remarks>
-    /// <param name="taskIdParams">Parameters containing the task ID to retrieve.</param>
-    /// <returns>The task if found in the store, null otherwise.</returns>
-    public async Task<AgentTask?> GetTaskAsync(TaskQueryParams taskIdParams)
+    /// <inheritdoc />
+    public async Task<AgentTask?> GetTaskAsync(TaskQueryParams taskIdParams, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (taskIdParams is null)
         {
             throw new ArgumentNullException(nameof(taskIdParams));
@@ -121,7 +114,7 @@ public sealed class TaskManager : ITaskManager
         using var activity = ActivitySource.StartActivity("GetTask", ActivityKind.Server);
         activity?.SetTag("task.id", taskIdParams.Id);
 
-        var task = await _taskStore.GetTaskAsync(taskIdParams.Id);
+        var task = await _taskStore.GetTaskAsync(taskIdParams.Id, cancellationToken).ConfigureAwait(false);
         activity?.SetTag("task.found", task != null);
 
         task?.TrimHistory(taskIdParams.HistoryLength);
@@ -129,17 +122,11 @@ public sealed class TaskManager : ITaskManager
         return task;
     }
 
-    /// <summary>
-    /// Processes a message request and returns a response, either from an existing task or by creating a new one.
-    /// </summary>
-    /// <remarks>
-    /// If the message contains a task ID, it updates the existing task's history. If no task ID is provided,
-    /// it either delegates to the OnMessageReceived handler or creates a new task.
-    /// </remarks>
-    /// <param name="messageSendParams">The message parameters containing the message content and optional task/context IDs.</param>
-    /// <returns>The agent's response as either a Task object or a direct Message from the handler.</returns>
-    public async Task<A2AResponse?> SendMessageAsync(MessageSendParams messageSendParams)
+    /// <inheritdoc />
+    public async Task<A2AResponse?> SendMessageAsync(MessageSendParams messageSendParams, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (messageSendParams is null)
         {
             throw new ArgumentNullException(nameof(messageSendParams));
@@ -152,7 +139,7 @@ public sealed class TaskManager : ITaskManager
         if (messageSendParams.Message.TaskId != null)
         {
             activity?.SetTag("task.id", messageSendParams.Message.TaskId);
-            task = await _taskStore.GetTaskAsync(messageSendParams.Message.TaskId);
+            task = await _taskStore.GetTaskAsync(messageSendParams.Message.TaskId, cancellationToken).ConfigureAwait(false);
             if (task == null)
             {
                 activity?.SetTag("task.found", false);
@@ -170,16 +157,16 @@ public sealed class TaskManager : ITaskManager
             if (OnMessageReceived != null)
             {
                 using var createActivity = ActivitySource.StartActivity("OnMessageReceived", ActivityKind.Server);
-                return await OnMessageReceived(messageSendParams);
+                return await OnMessageReceived(messageSendParams, cancellationToken).ConfigureAwait(false);
             }
             else
             {
                 // If no task is found and no OnMessageReceived handler is set, create a new task
-                task = await CreateTaskAsync(messageSendParams.Message.ContextId, messageSendParams.Message.TaskId);
+                task = await CreateTaskAsync(messageSendParams.Message.ContextId, messageSendParams.Message.TaskId, cancellationToken).ConfigureAwait(false);
                 task.History ??= [];
                 task.History.Add(messageSendParams.Message);
                 using var createActivity = ActivitySource.StartActivity("OnTaskCreated", ActivityKind.Server);
-                await OnTaskCreated(task);
+                await OnTaskCreated(task, cancellationToken).ConfigureAwait(false);
             }
         }
         else
@@ -196,25 +183,19 @@ public sealed class TaskManager : ITaskManager
 
             task.TrimHistory(messageSendParams.Configuration?.HistoryLength);
 
-            await _taskStore.SetTaskAsync(task);
+            await _taskStore.SetTaskAsync(task, cancellationToken).ConfigureAwait(false);
             using var createActivity = ActivitySource.StartActivity("OnTaskUpdated", ActivityKind.Server);
-            await OnTaskUpdated(task);
+            await OnTaskUpdated(task, cancellationToken).ConfigureAwait(false);
         }
 
         return task;
     }
 
-    /// <summary>
-    /// Processes a message request and returns a stream of events as they occur.
-    /// </summary>
-    /// <remarks>
-    /// Creates or updates a task and establishes an event stream that yields Task, Message,
-    /// TaskStatusUpdateEvent, and TaskArtifactUpdateEvent objects as they are generated.
-    /// </remarks>
-    /// <param name="messageSendParams">The message parameters containing the message content and optional task/context IDs.</param>
-    /// <returns>An async enumerable that yields events as they are produced by the agent.</returns>
-    public async Task<IAsyncEnumerable<A2AEvent>> SendMessageStreamAsync(MessageSendParams messageSendParams)
+    /// <inheritdoc />
+    public async Task<IAsyncEnumerable<A2AEvent>> SendMessageStreamAsync(MessageSendParams messageSendParams, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (messageSendParams is null)
         {
             throw new ArgumentNullException(nameof(messageSendParams));
@@ -227,7 +208,7 @@ public sealed class TaskManager : ITaskManager
         if (messageSendParams.Message.TaskId != null)
         {
             activity?.SetTag("task.id", messageSendParams.Message.TaskId);
-            agentTask = await _taskStore.GetTaskAsync(messageSendParams.Message.TaskId);
+            agentTask = await _taskStore.GetTaskAsync(messageSendParams.Message.TaskId, cancellationToken).ConfigureAwait(false);
             if (agentTask == null)
             {
                 activity?.SetTag("task.found", false);
@@ -245,19 +226,23 @@ public sealed class TaskManager : ITaskManager
             // If the task is configured to process simple messages without tasks, pass the message directly to the agent
             if (OnMessageReceived != null)
             {
-                var message = await OnMessageReceived(messageSendParams);
-                return YieldSingleEvent(message);
+                var message = await OnMessageReceived(messageSendParams, cancellationToken).ConfigureAwait(false);
+                return YieldSingleEventAsync(message, cancellationToken);
 
-                static async IAsyncEnumerable<A2AEvent> YieldSingleEvent(A2AEvent evt)
+                static async IAsyncEnumerable<A2AEvent> YieldSingleEventAsync(A2AEvent evt, [EnumeratorCancellation] CancellationToken ct)
                 {
+                    if (ct.IsCancellationRequested)
+                    {
+                        yield break;
+                    }
                     yield return evt;
-                    await Task.CompletedTask;
+                    await Task.CompletedTask.ConfigureAwait(false);
                 }
             }
             else
             {
                 // If no task is found and no OnMessageReceived handler is set, create a new task
-                agentTask = await CreateTaskAsync(messageSendParams.Message.ContextId);
+                agentTask = await CreateTaskAsync(messageSendParams.Message.ContextId, cancellationToken: cancellationToken).ConfigureAwait(false);
                 agentTask.History ??= [];
                 agentTask.History.Add(messageSendParams.Message);
                 enumerator = new TaskUpdateEventEnumerator();
@@ -266,8 +251,8 @@ public sealed class TaskManager : ITaskManager
                 enumerator.ProcessingTask = Task.Run(async () =>
                 {
                     using var createActivity = ActivitySource.StartActivity("OnTaskCreated", ActivityKind.Server);
-                    await OnTaskCreated(agentTask);
-                });
+                    await OnTaskCreated(agentTask, cancellationToken).ConfigureAwait(false);
+                }, cancellationToken);
             }
         }
         else
@@ -278,30 +263,24 @@ public sealed class TaskManager : ITaskManager
 
             agentTask.TrimHistory(messageSendParams.Configuration?.HistoryLength);
 
-            await _taskStore.SetTaskAsync(agentTask);
+            await _taskStore.SetTaskAsync(agentTask, cancellationToken).ConfigureAwait(false);
             enumerator = new TaskUpdateEventEnumerator();
             _taskUpdateEventEnumerators[agentTask.Id] = enumerator;
             enumerator.ProcessingTask = Task.Run(async () =>
             {
                 using var createActivity = ActivitySource.StartActivity("OnTaskUpdated", ActivityKind.Server);
-                await OnTaskUpdated(agentTask);
-            });
+                await OnTaskUpdated(agentTask, cancellationToken).ConfigureAwait(false);
+            }, cancellationToken);
         }
 
         return enumerator;  //TODO: Clean up enumerators after use
     }
 
-    /// <summary>
-    /// Resubscribes to an existing task's event stream to receive ongoing updates.
-    /// </summary>
-    /// <remarks>
-    /// Returns the event enumerator that was previously established for the task,
-    /// allowing clients to reconnect to an active task stream.
-    /// </remarks>
-    /// <param name="taskIdParams">Parameters containing the task ID to subscribe to.</param>
-    /// <returns>An async enumerable of events for the specified task.</returns>
-    public IAsyncEnumerable<A2AEvent> SubscribeToTaskAsync(TaskIdParams taskIdParams)
+    /// <inheritdoc />
+    public IAsyncEnumerable<A2AEvent> SubscribeToTaskAsync(TaskIdParams taskIdParams, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (taskIdParams is null)
         {
             throw new ArgumentNullException(nameof(taskIdParams));
@@ -315,35 +294,25 @@ public sealed class TaskManager : ITaskManager
             throw new ArgumentException("Task not found or invalid TaskIdParams.");
     }
 
-    /// <summary>
-    /// Sets or updates the push notification configuration for a specific task.
-    /// </summary>
-    /// <remarks>
-    /// Configures callback URLs and authentication for receiving task updates via HTTP notifications.
-    /// </remarks>
-    /// <param name="pushNotificationConfig">The push notification configuration containing callback URL and authentication details.</param>
-    /// <returns>The configured push notification settings with confirmation.</returns>
-    public async Task<TaskPushNotificationConfig?> SetPushNotificationAsync(TaskPushNotificationConfig pushNotificationConfig)
+    /// <inheritdoc />
+    public async Task<TaskPushNotificationConfig?> SetPushNotificationAsync(TaskPushNotificationConfig pushNotificationConfig, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (pushNotificationConfig is null)
         {
             throw new ArgumentNullException(nameof(pushNotificationConfig));
         }
 
-        await _taskStore.SetPushNotificationConfigAsync(pushNotificationConfig);
+        await _taskStore.SetPushNotificationConfigAsync(pushNotificationConfig, cancellationToken).ConfigureAwait(false);
         return pushNotificationConfig;
     }
 
-    /// <summary>
-    /// Retrieves the push notification configuration for a specific task.
-    /// </summary>
-    /// <remarks>
-    /// Returns the callback URL and authentication settings configured for receiving task update notifications.
-    /// </remarks>
-    /// <param name="notificationConfigParams">Parameters containing the task ID and optional push notification config ID.</param>
-    /// <returns>The push notification configuration if found, null otherwise.</returns>
-    public async Task<TaskPushNotificationConfig?> GetPushNotificationAsync(GetTaskPushNotificationConfigParams? notificationConfigParams)
+    /// <inheritdoc />
+    public async Task<TaskPushNotificationConfig?> GetPushNotificationAsync(GetTaskPushNotificationConfigParams? notificationConfigParams, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (notificationConfigParams is null)
         {
             throw new ArgumentNullException(nameof(notificationConfigParams), "GetTaskPushNotificationConfigParams cannot be null.");
@@ -353,7 +322,7 @@ public sealed class TaskManager : ITaskManager
         activity?.SetTag("task.id", notificationConfigParams.Id);
         activity?.SetTag("push.config.id", notificationConfigParams.PushNotificationConfigId);
 
-        var task = await _taskStore.GetTaskAsync(notificationConfigParams.Id);
+        var task = await _taskStore.GetTaskAsync(notificationConfigParams.Id, cancellationToken).ConfigureAwait(false);
         if (task == null)
         {
             activity?.SetTag("task.found", false);
@@ -364,11 +333,11 @@ public sealed class TaskManager : ITaskManager
 
         if (!string.IsNullOrEmpty(notificationConfigParams.PushNotificationConfigId))
         {
-            pushNotificationConfig = await _taskStore.GetPushNotificationAsync(notificationConfigParams.Id, notificationConfigParams.PushNotificationConfigId!);
+            pushNotificationConfig = await _taskStore.GetPushNotificationAsync(notificationConfigParams.Id, notificationConfigParams.PushNotificationConfigId!, cancellationToken).ConfigureAwait(false);
         }
         else
         {
-            var pushNotificationConfigs = await _taskStore.GetPushNotificationsAsync(notificationConfigParams.Id);
+            var pushNotificationConfigs = await _taskStore.GetPushNotificationsAsync(notificationConfigParams.Id, cancellationToken).ConfigureAwait(false);
 
             pushNotificationConfig = pushNotificationConfigs.FirstOrDefault();
         }
@@ -378,8 +347,10 @@ public sealed class TaskManager : ITaskManager
     }
 
     /// <inheritdoc />
-    public async Task UpdateStatusAsync(string taskId, TaskState status, Message? message = null, bool final = false)
+    public async Task UpdateStatusAsync(string taskId, TaskState status, Message? message = null, bool final = false, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (string.IsNullOrEmpty(taskId))
         {
             throw new ArgumentNullException(nameof(taskId));
@@ -392,7 +363,7 @@ public sealed class TaskManager : ITaskManager
 
         try
         {
-            var agentStatus = await _taskStore.UpdateStatusAsync(taskId, status, message);
+            var agentStatus = await _taskStore.UpdateStatusAsync(taskId, status, message, cancellationToken).ConfigureAwait(false);
             //TODO: Make callback notification if set by the client
             _taskUpdateEventEnumerators.TryGetValue(taskId, out var enumerator);
             if (enumerator != null)
@@ -424,8 +395,10 @@ public sealed class TaskManager : ITaskManager
     }
 
     /// <inheritdoc />
-    public async Task ReturnArtifactAsync(string taskId, Artifact artifact)
+    public async Task ReturnArtifactAsync(string taskId, Artifact artifact, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (string.IsNullOrEmpty(taskId))
         {
             throw new ArgumentNullException(nameof(taskId));
@@ -440,14 +413,14 @@ public sealed class TaskManager : ITaskManager
 
         try
         {
-            var task = await _taskStore.GetTaskAsync(taskId);
+            var task = await _taskStore.GetTaskAsync(taskId, cancellationToken).ConfigureAwait(false);
             if (task != null)
             {
                 activity?.SetTag("task.found", true);
 
                 task.Artifacts ??= [];
                 task.Artifacts.Add(artifact);
-                await _taskStore.SetTaskAsync(task);
+                await _taskStore.SetTaskAsync(task, cancellationToken).ConfigureAwait(false);
 
                 //TODO: Make callback notification if set by the client
                 _taskUpdateEventEnumerators.TryGetValue(task.Id, out var enumerator);
