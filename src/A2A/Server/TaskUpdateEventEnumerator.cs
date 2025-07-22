@@ -5,7 +5,7 @@ namespace A2A;
 /// <summary>
 /// Enumerator for streaming task update events to clients.
 /// </summary>
-public sealed class TaskUpdateEventEnumerator : IAsyncEnumerable<A2AEvent>
+public sealed class TaskUpdateEventEnumerator : IAsyncEnumerable<A2AEvent>, IDisposable, IAsyncDisposable
 {
     private bool isFinal;
     private readonly ConcurrentQueue<A2AEvent> _UpdateEvents = new();
@@ -61,5 +61,15 @@ public sealed class TaskUpdateEventEnumerator : IAsyncEnumerable<A2AEvent>
                 yield return taskUpdateEvent;
             }
         }
+    }
+
+    /// <inheritdoc />
+    public void Dispose() => _semaphore.Dispose();
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        Dispose();
+        await Task.CompletedTask;
     }
 }
