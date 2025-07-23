@@ -104,6 +104,7 @@ public class DistributedCacheTaskStore(IDistributedCache cache)
         }
         var bytes = await cache.GetAsync(BuildPushNotificationsCacheKey(pushNotificationConfig.TaskId), cancellationToken).ConfigureAwait(false);
         var pushNotificationConfigs = bytes == null ? [] : JsonSerializer.Deserialize(bytes, A2AJsonUtilities.JsonContext.Default.ListTaskPushNotificationConfig) ?? [];
+        pushNotificationConfigs.RemoveAll(c => c.PushNotificationConfig.Id == pushNotificationConfig.PushNotificationConfig.Id);
         pushNotificationConfigs.Add(pushNotificationConfig);
         bytes = JsonSerializer.SerializeToUtf8Bytes(pushNotificationConfigs, A2AJsonUtilities.JsonContext.Default.ListTaskPushNotificationConfig);
         await cache.SetAsync(BuildPushNotificationsCacheKey(pushNotificationConfig.TaskId), bytes, cancellationToken).ConfigureAwait(false);
