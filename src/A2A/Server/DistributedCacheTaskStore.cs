@@ -13,10 +13,7 @@ public class DistributedCacheTaskStore(IDistributedCache cache)
     /// <inheritdoc/>
     public async Task<AgentTask?> GetTaskAsync(string taskId, CancellationToken cancellationToken = default)
     {
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return await Task.FromCanceled<AgentTask?>(cancellationToken);
-        }
+        cancellationToken.ThrowIfCancellationRequested();
         if (string.IsNullOrEmpty(taskId))
         {
             throw new ArgumentNullException(nameof(taskId));
@@ -32,10 +29,7 @@ public class DistributedCacheTaskStore(IDistributedCache cache)
     /// <inheritdoc/>
     public async Task<TaskPushNotificationConfig?> GetPushNotificationAsync(string taskId, string notificationConfigId, CancellationToken cancellationToken = default)
     {
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return await Task.FromCanceled<TaskPushNotificationConfig?>(cancellationToken);
-        }
+        cancellationToken.ThrowIfCancellationRequested();
         if (string.IsNullOrEmpty(taskId))
         {
             throw new ArgumentNullException(nameof(taskId));
@@ -56,10 +50,7 @@ public class DistributedCacheTaskStore(IDistributedCache cache)
     /// <inheritdoc/>
     public async Task<IEnumerable<TaskPushNotificationConfig>> GetPushNotificationsAsync(string taskId, CancellationToken cancellationToken = default)
     {
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return await Task.FromCanceled<IEnumerable<TaskPushNotificationConfig>>(cancellationToken);
-        }
+        cancellationToken.ThrowIfCancellationRequested();
         var bytes = await cache.GetAsync(BuildPushNotificationsCacheKey(taskId), cancellationToken).ConfigureAwait(false);
         if (bytes == null || bytes.Length < 1)
         {
@@ -71,10 +62,7 @@ public class DistributedCacheTaskStore(IDistributedCache cache)
     /// <inheritdoc/>
     public async Task<AgentTaskStatus> UpdateStatusAsync(string taskId, TaskState status, Message? message = null, CancellationToken cancellationToken = default)
     {
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return await Task.FromCanceled<AgentTaskStatus>(cancellationToken);
-        }
+        cancellationToken.ThrowIfCancellationRequested();
         if (string.IsNullOrEmpty(taskId))
         {
             throw new ArgumentNullException(nameof(taskId));
@@ -85,7 +73,7 @@ public class DistributedCacheTaskStore(IDistributedCache cache)
         {
             throw new ArgumentException("Task not found.");
         }
-        var task = JsonSerializer.Deserialize(bytes, A2AJsonUtilities.JsonContext.Default.AgentTask)!;
+        var task = JsonSerializer.Deserialize(bytes, A2AJsonUtilities.JsonContext.Default.AgentTask) ?? throw new InvalidDataException("Task data from cache is corrupt.");
         task.Status.State = status;
         task.Status.Message = message;
         task.Status.Timestamp = DateTime.UtcNow;
@@ -97,11 +85,7 @@ public class DistributedCacheTaskStore(IDistributedCache cache)
     /// <inheritdoc/>
     public async Task SetTaskAsync(AgentTask task, CancellationToken cancellationToken = default)
     {
-        if (cancellationToken.IsCancellationRequested)
-        {
-            await Task.FromCanceled(cancellationToken).ConfigureAwait(false);
-            return;
-        }
+        cancellationToken.ThrowIfCancellationRequested();
         var bytes = JsonSerializer.SerializeToUtf8Bytes(task, A2AJsonUtilities.JsonContext.Default.AgentTask);
         await cache.SetAsync(BuildTaskCacheKey(task.Id), bytes, cancellationToken).ConfigureAwait(false);
     }
@@ -109,14 +93,14 @@ public class DistributedCacheTaskStore(IDistributedCache cache)
     /// <inheritdoc/>
     public async Task SetPushNotificationConfigAsync(TaskPushNotificationConfig pushNotificationConfig, CancellationToken cancellationToken = default)
     {
-        if (cancellationToken.IsCancellationRequested)
-        {
-            await Task.FromCanceled(cancellationToken).ConfigureAwait(false);
-            return;
-        }
+        cancellationToken.ThrowIfCancellationRequested();
         if (pushNotificationConfig is null)
         {
             throw new ArgumentNullException(nameof(pushNotificationConfig));
+        }
+        if (string.IsNullOrWhiteSpace(pushNotificationConfig.TaskId))
+        {
+            throw new ArgumentException("Task ID cannot be null or empty.", nameof(pushNotificationConfig));
         }
         var bytes = await cache.GetAsync(BuildPushNotificationsCacheKey(pushNotificationConfig.TaskId), cancellationToken).ConfigureAwait(false);
         var pushNotificationConfigs = bytes == null ? [] : JsonSerializer.Deserialize(bytes, A2AJsonUtilities.JsonContext.Default.ListTaskPushNotificationConfig) ?? [];

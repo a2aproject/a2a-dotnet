@@ -37,6 +37,19 @@ public class DistributedCacheTaskStoreTests
     }
 
     [Fact]
+    public async Task GetTaskAsync_ShouldThrowArgumentException_WhenTaskIdIsNullOrEmpty()
+    {
+        // Arrange
+        var sut = BuildDistributedCacheTaskStore();
+
+        // Act
+        var task = sut.GetTaskAsync(string.Empty);
+
+        // Assert
+        await Assert.ThrowsAsync<ArgumentNullException>(() => task);
+    }
+
+    [Fact]
     public async Task UpdateStatusAsync_ShouldUpdateTaskStatus()
     {
         // Arrange
@@ -193,8 +206,7 @@ public class DistributedCacheTaskStoreTests
         var task = sut.GetTaskAsync("test-id", cts.Token);
 
         // Assert
-        Assert.True(task.IsCanceled);
-        await Assert.ThrowsAsync<TaskCanceledException>(() => task);
+        await Assert.ThrowsAsync<OperationCanceledException>(() => task);
     }
 
     [Fact]
@@ -210,8 +222,7 @@ public class DistributedCacheTaskStoreTests
         var task = sut.GetPushNotificationAsync("test-id", "config-id", cts.Token);
 
         // Assert
-        Assert.True(task.IsCanceled);
-        await Assert.ThrowsAsync<TaskCanceledException>(() => task);
+        await Assert.ThrowsAsync<OperationCanceledException>(() => task);
     }
 
     [Fact]
@@ -227,8 +238,7 @@ public class DistributedCacheTaskStoreTests
         var task = sut.UpdateStatusAsync("test-id", TaskState.Working, cancellationToken: cts.Token);
 
         // Assert
-        Assert.True(task.IsCanceled);
-        await Assert.ThrowsAsync<TaskCanceledException>(() => task);
+        await Assert.ThrowsAsync<OperationCanceledException>(() => task);
     }
 
     [Fact]
@@ -245,8 +255,7 @@ public class DistributedCacheTaskStoreTests
         var task = sut.SetTaskAsync(agentTask, cts.Token);
 
         // Assert
-        Assert.True(task.IsCanceled);
-        await Assert.ThrowsAsync<TaskCanceledException>(() => task);
+        await Assert.ThrowsAsync<OperationCanceledException>(() => task);
     }
 
     [Fact]
@@ -263,8 +272,38 @@ public class DistributedCacheTaskStoreTests
         var task = sut.SetPushNotificationConfigAsync(config, cts.Token);
 
         // Assert
-        Assert.True(task.IsCanceled);
-        await Assert.ThrowsAsync<TaskCanceledException>(() => task);
+        await Assert.ThrowsAsync<OperationCanceledException>(() => task);
+    }
+
+    [Fact]
+    public async Task SetPushNotificationConfigAsync_ShouldThrowArgumentNullException_WhenConfigIsNull()
+    {
+        // Arrange
+        var sut = BuildDistributedCacheTaskStore();
+
+        // Act
+        var task = sut.SetPushNotificationConfigAsync(null!);
+
+        // Assert
+        await Assert.ThrowsAsync<ArgumentNullException>(() => task);
+    }
+
+    [Fact]
+    public async Task SetPushNotificationConfigAsync_ShouldThrowArgumentException_WhenTaskIdIsNullOrEmpty()
+    {
+        // Arrange
+        var sut = BuildDistributedCacheTaskStore();
+        var config = new TaskPushNotificationConfig
+        {
+            TaskId = string.Empty,
+            PushNotificationConfig = new PushNotificationConfig { Id = "config-id" }
+        };
+
+        // Act
+        var task = sut.SetPushNotificationConfigAsync(config);
+
+        // Assert
+        await Assert.ThrowsAsync<ArgumentException>(() => task);
     }
 
     [Fact]
@@ -280,8 +319,7 @@ public class DistributedCacheTaskStoreTests
         var task = sut.GetPushNotificationsAsync("test-id", cts.Token);
 
         // Assert
-        Assert.True(task.IsCanceled);
-        await Assert.ThrowsAsync<TaskCanceledException>(() => task);
+        await Assert.ThrowsAsync<OperationCanceledException>(() => task);
     }
 
     static DistributedCacheTaskStore BuildDistributedCacheTaskStore()
