@@ -13,7 +13,7 @@ internal static class AgentTaskExtensions
     /// <returns>A new <see cref="AgentTask"/> with the history trimmed, or the original task if no trimming is necessary.</returns>
     public static AgentTask WithHistoryTrimmedTo(this AgentTask task, int? toLength)
     {
-        if (toLength is not { } len || task.History is not { Count: > 0 } history || history.Count <= len)
+        if (toLength is not { } len || len < 0 || task.History is not { Count: > 0 } history || history.Count <= len)
         {
             return task;
         }
