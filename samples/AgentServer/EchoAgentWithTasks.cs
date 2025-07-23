@@ -30,8 +30,8 @@ public class EchoAgentWithTasks
         await _taskManager!.ReturnArtifactAsync(task.Id, new Artifact()
         {
             Parts = [new TextPart() {
-                    Text = $"Echo: {messageText}"
-                }]
+                Text = $"Echo: {messageText}"
+            }]
         }, cancellationToken);
 
         await _taskManager!.UpdateStatusAsync(
