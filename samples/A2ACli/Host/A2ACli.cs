@@ -91,11 +91,6 @@ public static class A2ACli
         });
         var logger = loggerFactory.CreateLogger("A2AClient");
 
-        using var httpClient = new HttpClient
-        {
-            BaseAddress = new Uri(agentUrl)
-        };
-
         try
         {
             // Create the card resolver and get agentUrl card

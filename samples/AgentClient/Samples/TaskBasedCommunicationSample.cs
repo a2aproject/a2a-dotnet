@@ -100,7 +100,7 @@ internal sealed class TaskBasedCommunicationSample
             {
                 // Tweaking the agent behavior to simulate a long-running task;
                 // otherwise the agent will echo with Completed task.
-                { "task-target-state", JsonUtils.CreateJsonElement(TaskState.Working) }
+                { "task-target-state", JsonSerializer.SerializeToElement(TaskState.Working) }
             }
         };
 
@@ -125,6 +125,6 @@ internal sealed class TaskBasedCommunicationSample
         Console.WriteLine(" Received task details:");
         Console.WriteLine($"  ID: {agentResponse.Id}");
         Console.WriteLine($"  Status: {agentResponse.Status.State}");
-        Console.WriteLine($"  Artifact: {((TextPart)agentResponse.Artifacts![0].Parts[0]).Text}");
+        Console.WriteLine($"  Artifact: {(agentResponse.Artifacts?[0].Parts?[0] as TextPart)?.Text}");
     }
 }
