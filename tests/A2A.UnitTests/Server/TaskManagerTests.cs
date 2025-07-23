@@ -587,8 +587,8 @@ public class TaskManagerTests
         {
             Message = {
                 TaskId = task.Id,
-                Parts = { new TextPart { Text = "hi again" } }
-            }
+                Parts = { new TextPart { Text = "hi again" } },
+            },
         }, default) as AgentTask;
         Assert.NotNull(task);
 
@@ -598,6 +598,48 @@ public class TaskManagerTests
 
         Assert.NotNull(task.History);
         Assert.Same(task.History[1], trimmedTask.History[0]);
+
+        Assert.Same(task.Status, trimmedTask.Status);
+        Assert.Same(task.Id, trimmedTask.Id);
+        Assert.Same(task.Metadata, trimmedTask.Metadata);
+        Assert.Same(task.Artifacts, trimmedTask.Artifacts);
+        Assert.Same(task.ContextId, trimmedTask.ContextId);
+
+        var trimmedSentTask = await taskManager.SendMessageAsync(new()
+        {
+            Message = {
+                TaskId = task.Id,
+                Parts = { new TextPart { Text = "hi again 3" } },
+            },
+            Configuration = new()
+            {
+                HistoryLength = 1,
+            },
+        }, default) as AgentTask;
+        Assert.NotNull(trimmedSentTask);
+        Assert.NotNull(trimmedSentTask?.History);
+        Assert.Single(trimmedSentTask.History);
+
+        task = await taskManager.GetTaskAsync(new() { Id = task.Id });
+        Assert.NotNull(task);
+
+        Assert.NotNull(task.History);
+        Assert.Same(task.History[2], trimmedSentTask.History[0]);
+
+        Assert.Same(task.Status, trimmedSentTask.Status);
+        Assert.Same(task.Id, trimmedSentTask.Id);
+        Assert.Same(task.Metadata, trimmedSentTask.Metadata);
+        Assert.Same(task.Artifacts, trimmedSentTask.Artifacts);
+        Assert.Same(task.ContextId, trimmedSentTask.ContextId);
+
+        var shouldbeSameTask = await taskManager.GetTaskAsync(new() { Id = task.Id });
+        Assert.NotNull(shouldbeSameTask);
+        Assert.Same(task.History, shouldbeSameTask.History);
+        Assert.Same(task.Status, shouldbeSameTask.Status);
+        Assert.Same(task.Id, shouldbeSameTask.Id);
+        Assert.Same(task.Metadata, shouldbeSameTask.Metadata);
+        Assert.Same(task.Artifacts, shouldbeSameTask.Artifacts);
+        Assert.Same(task.ContextId, shouldbeSameTask.ContextId);
     }
 
     [Fact]
