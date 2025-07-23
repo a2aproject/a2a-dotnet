@@ -70,7 +70,7 @@ public sealed class A2ACardResolver
 #endif
                 ).ConfigureAwait(false);
 
-            return await JsonSerializer.DeserializeAsync(responseStream, A2AJsonUtilities.JsonContext.Default.AgentCard, cancellationToken) ??
+            return await JsonSerializer.DeserializeAsync(responseStream, A2AJsonUtilities.JsonContext.Default.AgentCard, cancellationToken).ConfigureAwait(false) ??
                 throw new A2AException("Failed to parse agent card JSON.");
         }
         catch (JsonException ex)
