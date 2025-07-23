@@ -187,7 +187,7 @@ public sealed class TaskManager : ITaskManager
             await OnTaskUpdated(task, cancellationToken).ConfigureAwait(false);
         }
 
-        return task.WithHistoryTrimmedTo(messageSendParams.Configuration?.HistoryLength) as TrimmedAgentTask;
+        return task.WithHistoryTrimmedTo(messageSendParams.Configuration?.HistoryLength);
     }
 
     /// <inheritdoc />

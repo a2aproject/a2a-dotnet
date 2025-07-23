@@ -571,6 +571,36 @@ public class TaskManagerTests
     }
 
     [Fact]
+    public async Task GetTaskAsync_ShouldNotCreateCopiesOfHistory_WhenTrimmed()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+
+        // Act & Assert
+        var task = await taskManager.SendMessageAsync(new()
+        {
+            Message = { Parts = { new TextPart { Text = "hi" } } }
+        }, default) as AgentTask;
+        Assert.NotNull(task);
+
+        task = await taskManager.SendMessageAsync(new()
+        {
+            Message = {
+                TaskId = task.Id,
+                Parts = { new TextPart { Text = "hi again" } }
+            }
+        }, default) as AgentTask;
+        Assert.NotNull(task);
+
+        var trimmedTask = await taskManager.GetTaskAsync(new() { HistoryLength = 1, Id = task.Id });
+        Assert.NotNull(trimmedTask?.History);
+        Assert.Single(trimmedTask.History);
+
+        Assert.NotNull(task.History);
+        Assert.Same(task.History[1], trimmedTask.History[0]);
+    }
+
+    [Fact]
     public async Task SendMessageAsync_ShouldThrowOperationCanceledException_WhenCancellationTokenIsCanceled()
     {
         // Arrange
