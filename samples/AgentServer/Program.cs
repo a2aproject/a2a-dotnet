@@ -28,7 +28,7 @@ var app = builder.Build();
 app.UseHttpsRedirection();
 
 // Add health endpoint
-app.MapGet("/health", () => Results.Ok(new { Status = "Healthy", Timestamp = DateTime.UtcNow }));
+app.MapGet("/health", () => Results.Ok(new { Status = "Healthy", Timestamp = DateTimeOffset.UtcNow }));
 
 // Get the agent type from command line arguments
 var agentType = GetAgentTypeFromArgs(args);
