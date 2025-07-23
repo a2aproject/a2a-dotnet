@@ -6,6 +6,7 @@
   <ItemGroup>
     <!-- Product dependencies netstandard -->
     <PackageVersion Include="Microsoft.VisualStudio.Threading.Analyzers" Version="17.14.15" />
+    <PackageVersion Include="Microsoft.Extensions.ExtraAnalyzers" Version="8.0.0-rc.2.23510.2" />
     <PackageVersion Include="System.Text.Json" Version="8.0.5" />
     <!-- Product dependencies shared -->
     <PackageVersion Include="System.Net.ServerSentEvents" Version="10.0.0-preview.5.25277.114" />

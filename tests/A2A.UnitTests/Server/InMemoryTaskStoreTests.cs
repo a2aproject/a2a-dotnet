@@ -183,7 +183,7 @@ public class InMemoryTaskStoreTests
         var sut = new InMemoryTaskStore();
 
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
 
         // Act
         var task = sut.GetTaskAsync("test-id", cts.Token);
@@ -200,7 +200,7 @@ public class InMemoryTaskStoreTests
         var sut = new InMemoryTaskStore();
 
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
 
         // Act
         var task = sut.GetPushNotificationAsync("test-id", "config-id", cts.Token);
@@ -217,7 +217,7 @@ public class InMemoryTaskStoreTests
         var sut = new InMemoryTaskStore();
 
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
 
         // Act
         var task = sut.UpdateStatusAsync("test-id", TaskState.Working, cancellationToken: cts.Token);
@@ -235,7 +235,7 @@ public class InMemoryTaskStoreTests
         var agentTask = new AgentTask { Id = "test-id", Status = new AgentTaskStatus { State = TaskState.Submitted } };
 
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
 
         // Act
         var task = sut.SetTaskAsync(agentTask, cts.Token);
@@ -253,7 +253,7 @@ public class InMemoryTaskStoreTests
         var config = new TaskPushNotificationConfig();
 
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
 
         // Act
         var task = sut.SetPushNotificationConfigAsync(config, cts.Token);
@@ -270,7 +270,7 @@ public class InMemoryTaskStoreTests
         var sut = new InMemoryTaskStore();
 
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
 
         // Act
         var task = sut.GetPushNotificationsAsync("test-id", cts.Token);

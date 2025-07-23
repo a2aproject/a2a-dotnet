@@ -1,35 +1,39 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFrameworks>net9.0;net8.0</TargetFrameworks>
+    <PropertyGroup>
+        <TargetFrameworks>net9.0;net8.0</TargetFrameworks>
 
-    <PublishAot>true</PublishAot>
-    <EnableRequestDelegateGenerator>true</EnableRequestDelegateGenerator>
-    <InterceptorsNamespaces>$(InterceptorsNamespaces);Microsoft.AspNetCore.Http.Generated</InterceptorsNamespaces>
+        <PublishAot>true</PublishAot>
+        <EnableRequestDelegateGenerator>true</EnableRequestDelegateGenerator>
+        <InterceptorsNamespaces>$(InterceptorsNamespaces);Microsoft.AspNetCore.Http.Generated</InterceptorsNamespaces>
 
-    <!-- NuGet Package Properties -->
-    <PackageId>A2A.AspNetCore</PackageId>
-    <Description>ASP.NET Core extensions for the Agent2Agent (A2A) protocol.</Description>
-    <PackageTags>Agent2Agent;a2a;agent;ai;llm;aspnetcore</PackageTags>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
-    <IsPackable>true</IsPackable>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-  </PropertyGroup>
+        <!-- NuGet Package Properties -->
+        <PackageId>A2A.AspNetCore</PackageId>
+        <Description>ASP.NET Core extensions for the Agent2Agent (A2A) protocol.</Description>
+        <PackageTags>Agent2Agent;a2a;agent;ai;llm;aspnetcore</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <IsPackable>true</IsPackable>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
 
-  <ItemGroup>
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
       <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers">
           <PrivateAssets>all</PrivateAssets>
           <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       </PackageReference>
-  </ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.ExtraAnalyzers">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\A2A\A2A.csproj" />
-  </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\A2A\A2A.csproj" />
+    </ItemGroup>
 
-  <ItemGroup>
-    <None Include="..\..\README.md" pack="true" PackagePath="\" />
-  </ItemGroup>
+    <ItemGroup>
+        <None Include="..\..\README.md" pack="true" PackagePath="\" />
+    </ItemGroup>
 
 </Project>

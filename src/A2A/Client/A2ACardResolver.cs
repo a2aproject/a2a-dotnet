@@ -53,7 +53,7 @@ public sealed class A2ACardResolver
         if (_logger.IsEnabled(LogLevel.Information))
         {
             Debug.Assert(_agentCardPath.IsAbsoluteUri || _httpClient.BaseAddress is not null);
-            _logger.LogInformation("Fetching agent card from '{Url}'", _agentCardPath.IsAbsoluteUri ?
+            _logger.FetchingAgentCardFromUrl(_agentCardPath.IsAbsoluteUri ?
                 _agentCardPath :
                 new Uri(_httpClient.BaseAddress!, _agentCardPath.ToString()));
         }
@@ -70,12 +70,12 @@ public sealed class A2ACardResolver
 #endif
                 ).ConfigureAwait(false);
 
-            return JsonSerializer.Deserialize(responseStream, A2AJsonUtilities.JsonContext.Default.AgentCard) ??
+            return await JsonSerializer.DeserializeAsync(responseStream, A2AJsonUtilities.JsonContext.Default.AgentCard, cancellationToken).ConfigureAwait(false) ??
                 throw new A2AException("Failed to parse agent card JSON.");
         }
         catch (JsonException ex)
         {
-            _logger.LogError(ex, "Failed to parse agent card JSON");
+            _logger.FailedToParseAgentCardJson(ex);
             throw new A2AException($"Failed to parse JSON: {ex.Message}");
         }
         catch (HttpRequestException ex)
@@ -86,7 +86,7 @@ public sealed class A2ACardResolver
 #endif
                 HttpStatusCode.InternalServerError;
 
-            _logger.LogError(ex, "HTTP request failed with status code {StatusCode}", statusCode);
+            _logger.HttpRequestFailedWithStatusCode(ex, statusCode);
             throw new A2AException("HTTP request failed", ex);
         }
     }
