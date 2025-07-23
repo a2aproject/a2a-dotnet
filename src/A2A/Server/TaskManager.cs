@@ -204,7 +204,7 @@ public sealed class TaskManager : ITaskManager
             throw new ArgumentNullException(nameof(messageSendParams));
         }
 
-        using var activity = ActivitySource.StartActivity("SendSubscribe", ActivityKind.Server);
+        using var activity = ActivitySource.StartActivity("SendMessageStream", ActivityKind.Server);
         AgentTask? agentTask = null;
 
         // Is this message to be associated to an existing Task
