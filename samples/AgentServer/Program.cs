@@ -66,7 +66,6 @@ switch (agentType.ToLowerInvariant())
 
     default:
         Console.WriteLine($"Unknown agent type: {agentType}");
-        Console.WriteLine("Available agents: echo, echotasks, researcher, speccompliance");
         Environment.Exit(1);
         return;
 }

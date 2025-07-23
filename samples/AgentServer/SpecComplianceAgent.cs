@@ -8,7 +8,7 @@ public class SpecComplianceAgent
 
     public void Attach(ITaskManager taskManager)
     {
-        taskManager.OnAgentCardQuery = GetAgentCardAsync;
+        taskManager.OnAgentCardQuery = GetAgentCard;
         taskManager.OnTaskCreated = OnTaskCreatedAsync;
         _taskManager = taskManager;
     }
@@ -27,7 +27,7 @@ public class SpecComplianceAgent
         }
     }
 
-    private Task<AgentCard> GetAgentCardAsync(string agentUrl, CancellationToken cancellationToken)
+    private Task<AgentCard> GetAgentCard(string agentUrl, CancellationToken cancellationToken)
     {
         if (cancellationToken.IsCancellationRequested)
         {
