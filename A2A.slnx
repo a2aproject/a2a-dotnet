@@ -8,6 +8,7 @@
   </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/A2ACli/A2ACli.csproj" />
+    <Project Path="samples/AgentClient/AgentClient.csproj"/>
     <Project Path="samples/AgentServer/AgentServer.csproj" />
     <Project Path="samples/SemanticKernelAgent/SemanticKernelAgent.csproj" />
   </Folder>

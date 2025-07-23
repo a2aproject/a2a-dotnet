@@ -34,6 +34,10 @@ dotnet_diagnostic.RCS1225.severity = warning        # Make class sealed.
 dotnet_diagnostic.RCS1141.severity = warning        # Add documentation comment to public members.
 dotnet_diagnostic.RCS1232.severity = warning        # Order elements in documentation comment.
 
+dotnet_diagnostic.CS1998.severity = error           # CS1998: Async method lacks 'await' operators and will run synchronously
+dotnet_diagnostic.CS4014.severity = error           # CS4014: Because this call is not awaited, execution continues before the call is completed
+dotnet_diagnostic.CA1849.severity = error           # CA1849: Call async methods when in an async context
+
 #### .NET Code Actions ####
 
 # Type members

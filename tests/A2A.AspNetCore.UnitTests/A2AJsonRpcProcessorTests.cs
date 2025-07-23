@@ -450,6 +450,7 @@ public class A2AJsonRpcProcessorTests
         await responseResult.ExecuteAsync(context);
 
         context.Response.Body.Position = 0;
-        return (context.Response.StatusCode, context.Response.ContentType, JsonSerializer.Deserialize<TBody>(context.Response.Body, A2AJsonUtilities.DefaultOptions)!);
+        var bodyContent = await JsonSerializer.DeserializeAsync<TBody>(context.Response.Body, A2AJsonUtilities.DefaultOptions);
+        return (context.Response.StatusCode, context.Response.ContentType, bodyContent!);
     }
 }

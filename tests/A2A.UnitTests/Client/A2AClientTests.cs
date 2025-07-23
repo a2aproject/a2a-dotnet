@@ -642,11 +642,8 @@ public class A2AClientTests
 
         var handler = new MockHttpMessageHandler(response, onRequest);
 
-        var httpClient = new HttpClient(handler)
-        {
-            BaseAddress = new Uri("http://localhost")
-        };
+        var httpClient = new HttpClient(handler);
 
-        return new A2AClient(httpClient);
+        return new A2AClient(new Uri("http://localhost"), httpClient);
     }
 }
