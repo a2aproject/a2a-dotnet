@@ -55,7 +55,7 @@ public sealed class A2ACardResolver
 
         if (_logger.IsEnabled(LogLevel.Information))
         {
-            _logger.LogInformation("Fetching agent card from '{Url}'", _agentCardPath);
+            _logger.FetchingAgentCardFromUrl(_agentCardPath);
         }
 
         try
@@ -75,7 +75,7 @@ public sealed class A2ACardResolver
         }
         catch (JsonException ex)
         {
-            _logger.LogError(ex, "Failed to parse agent card JSON");
+            _logger.FailedToParseAgentCardJson(ex);
             throw new A2AException($"Failed to parse JSON: {ex.Message}");
         }
         catch (HttpRequestException ex)
@@ -86,7 +86,7 @@ public sealed class A2ACardResolver
 #endif
                 HttpStatusCode.InternalServerError;
 
-            _logger.LogError(ex, "HTTP request failed with status code {StatusCode}", statusCode);
+            _logger.HttpRequestFailedWithStatusCode(ex, statusCode);
             throw new A2AException("HTTP request failed", ex);
         }
     }
