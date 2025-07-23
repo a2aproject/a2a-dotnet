@@ -1,4 +1,5 @@
 using A2A;
+using System.Text.Json;
 
 namespace AgentServer;
 
@@ -19,15 +20,25 @@ public class EchoAgentWithTasks
         cancellationToken.ThrowIfCancellationRequested();
 
         // Process the message
-        var messageText = task.History!.Last().Parts.OfType<TextPart>().First().Text;
+        var lastMessage = task.History!.Last();
+        var messageText = lastMessage.Parts.OfType<TextPart>().First().Text;
 
+        // Check for target-state metadata to determine task behavior
+        TaskState targetState = GetTargetStateFromMetadata(lastMessage.Metadata) ?? TaskState.Completed;
+
+        // This is a short-lived task - complete it immediately
         await _taskManager!.ReturnArtifactAsync(task.Id, new Artifact()
         {
             Parts = [new TextPart() {
-                Text = $"Echo: {messageText}"
-            }]
+                    Text = $"Echo: {messageText}"
+                }]
         }, cancellationToken);
-        await _taskManager!.UpdateStatusAsync(task.Id, TaskState.Completed, final: true, cancellationToken: cancellationToken);
+
+        await _taskManager!.UpdateStatusAsync(
+            task.Id,
+            status: targetState,
+            final: targetState is TaskState.Completed or TaskState.Canceled or TaskState.Failed or TaskState.Rejected,
+            cancellationToken: cancellationToken);
     }
 
     private Task<AgentCard> GetAgentCardAsync(string agentUrl, CancellationToken cancellationToken)
@@ -54,5 +65,18 @@ public class EchoAgentWithTasks
             Capabilities = capabilities,
             Skills = [],
         });
+    }
+
+    private static TaskState? GetTargetStateFromMetadata(Dictionary<string, JsonElement>? metadata)
+    {
+        if (metadata?.TryGetValue("task-target-state", out var targetStateElement) == true)
+        {
+            if (Enum.TryParse<TaskState>(targetStateElement.GetString(), true, out var state))
+            {
+                return state;
+            }
+        }
+
+        return null;
     }
 }
