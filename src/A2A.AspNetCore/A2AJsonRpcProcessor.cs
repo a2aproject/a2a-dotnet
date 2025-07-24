@@ -138,7 +138,17 @@ public static class A2AJsonRpcProcessor
             parms = null;
         }
 
-        return parms ?? throw new A2AException("Invalid parameters", A2AErrorCode.InvalidParams);
+        switch (parms)
+        {
+            case null:
+                throw new A2AException("Invalid parameters", A2AErrorCode.InvalidParams);
+            case MessageSendParams messageSendParams when messageSendParams.Message.Parts.Count == 0:
+                throw new A2AException("Message parts cannot be empty", A2AErrorCode.InvalidParams);
+            case TaskQueryParams taskQueryParams when taskQueryParams.HistoryLength < 0:
+                throw new A2AException("History length cannot be negative", A2AErrorCode.InvalidParams);
+            default:
+                return parms;
+        }
     }
 
     /// <summary>
