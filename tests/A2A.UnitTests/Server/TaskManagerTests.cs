@@ -633,7 +633,8 @@ public class TaskManagerTests
         Assert.NotNull(task.History);
         Assert.Same(task.History[1], trimmedTask.History[0]);
 
-        Assert.Same(task.Status, trimmedTask.Status);
+        Assert.Equal(task.Status, trimmedTask.Status);
+        Assert.Same(task.Status.Message, trimmedTask.Status.Message);
         Assert.Same(task.Id, trimmedTask.Id);
         Assert.Same(task.Metadata, trimmedTask.Metadata);
         Assert.Same(task.Artifacts, trimmedTask.Artifacts);
@@ -660,7 +661,8 @@ public class TaskManagerTests
         Assert.NotNull(task.History);
         Assert.Same(task.History[2], trimmedSentTask.History[0]);
 
-        Assert.Same(task.Status, trimmedSentTask.Status);
+        Assert.Equal(task.Status, trimmedSentTask.Status);
+        Assert.Same(task.Status.Message, trimmedSentTask.Status.Message);
         Assert.Same(task.Id, trimmedSentTask.Id);
         Assert.Same(task.Metadata, trimmedSentTask.Metadata);
         Assert.Same(task.Artifacts, trimmedSentTask.Artifacts);
@@ -669,7 +671,8 @@ public class TaskManagerTests
         var shouldbeSameTask = await taskManager.GetTaskAsync(new() { Id = task.Id });
         Assert.NotNull(shouldbeSameTask);
         Assert.Same(task.History, shouldbeSameTask.History);
-        Assert.Same(task.Status, shouldbeSameTask.Status);
+        Assert.Equal(task.Status, shouldbeSameTask.Status);
+        Assert.Same(task.Status.Message, shouldbeSameTask.Status.Message);
         Assert.Same(task.Id, shouldbeSameTask.Id);
         Assert.Same(task.Metadata, shouldbeSameTask.Metadata);
         Assert.Same(task.Artifacts, shouldbeSameTask.Artifacts);
