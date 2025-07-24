@@ -1,3 +1,5 @@
+using System.Threading.Channels;
+
 using System.Collections.Concurrent;
 
 namespace A2A;
@@ -7,9 +9,7 @@ namespace A2A;
 /// </summary>
 public sealed class TaskUpdateEventEnumerator : IAsyncEnumerable<A2AEvent>, IDisposable, IAsyncDisposable
 {
-    private bool isFinal;
-    private readonly ConcurrentQueue<A2AEvent> _UpdateEvents = new();
-    private readonly SemaphoreSlim _semaphore = new(0);
+    private readonly Channel<A2AEvent> _channel = Channel.CreateUnbounded<A2AEvent>();
 
     /// <summary>
     /// Gets or sets the processing task to prevent garbage collection.
@@ -27,9 +27,10 @@ public sealed class TaskUpdateEventEnumerator : IAsyncEnumerable<A2AEvent>, IDis
             throw new ArgumentNullException(nameof(taskUpdateEvent));
         }
 
-        // Enqueue the event to the queue
-        _UpdateEvents.Enqueue(taskUpdateEvent);
-        _semaphore.Release();
+        if (!_channel.Writer.TryWrite(taskUpdateEvent))
+        {
+            throw new InvalidOperationException("Unable to write to the event channel.");
+        }
     }
 
     /// <summary>
@@ -43,33 +44,27 @@ public sealed class TaskUpdateEventEnumerator : IAsyncEnumerable<A2AEvent>, IDis
             throw new ArgumentNullException(nameof(taskUpdateEvent));
         }
 
-        isFinal = true;
-        // Enqueue the final event to the queue
-        _UpdateEvents.Enqueue(taskUpdateEvent);
-        _semaphore.Release();
-    }
-
-    /// <inheritdoc />
-    public async IAsyncEnumerator<A2AEvent> GetAsyncEnumerator(CancellationToken cancellationToken = default)
-    {
-        while (!isFinal || !_UpdateEvents.IsEmpty)
+        if (!_channel.Writer.TryWrite(taskUpdateEvent))
         {
-            // Wait for an event to be available
-            await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-            if (_UpdateEvents.TryDequeue(out var taskUpdateEvent))
-            {
-                yield return taskUpdateEvent;
-            }
+            throw new InvalidOperationException("Unable to write to the event channel.");
         }
+
+        _channel.Writer.TryComplete();
     }
 
     /// <inheritdoc />
-    public void Dispose() => _semaphore.Dispose();
+    public IAsyncEnumerator<A2AEvent> GetAsyncEnumerator(CancellationToken cancellationToken = default) => _channel.Reader.ReadAllAsync(cancellationToken).GetAsyncEnumerator(cancellationToken);
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        _channel.Writer.TryComplete();
+    }
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        Dispose();
+        this.Dispose();
         await Task.CompletedTask;
     }
 }

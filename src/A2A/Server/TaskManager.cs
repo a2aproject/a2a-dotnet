@@ -370,7 +370,7 @@ public sealed class TaskManager : ITaskManager
                 var taskUpdateEvent = new TaskStatusUpdateEvent
                 {
                     TaskId = taskId,
-                    Status = agentStatus,
+                    Status = agentStatus, // Use deep clone to snapshot status
                     Final = final
                 };
 

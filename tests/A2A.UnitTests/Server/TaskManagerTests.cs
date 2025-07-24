@@ -1,4 +1,6 @@
-﻿namespace A2A.UnitTests.Server;
+﻿using System;
+
+namespace A2A.UnitTests.Server;
 
 public class TaskManagerTests
 {
@@ -98,7 +100,7 @@ public class TaskManagerTests
         {
             OnTaskUpdated = (task, _) =>
             {
-                task.Status.State = TaskState.Working;
+                task.Status = task.Status with { State = TaskState.Working };
                 return Task.CompletedTask;
             }
         };
@@ -392,7 +394,7 @@ public class TaskManagerTests
         Assert.Equal(A2AErrorCode.InvalidParams, ex.ErrorCode);
     }
 
-    [Fact(Skip = "Move to IAsyncEnumerable complicates assertion of same objects")]
+    [Fact/*(Skip = "for now")*/]
     public async Task SubscribeToTaskAsync_ReturnsEnumerator_WhenTaskExists()
     {
         // Arrange
@@ -408,12 +410,40 @@ public class TaskManagerTests
             }
         };
 
-        // Register the enumerator for the taskId
-        var enumerator = sut.SendMessageStreamAsync(sendParams);
+        var events = new List<A2AEvent>();
+        var processorStarted = new TaskCompletionSource();
 
-        // Now, SubscribeToTaskAsync should return the same enumerator instance for the taskId
-        var result = sut.SubscribeToTaskAsync(new TaskIdParams { Id = task.Id });
-        Assert.Same(enumerator, result);
+        var processor = Task.Run(async () =>
+        {
+            await foreach (var i in sut.SendMessageStreamAsync(sendParams))
+            {
+                events.Add(i);
+                if (events.Count is 1)
+                {
+                    processorStarted.SetResult(); // Signal that processor is running and got the first event
+                }
+
+                if (events.Count is 3) break;
+            }
+        });
+
+        // Wait for processor to start and receive the first event
+        await processorStarted.Task;
+
+        // Now post the updates
+        await sut.UpdateStatusAsync(task.Id, TaskState.Working, new() { Parts = [new TextPart { Text = "second" }] });
+        await sut.UpdateStatusAsync(task.Id, TaskState.Completed, new() { Parts = [new TextPart { Text = "done" }] }, final: true);
+
+        await processor;
+
+        Assert.Equal(3, events.Count);
+
+        var init = Assert.IsType<AgentTask>(events[0]);
+        Assert.Equal("init", init!.History![0].Parts[0].AsTextPart().Text);
+        var t = Assert.IsType<TaskStatusUpdateEvent>(events[1]);
+        Assert.Equal("second", t!.Status.Message!.Parts[0].AsTextPart().Text);
+        t = Assert.IsType<TaskStatusUpdateEvent>(events[2]);
+        Assert.Equal("done", t!.Status.Message!.Parts[0].AsTextPart().Text);
     }
 
     [Fact]
