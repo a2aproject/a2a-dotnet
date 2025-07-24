@@ -1,3 +1,4 @@
+using A2A.Extensions;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
@@ -121,9 +122,7 @@ public sealed class TaskManager : ITaskManager
         var task = await _taskStore.GetTaskAsync(taskIdParams.Id, cancellationToken).ConfigureAwait(false);
         activity?.SetTag("task.found", task != null);
 
-        task?.TrimHistory(taskIdParams.HistoryLength);
-
-        return task;
+        return task?.WithHistoryTrimmedTo(taskIdParams.HistoryLength);
     }
 
     /// <inheritdoc />
@@ -185,14 +184,12 @@ public sealed class TaskManager : ITaskManager
             task.History ??= [];
             task.History.Add(messageSendParams.Message);
 
-            task.TrimHistory(messageSendParams.Configuration?.HistoryLength);
-
             await _taskStore.SetTaskAsync(task, cancellationToken).ConfigureAwait(false);
             using var createActivity = ActivitySource.StartActivity("OnTaskUpdated", ActivityKind.Server);
             await OnTaskUpdated(task, cancellationToken).ConfigureAwait(false);
         }
 
-        return task;
+        return task.WithHistoryTrimmedTo(messageSendParams.Configuration?.HistoryLength);
     }
 
     /// <inheritdoc />
@@ -255,8 +252,6 @@ public sealed class TaskManager : ITaskManager
             // If the task is found, update its status and history
             agentTask.History ??= [];
             agentTask.History.Add(messageSendParams.Message);
-
-            agentTask.TrimHistory(messageSendParams.Configuration?.HistoryLength);
 
             await _taskStore.SetTaskAsync(agentTask, cancellationToken).ConfigureAwait(false);
             enumerator = new TaskUpdateEventEnumerator();

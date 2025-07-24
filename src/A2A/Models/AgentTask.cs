@@ -46,19 +46,4 @@ public sealed class AgentTask : A2AResponse
     /// </summary>
     [JsonPropertyName("metadata")]
     public Dictionary<string, JsonElement>? Metadata { get; set; }
-
-    /// <summary>
-    /// Trims the <see cref="History"/> collection to the specified length, keeping only the most recent messages.
-    /// </summary>
-    /// <param name="toLength">
-    /// The maximum number of messages to retain in the history. If <c>null</c> or greater than the current count, no trimming occurs.
-    /// </param>
-    public void TrimHistory(int? toLength)
-    {
-        // Trim history if historyLength is specified
-        if (toLength is { } historyLength && this.History?.Count > historyLength)
-        {
-            this.History = [.. this.History.Skip(Math.Max(0, this.History.Count - historyLength))];
-        }
-    }
 }
