@@ -62,9 +62,9 @@ public sealed class TaskUpdateEventEnumerator : IAsyncEnumerable<A2AEvent>, IDis
     }
 
     /// <inheritdoc />
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         this.Dispose();
-        await Task.CompletedTask;
+        return default;
     }
 }
