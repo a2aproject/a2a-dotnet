@@ -13,6 +13,7 @@ This library contains the core A2A protocol implementation. It includes the foll
 
 ### Server Classes  
 - **`TaskManager`**: Manages the complete lifecycle of agent tasks including creation, updates, cancellation, and event streaming. Handles both message-based and task-based communication patterns.
+- **`ITaskStore`**: An interface for abstracting the storage of tasks.
 - **`InMemoryTaskStore`**: Simple in-memory implementation of `ITaskStore` suitable for development and testing scenarios.
 
 ### Core Models
