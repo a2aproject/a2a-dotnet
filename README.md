@@ -1,5 +1,46 @@
-# A2A: A .NET implementation of the Google A2A protocol
-Interact with agents using the A2A protocol in .NET applications. This library is designed to be used with ASP.NET Core applications and provides a simple way to add A2A support to your agents.
+# A2A .NET SDK
+
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![NuGet Version](https://img.shields.io/nuget/v/A2A.svg)](https://www.nuget.org/packages/A2A/)
+
+<!-- markdownlint-disable no-inline-html -->
+
+<html>
+   <h2 align="center">
+   <img src="https://raw.githubusercontent.com/a2aproject/A2A/refs/heads/main/docs/assets/a2a-logo-black.svg" width="256" alt="A2A Logo"/>
+   </h2>
+   <h3 align="center">A .NET library that helps run agentic applications as A2AServers following the <a href="https://a2a-protocol.org">Agent2Agent (A2A) Protocol</a>.</h3>
+</html>
+
+<!-- markdownlint-enable no-inline-html -->
+
+The A2A .NET SDK provides a robust implementation of the Agent2Agent (A2A) protocol, enabling seamless communication between AI agents and applications. This library offers both high-level abstractions and fine-grained control, making it easy to build A2A-compatible agents while maintaining flexibility for advanced use cases.
+
+Key features include:
+- **Agent Capability Discovery**: Retrieve agent capabilities and metadata through agent cards
+- **Message-based Communication**: Direct, stateless messaging with immediate responses
+- **Task-based Communication**: Create and manage persistent, long-running agent tasks
+- **Streaming Support**: Real-time communication using Server-Sent Events
+- **ASP.NET Core Integration**: Built-in extensions for hosting A2A agents in web applications
+- **Cross-platform Compatibility**: Supports .NET Standard 2.0 and .NET 8+
+
+## Protocol Compatibility
+
+This library implements most of the features of protocol v0.2.6, however there are some scenarios that are not yet complete for full compatibility with this version. A complete list of outstanding compatibility items can be found at: [open compatibility items](https://github.com/a2aproject/a2a-dotnet/issues?q=is:issue%20is:open%20(label:v0.2.4%20OR%20label:v0.2.5%20OR%20label:v0.2.6))
+
+## Installation
+
+### Core A2A Library
+
+```bash
+dotnet add package A2A
+```
+
+### ASP.NET Core Extensions
+
+```bash
+dotnet add package A2A.AspNetCore
+```
 
 ## Overview
 ![alt text](overview.png)
@@ -111,7 +152,7 @@ The repository includes several sample projects demonstrating different aspects 
 **[`samples/AgentClient/`](samples/AgentClient/README.md)**
 
 Comprehensive collection of client-side samples showing how to interact with A2A agents:
-- **Agent Discovery**: Retrieve agent capabilities and metadata using agent cards
+- **Agent Capability Discovery**: Retrieve agent capabilities and metadata using agent cards
 - **Message-based Communication**: Direct, stateless messaging with immediate responses
 - **Task-based Communication**: Create and manage persistent agent tasks
 - **Streaming Communication**: Real-time communication using Server-Sent Events
@@ -155,4 +196,12 @@ Command-line tool for interacting with A2A agents:
    ```
 
 For detailed instructions and advanced scenarios, see the individual README files linked above.
+
+## Acknowledgements
+
+This library builds upon [Darrel Miller's](https://github.com/darrelmiller) [sharpa2a](https://github.com/darrelmiller/sharpa2a) project. Thanks to Darrel and all the other contributors for the foundational work that helped shape this SDK.
+
+## License
+
+This project is licensed under the [Apache 2.0 License](LICENSE).
 

@@ -66,7 +66,7 @@ public sealed class AgentCard
     /// </summary>
     [JsonPropertyName("protocolVersion")]
     [JsonRequired]
-    public string ProtocolVersion { get; set; } = "0.2.3";
+    public string ProtocolVersion { get; set; } = "0.2.6";
 
     /// <summary>
     /// Gets or sets a URL to documentation for the agent.
