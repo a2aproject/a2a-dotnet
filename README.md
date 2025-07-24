@@ -88,9 +88,9 @@ public class EchoAgent
 using A2A;
 
 // Discover agent and create client
-var cardResolver = new A2ACardResolver(new Uri("http://localhost:5000/"));
+var cardResolver = new A2ACardResolver(new Uri("http://localhost:5100/"));
 var agentCard = await cardResolver.GetAgentCardAsync();
-var client = new A2AClient(new Uri(echoAgentCard.Url));
+var client = new A2AClient(new Uri(agentCard.Url));
 
 // Send message
 var response = await client.SendMessageAsync(new MessageSendParams
@@ -143,7 +143,7 @@ Command-line tool for interacting with A2A agents:
 
 1. **Clone and build the repository**:
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/a2aproject/a2a-dotnet.git
    cd a2a-dotnet
    dotnet build
    ```
