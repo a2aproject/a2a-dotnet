@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
@@ -19,7 +20,7 @@ public sealed class TaskManager : ITaskManager
 
     private readonly ITaskStore _taskStore;
 
-    private readonly Dictionary<string, TaskUpdateEventEnumerator> _taskUpdateEventEnumerators = [];
+    private readonly ConcurrentDictionary<string, TaskUpdateEventEnumerator> _taskUpdateEventEnumerators = [];
 
     /// <inheritdoc />
     public Func<MessageSendParams, CancellationToken, Task<Message>>? OnMessageReceived { get; set; }
