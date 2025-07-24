@@ -268,9 +268,8 @@ public sealed class TaskManager : ITaskManager
             }, cancellationToken);
         }
 
-        await foreach (var i in enumerator)
+        await foreach (var i in enumerator.WithCancellation(cancellationToken))
         {
-            cancellationToken.ThrowIfCancellationRequested();
             yield return i;
         }
     }
