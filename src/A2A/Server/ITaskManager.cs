@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace A2A;
 
 /// <summary>
@@ -136,7 +138,7 @@ public interface ITaskManager
     /// <param name="messageSendParams">The message parameters containing the message content and optional task/context IDs.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>An async enumerable that yields events as they are produced by the agent.</returns>
-    Task<IAsyncEnumerable<A2AEvent>> SendMessageStreamAsync(MessageSendParams messageSendParams, CancellationToken cancellationToken = default);
+    IAsyncEnumerable<A2AEvent> SendMessageStreamAsync(MessageSendParams messageSendParams, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Resubscribes to an existing task's event stream to receive ongoing updates.

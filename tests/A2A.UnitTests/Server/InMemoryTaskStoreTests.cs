@@ -58,7 +58,8 @@ public class InMemoryTaskStoreTests
         var sut = new InMemoryTaskStore();
 
         // Act & Assert
-        await Assert.ThrowsAsync<ArgumentException>(() => sut.UpdateStatusAsync("notfound", TaskState.Completed));
+        var ex = await Assert.ThrowsAsync<A2AException>(() => sut.UpdateStatusAsync("notfound", TaskState.Completed));
+        Assert.Equal(A2AErrorCode.TaskNotFound, ex.ErrorCode);
     }
 
     [Fact]

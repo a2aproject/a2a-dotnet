@@ -54,18 +54,20 @@ public sealed class InMemoryTaskStore : ITaskStore
 
         if (string.IsNullOrEmpty(taskId))
         {
-            return Task.FromException<AgentTaskStatus>(new ArgumentNullException(nameof(taskId)));
+            return Task.FromException<AgentTaskStatus>(new A2AException("Invalid task ID", new ArgumentNullException(nameof(taskId)), A2AErrorCode.InvalidParams));
         }
 
         if (!_taskCache.TryGetValue(taskId, out var task))
         {
-            throw new ArgumentException("Task not found.");
+            return Task.FromException<AgentTaskStatus>(new A2AException("Task not found.", A2AErrorCode.TaskNotFound));
         }
 
-        task.Status.State = status;
-        task.Status.Message = message;
-        task.Status.Timestamp = DateTime.UtcNow;
-        return Task.FromResult(task.Status);
+        return Task.FromResult(task.Status = task.Status with
+        {
+            Message = message,
+            State = status,
+            Timestamp = DateTimeOffset.UtcNow
+        });
     }
 
     /// <inheritdoc />

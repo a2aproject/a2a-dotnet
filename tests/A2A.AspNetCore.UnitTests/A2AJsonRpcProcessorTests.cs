@@ -401,7 +401,7 @@ public class A2AJsonRpcProcessorTests
         var taskManager = new TaskManager();
 
         // Act
-        var result = await A2AJsonRpcProcessor.StreamResponseAsync(taskManager, "10", A2AMethods.MessageStream, null, CancellationToken.None);
+        var result = A2AJsonRpcProcessor.StreamResponse(taskManager, "10", A2AMethods.MessageStream, null, CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);

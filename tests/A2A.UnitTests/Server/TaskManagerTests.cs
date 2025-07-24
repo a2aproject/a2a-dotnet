@@ -1,4 +1,6 @@
-﻿namespace A2A.UnitTests.Server;
+﻿using System;
+
+namespace A2A.UnitTests.Server;
 
 public class TaskManagerTests
 {
@@ -98,7 +100,7 @@ public class TaskManagerTests
         {
             OnTaskUpdated = (task, _) =>
             {
-                task.Status.State = TaskState.Working;
+                task.Status = task.Status with { State = TaskState.Working };
                 return Task.CompletedTask;
             }
         };
@@ -241,7 +243,7 @@ public class TaskManagerTests
                 ]
             },
         };
-        var taskEvents = await taskManager.SendMessageStreamAsync(taskSendParams);
+        var taskEvents = taskManager.SendMessageStreamAsync(taskSendParams);
         var taskCount = 0;
         await foreach (var taskEvent in taskEvents)
         {
@@ -271,7 +273,7 @@ public class TaskManagerTests
                 ]
             },
         };
-        var taskEvents = await taskManager.SendMessageStreamAsync(taskSendParams);
+        var taskEvents = taskManager.SendMessageStreamAsync(taskSendParams);
 
         var isFirstEvent = true;
         await foreach (var taskEvent in taskEvents)
@@ -352,7 +354,8 @@ public class TaskManagerTests
         var sut = new TaskManager();
 
         // Act & Assert
-        await Assert.ThrowsAsync<ArgumentNullException>(() => sut.SetPushNotificationAsync(null!));
+        var ex = await Assert.ThrowsAsync<A2AException>(() => sut.SetPushNotificationAsync(null!));
+        Assert.Equal(A2AErrorCode.InvalidParams, ex.ErrorCode);
     }
 
     [Fact]
@@ -387,7 +390,8 @@ public class TaskManagerTests
         var sut = new TaskManager();
 
         // Act & Assert
-        await Assert.ThrowsAsync<ArgumentNullException>(() => sut.GetPushNotificationAsync(null!));
+        var ex = await Assert.ThrowsAsync<A2AException>(() => sut.GetPushNotificationAsync(null!));
+        Assert.Equal(A2AErrorCode.InvalidParams, ex.ErrorCode);
     }
 
     [Fact]
@@ -406,12 +410,40 @@ public class TaskManagerTests
             }
         };
 
-        // Register the enumerator for the taskId
-        var enumerator = await sut.SendMessageStreamAsync(sendParams);
+        var events = new List<A2AEvent>();
+        var processorStarted = new TaskCompletionSource();
 
-        // Now, SubscribeToTaskAsync should return the same enumerator instance for the taskId
-        var result = sut.SubscribeToTaskAsync(new TaskIdParams { Id = task.Id });
-        Assert.Same(enumerator, result);
+        var processor = Task.Run(async () =>
+        {
+            await foreach (var i in sut.SendMessageStreamAsync(sendParams))
+            {
+                events.Add(i);
+                if (events.Count is 1)
+                {
+                    processorStarted.SetResult(); // Signal that processor is running and got the first event
+                }
+
+                if (events.Count is 3) break;
+            }
+        });
+
+        // Wait for processor to start and receive the first event
+        await processorStarted.Task;
+
+        // Now post the updates
+        await sut.UpdateStatusAsync(task.Id, TaskState.Working, new() { Parts = [new TextPart { Text = "second" }] });
+        await sut.UpdateStatusAsync(task.Id, TaskState.Completed, new() { Parts = [new TextPart { Text = "done" }] }, final: true);
+
+        await processor;
+
+        Assert.Equal(3, events.Count);
+
+        var init = Assert.IsType<AgentTask>(events[0]);
+        Assert.Equal("init", init!.History![0].Parts[0].AsTextPart().Text);
+        var t = Assert.IsType<TaskStatusUpdateEvent>(events[1]);
+        Assert.Equal("second", t!.Status.Message!.Parts[0].AsTextPart().Text);
+        t = Assert.IsType<TaskStatusUpdateEvent>(events[2]);
+        Assert.Equal("done", t!.Status.Message!.Parts[0].AsTextPart().Text);
     }
 
     [Fact]
@@ -421,7 +453,8 @@ public class TaskManagerTests
         var sut = new TaskManager();
 
         // Act & Assert
-        Assert.Throws<ArgumentException>(() => sut.SubscribeToTaskAsync(new TaskIdParams { Id = "notfound" }));
+        var ex = Assert.Throws<A2AException>(() => sut.SubscribeToTaskAsync(new TaskIdParams { Id = "notfound" }));
+        Assert.Equal(A2AErrorCode.TaskNotFound, ex.ErrorCode);
     }
 
     [Fact]
@@ -431,7 +464,8 @@ public class TaskManagerTests
         var sut = new TaskManager();
 
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => sut.SubscribeToTaskAsync(null!));
+        var ex = Assert.Throws<A2AException>(() => sut.SubscribeToTaskAsync(null!));
+        Assert.Equal(A2AErrorCode.InvalidParams, ex.ErrorCode);
     }
 
     [Fact]
@@ -599,7 +633,8 @@ public class TaskManagerTests
         Assert.NotNull(task.History);
         Assert.Same(task.History[1], trimmedTask.History[0]);
 
-        Assert.Same(task.Status, trimmedTask.Status);
+        Assert.Equal(task.Status, trimmedTask.Status);
+        Assert.Same(task.Status.Message, trimmedTask.Status.Message);
         Assert.Same(task.Id, trimmedTask.Id);
         Assert.Same(task.Metadata, trimmedTask.Metadata);
         Assert.Same(task.Artifacts, trimmedTask.Artifacts);
@@ -626,7 +661,8 @@ public class TaskManagerTests
         Assert.NotNull(task.History);
         Assert.Same(task.History[2], trimmedSentTask.History[0]);
 
-        Assert.Same(task.Status, trimmedSentTask.Status);
+        Assert.Equal(task.Status, trimmedSentTask.Status);
+        Assert.Same(task.Status.Message, trimmedSentTask.Status.Message);
         Assert.Same(task.Id, trimmedSentTask.Id);
         Assert.Same(task.Metadata, trimmedSentTask.Metadata);
         Assert.Same(task.Artifacts, trimmedSentTask.Artifacts);
@@ -635,7 +671,8 @@ public class TaskManagerTests
         var shouldbeSameTask = await taskManager.GetTaskAsync(new() { Id = task.Id });
         Assert.NotNull(shouldbeSameTask);
         Assert.Same(task.History, shouldbeSameTask.History);
-        Assert.Same(task.Status, shouldbeSameTask.Status);
+        Assert.Equal(task.Status, shouldbeSameTask.Status);
+        Assert.Same(task.Status.Message, shouldbeSameTask.Status.Message);
         Assert.Same(task.Id, shouldbeSameTask.Id);
         Assert.Same(task.Metadata, shouldbeSameTask.Metadata);
         Assert.Same(task.Artifacts, shouldbeSameTask.Artifacts);
@@ -667,7 +704,7 @@ public class TaskManagerTests
         await cts.CancelAsync();
 
         // Act & Assert
-        await Assert.ThrowsAsync<OperationCanceledException>(() => taskManager.SendMessageStreamAsync(messageSendParams, cts.Token));
+        await Assert.ThrowsAsync<OperationCanceledException>(() => taskManager.SendMessageStreamAsync(messageSendParams, cts.Token).ToArrayAsync().AsTask());
     }
 
     [Fact]

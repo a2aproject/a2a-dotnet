@@ -95,7 +95,7 @@ public static class A2ARouteBuilderExtensions
 
         // /v1/message:stream endpoint
         routeGroup.MapPost("/v1/message:stream", ([FromBody] MessageSendParams sendParams, CancellationToken cancellationToken) =>
-            A2AHttpProcessor.SendMessageStreamAsync(taskManager, logger, sendParams, cancellationToken));
+            A2AHttpProcessor.SendMessageStream(taskManager, logger, sendParams, cancellationToken));
 
         return routeGroup;
     }
