@@ -394,7 +394,7 @@ public class TaskManagerTests
         Assert.Equal(A2AErrorCode.InvalidParams, ex.ErrorCode);
     }
 
-    [Fact/*(Skip = "for now")*/]
+    [Fact]
     public async Task SubscribeToTaskAsync_ReturnsEnumerator_WhenTaskExists()
     {
         // Arrange
