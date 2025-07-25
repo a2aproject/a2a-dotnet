@@ -94,6 +94,37 @@ public class TaskManagerTests
     }
 
     [Fact]
+    public async Task CancelTask_MoreThanOnce_Fails()
+    {
+        var taskManager = new TaskManager();
+        var taskSendParams = new MessageSendParams
+        {
+            Message = new Message
+            {
+                Parts = [
+                    new TextPart
+                    {
+                        Text = "Hello, World!"
+                    }
+                ]
+            },
+        };
+        var task = await taskManager.SendMessageAsync(taskSendParams) as AgentTask;
+        Assert.NotNull(task);
+        Assert.Equal(TaskState.Submitted, task.Status.State);
+
+        var cancelledTask = await taskManager.CancelTaskAsync(new TaskIdParams { Id = task.Id });
+        Assert.NotNull(cancelledTask);
+        Assert.Equal(task.Id, cancelledTask.Id);
+        Assert.Equal(TaskState.Canceled, cancelledTask.Status.State);
+
+        await Assert.ThrowsAsync<A2AException>(async () =>
+        {
+            await taskManager.CancelTaskAsync(new TaskIdParams { Id = task.Id });
+        });
+    }
+
+    [Fact]
     public async Task UpdateTask()
     {
         var taskManager = new TaskManager()
