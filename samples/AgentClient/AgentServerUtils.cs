@@ -15,20 +15,12 @@ internal static class AgentServerUtils
             return;
         }
 
-        // Path to the AgentServer project directory when running the samples from IDE
-        var serverDirectory = Path.Combine("..", "..", "..", "..", "AgentServer");
-        if (!Directory.Exists(serverDirectory))
-        {
-            // Fallback to the path if running the samples from project folder via `dotnet run` command
-            serverDirectory = Path.Combine("..", "AgentServer");
-        }
-
         // Start the new server process in a new window
         var startInfo = new ProcessStartInfo
         {
             FileName = "dotnet",
             Arguments = $"run --agent {agentName} --urls http://localhost:{port}",
-            WorkingDirectory = serverDirectory,
+            WorkingDirectory = GetAgentServerDirectoryPath(),
             UseShellExecute = true,
             CreateNoWindow = false,
             RedirectStandardOutput = false,
@@ -45,6 +37,24 @@ internal static class AgentServerUtils
 
         // Wait for the server to be ready
         await WaitForServerReadyAsync(port, timeout: TimeSpan.FromSeconds(30));
+    }
+
+    private static string GetAgentServerDirectoryPath()
+    {
+        // Path to the AgentServer project directory when running the samples from IDE
+        var serverDirectory = Path.Combine("..", "..", "..", "..", "AgentServer");
+        if (!Directory.Exists(serverDirectory))
+        {
+            // Fallback to the path if running the samples from project folder via `dotnet run` command
+            serverDirectory = Path.Combine("..", "AgentServer");
+
+            if (!Directory.Exists(serverDirectory))
+            {
+                throw new DirectoryNotFoundException($"Could not find AgentServer directory from current location: {Directory.GetCurrentDirectory()}");
+            }
+        }
+
+        return serverDirectory;
     }
 
     public static async Task<bool> WaitForServerReadyAsync(uint port, TimeSpan timeout, bool checkOnly = false)
