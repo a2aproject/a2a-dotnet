@@ -80,6 +80,16 @@ public sealed class InMemoryTaskStore : ITaskStore
             return Task.FromCanceled(cancellationToken);
         }
 
+        if (task is null)
+        {
+            return Task.FromException(new ArgumentNullException(nameof(task)));
+        }
+
+        if (string.IsNullOrEmpty(task.Id))
+        {
+            return Task.FromException(new A2AException("Invalid task ID", A2AErrorCode.InvalidParams));
+        }
+
         _taskCache[task.Id] = task;
         return Task.CompletedTask;
     }
