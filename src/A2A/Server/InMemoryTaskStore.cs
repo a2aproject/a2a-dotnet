@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+
 namespace A2A;
 
 /// <summary>
@@ -5,8 +7,8 @@ namespace A2A;
 /// </summary>
 public sealed class InMemoryTaskStore : ITaskStore
 {
-    private readonly Dictionary<string, AgentTask> _taskCache = [];
-    private readonly Dictionary<string, List<TaskPushNotificationConfig>> _pushNotificationCache = [];
+    private readonly ConcurrentDictionary<string, AgentTask> _taskCache = [];
+    private readonly ConcurrentDictionary<string, List<TaskPushNotificationConfig>> _pushNotificationCache = [];
 
     /// <inheritdoc />
     public Task<AgentTask?> GetTaskAsync(string taskId, CancellationToken cancellationToken = default)
@@ -78,6 +80,16 @@ public sealed class InMemoryTaskStore : ITaskStore
             return Task.FromCanceled(cancellationToken);
         }
 
+        if (task is null)
+        {
+            return Task.FromException(new ArgumentNullException(nameof(task)));
+        }
+
+        if (string.IsNullOrEmpty(task.Id))
+        {
+            return Task.FromException(new A2AException("Invalid task ID", A2AErrorCode.InvalidParams));
+        }
+
         _taskCache[task.Id] = task;
         return Task.CompletedTask;
     }
@@ -95,12 +107,7 @@ public sealed class InMemoryTaskStore : ITaskStore
             return Task.FromException(new ArgumentNullException(nameof(pushNotificationConfig)));
         }
 
-        if (!_pushNotificationCache.TryGetValue(pushNotificationConfig.TaskId, out var pushNotificationConfigs))
-        {
-            pushNotificationConfigs = [];
-            _pushNotificationCache[pushNotificationConfig.TaskId] = pushNotificationConfigs;
-        }
-
+        var pushNotificationConfigs = _pushNotificationCache.GetOrAdd(pushNotificationConfig.TaskId, _ => []);
         pushNotificationConfigs.Add(pushNotificationConfig);
 
         return Task.CompletedTask;
