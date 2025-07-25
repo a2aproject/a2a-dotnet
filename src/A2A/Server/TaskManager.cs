@@ -195,6 +195,7 @@ public sealed class TaskManager : ITaskManager
             // If the task is found, update its status and history
             task.History ??= [];
             task.History.Add(messageSendParams.Message);
+            UpdateStatusIfSubmitted(task);
 
             await _taskStore.SetTaskAsync(task, cancellationToken).ConfigureAwait(false);
             using var createActivity = ActivitySource.StartActivity("OnTaskUpdated", ActivityKind.Server);
@@ -264,6 +265,7 @@ public sealed class TaskManager : ITaskManager
             // If the task is found, update its status and history
             agentTask.History ??= [];
             agentTask.History.Add(messageSendParams.Message);
+            UpdateStatusIfSubmitted(agentTask);
 
             await _taskStore.SetTaskAsync(agentTask, cancellationToken).ConfigureAwait(false);
             enumerator = new TaskUpdateEventEnumerator();
@@ -454,5 +456,22 @@ public sealed class TaskManager : ITaskManager
             throw;
         }
     }
+
+    private static void UpdateStatusIfSubmitted(AgentTask task)
+    {
+        // The spec does not specify that a task state must be updated when a message is sent,
+        // but the tck tests expect the task to be in Working/Input-required or Completed state after a message is sent:
+        // https://github.com/a2aproject/a2a-tck/blob/22f7c191d85f2d4ff2f4564da5d8691944bb7ffd/tests/optional/quality/test_task_state_quality.py#L129
+
+        if (task.Status.State is TaskState.Submitted) // Keep the current state if not Submitted
+        {
+            task.Status = task.Status with
+            {
+                State = TaskState.Working,
+                Timestamp = DateTimeOffset.UtcNow
+            };
+        }
+    }
+
     // TODO: Implement UpdateArtifact method
 }
