@@ -98,15 +98,15 @@ public sealed class TaskManager : ITaskManager
         {
             activity?.SetTag("task.found", true);
 
-            if (task.Status.State == TaskState.Canceled)
+            if (task.Status.State is TaskState.Completed or TaskState.Canceled or TaskState.Failed or TaskState.Rejected)
             {
-                // The spec does not specify what to do if the task is already canceled:
+                // The spec does not specify what to do if the task is already canceled (or other terminal state):
                 // https://a2a-protocol.org/latest/specification/#74-taskscancel
                 // But the tck tests expect second cancellation to fail:
                 // https://github.com/a2aproject/a2a-tck/blob/22f7c191d85f2d4ff2f4564da5d8691944bb7ffd/tests/optional/quality/test_task_state_quality.py#L146
                 // But they don't specify the error code, so we throw a generic exception:
                 // https://github.com/a2aproject/a2a-tck/blob/22f7c191d85f2d4ff2f4564da5d8691944bb7ffd/tests/optional/quality/test_task_state_quality.py#L180
-                throw new A2AException("Task already cancelled.", A2AErrorCode.TaskNotCancelable);
+                throw new A2AException("Task is in a terminal state and cannot be cancelled.", A2AErrorCode.TaskNotCancelable);
             }
 
             await _taskStore.UpdateStatusAsync(task.Id, TaskState.Canceled, cancellationToken: cancellationToken).ConfigureAwait(false);
