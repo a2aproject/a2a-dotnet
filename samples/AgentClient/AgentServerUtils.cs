@@ -9,50 +9,42 @@ internal static class AgentServerUtils
 
     public static async Task StartLocalAgentServerAsync(string agentName, uint port)
     {
-        try
+        // Check if server is already running on the specified port
+        if (await WaitForServerReadyAsync(port, timeout: TimeSpan.FromSeconds(5), checkOnly: true))
         {
-            // Check if server is already running on the specified port
-            if (await WaitForServerReadyAsync(port, timeout: TimeSpan.FromSeconds(5), checkOnly: true))
-            {
-                return;
-            }
-
-            // Path to the AgentServer project directory when running the samples from IDE
-            var serverDirectory = Path.Combine("..", "..", "..", "..", "AgentServer");
-            if (!Directory.Exists(serverDirectory))
-            {
-                // Fallback to the path if running the samples from project folder via `dotnet run` command
-                serverDirectory = Path.Combine("..", "AgentServer");
-            }
-
-            // Start the new server process in a new window
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = "dotnet",
-                Arguments = $"run --agent {agentName} --urls http://localhost:{port}",
-                WorkingDirectory = serverDirectory,
-                UseShellExecute = true,
-                CreateNoWindow = false,
-                RedirectStandardOutput = false,
-                RedirectStandardError = false
-            };
-
-            var process = Process.Start(startInfo);
-            if (process == null)
-            {
-                throw new InvalidOperationException("Failed to start AgentServer process");
-            }
-
-            s_runningProcesses.Add(process);
-
-            // Wait for the server to be ready
-            await WaitForServerReadyAsync(port, timeout: TimeSpan.FromSeconds(30));
+            return;
         }
-        catch (Exception ex)
+
+        // Path to the AgentServer project directory when running the samples from IDE
+        var serverDirectory = Path.Combine("..", "..", "..", "..", "AgentServer");
+        if (!Directory.Exists(serverDirectory))
         {
-            Console.WriteLine($"Error starting AgentServer: {ex.Message}");
-            throw;
+            // Fallback to the path if running the samples from project folder via `dotnet run` command
+            serverDirectory = Path.Combine("..", "AgentServer");
         }
+
+        // Start the new server process in a new window
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "dotnet",
+            Arguments = $"run --agent {agentName} --urls http://localhost:{port}",
+            WorkingDirectory = serverDirectory,
+            UseShellExecute = true,
+            CreateNoWindow = false,
+            RedirectStandardOutput = false,
+            RedirectStandardError = false
+        };
+
+        var process = Process.Start(startInfo);
+        if (process == null)
+        {
+            throw new InvalidOperationException("Failed to start AgentServer process");
+        }
+
+        s_runningProcesses.Add(process);
+
+        // Wait for the server to be ready
+        await WaitForServerReadyAsync(port, timeout: TimeSpan.FromSeconds(30));
     }
 
     public static async Task<bool> WaitForServerReadyAsync(uint port, TimeSpan timeout, bool checkOnly = false)
