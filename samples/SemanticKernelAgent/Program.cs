@@ -35,5 +35,6 @@ var agent = new SemanticKernelTravelAgent(configuration, httpClient, logger);
 var taskManager = new TaskManager();
 agent.Attach(taskManager);
 app.MapA2A(taskManager, string.Empty);
+app.MapWellKnownAgentCard(taskManager, string.Empty);
 
 await app.RunAsync();
