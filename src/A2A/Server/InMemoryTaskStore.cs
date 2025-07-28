@@ -8,7 +8,9 @@ namespace A2A;
 public sealed class InMemoryTaskStore : ITaskStore
 {
     private readonly ConcurrentDictionary<string, AgentTask> _taskCache = [];
-    private readonly ConcurrentDictionary<string, List<TaskPushNotificationConfig>> _pushNotificationCache = [];
+    // PushNotificationConfig.Id is optional, so there can be multiple configs with no Id.
+    // Since we want to maintain order of insertion and thread safety, we use a ConcurrentQueue.
+    private readonly ConcurrentDictionary<string, ConcurrentQueue<TaskPushNotificationConfig>> _pushNotificationCache = [];
 
     /// <inheritdoc />
     public Task<AgentTask?> GetTaskAsync(string taskId, CancellationToken cancellationToken = default)
@@ -108,7 +110,7 @@ public sealed class InMemoryTaskStore : ITaskStore
         }
 
         var pushNotificationConfigs = _pushNotificationCache.GetOrAdd(pushNotificationConfig.TaskId, _ => []);
-        pushNotificationConfigs.Add(pushNotificationConfig);
+        pushNotificationConfigs.Enqueue(pushNotificationConfig);
 
         return Task.CompletedTask;
     }
