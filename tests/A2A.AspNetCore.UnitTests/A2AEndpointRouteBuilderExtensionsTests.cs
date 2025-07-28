@@ -1,8 +1,5 @@
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 
 namespace A2A.AspNetCore.Tests;
 
@@ -16,7 +13,7 @@ public class A2AEndpointRouteBuilderExtensionsTests
         serviceCollection.AddLogging();
         serviceCollection.AddRouting();
         var services = serviceCollection.BuildServiceProvider();
-        
+
         var app = WebApplication.CreateBuilder().Build();
         var taskManager = new TaskManager();
 
@@ -33,7 +30,7 @@ public class A2AEndpointRouteBuilderExtensionsTests
         serviceCollection.AddLogging();
         serviceCollection.AddRouting();
         var services = serviceCollection.BuildServiceProvider();
-        
+
         var app = WebApplication.CreateBuilder().Build();
         var taskManager = new TaskManager();
 
@@ -50,14 +47,14 @@ public class A2AEndpointRouteBuilderExtensionsTests
         serviceCollection.AddLogging();
         serviceCollection.AddRouting();
         var services = serviceCollection.BuildServiceProvider();
-        
+
         var app = WebApplication.CreateBuilder().Build();
         var taskManager = new TaskManager();
 
         // Act & Assert - Should not throw when calling both
         var result1 = app.MapA2A(taskManager, "/agent");
         var result2 = app.MapWellKnownAgentCard(taskManager, "/agent");
-        
+
         Assert.NotNull(result1);
         Assert.NotNull(result2);
     }
