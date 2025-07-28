@@ -14,6 +14,15 @@ public class SecurityScheme
     [JsonPropertyName("type")]
     [JsonRequired]
     public string Type { get; set; } = string.Empty;
+
+    /// <summary>
+    /// A short description for security scheme.
+    /// </summary>
+    /// <remarks>
+    /// CommonMark syntax MAY be used for rich text representation.
+    /// </remarks>
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
 }
 
 /// <summary>
@@ -34,6 +43,14 @@ public sealed class ApiKeySecurityScheme : SecurityScheme
     [JsonPropertyName("in")]
     [JsonRequired]
     public string In { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ApiKeySecurityScheme"/> class.
+    /// </summary>
+    public ApiKeySecurityScheme()
+    {
+        Type = "apiKey";
+    }
 }
 
 /// <summary>
@@ -61,6 +78,14 @@ public sealed class HttpAuthSecurityScheme : SecurityScheme
     /// </remarks>
     [JsonPropertyName("bearerFormat")]
     public string? BearerFormat { get; set; }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="HttpAuthSecurityScheme"/> class.
+    /// </summary>
+    public HttpAuthSecurityScheme()
+    {
+        Type = "http";
+    }
 }
 
 /// <summary>
@@ -74,6 +99,14 @@ public sealed class OAuth2SecurityScheme : SecurityScheme
     [JsonPropertyName("flows")]
     [JsonRequired]
     public OAuthFlows Flows { get; set; } = new();
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="OAuth2SecurityScheme"/> class.
+    /// </summary>
+    public OAuth2SecurityScheme()
+    {
+        Type = "oauth2";
+    }
 }
 
 /// <summary>
@@ -87,6 +120,28 @@ public sealed class OpenIdConnectSecurityScheme : SecurityScheme
     [JsonPropertyName("openIdConnectUrl")]
     [JsonRequired]
     public string OpenIdConnectUrl { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="OpenIdConnectSecurityScheme"/> class.
+    /// </summary>
+    public OpenIdConnectSecurityScheme()
+    {
+        Type = "openIdConnect";
+    }
+}
+
+/// <summary>
+/// Mutual TLS security scheme configuration.
+/// </summary>
+public sealed class MutualTlsSecurityScheme : SecurityScheme
+{
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MutualTlsSecurityScheme"/> class.
+    /// </summary>
+    public MutualTlsSecurityScheme()
+    {
+        Type = "mutualTLS";
+    }
 }
 
 /// <summary>
