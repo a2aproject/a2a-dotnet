@@ -10,6 +10,7 @@ public class SpecComplianceAgent
     {
         taskManager.OnAgentCardQuery = GetAgentCard;
         taskManager.OnTaskCreated = OnTaskCreatedAsync;
+        taskManager.OnTaskUpdated = OnTaskUpdatedAsync;
         _taskManager = taskManager;
     }
 
@@ -24,6 +25,17 @@ public class SpecComplianceAgent
             status: TaskState.Completed,
             final: true,
             cancellationToken: cancellationToken);
+        }
+    }
+
+    private async Task OnTaskUpdatedAsync(AgentTask task, CancellationToken cancellationToken)
+    {
+        if (task.Status.State is TaskState.Submitted && task.History?.Count > 0)
+        {
+            // The spec does not specify that a task state must be updated when a message is sent,
+            // but the tck tests expect the task to be in Working/Input-required or Completed state after a message is sent:
+            // https://github.com/a2aproject/a2a-tck/blob/22f7c191d85f2d4ff2f4564da5d8691944bb7ffd/tests/optional/quality/test_task_state_quality.py#L129
+            await _taskManager!.UpdateStatusAsync(task.Id, TaskState.Working, cancellationToken: cancellationToken);
         }
     }
 
