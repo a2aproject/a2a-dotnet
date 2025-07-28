@@ -3,12 +3,13 @@
     <File Path=".github/dependabot.yml" />
   </Folder>
   <Folder Name="/.github/workflows/">
+    <File Path=".github/workflows/copilot-setup-steps.yml" />
     <File Path=".github/workflows/dotnet-build.yml" />
     <File Path=".github/workflows/release.yaml" />
   </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/A2ACli/A2ACli.csproj" />
-    <Project Path="samples/AgentClient/AgentClient.csproj"/>
+    <Project Path="samples/AgentClient/AgentClient.csproj" />
     <Project Path="samples/AgentServer/AgentServer.csproj" />
     <Project Path="samples/SemanticKernelAgent/SemanticKernelAgent.csproj" />
   </Folder>
