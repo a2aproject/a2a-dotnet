@@ -168,6 +168,7 @@ public class A2AHttpProcessorTests
         await responseResult.ExecuteAsync(context);
 
         context.Response.Body.Position = 0;
-        return (context.Response.StatusCode, context.Response.ContentType, JsonSerializer.Deserialize<AgentCard>(context.Response.Body, A2AJsonUtilities.DefaultOptions)!);
+        var card = await JsonSerializer.DeserializeAsync<AgentCard>(context.Response.Body, A2AJsonUtilities.DefaultOptions);
+        return (context.Response.StatusCode, context.Response.ContentType, card!);
     }
 }

@@ -91,15 +91,10 @@ public static class A2ACli
         });
         var logger = loggerFactory.CreateLogger("A2AClient");
 
-        using var httpClient = new HttpClient
-        {
-            BaseAddress = new Uri(agentUrl)
-        };
-
         try
         {
             // Create the card resolver and get agentUrl card
-            var cardResolver = new A2ACardResolver(httpClient);
+            var cardResolver = new A2ACardResolver(new Uri(agentUrl));
             var card = await cardResolver.GetAgentCardAsync(cancellationToken);
 
             Console.WriteLine("======= Agent Card ========");
@@ -111,7 +106,7 @@ public static class A2ACli
             int notificationReceiverPort = notificationReceiverUri.Port;
 
             // Create A2A client
-            var client = new A2AClient(httpClient);
+            var client = new A2AClient(new Uri(card.Url));
 
             // Create or use provided session ID
             string sessionId = session == "0" ? Guid.NewGuid().ToString("N") : session;

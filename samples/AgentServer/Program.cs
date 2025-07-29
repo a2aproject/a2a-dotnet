@@ -27,6 +27,9 @@ var app = builder.Build();
 
 app.UseHttpsRedirection();
 
+// Add health endpoint
+app.MapGet("/health", () => Results.Ok(new { Status = "Healthy", Timestamp = DateTimeOffset.UtcNow }));
+
 // Get the agent type from command line arguments
 var agentType = GetAgentTypeFromArgs(args);
 
@@ -55,9 +58,14 @@ switch (agentType.ToLowerInvariant())
         app.MapA2A(taskManager, "/researcher");
         break;
 
+    case "speccompliance":
+        var specComplianceAgent = new SpecComplianceAgent();
+        specComplianceAgent.Attach(taskManager);
+        app.MapA2A(taskManager, "/speccompliance");
+        break;
+
     default:
         Console.WriteLine($"Unknown agent type: {agentType}");
-        Console.WriteLine("Available agents: echo, echotasks, researcher");
         Environment.Exit(1);
         return;
 }
@@ -76,6 +84,6 @@ static string GetAgentTypeFromArgs(string[] args)
     }
 
     // Default to echo if no agent specified
-    Console.WriteLine("No agent specified. Use --agent or -a parameter to specify agent type (echo, echotasks, researcher). Defaulting to 'echo'.");
+    Console.WriteLine("No agent specified. Use --agent or -a parameter to specify agent type (echo, echotasks, researcher, speccompliance). Defaulting to 'echo'.");
     return "echo";
 }

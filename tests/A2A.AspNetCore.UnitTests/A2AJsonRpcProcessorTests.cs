@@ -24,7 +24,7 @@ public class A2AJsonRpcProcessorTests
                 "message": {
                     "messageId": "test-message-id",
                     "role": "user",
-                    "parts": []
+                    "parts": [{ "kind":"text","text":"hi" }]
                 }
             }
         }
@@ -54,6 +54,40 @@ public class A2AJsonRpcProcessorTests
         }
     }
 
+    [Fact]
+    public async Task EmptyPartsArrayIsNotAllowed()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+        var jsonRequest = $$"""
+        {
+            "jsonrpc": "2.0",
+            "method": "{{A2AMethods.MessageSend}}",
+            "id": "some",
+            "params": {
+                "message": {
+                    "messageId": "test-message-id",
+                    "role": "user",
+                    "parts": []
+                }
+            }
+        }
+        """;
+
+        var httpRequest = CreateHttpRequestFromJson(jsonRequest);
+
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+
+        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
+        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+
+        Assert.Equal(StatusCodes.Status200OK, StatusCode);
+        Assert.Equal("application/json", ContentType);
+        Assert.NotNull(BodyContent.Error);
+        Assert.Equal(-32602, BodyContent.Error.Code); // Invalid params
+        Assert.NotNull(BodyContent.Error.Message);
+    }
+
     [Theory]
     [InlineData("\"method\": \"message/send\",", null)]     // Valid method - should succeed
     [InlineData("\"method\": \"invalid/method\",", -32601)] // Invalid method - should return method not found error
@@ -75,7 +109,7 @@ public class A2AJsonRpcProcessorTests
                 "message": {
                     "messageId": "test-message-id",
                     "role": "user",
-                    "parts": []
+                    "parts": [{ "kind":"text","text":"hi" }]
                 }
             }
         }
@@ -107,7 +141,7 @@ public class A2AJsonRpcProcessorTests
     }
 
     [Theory]
-    [InlineData("{\"message\":{\"messageId\":\"test\", \"role\": \"user\", \"parts\":[]}}", null)]  // Valid object params - should succeed
+    [InlineData("{\"message\":{\"messageId\":\"test\", \"role\": \"user\", \"parts\": [{\"kind\":\"text\",\"text\":\"hi\"}]}}", null)]  // Valid object params - should succeed
     [InlineData("[]", -32602)]                                                                      // Array params - should return invalid params error
     [InlineData("\"string-params\"", -32602)]                                                       // String params - should return invalid params error
     [InlineData("42", -32602)]                                                                      // Number params - should return invalid params error
@@ -156,13 +190,12 @@ public class A2AJsonRpcProcessorTests
     [Fact]
     public async Task ProcessRequest_SingleResponse_MessageSend_Works()
     {
-        // Arrange
-        var taskManager = new TaskManager();
-        var sendParams = new MessageSendParams
+        TaskManager taskManager = new();
+        MessageSendParams sendParams = new()
         {
             Message = new Message { MessageId = "test-message-id", Parts = [new TextPart { Text = "hi" }] }
         };
-        var req = new JsonRpcRequest
+        JsonRpcRequest req = new()
         {
             Id = "1",
             Method = A2AMethods.MessageSend,
@@ -251,6 +284,19 @@ public class A2AJsonRpcProcessorTests
         Assert.NotNull(agentTask);
         Assert.Equal(TaskState.Submitted, agentTask.Status.State);
         Assert.Empty(agentTask.History);
+    }
+
+    [Fact]
+    public async Task NegativeHistoryLengthThrows()
+    {
+        TaskManager taskManager = new();
+        TaskQueryParams queryParams = new() { Id = "doesNotMatter", HistoryLength = -1 };
+
+        A2AException result = await Assert.ThrowsAsync<A2AException>(
+            () => A2AJsonRpcProcessor.SingleResponseAsync(taskManager, "4", A2AMethods.TaskGet, ToJsonElement(queryParams), CancellationToken.None));
+
+        Assert.Equal(A2AErrorCode.InvalidParams, result.ErrorCode);
+        Assert.Equal("History length cannot be negative", result.Message);
     }
 
     [Fact]
@@ -401,7 +447,7 @@ public class A2AJsonRpcProcessorTests
         var taskManager = new TaskManager();
 
         // Act
-        var result = await A2AJsonRpcProcessor.StreamResponseAsync(taskManager, "10", A2AMethods.MessageStream, null, CancellationToken.None);
+        var result = A2AJsonRpcProcessor.StreamResponse(taskManager, "10", A2AMethods.MessageStream, null, CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -450,6 +496,7 @@ public class A2AJsonRpcProcessorTests
         await responseResult.ExecuteAsync(context);
 
         context.Response.Body.Position = 0;
-        return (context.Response.StatusCode, context.Response.ContentType, JsonSerializer.Deserialize<TBody>(context.Response.Body, A2AJsonUtilities.DefaultOptions)!);
+        var bodyContent = await JsonSerializer.DeserializeAsync<TBody>(context.Response.Body, A2AJsonUtilities.DefaultOptions);
+        return (context.Response.StatusCode, context.Response.ContentType, bodyContent!);
     }
 }

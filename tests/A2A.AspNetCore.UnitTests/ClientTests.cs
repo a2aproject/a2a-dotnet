@@ -4,24 +4,28 @@ using System.Text.Json;
 
 namespace A2A.AspNetCore.Tests;
 
-public class ClientTests : IClassFixture<JsonSchemaFixture>
+public sealed class ClientTests : IClassFixture<JsonSchemaFixture>, IDisposable
 {
     private readonly JsonSchema a2aSchema;
+    private readonly MockMessageHandler mockHandler;
+    private readonly A2AClient client;
+    private readonly HttpClient httpClient;
 
     public ClientTests(JsonSchemaFixture fixture)
     {
         a2aSchema = fixture.Schema;
+
+        mockHandler = new MockMessageHandler();
+
+        httpClient = new HttpClient(mockHandler);
+
+        client = new A2AClient(new Uri("http://example.org"), httpClient);
     }
 
     [Fact]
     public async Task TestGetTask()
     {
         // Arrange
-        var mockHandler = new MockMessageHandler();
-        var client = new A2AClient(new HttpClient(mockHandler)
-        {
-            BaseAddress = new Uri("http://example.org")
-        });
         var taskId = "test-task";
 
         // Act
@@ -42,11 +46,6 @@ public class ClientTests : IClassFixture<JsonSchemaFixture>
     public async Task TestSendMessage()
     {
         // Arrange
-        var mockHandler = new MockMessageHandler();
-        var client = new A2AClient(new HttpClient(mockHandler)
-        {
-            BaseAddress = new Uri("http://example.org")
-        });
         var taskSendParams = new MessageSendParams
         {
             Message = new Message()
@@ -78,11 +77,6 @@ public class ClientTests : IClassFixture<JsonSchemaFixture>
     public async Task TestCancelTask()
     {
         // Arrange
-        var mockHandler = new MockMessageHandler();
-        var client = new A2AClient(new HttpClient(mockHandler)
-        {
-            BaseAddress = new Uri("http://example.org")
-        });
         var taskId = "test-task";
 
         // Act
@@ -102,38 +96,32 @@ public class ClientTests : IClassFixture<JsonSchemaFixture>
     public async Task TestSetPushNotification()
     {
         // Arrange
-        var mockHandler = new MockMessageHandler
-        {
-            // Set up the response provider for push notification
-            ResponseProvider = request =>
-                {
-                    var pushNotificationResponse = new TaskPushNotificationConfig
-                    {
-                        TaskId = "test-task",
-                        PushNotificationConfig = new PushNotificationConfig
-                        {
-                            Url = "http://example.org/notify",
-                            Id = "response-config-id",
-                            Token = "test-token",
-                            Authentication = new PushNotificationAuthenticationInfo
-                            {
-                                Schemes = ["Bearer"]
-                            }
-                        }
-                    };
 
-                    return new HttpResponseMessage(HttpStatusCode.OK)
+        // Set up the response provider for push notification
+        mockHandler.ResponseProvider = request =>
+        {
+            var pushNotificationResponse = new TaskPushNotificationConfig
+            {
+                TaskId = "test-task",
+                PushNotificationConfig = new PushNotificationConfig
+                {
+                    Url = "http://example.org/notify",
+                    Id = "response-config-id",
+                    Token = "test-token",
+                    Authentication = new PushNotificationAuthenticationInfo
                     {
-                        RequestMessage = request,
-                        Content = new JsonRpcContent(JsonRpcResponse.CreateJsonRpcResponse<object>("test-id", pushNotificationResponse))
-                    };
+                        Schemes = ["Bearer"]
+                    }
                 }
+            };
+
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                RequestMessage = request,
+                Content = new JsonRpcContent(JsonRpcResponse.CreateJsonRpcResponse<object>("test-id", pushNotificationResponse))
+            };
         };
 
-        var client = new A2AClient(new HttpClient(mockHandler)
-        {
-            BaseAddress = new Uri("http://example.org")
-        });
         var pushNotificationConfig = new TaskPushNotificationConfig
         {
             TaskId = "test-task",
@@ -160,6 +148,11 @@ public class ClientTests : IClassFixture<JsonSchemaFixture>
         var json = JsonDocument.Parse(message);
         var validationResult = a2aSchema.Evaluate(json.RootElement, new EvaluationOptions { OutputFormat = OutputFormat.List });
         Assert.True(validationResult.IsValid, $"JSON does not match schema: {validationResult.Details}");
+    }
+
+    public void Dispose()
+    {
+        httpClient?.Dispose();
     }
 }
 

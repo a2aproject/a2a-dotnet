@@ -1,3 +1,5 @@
+using A2A.Extensions;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
@@ -19,7 +21,7 @@ public sealed class TaskManager : ITaskManager
 
     private readonly ITaskStore _taskStore;
 
-    private readonly Dictionary<string, TaskUpdateEventEnumerator> _taskUpdateEventEnumerators = [];
+    private readonly ConcurrentDictionary<string, TaskUpdateEventEnumerator> _taskUpdateEventEnumerators = [];
 
     /// <inheritdoc />
     public Func<MessageSendParams, CancellationToken, Task<Message>>? OnMessageReceived { get; set; }
@@ -92,9 +94,21 @@ public sealed class TaskManager : ITaskManager
         activity?.SetTag("task.id", taskIdParams.Id);
 
         var task = await _taskStore.GetTaskAsync(taskIdParams.Id, cancellationToken).ConfigureAwait(false);
-        if (task != null)
+        if (task is not null)
         {
             activity?.SetTag("task.found", true);
+
+            if (task.Status.State is TaskState.Completed or TaskState.Canceled or TaskState.Failed or TaskState.Rejected)
+            {
+                // The spec does not specify what to do if the task is already canceled (or other terminal state):
+                // https://a2a-protocol.org/latest/specification/#74-taskscancel
+                // But the tck tests expect second cancellation to fail:
+                // https://github.com/a2aproject/a2a-tck/blob/22f7c191d85f2d4ff2f4564da5d8691944bb7ffd/tests/optional/quality/test_task_state_quality.py#L146
+                // But they don't specify the error code, so we throw a generic exception:
+                // https://github.com/a2aproject/a2a-tck/blob/22f7c191d85f2d4ff2f4564da5d8691944bb7ffd/tests/optional/quality/test_task_state_quality.py#L180
+                throw new A2AException("Task is in a terminal state and cannot be cancelled.", A2AErrorCode.TaskNotCancelable);
+            }
+
             await _taskStore.UpdateStatusAsync(task.Id, TaskState.Canceled, cancellationToken: cancellationToken).ConfigureAwait(false);
             await OnTaskCancelled(task, cancellationToken).ConfigureAwait(false);
             return task;
@@ -120,9 +134,7 @@ public sealed class TaskManager : ITaskManager
         var task = await _taskStore.GetTaskAsync(taskIdParams.Id, cancellationToken).ConfigureAwait(false);
         activity?.SetTag("task.found", task != null);
 
-        task?.TrimHistory(taskIdParams.HistoryLength);
-
-        return task;
+        return task?.WithHistoryTrimmedTo(taskIdParams.HistoryLength);
     }
 
     /// <inheritdoc />
@@ -184,18 +196,16 @@ public sealed class TaskManager : ITaskManager
             task.History ??= [];
             task.History.Add(messageSendParams.Message);
 
-            task.TrimHistory(messageSendParams.Configuration?.HistoryLength);
-
             await _taskStore.SetTaskAsync(task, cancellationToken).ConfigureAwait(false);
             using var createActivity = ActivitySource.StartActivity("OnTaskUpdated", ActivityKind.Server);
             await OnTaskUpdated(task, cancellationToken).ConfigureAwait(false);
         }
 
-        return task;
+        return task.WithHistoryTrimmedTo(messageSendParams.Configuration?.HistoryLength);
     }
 
     /// <inheritdoc />
-    public async Task<IAsyncEnumerable<A2AEvent>> SendMessageStreamAsync(MessageSendParams messageSendParams, CancellationToken cancellationToken = default)
+    public async IAsyncEnumerable<A2AEvent> SendMessageStreamAsync(MessageSendParams messageSendParams, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -204,7 +214,7 @@ public sealed class TaskManager : ITaskManager
             throw new ArgumentNullException(nameof(messageSendParams));
         }
 
-        using var activity = ActivitySource.StartActivity("SendSubscribe", ActivityKind.Server);
+        using var activity = ActivitySource.StartActivity("SendMessageStream", ActivityKind.Server);
         AgentTask? agentTask = null;
 
         // Is this message to be associated to an existing Task
@@ -230,17 +240,8 @@ public sealed class TaskManager : ITaskManager
             if (OnMessageReceived != null)
             {
                 var message = await OnMessageReceived(messageSendParams, cancellationToken).ConfigureAwait(false);
-                return YieldSingleEventAsync(message, cancellationToken);
-
-                static async IAsyncEnumerable<A2AEvent> YieldSingleEventAsync(A2AEvent evt, [EnumeratorCancellation] CancellationToken ct)
-                {
-                    if (ct.IsCancellationRequested)
-                    {
-                        yield break;
-                    }
-                    yield return evt;
-                    await Task.CompletedTask.ConfigureAwait(false);
-                }
+                yield return message;
+                yield break;
             }
             else
             {
@@ -264,11 +265,10 @@ public sealed class TaskManager : ITaskManager
             agentTask.History ??= [];
             agentTask.History.Add(messageSendParams.Message);
 
-            agentTask.TrimHistory(messageSendParams.Configuration?.HistoryLength);
-
             await _taskStore.SetTaskAsync(agentTask, cancellationToken).ConfigureAwait(false);
             enumerator = new TaskUpdateEventEnumerator();
             _taskUpdateEventEnumerators[agentTask.Id] = enumerator;
+            enumerator.NotifyEvent(agentTask);
             enumerator.ProcessingTask = Task.Run(async () =>
             {
                 using var createActivity = ActivitySource.StartActivity("OnTaskUpdated", ActivityKind.Server);
@@ -276,7 +276,10 @@ public sealed class TaskManager : ITaskManager
             }, cancellationToken);
         }
 
-        return enumerator;  //TODO: Clean up enumerators after use
+        await foreach (var i in enumerator.WithCancellation(cancellationToken))
+        {
+            yield return i;
+        }
     }
 
     /// <inheritdoc />
@@ -286,7 +289,7 @@ public sealed class TaskManager : ITaskManager
 
         if (taskIdParams is null)
         {
-            throw new ArgumentNullException(nameof(taskIdParams));
+            throw new A2AException(nameof(taskIdParams), A2AErrorCode.InvalidParams);
         }
 
         using var activity = ActivitySource.StartActivity("SubscribeToTask", ActivityKind.Server);
@@ -294,7 +297,7 @@ public sealed class TaskManager : ITaskManager
 
         return _taskUpdateEventEnumerators.TryGetValue(taskIdParams.Id, out var enumerator) ?
             (IAsyncEnumerable<A2AEvent>)enumerator :
-            throw new ArgumentException("Task not found or invalid TaskIdParams.");
+            throw new A2AException("Task not found or invalid TaskIdParams.", A2AErrorCode.TaskNotFound);
     }
 
     /// <inheritdoc />
@@ -304,7 +307,7 @@ public sealed class TaskManager : ITaskManager
 
         if (pushNotificationConfig is null)
         {
-            throw new ArgumentNullException(nameof(pushNotificationConfig));
+            throw new A2AException(nameof(pushNotificationConfig), A2AErrorCode.InvalidParams);
         }
 
         await _taskStore.SetPushNotificationConfigAsync(pushNotificationConfig, cancellationToken).ConfigureAwait(false);
@@ -318,7 +321,7 @@ public sealed class TaskManager : ITaskManager
 
         if (notificationConfigParams is null)
         {
-            throw new ArgumentNullException(nameof(notificationConfigParams), "GetTaskPushNotificationConfigParams cannot be null.");
+            throw new A2AException("GetTaskPushNotificationConfigParams cannot be null.", A2AErrorCode.InvalidParams);
         }
 
         using var activity = ActivitySource.StartActivity("GetPushNotification", ActivityKind.Server);
@@ -356,7 +359,7 @@ public sealed class TaskManager : ITaskManager
 
         if (string.IsNullOrEmpty(taskId))
         {
-            throw new ArgumentNullException(nameof(taskId));
+            throw new A2AException(nameof(taskId), A2AErrorCode.InvalidParams);
         }
 
         using var activity = ActivitySource.StartActivity("UpdateStatus", ActivityKind.Server);
@@ -404,11 +407,11 @@ public sealed class TaskManager : ITaskManager
 
         if (string.IsNullOrEmpty(taskId))
         {
-            throw new ArgumentNullException(nameof(taskId));
+            throw new A2AException(nameof(taskId), A2AErrorCode.InvalidParams);
         }
         else if (artifact is null)
         {
-            throw new ArgumentNullException(nameof(artifact));
+            throw new A2AException(nameof(artifact), A2AErrorCode.InvalidParams);
         }
 
         using var activity = ActivitySource.StartActivity("ReturnArtifact", ActivityKind.Server);
@@ -442,7 +445,7 @@ public sealed class TaskManager : ITaskManager
             {
                 activity?.SetTag("task.found", false);
                 activity?.SetStatus(ActivityStatusCode.Error, "Task not found");
-                throw new ArgumentException("Task not found.");
+                throw new A2AException("Task not found.", A2AErrorCode.TaskNotFound);
             }
         }
         catch (Exception ex)

@@ -11,15 +11,23 @@ namespace A2A;
 public sealed class A2AClient : IA2AClient
 {
     internal static readonly HttpClient s_sharedClient = new();
-
     private readonly HttpClient _httpClient;
+    private readonly Uri _baseUri;
 
     /// <summary>
-    /// Initializes a new instance of the A2AClient class.
+    /// Initializes a new instance of <see cref="A2AClient"/>.
     /// </summary>
+    /// <param name="baseUrl">The base url of the agent's hosting service.</param>
     /// <param name="httpClient">The HTTP client to use for requests.</param>
-    public A2AClient(HttpClient? httpClient = null)
+    public A2AClient(Uri baseUrl, HttpClient? httpClient = null)
     {
+        if (baseUrl is null)
+        {
+            throw new ArgumentNullException(nameof(baseUrl), "Base URL cannot be null.");
+        }
+
+        _baseUri = baseUrl;
+
         _httpClient = httpClient ?? s_sharedClient;
     }
 
@@ -155,7 +163,7 @@ public sealed class A2AClient : IA2AClient
         string expectedContentType,
         CancellationToken cancellationToken)
     {
-        var response = await _httpClient.SendAsync(new(HttpMethod.Post, "")
+        var response = await _httpClient.SendAsync(new(HttpMethod.Post, _baseUri)
         {
             Content = new JsonRpcContent(new JsonRpcRequest()
             {

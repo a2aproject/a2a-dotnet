@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+
 namespace A2A;
 
 /// <summary>
@@ -5,8 +7,10 @@ namespace A2A;
 /// </summary>
 public sealed class InMemoryTaskStore : ITaskStore
 {
-    private readonly Dictionary<string, AgentTask> _taskCache = [];
-    private readonly Dictionary<string, List<TaskPushNotificationConfig>> _pushNotificationCache = [];
+    private readonly ConcurrentDictionary<string, AgentTask> _taskCache = [];
+    // PushNotificationConfig.Id is optional, so there can be multiple configs with no Id.
+    // Since we want to maintain order of insertion and thread safety, we use a ConcurrentQueue.
+    private readonly ConcurrentDictionary<string, ConcurrentQueue<TaskPushNotificationConfig>> _pushNotificationCache = [];
 
     /// <inheritdoc />
     public Task<AgentTask?> GetTaskAsync(string taskId, CancellationToken cancellationToken = default)
@@ -54,18 +58,20 @@ public sealed class InMemoryTaskStore : ITaskStore
 
         if (string.IsNullOrEmpty(taskId))
         {
-            return Task.FromException<AgentTaskStatus>(new ArgumentNullException(nameof(taskId)));
+            return Task.FromException<AgentTaskStatus>(new A2AException("Invalid task ID", new ArgumentNullException(nameof(taskId)), A2AErrorCode.InvalidParams));
         }
 
         if (!_taskCache.TryGetValue(taskId, out var task))
         {
-            throw new ArgumentException("Task not found.");
+            return Task.FromException<AgentTaskStatus>(new A2AException("Task not found.", A2AErrorCode.TaskNotFound));
         }
 
-        task.Status.State = status;
-        task.Status.Message = message;
-        task.Status.Timestamp = DateTime.UtcNow;
-        return Task.FromResult(task.Status);
+        return Task.FromResult(task.Status = task.Status with
+        {
+            Message = message,
+            State = status,
+            Timestamp = DateTimeOffset.UtcNow
+        });
     }
 
     /// <inheritdoc />
@@ -74,6 +80,16 @@ public sealed class InMemoryTaskStore : ITaskStore
         if (cancellationToken.IsCancellationRequested)
         {
             return Task.FromCanceled(cancellationToken);
+        }
+
+        if (task is null)
+        {
+            return Task.FromException(new ArgumentNullException(nameof(task)));
+        }
+
+        if (string.IsNullOrEmpty(task.Id))
+        {
+            return Task.FromException(new A2AException("Invalid task ID", A2AErrorCode.InvalidParams));
         }
 
         _taskCache[task.Id] = task;
@@ -93,13 +109,8 @@ public sealed class InMemoryTaskStore : ITaskStore
             return Task.FromException(new ArgumentNullException(nameof(pushNotificationConfig)));
         }
 
-        if (!_pushNotificationCache.TryGetValue(pushNotificationConfig.TaskId, out var pushNotificationConfigs))
-        {
-            pushNotificationConfigs = [];
-            _pushNotificationCache[pushNotificationConfig.TaskId] = pushNotificationConfigs;
-        }
-
-        pushNotificationConfigs.Add(pushNotificationConfig);
+        var pushNotificationConfigs = _pushNotificationCache.GetOrAdd(pushNotificationConfig.TaskId, _ => []);
+        pushNotificationConfigs.Enqueue(pushNotificationConfig);
 
         return Task.CompletedTask;
     }

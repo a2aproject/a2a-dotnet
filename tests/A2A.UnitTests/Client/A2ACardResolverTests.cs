@@ -25,8 +25,8 @@ public class A2ACardResolverTests
             Content = new StringContent(json, Encoding.UTF8, "application/json")
         };
         var handler = new MockHttpMessageHandler(response);
-        var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://localhost") };
-        var resolver = new A2ACardResolver(httpClient);
+        using var httpClient = new HttpClient(handler);
+        var resolver = new A2ACardResolver(new Uri("http://localhost"), httpClient);
 
         // Act
         var result = await resolver.GetAgentCardAsync();
@@ -50,8 +50,8 @@ public class A2ACardResolverTests
             Content = new StringContent("not-json", Encoding.UTF8, "application/json")
         };
         var handler = new MockHttpMessageHandler(response);
-        var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://localhost") };
-        var resolver = new A2ACardResolver(httpClient);
+        using var httpClient = new HttpClient(handler);
+        var resolver = new A2ACardResolver(new Uri("http://localhost"), httpClient);
 
         // Act & Assert
         await Assert.ThrowsAsync<A2AException>(() => resolver.GetAgentCardAsync());
@@ -63,8 +63,8 @@ public class A2ACardResolverTests
         // Arrange
         var response = new HttpResponseMessage(HttpStatusCode.InternalServerError);
         var handler = new MockHttpMessageHandler(response);
-        var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://localhost") };
-        var resolver = new A2ACardResolver(httpClient);
+        using var httpClient = new HttpClient(handler);
+        var resolver = new A2ACardResolver(new Uri("http://localhost"), httpClient);
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<A2AException>(() => resolver.GetAgentCardAsync());
