@@ -3,6 +3,7 @@
     <File Path=".github/dependabot.yml" />
   </Folder>
   <Folder Name="/.github/workflows/">
+    <File Path=".github/workflows/copilot-setup-steps.yml" />
     <File Path=".github/workflows/dotnet-build.yml" />
     <File Path=".github/workflows/release.yaml" />
     <File Path="copilot-setup-steps.yml" />
