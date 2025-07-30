@@ -75,7 +75,6 @@ internal sealed class JsonRpcRequestConverter : JsonConverter<JsonRpcRequest>
                 idElement.ValueKind != JsonValueKind.Number &&
                 idElement.ValueKind != JsonValueKind.Null)
                 || (idElement.ValueKind is JsonValueKind.Number && !idElement.TryGetInt64(out var _)))
-
             {
                 throw new A2AException("Invalid JSON-RPC request: 'id' field must be a string, non-fractional number, or null.", A2AErrorCode.InvalidRequest);
             }
