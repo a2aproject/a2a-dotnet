@@ -14,11 +14,11 @@ public class SecuritySchemeTests
     public void SecurityScheme_DescriptionProperty_SerializesCorrectly()
     {
         // Arrange
-        var scheme = new ApiKeySecurityScheme("X-API-Key", "header");
+        SecurityScheme scheme = new ApiKeySecurityScheme("X-API-Key", "header");
 
         // Act
         var json = JsonSerializer.Serialize(scheme, s_jsonOptions);
-        var deserialized = JsonSerializer.Deserialize<ApiKeySecurityScheme>(json, s_jsonOptions);
+        var deserialized = JsonSerializer.Deserialize<SecurityScheme>(json, s_jsonOptions) as ApiKeySecurityScheme;
 
         // Assert
         Assert.Contains("\"description\": \"API key for authentication\"", json);
@@ -30,11 +30,11 @@ public class SecuritySchemeTests
     public void SecurityScheme_DescriptionProperty_CanBeNull()
     {
         // Arrange
-        var scheme = new HttpAuthSecurityScheme("bearer", null);
+        SecurityScheme scheme = new HttpAuthSecurityScheme("bearer", null);
 
         // Act
         var json = JsonSerializer.Serialize(scheme, s_jsonOptions);
-        var deserialized = JsonSerializer.Deserialize<HttpAuthSecurityScheme>(json, s_jsonOptions);
+        var deserialized = JsonSerializer.Deserialize<SecurityScheme>(json, s_jsonOptions) as HttpAuthSecurityScheme;
 
         // Assert
         Assert.DoesNotContain("\"description\"", json);
@@ -50,7 +50,7 @@ public class SecuritySchemeTests
 
         // Act
         var json = JsonSerializer.Serialize(scheme, s_jsonOptions);
-        var deserialized = JsonSerializer.Deserialize<MutualTlsSecurityScheme>(json, s_jsonOptions);
+        var deserialized = JsonSerializer.Deserialize<SecurityScheme>(json, s_jsonOptions) as MutualTlsSecurityScheme;
 
         // Assert
         Assert.Contains("\"type\": \"mutualTLS\"", json);

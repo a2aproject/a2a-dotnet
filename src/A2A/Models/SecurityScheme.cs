@@ -10,15 +10,31 @@ namespace A2A;
 /// This is the base type for all supported OpenAPI security schemes.
 /// The <c>type</c> property is used as a discriminator for polymorphic deserialization.
 /// </remarks>
-/// <param name="Description">A short description for security scheme. CommonMark syntax MAY be used for rich text representation.</param>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
 [JsonDerivedType(typeof(ApiKeySecurityScheme), "apiKey")]
 [JsonDerivedType(typeof(HttpAuthSecurityScheme), "http")]
 [JsonDerivedType(typeof(OAuth2SecurityScheme), "oauth2")]
 [JsonDerivedType(typeof(OpenIdConnectSecurityScheme), "openIdConnect")]
 [JsonDerivedType(typeof(MutualTlsSecurityScheme), "mutualTLS")]
-public abstract record SecurityScheme(
-    [property: JsonPropertyName("description")] string? Description = null);
+public abstract record SecurityScheme()
+{
+    /// <summary>
+    /// A short description for security scheme. CommonMark syntax MAY be used for rich text representation.
+    /// </summary>
+    [JsonPropertyName("description")]
+    public string? Description { get; init; }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SecurityScheme"/> class.
+    /// </summary>
+    /// <param name="description">
+    /// A short description for the security scheme. CommonMark syntax MAY be used for rich text representation.
+    /// </param>
+    protected SecurityScheme(string? description = null) : this()
+    {
+        Description = description;
+    }
+}
 
 /// <summary>
 /// API Key security scheme.
