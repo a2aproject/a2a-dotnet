@@ -21,6 +21,7 @@
   <!-- Dependencies only needed by netstandard2.0 -->
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
     <PackageReference Include="System.Text.Json" />
+        <PackageReference Include="System.Threading.Channels" />
   </ItemGroup>
 
   <!-- Dependencies needed by all -->
@@ -37,7 +38,7 @@
           <PrivateAssets>all</PrivateAssets>
           <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       </PackageReference>
-      <PackageReference Include="System.Threading.Channels" />
+
   </ItemGroup>
 
 	<ItemGroup>
