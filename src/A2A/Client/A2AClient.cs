@@ -135,7 +135,7 @@ public sealed class A2AClient : IA2AClient
             "text/event-stream",
             cancellationToken).ConfigureAwait(false);
 
-        var sseParser = SseParser.Create(responseStream, (eventType, data) =>
+        var sseParser = SseParser.Create(responseStream, (_, data) =>
         {
             var reader = new Utf8JsonReader(data);
 
@@ -146,7 +146,12 @@ public sealed class A2AClient : IA2AClient
                 throw new A2AException(error.Message, (A2AErrorCode)error.Code);
             }
 
-            return JsonSerializer.Deserialize(responseObject?.Result, outputTypeInfo) ??
+            if (responseObject?.Result is null)
+            {
+                throw new InvalidOperationException("Failed to deserialize the event: Result is null.");
+            }
+
+            return responseObject.Result.Deserialize(outputTypeInfo) ??
                 throw new InvalidOperationException("Failed to deserialize the event.");
         });
 
