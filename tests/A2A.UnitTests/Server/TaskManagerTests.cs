@@ -806,4 +806,94 @@ public class TaskManagerTests
         // Act & Assert
         await Assert.ThrowsAsync<OperationCanceledException>(() => taskManager.ReturnArtifactAsync("test-id", artifact, cts.Token));
     }
+
+    [Fact]
+    public async Task SendMessageAsync_ShouldThrowA2AException_WhenTaskIdSpecifiedButTaskDoesNotExist()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+        var messageSendParams = new MessageSendParams
+        {
+            Message = new Message
+            {
+                TaskId = "non-existent-task-id",
+                Parts = [new TextPart { Text = "Hello, World!" }]
+            }
+        };
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<A2AException>(() => taskManager.SendMessageAsync(messageSendParams));
+        Assert.Equal(A2AErrorCode.TaskNotFound, exception.ErrorCode);
+    }
+
+    [Fact]
+    public async Task SendMessageStreamAsync_ShouldThrowA2AException_WhenTaskIdSpecifiedButTaskDoesNotExist()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+        var messageSendParams = new MessageSendParams
+        {
+            Message = new Message
+            {
+                TaskId = "non-existent-task-id",
+                Parts = [new TextPart { Text = "Hello, World!" }]
+            }
+        };
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<A2AException>(() => taskManager.SendMessageStreamAsync(messageSendParams).ToArrayAsync().AsTask());
+        Assert.Equal(A2AErrorCode.TaskNotFound, exception.ErrorCode);
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_ShouldCreateNewTask_WhenNoTaskIdSpecified()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+        var messageSendParams = new MessageSendParams
+        {
+            Message = new Message
+            {
+                // No TaskId specified
+                Parts = [new TextPart { Text = "Hello, World!" }]
+            }
+        };
+
+        // Act
+        var result = await taskManager.SendMessageAsync(messageSendParams);
+
+        // Assert
+        var task = Assert.IsType<AgentTask>(result);
+        Assert.NotNull(task.Id);
+        Assert.NotEmpty(task.Id);
+    }
+
+    [Fact]
+    public async Task SendMessageStreamAsync_ShouldCreateNewTask_WhenNoTaskIdSpecified()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+        var messageSendParams = new MessageSendParams
+        {
+            Message = new Message
+            {
+                // No TaskId specified
+                Parts = [new TextPart { Text = "Hello, World!" }]
+            }
+        };
+
+        // Act
+        var events = new List<A2AEvent>();
+        await foreach (var evt in taskManager.SendMessageStreamAsync(messageSendParams))
+        {
+            events.Add(evt);
+            break; // Just get the first event (which should be the task)
+        }
+
+        // Assert
+        Assert.Single(events);
+        var task = Assert.IsType<AgentTask>(events[0]);
+        Assert.NotNull(task.Id);
+        Assert.NotEmpty(task.Id);
+    }
 }
