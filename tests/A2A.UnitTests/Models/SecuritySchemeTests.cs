@@ -87,7 +87,7 @@ public class SecuritySchemeTests
         // Arrange
         var flows = new OAuthFlows
         {
-            Password = new("https://example.com/token", scopes: new Dictionary<string, string>() { ["read"] = "Read access", ["write"] = "Write access" }),
+            Password = new(new("https://example.com/token"), scopes: new Dictionary<string, string>() { ["read"] = "Read access", ["write"] = "Write access" }),
         };
         SecurityScheme scheme = new OAuth2SecurityScheme(flows, "OAuth2 authentication");
 
@@ -105,7 +105,7 @@ public class SecuritySchemeTests
         Assert.Null(deserialized.Flows.Implicit);
         Assert.Null(deserialized.Flows.AuthorizationCode);
         Assert.NotNull(deserialized.Flows.Password);
-        Assert.Equal("https://example.com/token", deserialized.Flows.Password.TokenUrl);
+        Assert.Equal("https://example.com/token", deserialized.Flows.Password.TokenUrl.ToString());
         Assert.NotNull(deserialized.Flows.Password.Scopes);
         Assert.Equal(2, deserialized.Flows.Password.Scopes.Count);
         Assert.Contains("read", deserialized.Flows.Password.Scopes.Keys);
@@ -118,7 +118,7 @@ public class SecuritySchemeTests
     public void OpenIdConnectSecurityScheme_SerializesAndDeserializesCorrectly()
     {
         // Arrange
-        SecurityScheme scheme = new OpenIdConnectSecurityScheme("https://example.com/.well-known/openid_configuration", "OpenID Connect authentication");
+        SecurityScheme scheme = new OpenIdConnectSecurityScheme(new("https://example.com/.well-known/openid_configuration"), "OpenID Connect authentication");
 
         // Act
         var json = JsonSerializer.Serialize(scheme, s_jsonOptions);
@@ -129,7 +129,7 @@ public class SecuritySchemeTests
         Assert.Contains("\"description\": \"OpenID Connect authentication\"", json);
         Assert.NotNull(deserialized);
         Assert.Equal("OpenID Connect authentication", deserialized.Description);
-        Assert.Equal("https://example.com/.well-known/openid_configuration", deserialized.OpenIdConnectUrl);
+        Assert.Equal("https://example.com/.well-known/openid_configuration", deserialized.OpenIdConnectUrl.ToString());
     }
 
     [Fact]
