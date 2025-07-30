@@ -76,7 +76,8 @@ public class DistributedCacheTaskStoreTests
         var sut = BuildDistributedCacheTaskStore();
 
         // Act & Assert
-        await Assert.ThrowsAsync<ArgumentException>(() => sut.UpdateStatusAsync("notfound", TaskState.Completed));
+        var x = await Assert.ThrowsAsync<A2AException>(() => sut.UpdateStatusAsync("notfound", TaskState.Completed));
+        Assert.Equal(A2AErrorCode.TaskNotFound, x.ErrorCode);
     }
 
     [Fact]

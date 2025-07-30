@@ -71,7 +71,7 @@ public class DistributedCacheTaskStore(IDistributedCache cache)
         var bytes = await cache.GetAsync(cacheKey, cancellationToken).ConfigureAwait(false);
         if (bytes == null || bytes.Length < 1)
         {
-            throw new ArgumentException("Task not found.");
+            throw new A2AException($"Task with ID '{taskId}' not found in cache.", A2AErrorCode.TaskNotFound);
         }
         var task = JsonSerializer.Deserialize(bytes, A2AJsonUtilities.JsonContext.Default.AgentTask) ?? throw new InvalidDataException("Task data from cache is corrupt.");
         task.Status = task.Status with
