@@ -458,5 +458,96 @@ public sealed class TaskManager : ITaskManager
             throw;
         }
     }
-    // TODO: Implement UpdateArtifact method
+
+    /// <inheritdoc />
+    public async Task UpdateArtifactAsync(string taskId, Artifact artifact, bool append = false, bool? lastChunk = null, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (string.IsNullOrEmpty(taskId))
+        {
+            throw new A2AException(nameof(taskId), A2AErrorCode.InvalidParams);
+        }
+        else if (artifact is null)
+        {
+            throw new A2AException(nameof(artifact), A2AErrorCode.InvalidParams);
+        }
+
+        using var activity = ActivitySource.StartActivity("UpdateArtifact", ActivityKind.Server);
+        activity?.SetTag("task.id", taskId);
+        activity?.SetTag("artifact.append", append);
+        activity?.SetTag("artifact.lastChunk", lastChunk);
+
+        try
+        {
+            var task = await _taskStore.GetTaskAsync(taskId, cancellationToken).ConfigureAwait(false);
+            if (task != null)
+            {
+                activity?.SetTag("task.found", true);
+
+                task.Artifacts ??= [];
+
+                if (append && task.Artifacts.Count > 0)
+                {
+                    // Append to the last artifact by adding parts to it
+                    var lastArtifact = task.Artifacts[^1];
+
+                    // Add all parts from the new artifact to the last artifact
+                    foreach (var part in artifact.Parts)
+                    {
+                        lastArtifact.Parts.Add(part);
+                    }
+
+                    activity?.SetTag("event.type", "artifact_append");
+                    await _taskStore.SetTaskAsync(task, cancellationToken).ConfigureAwait(false);
+
+                    // Notify with the updated artifact and append=true
+                    _taskUpdateEventEnumerators.TryGetValue(task.Id, out var enumerator);
+                    if (enumerator != null)
+                    {
+                        var taskUpdateEvent = new TaskArtifactUpdateEvent
+                        {
+                            TaskId = task.Id,
+                            Artifact = lastArtifact,
+                            Append = true,
+                            LastChunk = lastChunk
+                        };
+                        enumerator.NotifyEvent(taskUpdateEvent);
+                    }
+                }
+                else
+                {
+                    // Create a new artifact (either append=false or no existing artifacts)
+                    task.Artifacts.Add(artifact);
+                    activity?.SetTag("event.type", "artifact_new");
+                    await _taskStore.SetTaskAsync(task, cancellationToken).ConfigureAwait(false);
+
+                    // Notify with the new artifact and append=false
+                    _taskUpdateEventEnumerators.TryGetValue(task.Id, out var enumerator);
+                    if (enumerator != null)
+                    {
+                        var taskUpdateEvent = new TaskArtifactUpdateEvent
+                        {
+                            TaskId = task.Id,
+                            Artifact = artifact,
+                            Append = false,
+                            LastChunk = lastChunk
+                        };
+                        enumerator.NotifyEvent(taskUpdateEvent);
+                    }
+                }
+            }
+            else
+            {
+                activity?.SetTag("task.found", false);
+                activity?.SetStatus(ActivityStatusCode.Error, "Task not found");
+                throw new A2AException("Task not found.", A2AErrorCode.TaskNotFound);
+            }
+        }
+        catch (Exception ex)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            throw;
+        }
+    }
 }
