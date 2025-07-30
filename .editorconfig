@@ -280,3 +280,5 @@ dotnet_naming_style.asyncsuffix.required_prefix =
 dotnet_naming_style.asyncsuffix.required_suffix = Async
 dotnet_naming_style.asyncsuffix.word_separator = 
 dotnet_naming_style.asyncsuffix.capitalization = pascal_case
+# EA0002: Use 'System.TimeProvider' to make the code easier to test
+dotnet_diagnostic.EA0002.severity = suggestion
