@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.Caching.Distributed;
 using System.Text.Json;
 
-namespace A2A;
+namespace A2A.AspNetCore.Caching;
 
 /// <summary>
 /// Distributed cache implementation of task store.
@@ -74,9 +74,12 @@ public class DistributedCacheTaskStore(IDistributedCache cache)
             throw new ArgumentException("Task not found.");
         }
         var task = JsonSerializer.Deserialize(bytes, A2AJsonUtilities.JsonContext.Default.AgentTask) ?? throw new InvalidDataException("Task data from cache is corrupt.");
-        task.Status.State = status;
-        task.Status.Message = message;
-        task.Status.Timestamp = DateTime.UtcNow;
+        task.Status = task.Status with
+        {
+            State = status,
+            Message = message,
+            Timestamp = DateTimeOffset.UtcNow
+        };
         bytes = JsonSerializer.SerializeToUtf8Bytes(task, A2AJsonUtilities.JsonContext.Default.AgentTask);
         await cache.SetAsync(cacheKey, bytes, cancellationToken).ConfigureAwait(false);
         return task.Status;
@@ -98,6 +101,7 @@ public class DistributedCacheTaskStore(IDistributedCache cache)
         {
             throw new ArgumentNullException(nameof(pushNotificationConfig));
         }
+
         if (string.IsNullOrWhiteSpace(pushNotificationConfig.TaskId))
         {
             throw new ArgumentException("Task ID cannot be null or empty.", nameof(pushNotificationConfig));

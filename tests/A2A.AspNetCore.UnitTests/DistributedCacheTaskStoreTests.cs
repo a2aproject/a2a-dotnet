@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Caching.Distributed;
+﻿using A2A.AspNetCore.Caching;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 
@@ -200,7 +201,7 @@ public class DistributedCacheTaskStoreTests
         var sut = BuildDistributedCacheTaskStore();
 
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
 
         // Act
         var task = sut.GetTaskAsync("test-id", cts.Token);
@@ -216,7 +217,7 @@ public class DistributedCacheTaskStoreTests
         var sut = BuildDistributedCacheTaskStore();
 
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
 
         // Act
         var task = sut.GetPushNotificationAsync("test-id", "config-id", cts.Token);
@@ -232,7 +233,7 @@ public class DistributedCacheTaskStoreTests
         var sut = BuildDistributedCacheTaskStore();
 
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
 
         // Act
         var task = sut.UpdateStatusAsync("test-id", TaskState.Working, cancellationToken: cts.Token);
@@ -249,7 +250,7 @@ public class DistributedCacheTaskStoreTests
         var agentTask = new AgentTask { Id = "test-id", Status = new AgentTaskStatus { State = TaskState.Submitted } };
 
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
 
         // Act
         var task = sut.SetTaskAsync(agentTask, cts.Token);
@@ -266,7 +267,7 @@ public class DistributedCacheTaskStoreTests
         var config = new TaskPushNotificationConfig();
 
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
 
         // Act
         var task = sut.SetPushNotificationConfigAsync(config, cts.Token);
@@ -313,7 +314,7 @@ public class DistributedCacheTaskStoreTests
         var sut = BuildDistributedCacheTaskStore();
 
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
 
         // Act
         var task = sut.GetPushNotificationsAsync("test-id", cts.Token);
