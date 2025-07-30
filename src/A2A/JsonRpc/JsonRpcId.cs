@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -7,76 +6,65 @@ namespace A2A;
 /// <summary>
 /// Represents a JSON-RPC ID that can be either a string or a number, preserving the original type.
 /// </summary>
-[JsonConverter(typeof(JsonRpcIdConverter))]
+[JsonConverter(typeof(Converter))]
 public readonly struct JsonRpcId : IEquatable<JsonRpcId>
 {
-    private readonly object? _value;
-
     /// <summary>
     /// Initializes a new instance of the <see cref="JsonRpcId"/> struct with a string value.
     /// </summary>
     /// <param name="value">The string value.</param>
-    public JsonRpcId(string? value)
-    {
-        _value = value;
-    }
+    public JsonRpcId(string? value) => Value = value;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="JsonRpcId"/> struct with a numeric value.
     /// </summary>
     /// <param name="value">The numeric value.</param>
-    public JsonRpcId(long value)
-    {
-        _value = value;
-    }
+    public JsonRpcId(long value) => Value = value;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="JsonRpcId"/> struct with a numeric value.
     /// </summary>
     /// <param name="value">The numeric value.</param>
-    public JsonRpcId(int value)
-    {
-        _value = (long)value;
-    }
+    public JsonRpcId(int value) => Value = (long)value;
 
     /// <summary>
     /// Gets a value indicating whether this ID has a value.
     /// </summary>
-    public bool HasValue => _value is not null;
+    public bool HasValue => Value is not null;
 
     /// <summary>
     /// Gets a value indicating whether this ID is a string.
     /// </summary>
-    public bool IsString => _value is string;
+    public bool IsString => Value is string;
 
     /// <summary>
     /// Gets a value indicating whether this ID is a number.
     /// </summary>
-    public bool IsNumber => _value is long;
+    public bool IsNumber => Value is long;
 
     /// <summary>
     /// Gets the string value of this ID if it's a string.
     /// </summary>
     /// <returns>The string value, or null if not a string.</returns>
-    public string? AsString() => _value as string;
+    public string? AsString() => Value as string;
 
     /// <summary>
     /// Gets the numeric value of this ID if it's a number.
     /// </summary>
     /// <returns>The numeric value, or null if not a number.</returns>
-    public long? AsNumber() => _value as long?;
+    public long? AsNumber() => Value as long?;
 
     /// <summary>
     /// Gets the raw value as an object.
     /// </summary>
     /// <returns>The raw value as an object.</returns>
-    public object? AsObject() => _value;
+    public object? Value { get; }
 
     /// <summary>
     /// Returns a string representation of this ID.
     /// </summary>
     /// <returns>A string representation of the ID.</returns>
-    public override string? ToString() => _value?.ToString();
+    public override string? ToString() => Value?.ToString();
 
     /// <summary>
     /// Determines whether the specified object is equal to the current ID.
@@ -90,13 +78,13 @@ public readonly struct JsonRpcId : IEquatable<JsonRpcId>
     /// </summary>
     /// <param name="other">The ID to compare with the current ID.</param>
     /// <returns>true if the specified ID is equal to the current ID; otherwise, false.</returns>
-    public bool Equals(JsonRpcId other) => Equals(_value, other._value);
+    public bool Equals(JsonRpcId other) => Equals(Value, other.Value);
 
     /// <summary>
     /// Returns the hash code for this ID.
     /// </summary>
     /// <returns>A hash code for the current ID.</returns>
-    public override int GetHashCode() => _value?.GetHashCode() ?? 0;
+    public override int GetHashCode() => Value?.GetHashCode() ?? 0;
 
     /// <summary>
     /// Determines whether two IDs are equal.
@@ -134,49 +122,49 @@ public readonly struct JsonRpcId : IEquatable<JsonRpcId>
     /// <param name="value">The numeric value.</param>
     /// <returns>A JsonRpcId with the numeric value.</returns>
     public static implicit operator JsonRpcId(int value) => new(value);
-}
 
-/// <summary>
-/// JSON converter for JsonRpcId that preserves the original type during serialization/deserialization.
-/// </summary>
-internal sealed class JsonRpcIdConverter : JsonConverter<JsonRpcId>
-{
-    public override JsonRpcId Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    /// <summary>
+    /// JSON converter for JsonRpcId that preserves the original type during serialization/deserialization.
+    /// </summary>
+    internal sealed class Converter : JsonConverter<JsonRpcId>
     {
-        switch (reader.TokenType)
+        public override JsonRpcId Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            case JsonTokenType.String:
-                return new JsonRpcId(reader.GetString());
-            case JsonTokenType.Number:
-                if (reader.TryGetInt64(out var longValue))
-                {
-                    return new JsonRpcId(longValue);
-                }
-                throw new JsonException("Invalid numeric value for JSON-RPC ID.");
-            case JsonTokenType.Null:
-                return new JsonRpcId((string?)null);
-            default:
-                throw new JsonException("Invalid JSON-RPC ID format. Must be string, number, or null.");
+            switch (reader.TokenType)
+            {
+                case JsonTokenType.String:
+                    return new JsonRpcId(reader.GetString());
+                case JsonTokenType.Number:
+                    if (reader.TryGetInt64(out var longValue))
+                    {
+                        return new JsonRpcId(longValue);
+                    }
+                    throw new JsonException("Invalid numeric value for JSON-RPC ID.");
+                case JsonTokenType.Null:
+                    return new JsonRpcId(null);
+                default:
+                    throw new JsonException("Invalid JSON-RPC ID format. Must be string, number, or null.");
+            }
         }
-    }
 
-    public override void Write(Utf8JsonWriter writer, JsonRpcId value, JsonSerializerOptions options)
-    {
-        if (!value.HasValue)
+        public override void Write(Utf8JsonWriter writer, JsonRpcId value, JsonSerializerOptions options)
         {
-            writer.WriteNullValue();
-        }
-        else if (value.IsString)
-        {
-            writer.WriteStringValue(value.AsString());
-        }
-        else if (value.IsNumber)
-        {
-            writer.WriteNumberValue(value.AsNumber()!.Value);
-        }
-        else
-        {
-            writer.WriteNullValue();
+            if (!value.HasValue)
+            {
+                writer.WriteNullValue();
+            }
+            else if (value.IsString)
+            {
+                writer.WriteStringValue(value.AsString());
+            }
+            else if (value.IsNumber)
+            {
+                writer.WriteNumberValue(value.AsNumber()!.Value);
+            }
+            else
+            {
+                writer.WriteNullValue();
+            }
         }
     }
 }

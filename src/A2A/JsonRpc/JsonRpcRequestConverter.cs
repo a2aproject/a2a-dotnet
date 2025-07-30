@@ -16,8 +16,6 @@ internal sealed class JsonRpcRequestConverter : JsonConverter<JsonRpcRequest>
 
     public override JsonRpcRequest? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        string? requestId = null;
-
         try
         {
             // Create JsonElement from Utf8JsonReader
@@ -26,8 +24,7 @@ internal sealed class JsonRpcRequestConverter : JsonConverter<JsonRpcRequest>
 
             // Validate the JSON-RPC request structure
             var idField = ReadAndValidateIdField(rootElement);
-            requestId = idField.ToString();
-
+            var requestId = idField.ToString();
             return new JsonRpcRequest
             {
                 Id = idField,
