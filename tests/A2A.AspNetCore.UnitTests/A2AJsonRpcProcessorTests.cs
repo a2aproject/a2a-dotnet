@@ -8,7 +8,8 @@ public class A2AJsonRpcProcessorTests
 {
     [Theory]
     [InlineData("\"test-id\"", true)]   // String ID - valid
-    //[InlineData(42, true)]            // Number ID - valid: Uncomment when numeric IDs are supported
+    [InlineData(42, true)]              // Number ID - valid: Uncomment when numeric IDs are supported
+    [InlineData(42.1, false)]           // Fractional number ID - invalid (should throw error)
     [InlineData("null", true)]          // Null ID - valid
     [InlineData("true", false)]         // Boolean ID - invalid (should throw error)
     public async Task ValidateIdField_HandlesVariousIdTypes(object? idValue, bool isValid)

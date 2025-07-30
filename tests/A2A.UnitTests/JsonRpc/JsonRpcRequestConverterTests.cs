@@ -256,6 +256,7 @@ public class JsonRpcRequestConverterTests
     [Theory]
     [InlineData("true")]
     [InlineData("[]")]
+    [InlineData("42.1")]
     public void Read_InvalidIdType_ThrowsA2AException(string idJson)
     {
         // Arrange
@@ -272,7 +273,7 @@ public class JsonRpcRequestConverterTests
             JsonSerializer.Deserialize<JsonRpcRequest>(json, _options));
 
         Assert.Equal(A2AErrorCode.InvalidRequest, exception.ErrorCode);
-        Assert.Contains("'id' field must be a string, number, or null", exception.Message);
+        Assert.Contains("'id' field must be a string, non-fractional number, or null", exception.Message);
     }
 
     [Theory]
