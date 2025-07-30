@@ -60,7 +60,7 @@ public class SecuritySchemeTests
         Assert.NotNull(deserialized);
         Assert.Equal("API key for authentication", deserialized.Description);
         Assert.Equal("X-API-Key", deserialized.Name);
-        Assert.Equal("header", deserialized.In);
+        Assert.Equal("header", deserialized.KeyLocation);
     }
 
     [Fact]
@@ -85,7 +85,10 @@ public class SecuritySchemeTests
     public void OAuth2SecurityScheme_SerializesAndDeserializesCorrectly()
     {
         // Arrange
-        var flows = new OAuthFlows();
+        var flows = new OAuthFlows
+        {
+            Password = new("https://example.com/token", scopes: new Dictionary<string, string>() { ["read"] = "Read access", ["write"] = "Write access" }),
+        };
         SecurityScheme scheme = new OAuth2SecurityScheme(flows, "OAuth2 authentication");
 
         // Act
@@ -97,7 +100,18 @@ public class SecuritySchemeTests
         Assert.Contains("\"description\": \"OAuth2 authentication\"", json);
         Assert.NotNull(deserialized);
         Assert.Equal("OAuth2 authentication", deserialized.Description);
-        Assert.Equal(flows, deserialized.Flows);
+        Assert.NotNull(deserialized.Flows);
+        Assert.Null(deserialized.Flows.ClientCredentials);
+        Assert.Null(deserialized.Flows.Implicit);
+        Assert.Null(deserialized.Flows.AuthorizationCode);
+        Assert.NotNull(deserialized.Flows.Password);
+        Assert.Equal("https://example.com/token", deserialized.Flows.Password.TokenUrl);
+        Assert.NotNull(deserialized.Flows.Password.Scopes);
+        Assert.Equal(2, deserialized.Flows.Password.Scopes.Count);
+        Assert.Contains("read", deserialized.Flows.Password.Scopes.Keys);
+        Assert.Contains("write", deserialized.Flows.Password.Scopes.Keys);
+        Assert.Equal("Read access", deserialized.Flows.Password.Scopes["read"]);
+        Assert.Equal("Write access", deserialized.Flows.Password.Scopes["write"]);
     }
 
     [Fact]

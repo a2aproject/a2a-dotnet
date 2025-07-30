@@ -10,144 +10,329 @@ namespace A2A;
 /// This is the base type for all supported OpenAPI security schemes.
 /// The <c>type</c> property is used as a discriminator for polymorphic deserialization.
 /// </remarks>
+/// <remarks>
+/// Initializes a new instance of the <see cref="SecurityScheme"/> class.
+/// </remarks>
+/// <param name="description">A short description for the security scheme. CommonMark syntax MAY be used for rich text representation.</param>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
 [JsonDerivedType(typeof(ApiKeySecurityScheme), "apiKey")]
 [JsonDerivedType(typeof(HttpAuthSecurityScheme), "http")]
 [JsonDerivedType(typeof(OAuth2SecurityScheme), "oauth2")]
 [JsonDerivedType(typeof(OpenIdConnectSecurityScheme), "openIdConnect")]
 [JsonDerivedType(typeof(MutualTlsSecurityScheme), "mutualTLS")]
-public abstract record SecurityScheme()
+public abstract class SecurityScheme(string? description = null)
 {
     /// <summary>
     /// A short description for security scheme. CommonMark syntax MAY be used for rich text representation.
     /// </summary>
     [JsonPropertyName("description")]
-    public string? Description { get; init; }
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="SecurityScheme"/> class.
-    /// </summary>
-    /// <param name="description">
-    /// A short description for the security scheme. CommonMark syntax MAY be used for rich text representation.
-    /// </param>
-    protected SecurityScheme(string? description = null) : this()
-    {
-        Description = description;
-    }
+    public string? Description { get; init; } = description;
 }
 
 /// <summary>
 /// API Key security scheme.
 /// </summary>
-/// <param name="Name">The name of the header, query or cookie parameter to be used.</param>
-/// <param name="In">The location of the API key. Valid values are "query", "header", or "cookie".</param>
-/// <param name="Description">A short description for security scheme. Optional.</param>
-public sealed record ApiKeySecurityScheme(
-    [property: JsonPropertyName("name"), JsonRequired] string Name,
-    [property: JsonPropertyName("in"), JsonRequired] string In,
-    string? Description = "API key for authentication"
-) : SecurityScheme(Description);
+/// <remarks>
+/// Initializes a new instance of the <see cref="ApiKeySecurityScheme"/> class.
+/// </remarks>
+/// <param name="name">The name of the header, query or cookie parameter to be used.</param>
+/// <param name="keyLocation">The location of the API key. Valid values are "query", "header", or "cookie".</param>
+/// <param name="description">
+/// A short description for the security scheme. CommonMark syntax MAY be used for rich text representation.
+/// </param>
+public sealed class ApiKeySecurityScheme(string name, string keyLocation, string? description = "API key for authentication") : SecurityScheme(description)
+{
+    /// <summary>
+    /// The name of the header, query or cookie parameter to be used.
+    /// </summary>
+    [JsonPropertyName("name")]
+    [JsonRequired]
+    public string Name { get; init; } = name;
+
+    /// <summary>
+    /// The location of the API key. Valid values are "query", "header", or "cookie".
+    /// </summary>
+    [JsonPropertyName("in")]
+    [JsonRequired]
+    public string KeyLocation { get; init; } = keyLocation;
+}
 
 /// <summary>
 /// HTTP Authentication security scheme.
 /// </summary>
-/// <param name="Scheme">The name of the HTTP Authentication scheme to be used in the Authorization header as defined in RFC7235.</param>
-/// <param name="BearerFormat">A hint to the client to identify how the bearer token is formatted.</param>
-/// <param name="Description">A short description for security scheme. Optional.</param>
-public sealed record HttpAuthSecurityScheme(
-    [property: JsonPropertyName("scheme"), JsonRequired] string Scheme,
-    [property: JsonPropertyName("bearerFormat")] string? BearerFormat = null,
-    string? Description = null
-) : SecurityScheme(Description);
+/// <remarks>
+/// Initializes a new instance of the <see cref="HttpAuthSecurityScheme"/> class.
+/// </remarks>
+/// <param name="scheme">The name of the HTTP Authentication scheme to be used in the Authorization header as defined in RFC7235.</param>
+/// <param name="bearerFormat">A hint to the client to identify how the bearer token is formatted.</param>
+/// <param name="description">A short description for the security scheme. CommonMark syntax MAY be used for rich text representation.</param>
+public sealed class HttpAuthSecurityScheme(string scheme, string? bearerFormat = null, string? description = null) : SecurityScheme(description)
+{
+    /// <summary>
+    /// The name of the HTTP Authentication scheme to be used in the Authorization header as defined in RFC7235.
+    /// </summary>
+    [JsonPropertyName("scheme")]
+    [JsonRequired]
+    public string Scheme { get; init; } = scheme;
+
+    /// <summary>
+    /// A hint to the client to identify how the bearer token is formatted.
+    /// </summary>
+    [JsonPropertyName("bearerFormat")]
+    public string? BearerFormat { get; init; } = bearerFormat;
+}
 
 /// <summary>
 /// OAuth2.0 security scheme configuration.
 /// </summary>
-/// <param name="Flows">An object containing configuration information for the flow types supported.</param>
-/// <param name="Description">A short description for security scheme. Optional.</param>
-public sealed record OAuth2SecurityScheme(
-    [property: JsonPropertyName("flows"), JsonRequired] OAuthFlows Flows,
-    string? Description = null
-) : SecurityScheme(Description);
+/// <remarks>
+/// Initializes a new instance of the <see cref="OAuth2SecurityScheme"/> class.
+/// </remarks>
+/// <param name="flows">An object containing configuration information for the flow types supported.</param>
+/// <param name="description">A short description for the security scheme. CommonMark syntax MAY be used for rich text representation.</param>
+public sealed class OAuth2SecurityScheme(OAuthFlows flows, string? description = null) : SecurityScheme(description)
+{
+    /// <summary>
+    /// An object containing configuration information for the flow types supported.
+    /// </summary>
+    [JsonPropertyName("flows")]
+    [JsonRequired]
+    public OAuthFlows Flows { get; init; } = flows;
+}
 
 /// <summary>
 /// OpenID Connect security scheme configuration.
 /// </summary>
-/// <param name="OpenIdConnectUrl">Well-known URL to discover the [[OpenID-Connect-Discovery]] provider metadata.</param>
-/// <param name="Description">A short description for security scheme. Optional.</param>
-public sealed record OpenIdConnectSecurityScheme(
-    [property: JsonPropertyName("openIdConnectUrl"), JsonRequired] string OpenIdConnectUrl,
-    string? Description = null
-) : SecurityScheme(Description);
+/// <remarks>
+/// Initializes a new instance of the <see cref="OpenIdConnectSecurityScheme"/> class.
+/// </remarks>
+/// <param name="openIdConnectUrl">Well-known URL to discover the [[OpenID-Connect-Discovery]] provider metadata.</param>
+/// <param name="description">A short description for the security scheme. CommonMark syntax MAY be used for rich text representation.</param>
+public sealed class OpenIdConnectSecurityScheme(string openIdConnectUrl, string? description = null) : SecurityScheme(description)
+{
+    /// <summary>
+    /// Well-known URL to discover the [[OpenID-Connect-Discovery]] provider metadata.
+    /// </summary>
+    [JsonPropertyName("openIdConnectUrl")]
+    [JsonRequired]
+    public string OpenIdConnectUrl { get; init; } = openIdConnectUrl;
+}
 
 /// <summary>
 /// Mutual TLS security scheme configuration.
 /// </summary>
-/// <param name="Description">A short description for security scheme. Optional.</param>
-public sealed record MutualTlsSecurityScheme(
-    string? Description = "Mutual TLS authentication"
-) : SecurityScheme(Description);
+/// <remarks>
+/// Initializes a new instance of the <see cref="MutualTlsSecurityScheme"/> class.
+/// </remarks>
+/// <param name="description">A short description for the security scheme. CommonMark syntax MAY be used for rich text representation.</param>
+public sealed class MutualTlsSecurityScheme(string? description = "Mutual TLS authentication") : SecurityScheme(description)
+{
+}
 
 /// <summary>
 /// Allows configuration of the supported OAuth Flows.
 /// </summary>
-/// <param name="AuthorizationCode">Configuration for the OAuth Authorization Code flow. Previously called accessCode in OpenAPI 2.0.</param>
-/// <param name="ClientCredentials">Configuration for the OAuth Client Credentials flow. Previously called application in OpenAPI 2.0.</param>
-/// <param name="Password">Configuration for the OAuth Resource Owner Password flow.</param>
-/// <param name="Implicit">Configuration for the OAuth Implicit flow.</param>
-public sealed record OAuthFlows(
-    [property: JsonPropertyName("authorizationCode")] AuthorizationCodeOAuthFlow? AuthorizationCode = null,
-    [property: JsonPropertyName("clientCredentials")] ClientCredentialsOAuthFlow? ClientCredentials = null,
-    [property: JsonPropertyName("password")] PasswordOAuthFlow? Password = null,
-    [property: JsonPropertyName("implicit")] ImplicitOAuthFlow? Implicit = null
-);
+/// <remarks>
+/// Initializes a new instance of the <see cref="OAuthFlows"/> class.
+/// </remarks>
+public sealed class OAuthFlows
+{
+    /// <summary>
+    /// Configuration for the OAuth Authorization Code flow. Previously called accessCode in OpenAPI 2.0.
+    /// </summary>
+    [JsonPropertyName("authorizationCode")]
+    public AuthorizationCodeOAuthFlow? AuthorizationCode { get; init; }
+
+    /// <summary>
+    /// Configuration for the OAuth Client Credentials flow. Previously called application in OpenAPI 2.0.
+    /// </summary>
+    [JsonPropertyName("clientCredentials")]
+    public ClientCredentialsOAuthFlow? ClientCredentials { get; init; }
+
+    /// <summary>
+    /// Configuration for the OAuth Resource Owner Password flow.
+    /// </summary>
+    [JsonPropertyName("password")]
+    public PasswordOAuthFlow? Password { get; init; }
+
+    /// <summary>
+    /// Configuration for the OAuth Implicit flow.
+    /// </summary>
+    [JsonPropertyName("implicit")]
+    public ImplicitOAuthFlow? Implicit { get; init; }
+}
 
 /// <summary>
 /// Configuration details for a supported OAuth Authorization Code Flow.
 /// </summary>
-/// <param name="AuthorizationUrl">The authorization URL to be used for this flow. This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.</param>
-/// <param name="TokenUrl">The token URL to be used for this flow. This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.</param>
-/// <param name="RefreshUrl">The URL to be used for obtaining refresh tokens. This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.</param>
-/// <param name="Scopes">The available scopes for the OAuth2 security scheme. A map between the scope name and a short description for it. The map MAY be empty.</param>
-public sealed record AuthorizationCodeOAuthFlow(
-    [property: JsonPropertyName("authorizationUrl"), JsonRequired] string AuthorizationUrl,
-    [property: JsonPropertyName("tokenUrl"), JsonRequired] string TokenUrl,
-    [property: JsonPropertyName("refreshUrl")] string? RefreshUrl = null,
-    [property: JsonPropertyName("scopes"), JsonRequired] Dictionary<string, string> Scopes = null!
-);
+/// <remarks>
+/// Initializes a new instance of the <see cref="AuthorizationCodeOAuthFlow"/> class.
+/// </remarks>
+/// <param name="authorizationUrl">
+/// The authorization URL to be used for this flow. This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.
+/// </param>
+/// <param name="tokenUrl">
+/// The token URL to be used for this flow. This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.
+/// </param>
+/// <param name="scopes">
+/// The available scopes for the OAuth2 security scheme. A map between the scope name and a short description for it. The map MAY be empty.
+/// </param>
+/// <param name="refreshUrl">
+/// The URL to be used for obtaining refresh tokens. This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.
+/// </param>
+public sealed class AuthorizationCodeOAuthFlow(
+    string authorizationUrl,
+    string tokenUrl,
+    IDictionary<string, string> scopes,
+    string? refreshUrl = null)
+{
+    /// <summary>
+    /// The authorization URL to be used for this flow. This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.
+    /// </summary>
+    [JsonPropertyName("authorizationUrl")]
+    [JsonRequired]
+    public string AuthorizationUrl { get; init; } = authorizationUrl;
+
+    /// <summary>
+    /// The token URL to be used for this flow. This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.
+    /// </summary>
+    [JsonPropertyName("tokenUrl")]
+    [JsonRequired]
+    public string TokenUrl { get; init; } = tokenUrl;
+
+    /// <summary>
+    /// The URL to be used for obtaining refresh tokens. This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.
+    /// </summary>
+    [JsonPropertyName("refreshUrl")]
+    public string? RefreshUrl { get; init; } = refreshUrl;
+
+    /// <summary>
+    /// The available scopes for the OAuth2 security scheme. A map between the scope name and a short description for it. The map MAY be empty.
+    /// </summary>
+    [JsonPropertyName("scopes")]
+    [JsonRequired]
+    public IDictionary<string, string> Scopes { get; init; } = scopes;
+}
 
 /// <summary>
 /// Configuration details for a supported OAuth Client Credentials Flow.
 /// </summary>
-/// <param name="TokenUrl">The token URL to be used for this flow. This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.</param>
-/// <param name="RefreshUrl">The URL to be used for obtaining refresh tokens. This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.</param>
-/// <param name="Scopes">The available scopes for the OAuth2 security scheme. A map between the scope name and a short description for it. The map MAY be empty.</param>
-public sealed record ClientCredentialsOAuthFlow(
-    [property: JsonPropertyName("tokenUrl"), JsonRequired] string TokenUrl,
-    [property: JsonPropertyName("refreshUrl")] string? RefreshUrl = null,
-    [property: JsonPropertyName("scopes"), JsonRequired] Dictionary<string, string> Scopes = null!
-);
+/// <remarks>
+/// Initializes a new instance of the <see cref="ClientCredentialsOAuthFlow"/> class.
+/// </remarks>
+/// <param name="tokenUrl">
+/// The token URL to be used for this flow. This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.
+/// </param>
+/// <param name="scopes">
+/// The available scopes for the OAuth2 security scheme. A map between the scope name and a short description for it. The map MAY be empty.
+/// </param>
+/// <param name="refreshUrl">
+/// The URL to be used for obtaining refresh tokens. This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.
+/// </param>
+public sealed class ClientCredentialsOAuthFlow(
+    string tokenUrl,
+    IDictionary<string, string> scopes,
+    string? refreshUrl = null)
+{
+    /// <summary>
+    /// The token URL to be used for this flow. This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.
+    /// </summary>
+    [JsonPropertyName("tokenUrl")]
+    [JsonRequired]
+    public string TokenUrl { get; init; } = tokenUrl;
+
+    /// <summary>
+    /// The URL to be used for obtaining refresh tokens. This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.
+    /// </summary>
+    [JsonPropertyName("refreshUrl")]
+    public string? RefreshUrl { get; init; } = refreshUrl;
+
+    /// <summary>
+    /// The available scopes for the OAuth2 security scheme. A map between the scope name and a short description for it. The map MAY be empty.
+    /// </summary>
+    [JsonPropertyName("scopes")]
+    [JsonRequired]
+    public IDictionary<string, string> Scopes { get; init; } = scopes;
+}
 
 /// <summary>
 /// Configuration details for a supported OAuth Resource Owner Password Flow.
 /// </summary>
-/// <param name="TokenUrl">The token URL to be used for this flow. This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.</param>
-/// <param name="RefreshUrl">The URL to be used for obtaining refresh tokens. This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.</param>
-/// <param name="Scopes">The available scopes for the OAuth2 security scheme. A map between the scope name and a short description for it. The map MAY be empty.</param>
-public sealed record PasswordOAuthFlow(
-    [property: JsonPropertyName("tokenUrl"), JsonRequired] string TokenUrl,
-    [property: JsonPropertyName("refreshUrl")] string? RefreshUrl = null,
-    [property: JsonPropertyName("scopes"), JsonRequired] Dictionary<string, string> Scopes = null!
-);
+/// <remarks>
+/// Initializes a new instance of the <see cref="PasswordOAuthFlow"/> class.
+/// </remarks>
+/// <param name="tokenUrl">
+/// The token URL to be used for this flow. This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.
+/// </param>
+/// <param name="scopes">
+/// The available scopes for the OAuth2 security scheme. A map between the scope name and a short description for it. The map MAY be empty.
+/// </param>
+/// <param name="refreshUrl">
+/// The URL to be used for obtaining refresh tokens. This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.
+/// </param>
+public sealed class PasswordOAuthFlow(
+    string tokenUrl,
+    IDictionary<string, string> scopes,
+    string? refreshUrl = null)
+{
+    /// <summary>
+    /// The token URL to be used for this flow. This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.
+    /// </summary>
+    [JsonPropertyName("tokenUrl")]
+    [JsonRequired]
+    public string TokenUrl { get; init; } = tokenUrl;
+
+    /// <summary>
+    /// The URL to be used for obtaining refresh tokens. This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.
+    /// </summary>
+    [JsonPropertyName("refreshUrl")]
+    public string? RefreshUrl { get; init; } = refreshUrl;
+
+    /// <summary>
+    /// The available scopes for the OAuth2 security scheme. A map between the scope name and a short description for it. The map MAY be empty.
+    /// </summary>
+    [JsonPropertyName("scopes")]
+    [JsonRequired]
+    public IDictionary<string, string> Scopes { get; init; } = scopes;
+}
 
 /// <summary>
 /// Configuration details for a supported OAuth Implicit Flow.
 /// </summary>
-/// <param name="AuthorizationUrl">The authorization URL to be used for this flow. This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.</param>
-/// <param name="RefreshUrl">The URL to be used for obtaining refresh tokens. This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.</param>
-/// <param name="Scopes">The available scopes for the OAuth2 security scheme. A map between the scope name and a short description for it. The map MAY be empty.</param>
-public sealed record ImplicitOAuthFlow(
-    [property: JsonPropertyName("authorizationUrl"), JsonRequired] string AuthorizationUrl,
-    [property: JsonPropertyName("refreshUrl")] string? RefreshUrl = null,
-    [property: JsonPropertyName("scopes"), JsonRequired] Dictionary<string, string> Scopes = null!
-);
+/// <remarks>
+/// Initializes a new instance of the <see cref="ImplicitOAuthFlow"/> class.
+/// </remarks>
+/// <param name="authorizationUrl">
+/// The authorization URL to be used for this flow. This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.
+/// </param>
+/// <param name="scopes">
+/// The available scopes for the OAuth2 security scheme. A map between the scope name and a short description for it. The map MAY be empty.
+/// </param>
+/// <param name="refreshUrl">
+/// The URL to be used for obtaining refresh tokens. This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.
+/// </param>
+public sealed class ImplicitOAuthFlow(
+    string authorizationUrl,
+    IDictionary<string, string> scopes,
+    string? refreshUrl = null)
+{
+    /// <summary>
+    /// The authorization URL to be used for this flow. This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.
+    /// </summary>
+    [JsonPropertyName("authorizationUrl")]
+    [JsonRequired]
+    public string AuthorizationUrl { get; init; } = authorizationUrl;
+
+    /// <summary>
+    /// The URL to be used for obtaining refresh tokens. This MUST be in the form of a URL. The OAuth2 standard requires the use of TLS.
+    /// </summary>
+    [JsonPropertyName("refreshUrl")]
+    public string? RefreshUrl { get; init; } = refreshUrl;
+
+    /// <summary>
+    /// The available scopes for the OAuth2 security scheme. A map between the scope name and a short description for it. The map MAY be empty.
+    /// </summary>
+    [JsonPropertyName("scopes")]
+    [JsonRequired]
+    public IDictionary<string, string> Scopes { get; init; } = scopes;
+}

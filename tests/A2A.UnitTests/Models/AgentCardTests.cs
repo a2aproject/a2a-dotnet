@@ -90,7 +90,7 @@ public class AgentCardTests
         Assert.Contains("apiKey", deserializedCard.SecuritySchemes.Keys);
         var apisec = Assert.IsType<ApiKeySecurityScheme>(deserializedCard.SecuritySchemes["apiKey"]);
         Assert.False(string.IsNullOrWhiteSpace(apisec.Name));
-        Assert.False(string.IsNullOrWhiteSpace(apisec.In));
+        Assert.False(string.IsNullOrWhiteSpace(apisec.KeyLocation));
         Assert.NotNull(deserializedCard.Security);
         Assert.Single(deserializedCard.Security);
 
