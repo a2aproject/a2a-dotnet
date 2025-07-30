@@ -67,10 +67,10 @@ public class JsonRpcErrorResponseTests
         var exception = new A2AException(errorMessage, errorCode);
 
         // Act
-        var response = JsonRpcResponse.CreateJsonRpcErrorResponse(null, exception);
+        var response = JsonRpcResponse.CreateJsonRpcErrorResponse(new JsonRpcId((string?)null), exception);
 
         // Assert
-        Assert.Null(response.Id);
+        Assert.False(response.Id.HasValue);
         Assert.Equal("2.0", response.JsonRpc);
         Assert.Null(response.Result);
         Assert.NotNull(response.Error);
