@@ -1046,9 +1046,8 @@ public class TaskManagerTests
         // Arrange
         var taskManager = new TaskManager();
         var task = await taskManager.CreateTaskAsync();
-        var events = new List<TaskArtifactUpdateEvent>();
 
-        // Capture events using the stream
+        // Send initial message to ensure event stream is registered
         var sendParams = new MessageSendParams
         {
             Message = new Message
@@ -1057,21 +1056,33 @@ public class TaskManagerTests
                 Parts = [new TextPart { Text = "init" }]
             }
         };
+        await taskManager.SendMessageAsync(sendParams);
 
+        var events = new List<TaskArtifactUpdateEvent>();
+        var tcs = new TaskCompletionSource();
+        using var mutex = new SemaphoreSlim(0, 1);
+
+        // Capture events using the stream
         var eventProcessor = Task.Run(async () =>
         {
             await foreach (var evt in taskManager.SendMessageStreamAsync(sendParams))
             {
+                if (!tcs.Task.IsCompleted)
+                {
+                    tcs.SetResult();
+                }
+
                 if (evt is TaskArtifactUpdateEvent artifactEvent)
                 {
                     events.Add(artifactEvent);
+                    mutex.Release();
                 }
+
                 if (events.Count >= 3) break; // Wait for 3 artifact events
             }
         });
 
-        // Wait a bit for the processor to start
-        await Task.Delay(100);
+        await tcs.Task;
 
         // Act - Create initial artifact (append=false)
         var initialArtifact = new Artifact
@@ -1080,6 +1091,12 @@ public class TaskManagerTests
             Parts = [new TextPart { Text = "Initial" }]
         };
         await taskManager.UpdateArtifactAsync(task.Id, initialArtifact, append: false);
+        await mutex.WaitAsync();
+
+        // First event should have append=false
+        Assert.False(events[0].Append);
+        Assert.Equal("test-artifact", events[0].Artifact.ArtifactId);
+        Assert.Single(events[0].Artifact.Parts);
 
         // Append to artifact (append=true)
         var appendArtifact1 = new Artifact
@@ -1087,6 +1104,12 @@ public class TaskManagerTests
             Parts = [new TextPart { Text = "Appended 1" }]
         };
         await taskManager.UpdateArtifactAsync(task.Id, appendArtifact1, append: true);
+        await mutex.WaitAsync();
+
+        // Second event should have append=true
+        Assert.True(events[1].Append);
+        Assert.Equal("test-artifact", events[1].Artifact.ArtifactId); // Same artifact ID
+        Assert.Equal(2, events[1].Artifact.Parts.Count); // Combined parts
 
         // Add new artifact (append=false)
         var newArtifact = new Artifact
@@ -1095,26 +1118,17 @@ public class TaskManagerTests
             Parts = [new TextPart { Text = "New artifact" }]
         };
         await taskManager.UpdateArtifactAsync(task.Id, newArtifact, append: false);
-
-        await eventProcessor;
-
-        // Assert
-        Assert.Equal(3, events.Count);
-
-        // First event should have append=false
-        Assert.False(events[0].Append);
-        Assert.Equal("test-artifact", events[0].Artifact.ArtifactId);
-        Assert.Single(events[0].Artifact.Parts);
-
-        // Second event should have append=true
-        Assert.True(events[1].Append);
-        Assert.Equal("test-artifact", events[1].Artifact.ArtifactId); // Same artifact ID
-        Assert.Equal(2, events[1].Artifact.Parts.Count); // Combined parts
+        await mutex.WaitAsync();
 
         // Third event should have append=false (new artifact)
         Assert.False(events[2].Append);
         Assert.Equal("new-artifact", events[2].Artifact.ArtifactId);
         Assert.Single(events[2].Artifact.Parts);
+
+        await eventProcessor;
+
+        // Assert
+        Assert.Equal(3, events.Count);
     }
 
     [Fact]
