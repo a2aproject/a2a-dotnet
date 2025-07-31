@@ -81,6 +81,21 @@ public interface ITaskManager
     Task ReturnArtifactAsync(string taskId, Artifact artifact, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Updates an artifact for a task, either by adding a new artifact or appending to the last one.
+    /// </summary>
+    /// <remarks>
+    /// When append is true, the artifact's parts are added to the last artifact in the task's collection.
+    /// When append is false or there are no existing artifacts, a new artifact is added to the collection.
+    /// </remarks>
+    /// <param name="taskId">The ID of the task to update the artifact for.</param>
+    /// <param name="artifact">The artifact containing parts to add.</param>
+    /// <param name="append">Whether to append to the last artifact (true) or create a new one (false).</param>
+    /// <param name="lastChunk">Whether this is the last chunk of the artifact.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    Task UpdateArtifactAsync(string taskId, Artifact artifact, bool append = false, bool? lastChunk = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Updates the status of a task and optionally adds a message to its history.
     /// </summary>
     /// <remarks>
