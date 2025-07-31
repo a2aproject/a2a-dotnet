@@ -37,14 +37,32 @@ public static class A2ARouteBuilderExtensions
 
         var routeGroup = endpoints.MapGroup("");
 
+        routeGroup.MapPost(path, (HttpRequest request, CancellationToken cancellationToken) => A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, request, cancellationToken));
+
+        return routeGroup;
+    }
+
+    /// <summary>
+    /// Enables the well-known agent card endpoint for agent discovery.
+    /// </summary>
+    /// <param name="endpoints">The endpoint route builder to configure.</param>
+    /// <param name="taskManager">The task manager for handling A2A operations.</param>
+    /// <param name="agentPath">The base path where the A2A agent is hosted.</param>
+    /// <returns>An endpoint convention builder for further configuration.</returns>
+    public static IEndpointConventionBuilder MapWellKnownAgentCard(this IEndpointRouteBuilder endpoints, ITaskManager taskManager, [StringSyntax("Route")] string agentPath)
+    {
+        ArgumentNullException.ThrowIfNull(endpoints);
+        ArgumentNullException.ThrowIfNull(taskManager);
+        ArgumentException.ThrowIfNullOrEmpty(agentPath);
+
+        var routeGroup = endpoints.MapGroup("");
+
         routeGroup.MapGet(".well-known/agent.json", async (HttpRequest request, CancellationToken cancellationToken) =>
         {
-            var agentUrl = $"{request.Scheme}://{request.Host}{path}";
+            var agentUrl = $"{request.Scheme}://{request.Host}{agentPath}";
             var agentCard = await taskManager.OnAgentCardQuery(agentUrl, cancellationToken);
             return Results.Ok(agentCard);
         });
-
-        routeGroup.MapPost(path, (HttpRequest request, CancellationToken cancellationToken) => A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, request, cancellationToken));
 
         return routeGroup;
     }
