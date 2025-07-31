@@ -34,7 +34,7 @@ dotnet add package A2A.AspNetCore
 ```
 
 ## Overview
-![alt text](https://github.com/a2aproject/a2a-dotnet/blob/main/overview.png)
+![alt text](https://github.com/a2aproject/a2a-dotnet/raw/main/overview.png)
 
 ## Library: A2A
 This library contains the core A2A protocol implementation. It includes the following key classes:
