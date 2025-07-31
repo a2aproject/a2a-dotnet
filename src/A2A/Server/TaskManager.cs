@@ -503,7 +503,7 @@ public sealed class TaskManager : ITaskManager
 
                     // Notify with the updated artifact and append=true
                     _taskUpdateEventEnumerators.TryGetValue(task.Id, out var enumerator);
-                    if (enumerator != null)
+                    if (enumerator is not null)
                     {
                         var taskUpdateEvent = new TaskArtifactUpdateEvent
                         {
@@ -524,13 +524,13 @@ public sealed class TaskManager : ITaskManager
 
                     // Notify with the new artifact and append=false
                     _taskUpdateEventEnumerators.TryGetValue(task.Id, out var enumerator);
-                    if (enumerator != null)
+                    if (enumerator is not null)
                     {
                         var taskUpdateEvent = new TaskArtifactUpdateEvent
                         {
                             TaskId = task.Id,
                             Artifact = artifact,
-                            Append = false,
+                            Append = append,
                             LastChunk = lastChunk
                         };
                         enumerator.NotifyEvent(taskUpdateEvent);
