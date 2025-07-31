@@ -57,7 +57,7 @@ jobs:
       run: dotnet build --configuration ${{ matrix.configuration }}
 
     - name: Test
-      run: dotnet test --no-build --configuration ${{ matrix.configuration }} --framework net9.0
+      run: dotnet test --no-build --configuration ${{ matrix.configuration }}
 
     - name: Pack
       run: dotnet pack --configuration ${{ matrix.configuration }}
