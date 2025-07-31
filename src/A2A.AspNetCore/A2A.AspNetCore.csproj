@@ -12,7 +12,6 @@
         <Description>ASP.NET Core extensions for the Agent2Agent (A2A) protocol.</Description>
         <PackageTags>Agent2Agent;a2a;agent;ai;llm;aspnetcore</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>
-        <IsPackable>true</IsPackable>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <AppDesignerFolder>Properties</AppDesignerFolder>
     </PropertyGroup>
