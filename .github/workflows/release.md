@@ -2,8 +2,9 @@
 
 The following process is used when publishing new releases to NuGet.org:
 
-1. **Update the source to increment the version number**
-    - Before publishing a new release, the [`Directory.Build.props`](../../Directory.Build.props) file needs to be updated to bump the version to the next expected release version
+1. **Ensure the CI workflow is fully green**
+    - Once the state of the branch is known to be good, a release can proceed
+    - The release workflow does not run tests
 
 2. **Create a new Release in GitHub**
     - Use the link on the repo home page to [Create a new release](https://github.com/a2aproject/a2a-dotnet/releases/new)
@@ -29,4 +30,8 @@ The following process is used when publishing new releases to NuGet.org:
     - Verify the package versions become listed on NuGet.org:
         - [A2A](https://www.nuget.org/packages/A2A)
         - [A2A.AspNetCore](https://www.nuget.org/packages/A2A.AspNetCore)
+
+4. **Update the source to increment the version number**
+    - Immediately after publishing a new release, the [`Directory.Build.props`](../../src/Directory.Build.props) file needs to be updated to bump the version to the next expected release version
+
 
