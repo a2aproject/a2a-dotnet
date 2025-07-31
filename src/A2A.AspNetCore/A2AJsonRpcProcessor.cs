@@ -184,7 +184,7 @@ public static class A2AJsonRpcProcessor
                 return new JsonRpcStreamedResult(taskEvents, requestId);
             case A2AMethods.MessageStream:
                 var taskSendParams = DeserializeAndValidate<MessageSendParams>(parameters.Value);
-                var sendEvents = taskManager.SendMessageStreamAsync(taskSendParams, cancellationToken);
+                var sendEvents = taskManager.SendMessageStreamingAsync(taskSendParams, cancellationToken);
                 return new JsonRpcStreamedResult(sendEvents, requestId);
             default:
                 activity?.SetStatus(ActivityStatusCode.Error, "Invalid method");

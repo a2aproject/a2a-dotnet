@@ -398,7 +398,7 @@ public class A2AClientTests
     }
 
     [Fact]
-    public async Task SendMessageStreamAsync_MapsRequestParamsCorrectly()
+    public async Task SendMessageStreamingAsync_MapsRequestParamsCorrectly()
     {
         // Arrange
         HttpRequestMessage? capturedRequest = null;
@@ -428,7 +428,7 @@ public class A2AClientTests
         };
 
         // Act
-        await foreach (var _ in sut.SendMessageStreamAsync(sendParams))
+        await foreach (var _ in sut.SendMessageStreamingAsync(sendParams))
         {
             break; // Only need to trigger the request
         }
@@ -459,7 +459,7 @@ public class A2AClientTests
     }
 
     [Fact]
-    public async Task SendMessageStreamAsync_MapsResponseCorrectly()
+    public async Task SendMessageStreamingAsync_MapsResponseCorrectly()
     {
         // Arrange
         var expectedMessage = new Message
@@ -483,7 +483,7 @@ public class A2AClientTests
 
         // Act
         SseItem<A2AEvent>? result = null;
-        await foreach (var item in sut.SendMessageStreamAsync(sendParams))
+        await foreach (var item in sut.SendMessageStreamingAsync(sendParams))
         {
             result = item;
             break;
@@ -579,7 +579,7 @@ public class A2AClientTests
     }
 
     [Fact]
-    public async Task SendMessageStreamAsync_ThrowsOnJsonRpcError()
+    public async Task SendMessageStreamingAsync_ThrowsOnJsonRpcError()
     {
         // Arrange
         var sut = CreateA2AClient(JsonRpcResponse.InvalidParamsResponse("test-id"), isSse: true);
@@ -589,7 +589,7 @@ public class A2AClientTests
         // Act & Assert
         var exception = await Assert.ThrowsAsync<A2AException>(async () =>
         {
-            await foreach (var _ in sut.SendMessageStreamAsync(sendParams))
+            await foreach (var _ in sut.SendMessageStreamingAsync(sendParams))
             {
                 // Should throw before yielding any items
             }

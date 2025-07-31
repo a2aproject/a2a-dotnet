@@ -76,7 +76,7 @@ internal sealed class MessageBasedCommunicationSample
         await SendMessageAsync(agentClient, userMessage);
 
         // 5. Send the message using streaming API
-        await SendMessageStreamAsync(agentClient, userMessage);
+        await SendMessageStreamingAsync(agentClient, userMessage);
     }
 
     /// <summary>
@@ -100,13 +100,13 @@ internal sealed class MessageBasedCommunicationSample
     /// <param name="agentClient">The A2A client for communicating with the agent.</param>
     /// <param name="userMessage">The message to send to the agent.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    private static async Task SendMessageStreamAsync(A2AClient agentClient, Message userMessage)
+    private static async Task SendMessageStreamingAsync(A2AClient agentClient, Message userMessage)
     {
         Console.WriteLine("\nStreaming Message Communication");
         Console.WriteLine($" Sending message via streaming API: {((TextPart)userMessage.Parts[0]).Text}");
 
         // Send the message and get the response as a stream
-        await foreach (SseItem<A2AEvent> sseItem in agentClient.SendMessageStreamAsync(new MessageSendParams { Message = userMessage }))
+        await foreach (SseItem<A2AEvent> sseItem in agentClient.SendMessageStreamingAsync(new MessageSendParams { Message = userMessage }))
         {
             Message agentResponse = (Message)sseItem.Data;
 

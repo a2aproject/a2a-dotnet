@@ -207,7 +207,7 @@ public sealed class TaskManager : ITaskManager
     }
 
     /// <inheritdoc />
-    public async IAsyncEnumerable<A2AEvent> SendMessageStreamAsync(MessageSendParams messageSendParams, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public async IAsyncEnumerable<A2AEvent> SendMessageStreamingAsync(MessageSendParams messageSendParams, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
