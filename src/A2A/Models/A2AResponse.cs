@@ -10,9 +10,7 @@ namespace A2A;
 [JsonDerivedType(typeof(TaskArtifactUpdateEvent), "artifact-update")]
 [JsonDerivedType(typeof(Message), "message")]
 [JsonDerivedType(typeof(AgentTask), "task")]
-public abstract class A2AEvent
-{
-}
+public abstract class A2AEvent;
 
 /// <summary>
 /// A2A response objects.
@@ -20,6 +18,4 @@ public abstract class A2AEvent
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
 [JsonDerivedType(typeof(Message), "message")]
 [JsonDerivedType(typeof(AgentTask), "task")]
-public abstract class A2AResponse : A2AEvent
-{
-}
+public abstract class A2AResponse : A2AEvent;

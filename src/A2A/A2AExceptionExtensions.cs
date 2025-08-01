@@ -31,11 +31,34 @@
         }
 
         /// <summary>
+        /// Associates a request ID with the specified <see cref="A2AException"/>.
+        /// </summary>
+        /// <param name="exception">The <see cref="A2AException"/> to associate the request ID with.</param>
+        /// <param name="requestId">The request ID to associate with the exception.</param>
+        /// <returns>The same <see cref="A2AException"/> instance with the request ID stored in its Data collection.</returns>
+        /// <remarks>
+        /// This method stores the request ID in the exception's Data collection using the key "RequestId".
+        /// The request ID can be later retrieved using the <see cref="GetRequestId"/> method.
+        /// This is useful for correlating exceptions with specific HTTP requests in logging and debugging scenarios.
+        /// </remarks>
+        public static A2AException WithRequestId(this A2AException exception, JsonRpcId requestId)
+        {
+            if (exception is null)
+            {
+                throw new ArgumentNullException(nameof(exception));
+            }
+
+            exception.Data[RequestIdKey] = requestId.ToString();
+
+            return exception;
+        }
+
+        /// <summary>
         /// Retrieves the request ID associated with the specified <see cref="A2AException"/>.
         /// </summary>
         /// <param name="exception">The <see cref="A2AException"/> to retrieve the request ID from.</param>
         /// <returns>
-        /// The request ID associated with the exception if one was previously set using <see cref="WithRequestId"/>,
+        /// The request ID associated with the exception if one was previously set using <see cref="WithRequestId(A2AException, string?)"/>,
         /// or null if no request ID was set or if the stored value is not a string.
         /// </returns>
         /// <remarks>
