@@ -8,6 +8,19 @@ namespace A2A;
 public sealed class AgentProvider
 {
     /// <summary>
+    /// Creates a new instance of the <see cref="AgentProvider"/> class.
+    /// </summary>
+    public AgentProvider()
+    {
+    }
+
+    internal AgentProvider(AgentProvider source)
+    {
+        Organization = source.Organization;
+        Url = source.Url;
+    }
+
+    /// <summary>
     /// Agent provider's organization name.
     /// </summary>
     [JsonPropertyName("organization")]

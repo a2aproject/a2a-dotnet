@@ -140,7 +140,6 @@ public class SemanticKernelTravelAgent : IDisposable
         _taskManager = taskManager;
         taskManager.OnTaskCreated = ExecuteAgentTaskAsync;
         taskManager.OnTaskUpdated = ExecuteAgentTaskAsync;
-        taskManager.OnAgentCardQuery = GetAgentCardAsync;
     }
 
     public async Task ExecuteAgentTaskAsync(AgentTask task, CancellationToken cancellationToken)
@@ -168,43 +167,40 @@ public class SemanticKernelTravelAgent : IDisposable
         await _taskManager.UpdateStatusAsync(task.Id, TaskState.Completed, cancellationToken: cancellationToken);
     }
 
-    public static Task<AgentCard> GetAgentCardAsync(string agentUrl, CancellationToken cancellationToken)
+    public static AgentCard Card
     {
-        if (cancellationToken.IsCancellationRequested)
+        get
         {
-            return Task.FromCanceled<AgentCard>(cancellationToken);
-        }
+            var capabilities = new AgentCapabilities()
+            {
+                Streaming = false,
+                PushNotifications = false,
+            };
 
-        var capabilities = new AgentCapabilities()
-        {
-            Streaming = false,
-            PushNotifications = false,
-        };
-
-        var skillTripPlanning = new AgentSkill()
-        {
-            Id = "trip_planning_sk",
-            Name = "Semantic Kernel Trip Planning",
-            Description = "Handles comprehensive trip planning, including currency exchanges, itinerary creation, sightseeing, dining recommendations, and event bookings using Frankfurter API for currency conversions.",
-            Tags = ["trip", "planning", "travel", "currency", "semantic-kernel"],
-            Examples =
-            [
-                "I am from Korea. Plan a budget-friendly day trip to Dublin including currency exchange.",
+            var skillTripPlanning = new AgentSkill()
+            {
+                Id = "trip_planning_sk",
+                Name = "Semantic Kernel Trip Planning",
+                Description = "Handles comprehensive trip planning, including currency exchanges, itinerary creation, sightseeing, dining recommendations, and event bookings using Frankfurter API for currency conversions.",
+                Tags = ["trip", "planning", "travel", "currency", "semantic-kernel"],
+                Examples =
+                [
+                    "I am from Korea. Plan a budget-friendly day trip to Dublin including currency exchange.",
                 "I am from Korea. What's the exchange rate and recommended itinerary for visiting Galway?",
             ],
-        };
+            };
 
-        return Task.FromResult(new AgentCard()
-        {
-            Name = "SK Travel Agent",
-            Description = "Semantic Kernel-based travel agent providing comprehensive trip planning services including currency exchange and personalized activity planning.",
-            Url = agentUrl,
-            Version = "1.0.0",
-            DefaultInputModes = ["text"],
-            DefaultOutputModes = ["text"],
-            Capabilities = capabilities,
-            Skills = [skillTripPlanning],
-        });
+            return new AgentCard()
+            {
+                Name = "SK Travel Agent",
+                Description = "Semantic Kernel-based travel agent providing comprehensive trip planning services including currency exchange and personalized activity planning.",
+                Version = "1.0.0",
+                DefaultInputModes = ["text"],
+                DefaultOutputModes = ["text"],
+                Capabilities = capabilities,
+                Skills = [skillTripPlanning],
+            };
+        }
     }
 
     #region private

@@ -14,6 +14,35 @@ namespace A2A;
 public sealed class AgentCard
 {
     /// <summary>
+    /// Creates a new instance of the <see cref="AgentCard"/> class.
+    /// </summary>
+    public AgentCard()
+    {
+    }
+
+    // A constructor for cloning purposes.
+    internal AgentCard(AgentCard source)
+    {
+        Name = source.Name;
+        Description = source.Description;
+        Url = source.Url;
+        IconUrl = source.IconUrl;
+        Provider = source.Provider is null ? new AgentProvider() : new AgentProvider(source.Provider);
+        Version = source.Version;
+        ProtocolVersion = source.ProtocolVersion;
+        DocumentationUrl = source.DocumentationUrl;
+        Capabilities = source.Capabilities is null ? new AgentCapabilities() : new AgentCapabilities(source.Capabilities);
+        SecuritySchemes = source.SecuritySchemes is null ? null : new Dictionary<string, SecurityScheme>(source.SecuritySchemes, source.SecuritySchemes.Comparer);
+        Security = source.Security is not null ? new Dictionary<string, string[]>(source.Security) : null;
+        DefaultInputModes = [.. source.DefaultInputModes];
+        DefaultOutputModes = [.. source.DefaultOutputModes];
+        Skills = [.. source.Skills];
+        SupportsAuthenticatedExtendedCard = source.SupportsAuthenticatedExtendedCard;
+        AdditionalInterfaces = [.. source.AdditionalInterfaces];
+        PreferredTransport = source.PreferredTransport.HasValue ? new AgentTransport(source.PreferredTransport.Value) : null;
+    }
+
+    /// <summary>
     /// Gets or sets the human readable name of the agent.
     /// </summary>
     [JsonPropertyName("name")]
