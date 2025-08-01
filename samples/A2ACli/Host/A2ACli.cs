@@ -252,7 +252,7 @@ public static class A2ACli
         Console.WriteLine($"Send task payload => {JsonSerializer.Serialize(payload, jsonOptions)}");
         if (streaming)
         {
-            await foreach (var result in client.SendMessageStreamAsync(payload, cancellationToken))
+            await foreach (var result in client.SendMessageStreamingAsync(payload, cancellationToken))
             {
                 Console.WriteLine($"Stream event => {JsonSerializer.Serialize(result, jsonOptions)}");
             }

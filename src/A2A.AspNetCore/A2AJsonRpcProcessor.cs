@@ -40,7 +40,7 @@ public static class A2AJsonRpcProcessor
         {
             rpcRequest = (JsonRpcRequest?)await JsonSerializer.DeserializeAsync(request.Body, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcRequest)), cancellationToken).ConfigureAwait(false);
 
-            activity?.AddTag("request.id", rpcRequest!.Id);
+            activity?.AddTag("request.id", rpcRequest!.Id.ToString());
             activity?.AddTag("request.method", rpcRequest!.Method);
 
             // Dispatch based on return type
@@ -54,12 +54,14 @@ public static class A2AJsonRpcProcessor
         catch (A2AException ex)
         {
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-            return new JsonRpcResponseResult(JsonRpcResponse.CreateJsonRpcErrorResponse(rpcRequest?.Id ?? ex.GetRequestId(), ex));
+            var errorId = rpcRequest?.Id ?? new JsonRpcId(ex.GetRequestId());
+            return new JsonRpcResponseResult(JsonRpcResponse.CreateJsonRpcErrorResponse(errorId, ex));
         }
         catch (Exception ex)
         {
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-            return new JsonRpcResponseResult(JsonRpcResponse.InternalErrorResponse(rpcRequest?.Id, ex.Message));
+            var errorId = rpcRequest?.Id ?? new JsonRpcId((string?)null);
+            return new JsonRpcResponseResult(JsonRpcResponse.InternalErrorResponse(errorId, ex.Message));
         }
     }
 
@@ -76,10 +78,10 @@ public static class A2AJsonRpcProcessor
     /// <param name="parameters">The JSON parameters for the method call.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>A JSON-RPC response result containing the operation result or error.</returns>
-    internal static async Task<JsonRpcResponseResult> SingleResponseAsync(ITaskManager taskManager, string? requestId, string method, JsonElement? parameters, CancellationToken cancellationToken)
+    internal static async Task<JsonRpcResponseResult> SingleResponseAsync(ITaskManager taskManager, JsonRpcId requestId, string method, JsonElement? parameters, CancellationToken cancellationToken)
     {
         using var activity = ActivitySource.StartActivity($"SingleResponse/{method}", ActivityKind.Server);
-        activity?.SetTag("request.id", requestId);
+        activity?.SetTag("request.id", requestId.ToString());
         activity?.SetTag("request.method", method);
 
         JsonRpcResponse? response = null;
@@ -165,10 +167,10 @@ public static class A2AJsonRpcProcessor
     /// <param name="parameters">The JSON parameters for the streaming method call.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>An HTTP result that streams JSON-RPC responses as Server-Sent Events or an error response.</returns>
-    internal static IResult StreamResponse(ITaskManager taskManager, string? requestId, string method, JsonElement? parameters, CancellationToken cancellationToken)
+    internal static IResult StreamResponse(ITaskManager taskManager, JsonRpcId requestId, string method, JsonElement? parameters, CancellationToken cancellationToken)
     {
         using var activity = ActivitySource.StartActivity("StreamResponse", ActivityKind.Server);
-        activity?.SetTag("request.id", requestId);
+        activity?.SetTag("request.id", requestId.ToString());
 
         if (parameters == null)
         {
@@ -184,7 +186,7 @@ public static class A2AJsonRpcProcessor
                 return new JsonRpcStreamedResult(taskEvents, requestId);
             case A2AMethods.MessageStream:
                 var taskSendParams = DeserializeAndValidate<MessageSendParams>(parameters.Value);
-                var sendEvents = taskManager.SendMessageStreamAsync(taskSendParams, cancellationToken);
+                var sendEvents = taskManager.SendMessageStreamingAsync(taskSendParams, cancellationToken);
                 return new JsonRpcStreamedResult(sendEvents, requestId);
             default:
                 activity?.SetStatus(ActivityStatusCode.Error, "Invalid method");

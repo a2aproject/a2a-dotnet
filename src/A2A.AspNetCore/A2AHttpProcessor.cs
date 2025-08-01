@@ -129,7 +129,7 @@ internal static class A2AHttpProcessor
     internal static IResult SendMessageStream(ITaskManager taskManager, ILogger logger, MessageSendParams sendParams, CancellationToken cancellationToken)
         => WithExceptionHandling(logger, "SendMessageStream", () =>
         {
-            var taskEvents = taskManager.SendMessageStreamAsync(sendParams, cancellationToken);
+            var taskEvents = taskManager.SendMessageStreamingAsync(sendParams, cancellationToken);
 
             return new A2AEventStreamResult(taskEvents);
         }, sendParams.Message.TaskId);

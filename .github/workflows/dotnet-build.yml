@@ -33,6 +33,8 @@ jobs:
         run: dotnet restore
       - name: BuildLibs
         run: dotnet build ./src/A2ALibs.slnx --framework ${{ matrix.framework }}
+      - name: BuildNetStandard
+        run: dotnet build ./src/A2A/A2A.csproj --framework netstandard2.0
       - name: TestLibs
         run: dotnet test ./src/A2ALibs.slnx --no-build --verbosity normal --framework ${{ matrix.framework }}
   buildSamples:

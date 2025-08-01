@@ -40,7 +40,7 @@ public interface IA2AClient
     /// <param name="taskSendParams">The message parameters containing the message and configuration.</param>
     /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
     /// <returns>An async enumerable of server-sent events containing Task, Message, TaskStatusUpdateEvent, or TaskArtifactUpdateEvent.</returns>
-    IAsyncEnumerable<SseItem<A2AEvent>> SendMessageStreamAsync(MessageSendParams taskSendParams, CancellationToken cancellationToken = default);
+    IAsyncEnumerable<SseItem<A2AEvent>> SendMessageStreamingAsync(MessageSendParams taskSendParams, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Subscribes to a task's event stream to receive ongoing updates.

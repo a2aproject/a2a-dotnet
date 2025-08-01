@@ -13,6 +13,11 @@
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <IsPackable>true</IsPackable>
+    <PackageIcon>logo.png</PackageIcon>
   </PropertyGroup>
 
+  <ItemGroup>
+    <None Include="..\..\logo.png" Pack="true" PackagePath="\" />
+  </ItemGroup>
+  
 </Project>

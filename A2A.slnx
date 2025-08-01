@@ -22,9 +22,10 @@
    <Folder Name="/Solution Items/">
      <File Path=".editorconfig" />
      <File Path=".gitignore" />
-    <File Path="Directory.Build.props" />
-    <File Path="Directory.Packages.props" />
-    <File Path="README.md" />
+     <File Path="Directory.Build.props" />
+     <File Path="Directory.Packages.props" />
+     <File Path="README.md" />
+     <File Path="logo.png" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/A2A.AspNetCore.UnitTests/A2A.AspNetCore.UnitTests.csproj" />
