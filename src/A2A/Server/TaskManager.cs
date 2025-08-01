@@ -24,7 +24,7 @@ public sealed class TaskManager : ITaskManager
     private readonly ConcurrentDictionary<string, TaskUpdateEventEnumerator> _taskUpdateEventEnumerators = [];
 
     /// <inheritdoc />
-    public Func<MessageSendParams, CancellationToken, Task<Message>>? OnMessageReceived { get; set; }
+    public Func<MessageSendParams, CancellationToken, Task<A2AResponse>>? OnMessageReceived { get; set; }
 
     /// <inheritdoc />
     public Func<AgentTask, CancellationToken, Task> OnTaskCreated { get; set; } = static (_, _) => Task.CompletedTask;
@@ -151,7 +151,7 @@ public sealed class TaskManager : ITaskManager
 
         AgentTask? task = null;
         // Is this message to be associated to an existing Task
-        if (messageSendParams.Message.TaskId != null)
+        if (!string.IsNullOrWhiteSpace(messageSendParams.Message.TaskId))
         {
             activity?.SetTag("task.id", messageSendParams.Message.TaskId);
             task = await _taskStore.GetTaskAsync(messageSendParams.Message.TaskId, cancellationToken).ConfigureAwait(false);
@@ -220,7 +220,7 @@ public sealed class TaskManager : ITaskManager
         AgentTask? agentTask = null;
 
         // Is this message to be associated to an existing Task
-        if (messageSendParams.Message.TaskId != null)
+        if (!string.IsNullOrWhiteSpace(messageSendParams.Message.TaskId))
         {
             activity?.SetTag("task.id", messageSendParams.Message.TaskId);
             agentTask = await _taskStore.GetTaskAsync(messageSendParams.Message.TaskId, cancellationToken).ConfigureAwait(false);

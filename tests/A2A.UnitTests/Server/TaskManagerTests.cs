@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace A2A.UnitTests.Server;
+﻿namespace A2A.UnitTests.Server;
 
 public class TaskManagerTests
 {
@@ -8,31 +6,12 @@ public class TaskManagerTests
     public async Task SendMessageReturnsAMessage()
     {
         var taskManager = new TaskManager();
-        var taskSendParams = new MessageSendParams
-        {
-            Message = new Message
-            {
-                Parts = [
-                    new TextPart
-                    {
-                        Text = "Hello, World!"
-                    }
-                ]
-            },
-        };
+        var taskSendParams = CreateMessageSendParams("Hello, World!");
         string messageReceived = string.Empty;
         taskManager.OnMessageReceived = (messageSendParams, _) =>
         {
             messageReceived = messageSendParams.Message.Parts.OfType<TextPart>().First().Text;
-            return Task.FromResult(new Message
-            {
-                Parts = [
-                    new TextPart
-                    {
-                        Text = "Goodbye, World!"
-                    }
-                ]
-            });
+            return Task.FromResult<A2AResponse>(CreateMessage("Goodbye, World!"));
         };
         var a2aResponse = await taskManager.SendMessageAsync(taskSendParams) as Message;
         Assert.NotNull(a2aResponse);
@@ -40,22 +19,44 @@ public class TaskManagerTests
         Assert.Equal("Hello, World!", messageReceived);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task OnMessageReceivedCanReturnTaskOrMessage(bool stream)
+    {
+        TaskManager taskManager = new();
+        var firstMessage = CreateMessageSendParams("I need something fancy.");
+        var secondMessage = CreateMessageSendParams("I accept the terms.");
+        string messageReceived = string.Empty;
+        taskManager.OnMessageReceived = async (messageSendParams, cancellationToken) =>
+        {
+            messageReceived = messageSendParams.Message.Parts.OfType<TextPart>().First().Text;
+
+            return messageReceived switch
+            {
+                "I need something fancy." => CreateMessage("OK, but it's going to be very expensive."),
+                "I accept the terms." => await taskManager.CreateTaskAsync(cancellationToken: cancellationToken),
+                _ => throw new InvalidOperationException()
+            };
+        };
+
+        if (stream)
+        {
+            Assert.IsType<Message>(await taskManager.SendMessageStreamingAsync(firstMessage).SingleAsync());
+            Assert.IsType<AgentTask>(await taskManager.SendMessageStreamingAsync(secondMessage).SingleAsync());
+        }
+        else
+        {
+            Assert.IsType<Message>(await taskManager.SendMessageAsync(firstMessage));
+            Assert.IsType<AgentTask>(await taskManager.SendMessageAsync(secondMessage));
+        }
+    }
+
     [Fact]
     public async Task CreateAndRetrieveTask()
     {
         var taskManager = new TaskManager();
-        var messageSendParams = new MessageSendParams
-        {
-            Message = new Message
-            {
-                Parts = [
-                    new TextPart
-                    {
-                        Text = "Hello, World!"
-                    }
-                ]
-            },
-        };
+        var messageSendParams = CreateMessageSendParams("Hello, World!");
         var task = await taskManager.SendMessageAsync(messageSendParams) as AgentTask;
         Assert.NotNull(task);
 
@@ -71,18 +72,7 @@ public class TaskManagerTests
     public async Task CancelTask()
     {
         var taskManager = new TaskManager();
-        var taskSendParams = new MessageSendParams
-        {
-            Message = new Message
-            {
-                Parts = [
-                    new TextPart
-                    {
-                        Text = "Hello, World!"
-                    }
-                ]
-            },
-        };
+        var taskSendParams = CreateMessageSendParams("Hello, World!");
         var task = await taskManager.SendMessageAsync(taskSendParams) as AgentTask;
         Assert.NotNull(task);
         Assert.Equal(TaskState.Submitted, task.Status.State);
@@ -97,18 +87,7 @@ public class TaskManagerTests
     public async Task CancelTask_MoreThanOnce_Fails()
     {
         var taskManager = new TaskManager();
-        var taskSendParams = new MessageSendParams
-        {
-            Message = new Message
-            {
-                Parts = [
-                    new TextPart
-                    {
-                        Text = "Hello, World!"
-                    }
-                ]
-            },
-        };
+        var taskSendParams = CreateMessageSendParams("Hello, World!");
         var task = await taskManager.SendMessageAsync(taskSendParams) as AgentTask;
         Assert.NotNull(task);
         Assert.Equal(TaskState.Submitted, task.Status.State);
@@ -136,18 +115,7 @@ public class TaskManagerTests
             }
         };
 
-        var taskSendParams = new MessageSendParams
-        {
-            Message = new Message
-            {
-                Parts = [
-                    new TextPart
-                    {
-                        Text = "Hello, World!"
-                    }
-                ]
-            },
-        };
+        var taskSendParams = CreateMessageSendParams("Hello, World!");
         var task = await taskManager.SendMessageAsync(taskSendParams) as AgentTask;
         Assert.NotNull(task);
         Assert.Equal(TaskState.Submitted, task.Status.State);
@@ -178,32 +146,12 @@ public class TaskManagerTests
     {
         var taskManager = new TaskManager();
 
-        var taskSendParams = new MessageSendParams
-        {
-            Message = new Message
-            {
-                Parts = [
-                    new TextPart
-                    {
-                        Text = "Hello, World!"
-                    }
-                ]
-            },
-        };
+        var taskSendParams = CreateMessageSendParams("Hello, World!");
         var task = await taskManager.SendMessageAsync(taskSendParams) as AgentTask;
         Assert.NotNull(task);
         Assert.Equal(TaskState.Submitted, task.Status.State);
 
-        await taskManager.UpdateStatusAsync(task.Id, TaskState.Completed, new Message
-        {
-            Parts = [
-                    new TextPart
-                    {
-                        Text = "Task completed!"
-                    }
-                ]
-        }
-        );
+        await taskManager.UpdateStatusAsync(task.Id, TaskState.Completed, CreateMessage("Task completed!"));
         var completedTask = await taskManager.GetTaskAsync(new TaskQueryParams { Id = task.Id });
         Assert.NotNull(completedTask);
         Assert.Equal(task.Id, completedTask.Id);
@@ -215,18 +163,7 @@ public class TaskManagerTests
     {
         var taskManager = new TaskManager();
 
-        var taskSendParams = new MessageSendParams
-        {
-            Message = new Message
-            {
-                Parts = [
-                    new TextPart
-                    {
-                        Text = "Write me a poem"
-                    }
-                ]
-            },
-        };
+        var taskSendParams = CreateMessageSendParams("Write me a poem");
         var task = await taskManager.SendMessageAsync(taskSendParams) as AgentTask;
         Assert.NotNull(task);
         Assert.Equal(TaskState.Submitted, task.Status.State);
@@ -262,18 +199,7 @@ public class TaskManagerTests
             await taskManager.UpdateStatusAsync(task.Id, TaskState.Working, final: true, cancellationToken: ct);
         };
 
-        var taskSendParams = new MessageSendParams
-        {
-            Message = new Message
-            {
-                Parts = [
-                    new TextPart
-                    {
-                        Text = "Hello, World!"
-                    }
-                ]
-            },
-        };
+        var taskSendParams = CreateMessageSendParams("Hello, World!");
         var taskEvents = taskManager.SendMessageStreamingAsync(taskSendParams);
         var taskCount = 0;
         await foreach (var taskEvent in taskEvents)
@@ -292,18 +218,7 @@ public class TaskManagerTests
             await taskManager.UpdateStatusAsync(task.Id, TaskState.Working, final: true, cancellationToken: ct);
         };
 
-        var taskSendParams = new MessageSendParams
-        {
-            Message = new Message
-            {
-                Parts = [
-                    new TextPart
-                    {
-                        Text = "Hello, World!"
-                    }
-                ]
-            },
-        };
+        var taskSendParams = CreateMessageSendParams("Hello, World!");
         var taskEvents = taskManager.SendMessageStreamingAsync(taskSendParams);
 
         var isFirstEvent = true;
@@ -896,4 +811,16 @@ public class TaskManagerTests
         Assert.NotNull(task.Id);
         Assert.NotEmpty(task.Id);
     }
+
+    private static MessageSendParams CreateMessageSendParams(string text)
+        => new MessageSendParams
+        {
+            Message = CreateMessage(text)
+        };
+
+    private static Message CreateMessage(string text)
+        => new Message
+        {
+            Parts = [new TextPart { Text = text }]
+        };
 }

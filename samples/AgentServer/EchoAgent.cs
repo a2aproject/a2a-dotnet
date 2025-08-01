@@ -10,11 +10,11 @@ public class EchoAgent
         taskManager.OnAgentCardQuery = GetAgentCardAsync;
     }
 
-    private Task<Message> ProcessMessageAsync(MessageSendParams messageSendParams, CancellationToken cancellationToken)
+    private Task<A2AResponse> ProcessMessageAsync(MessageSendParams messageSendParams, CancellationToken cancellationToken)
     {
         if (cancellationToken.IsCancellationRequested)
         {
-            return Task.FromCanceled<Message>(cancellationToken);
+            return Task.FromCanceled<A2AResponse>(cancellationToken);
         }
 
         // Process the message
@@ -31,7 +31,7 @@ public class EchoAgent
             }]
         };
 
-        return Task.FromResult(message);
+        return Task.FromResult<A2AResponse>(message);
     }
 
     private Task<AgentCard> GetAgentCardAsync(string agentUrl, CancellationToken cancellationToken)

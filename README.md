@@ -188,6 +188,15 @@ Command-line tool for interacting with A2A agents:
 
 For detailed instructions and advanced scenarios, see the individual README files linked above.
 
+## Further Reading
+
+To learn more about the A2A protocol, explore these additional resources:
+
+- **[A2A Protocol Documentation](https://a2a-protocol.org/latest/)** - The official documentation for the A2A protocol.
+- **[A2A Protocol Specification](https://a2a-protocol.org/latest/specification/)** - The detailed technical specification of the protocol.
+- **[A2A Topics](https://a2a-protocol.org/latest/topics/what-is-a2a/)** - An overview of key concepts and features of the A2A protocol.
+- **[A2A Roadmap](https://a2a-protocol.org/latest/roadmap/)** - A look at the future development plans and upcoming features.
+
 ## Acknowledgements
 
 This library builds upon [Darrel Miller's](https://github.com/darrelmiller) [sharpa2a](https://github.com/darrelmiller/sharpa2a) project. Thanks to Darrel and all the other contributors for the foundational work that helped shape this SDK.

@@ -1,5 +1,3 @@
-using System.Runtime.CompilerServices;
-
 namespace A2A;
 
 /// <summary>
@@ -14,9 +12,13 @@ public interface ITaskManager
     /// Gets or sets the handler for when a message is received.
     /// </summary>
     /// <remarks>
-    /// Used when the task is configured to process simple messages without tasks.
+    /// <para>The handler needs to return a <see cref="Message"/> or an <see cref="AgentTask"/>.</para>
+    /// <para>
+    /// For more details about choosing Message or a Task refer to:
+    /// <see href="https://github.com/a2aproject/A2A/blob/main/docs/topics/life-of-a-task.md#agent-message-or-a-task"/>.
+    /// </para>
     /// </remarks>
-    Func<MessageSendParams, CancellationToken, Task<Message>>? OnMessageReceived { get; set; }
+    Func<MessageSendParams, CancellationToken, Task<A2AResponse>>? OnMessageReceived { get; set; }
 
     /// <summary>
     /// Gets or sets the handler for when a task is created.
