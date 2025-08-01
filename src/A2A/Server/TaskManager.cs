@@ -154,7 +154,7 @@ public sealed class TaskManager : ITaskManager
         if (!string.IsNullOrWhiteSpace(messageSendParams.Message.TaskId))
         {
             activity?.SetTag("task.id", messageSendParams.Message.TaskId);
-            task = await _taskStore.GetTaskAsync(messageSendParams.Message.TaskId, cancellationToken).ConfigureAwait(false);
+            task = await _taskStore.GetTaskAsync(messageSendParams.Message.TaskId!, cancellationToken).ConfigureAwait(false);
             if (task == null)
             {
                 activity?.SetTag("task.found", false);
@@ -223,7 +223,7 @@ public sealed class TaskManager : ITaskManager
         if (!string.IsNullOrWhiteSpace(messageSendParams.Message.TaskId))
         {
             activity?.SetTag("task.id", messageSendParams.Message.TaskId);
-            agentTask = await _taskStore.GetTaskAsync(messageSendParams.Message.TaskId, cancellationToken).ConfigureAwait(false);
+            agentTask = await _taskStore.GetTaskAsync(messageSendParams.Message.TaskId!, cancellationToken).ConfigureAwait(false);
             if (agentTask == null)
             {
                 activity?.SetTag("task.found", false);
