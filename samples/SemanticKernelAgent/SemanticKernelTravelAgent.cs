@@ -228,27 +228,28 @@ public class SemanticKernelTravelAgent : IDisposable
             {
                 case "AZUREOPENAI":
                     var azureConfig = _configuration.GetSection("AzureOpenAI");
+                    if (!azureConfig.Exists())
+                    {
+                        throw new ArgumentException("AzureOpenAI configuration section must be provided when Provider is set to 'AzureOpenAI'");
+                    }
                     string endpoint = azureConfig["Endpoint"] ?? throw new ArgumentException("AzureOpenAI Endpoint must be provided");
                     string azureApiKey = azureConfig["ApiKey"] ?? throw new ArgumentException("AzureOpenAI ApiKey must be provided");
                     string deploymentName = azureConfig["DeploymentName"] ?? throw new ArgumentException("AzureOpenAI DeploymentName must be provided");
                     string? apiVersion = azureConfig["ApiVersion"];
 
                     _logger.LogInformation("Initializing Semantic Kernel agent with Azure OpenAI deployment {DeploymentName}", deploymentName);
-                    if (!string.IsNullOrEmpty(apiVersion))
-                    {
-                        builder.AddAzureOpenAIChatCompletion(deploymentName, endpoint, azureApiKey, apiVersion: apiVersion);
-                    }
-                    else
-                    {
-                        builder.AddAzureOpenAIChatCompletion(deploymentName, endpoint, azureApiKey);
-                    }
+                    builder.AddAzureOpenAIChatCompletion(deploymentName, endpoint, azureApiKey, apiVersion: apiVersion);
                     break;
 
                 case "OPENAI":
                 default:
                     var openAiConfig = _configuration.GetSection("OpenAI");
+                    if (!openAiConfig.Exists())
+                    {
+                        throw new ArgumentException("OpenAI configuration section must be provided when Provider is set to 'OpenAI' or not specified");
+                    }
                     string apiKey = openAiConfig["ApiKey"] ?? throw new ArgumentException("OpenAI ApiKey must be provided");
-                    string modelId = openAiConfig["Model"] ?? "gpt-4";
+                    string modelId = openAiConfig["Model"] ?? "gpt-4.1";
 
                     _logger.LogInformation("Initializing Semantic Kernel agent with OpenAI model {ModelId}", modelId);
                     builder.AddOpenAIChatCompletion(modelId, apiKey);
