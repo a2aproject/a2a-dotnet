@@ -55,7 +55,7 @@ public static class A2ARouteBuilderExtensions
         ArgumentNullException.ThrowIfNull(taskManager);
         ArgumentException.ThrowIfNullOrEmpty(agentPath);
 
-        var routeGroup = endpoints.MapGroup("");
+        var routeGroup = endpoints.MapGroup(agentPath);
 
         routeGroup.MapGet(".well-known/agent.json", async (HttpRequest request, CancellationToken cancellationToken) =>
         {
