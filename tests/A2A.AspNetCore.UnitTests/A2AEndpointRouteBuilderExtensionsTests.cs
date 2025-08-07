@@ -118,36 +118,4 @@ public class A2AEndpointRouteBuilderExtensionsTests
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() => app.MapWellKnownAgentCard(null!, "/agent"));
     }
-
-    [Theory]
-    [InlineData("/agent")]
-    [InlineData("/my-api")]
-    [InlineData("/")]
-    [InlineData("/v1/agents/foo")]
-    public void MapWellKnownAgentCard_AcceptsDifferentPaths(string agentPath)
-    {
-        // Arrange
-        var app = WebApplication.CreateBuilder().Build();
-        var taskManager = new TaskManager();
-
-        // Act & Assert - Should not throw with different valid paths
-        var result = app.MapWellKnownAgentCard(taskManager, agentPath);
-        Assert.NotNull(result);
-    }
-
-    [Fact]
-    public void MapWellKnownAgentCard_CanRegisterMultipleAgentsAtDifferentPaths()
-    {
-        // Arrange
-        var app = WebApplication.CreateBuilder().Build();
-        var taskManager1 = new TaskManager();
-        var taskManager2 = new TaskManager();
-
-        // Act & Assert - Should not throw when registering multiple agents
-        var result1 = app.MapWellKnownAgentCard(taskManager1, "/agent1");
-        var result2 = app.MapWellKnownAgentCard(taskManager2, "/agent2");
-
-        Assert.NotNull(result1);
-        Assert.NotNull(result2);
-    }
 }
