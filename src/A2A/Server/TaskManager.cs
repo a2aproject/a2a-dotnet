@@ -250,7 +250,7 @@ public sealed class TaskManager : ITaskManager
             else
             {
                 // If no task is found and no OnMessageReceived handler is set, create a new task
-                agentTask = await CreateTaskAsync(messageSendParams.Message.ContextId, cancellationToken: cancellationToken).ConfigureAwait(false);
+                agentTask = await CreateTaskAsync(messageSendParams.Message.ContextId, messageSendParams.Message.TaskId, cancellationToken: cancellationToken).ConfigureAwait(false);
                 agentTask.History ??= [];
                 agentTask.History.Add(messageSendParams.Message);
                 enumerator = new TaskUpdateEventEnumerator();
