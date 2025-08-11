@@ -1,0 +1,65 @@
+name: Spec Compliance TCK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  spec-compliance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build
+        uses: ./.github/workflows/dotnet-build.yml
+
+      - name: Checkout A2A TCK repository
+        uses: actions/checkout@v4
+        with:
+          repository: a2aproject/a2a-tck
+          path: a2a-tck
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install A2A TCK dependencies
+        working-directory: a2a-tck
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Launch Spec Compliance Agent
+        run: |
+          dotnet run --project ./samples/AgentServer/AgentServer.csproj \
+            --launch-profile speccompliance-agent > server.log 2>&1 &
+          echo $! > agent.pid
+
+      - name: Wait for Spec Compliance Agent readiness
+        run: |
+          set -e
+          for i in {1..40}; do
+            if curl -fsS http://localhost:5048/speccompliance/v1/card > /dev/null 2>&1; then
+              echo "Agent is ready"; exit 0; fi
+            sleep 2
+          done
+          echo "Agent failed to become ready in time" >&2
+          exit 1
+
+      - name: Run A2A TCK
+        working-directory: a2a-tck
+        run: |
+          python run_tck.py \
+            --sut-url http://localhost:5048/speccompliance \
+            --category all \
+            --verbose \
+            --compliance-report a2a-dotnet-report.json
+
+      - name: Stop Spec Compliance Agent
+        if: always()
+        run: |
+          if [ -f agent.pid ]; then kill $(cat agent.pid) || true; fi
+
+      - name: Upload compliance artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: spec-compliance-report
+          path: a2a-tck/reports/*
