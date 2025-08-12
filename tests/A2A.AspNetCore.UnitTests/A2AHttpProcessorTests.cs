@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -11,23 +10,6 @@ namespace A2A.AspNetCore.Tests;
 
 public class A2AHttpProcessorTests
 {
-    [Fact]
-    public async Task GetAgentCard_ShouldReturnValidJsonResult()
-    {
-        // Arrange
-        var taskManager = new TaskManager();
-        var logger = NullLogger.Instance;
-
-        // Act
-        var result = await A2AHttpProcessor.GetAgentCardAsync(taskManager, logger, "http://example.com", CancellationToken.None);
-        (int statusCode, string? contentType, AgentCard agentCard) = await GetAgentCardResponse(result);
-
-        // Assert
-        Assert.Equal(StatusCodes.Status200OK, statusCode);
-        Assert.Equal("application/json; charset=utf-8", contentType);
-        Assert.Equal("Unknown", agentCard.Name);
-    }
-
     [Fact]
     public async Task GetTask_ShouldReturnNotNull()
     {

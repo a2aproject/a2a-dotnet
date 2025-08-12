@@ -46,22 +46,51 @@ public static class A2ARouteBuilderExtensions
     /// Enables the well-known agent card endpoint for agent discovery.
     /// </summary>
     /// <param name="endpoints">The endpoint route builder to configure.</param>
-    /// <param name="taskManager">The task manager for handling A2A operations.</param>
+    /// <param name="agentCard">The <see cref="AgentCard"/> to be configured.</param>
     /// <param name="agentPath">The base path where the A2A agent is hosted.</param>
     /// <returns>An endpoint convention builder for further configuration.</returns>
-    public static IEndpointConventionBuilder MapWellKnownAgentCard(this IEndpointRouteBuilder endpoints, ITaskManager taskManager, [StringSyntax("Route")] string agentPath)
+    public static IEndpointConventionBuilder MapWellKnownAgentCard(this IEndpointRouteBuilder endpoints, AgentCard agentCard, [StringSyntax("Route")] string agentPath)
+    {
+        ArgumentNullException.ThrowIfNull(agentCard);
+
+        return MapWellKnownAgentCard(endpoints, new AgentCardProvider(agentCard), agentPath);
+    }
+
+    /// <summary>
+    /// Enables the well-known agent card endpoint for agent discovery.
+    /// </summary>
+    /// <param name="endpoints">The endpoint route builder to configure.</param>
+    /// <param name="agentCardProvider">The <see cref="AgentCard"/> provider.</param>
+    /// <param name="agentPath">The base path where the A2A agent is hosted.</param>
+    /// <returns>An endpoint convention builder for further configuration.</returns>
+    public static IEndpointConventionBuilder MapWellKnownAgentCard(this IEndpointRouteBuilder endpoints, AgentCardProvider agentCardProvider, [StringSyntax("Route")] string agentPath)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
-        ArgumentNullException.ThrowIfNull(taskManager);
+        ArgumentNullException.ThrowIfNull(agentCardProvider);
         ArgumentException.ThrowIfNullOrEmpty(agentPath);
 
         var routeGroup = endpoints.MapGroup("");
 
+        var loggerFactory = endpoints.ServiceProvider.GetRequiredService<ILoggerFactory>();
+        var logger = loggerFactory.CreateLogger<IEndpointRouteBuilder>();
+
         routeGroup.MapGet(".well-known/agent.json", async (HttpRequest request, CancellationToken cancellationToken) =>
         {
-            var agentUrl = $"{request.Scheme}://{request.Host}{agentPath}";
-            var agentCard = await taskManager.OnAgentCardQuery(agentUrl, cancellationToken);
-            return Results.Ok(agentCard);
+            using var activity = ActivitySource.StartActivity("GetAgentCard", ActivityKind.Server);
+
+            UriBuilder uriBuilder = new(request.Scheme, request.Host.Host, request.Host.Port ?? -1, agentPath);
+
+            try
+            {
+                return Results.Ok(await agentCardProvider.GetAgentCardAsync(uriBuilder.ToString(), cancellationToken));
+            }
+            catch (Exception ex)
+            {
+#pragma warning disable CA1848, EA0000 // There are no args to format here so there are no gains from using source generators.
+                logger.LogError(ex, "Unexpected error when fetching AgentCard");
+#pragma warning restore CA1848, EA0000
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
         });
 
         return routeGroup;
@@ -84,10 +113,6 @@ public static class A2ARouteBuilderExtensions
         var logger = loggerFactory.CreateLogger<IEndpointRouteBuilder>();
 
         var routeGroup = endpoints.MapGroup(path);
-
-        // /v1/card endpoint - Agent discovery
-        routeGroup.MapGet("/v1/card", async (HttpRequest request, CancellationToken cancellationToken) =>
-            await A2AHttpProcessor.GetAgentCardAsync(taskManager, logger, $"{request.Scheme}://{request.Host}{path}", cancellationToken).ConfigureAwait(false));
 
         // /v1/tasks/{id} endpoint
         routeGroup.MapGet("/v1/tasks/{id}", (string id, [FromQuery] int? historyLength, [FromQuery] string? metadata, CancellationToken cancellationToken) =>
