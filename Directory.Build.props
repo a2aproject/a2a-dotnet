@@ -10,4 +10,8 @@
     <IsPackable>false</IsPackable>
 	</PropertyGroup>
 
+  <PropertyGroup>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>$(MSBuildThisFileDirectory)\Open.snk</AssemblyOriginatorKeyFile>
+  </PropertyGroup>
 </Project>
