@@ -30,9 +30,11 @@ public class AgentCardTests
               "in": "header"
             }
           },
-          "security": {
-            "apiKey": []
-          },
+          "security": [
+            {
+              "apiKey": []
+            }
+          ],
           "defaultInputModes": ["text", "image"],
           "defaultOutputModes": ["text", "json"],
           "skills": [
@@ -93,6 +95,10 @@ public class AgentCardTests
         Assert.False(string.IsNullOrWhiteSpace(apisec.KeyLocation));
         Assert.NotNull(deserializedCard.Security);
         Assert.Single(deserializedCard.Security);
+        Assert.NotNull(deserializedCard.Security[0]);
+        Assert.Single(deserializedCard.Security[0]);
+        Assert.True(deserializedCard.Security[0].ContainsKey("apiKey"));
+        Assert.Empty(deserializedCard.Security[0]["apiKey"]);
 
         // Input/Output modes
         Assert.Equal(new List<string> { "text", "image" }, deserializedCard.DefaultInputModes);
@@ -146,9 +152,12 @@ public class AgentCardTests
             {
                 ["apiKey"] = new ApiKeySecurityScheme("X-API-Key", "header")
             },
-            Security = new Dictionary<string, string[]>
+            Security = new List<Dictionary<string, string[]>>
             {
-                ["apiKey"] = []
+                new()
+                {
+                    ["apiKey"] = []
+                }
             },
             DefaultInputModes = ["text", "image"],
             DefaultOutputModes = ["text", "json"],
