@@ -93,12 +93,15 @@ public class AgentCardTests
         var apisec = Assert.IsType<ApiKeySecurityScheme>(deserializedCard.SecuritySchemes["apiKey"]);
         Assert.False(string.IsNullOrWhiteSpace(apisec.Name));
         Assert.False(string.IsNullOrWhiteSpace(apisec.KeyLocation));
+
         Assert.NotNull(deserializedCard.Security);
         Assert.Single(deserializedCard.Security);
-        Assert.NotNull(deserializedCard.Security[0]);
-        Assert.Single(deserializedCard.Security[0]);
-        Assert.True(deserializedCard.Security[0].ContainsKey("apiKey"));
-        Assert.Empty(deserializedCard.Security[0]["apiKey"]);
+
+        var securityRequirement = deserializedCard.Security[0];
+        Assert.NotNull(securityRequirement);
+        Assert.Single(securityRequirement);
+        Assert.True(securityRequirement.ContainsKey("apiKey"));
+        Assert.Empty(securityRequirement["apiKey"]);
 
         // Input/Output modes
         Assert.Equal(new List<string> { "text", "image" }, deserializedCard.DefaultInputModes);
