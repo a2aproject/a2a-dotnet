@@ -31,6 +31,11 @@ public readonly struct AgentTransport : IEquatable<AgentTransport>
         this.Label = label;
     }
 
+    internal AgentTransport(AgentTransport source)
+    {
+        Label = source.Label;
+    }
+
     /// <summary>
     /// Determines whether two <see cref="AgentTransport"/> instances are equal.
     /// </summary>
