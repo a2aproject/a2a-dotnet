@@ -54,6 +54,10 @@ public sealed class MessageRoleConverter : JsonConverter<MessageRole>
 /// </summary>
 public sealed class Message : A2AResponse
 {
+    /// <inheritdoc />
+    [JsonPropertyName("kind")]
+    public override string Kind => "message";
+
     /// <summary>
     /// Message sender's role.
     /// </summary>

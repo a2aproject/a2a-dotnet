@@ -46,11 +46,14 @@ public static partial class A2AJsonUtilities
     [JsonSerializable(typeof(AgentCard))]
     [JsonSerializable(typeof(AgentTask))]
     [JsonSerializable(typeof(GetTaskPushNotificationConfigParams))]
+    [JsonSerializable(typeof(Message))]
     [JsonSerializable(typeof(MessageSendParams))]
     [JsonSerializable(typeof(TaskIdParams))]
     [JsonSerializable(typeof(TaskPushNotificationConfig))]
     [JsonSerializable(typeof(List<TaskPushNotificationConfig>))]
+    [JsonSerializable(typeof(TaskArtifactUpdateEvent))]
     [JsonSerializable(typeof(TaskQueryParams))]
+    [JsonSerializable(typeof(TaskStatusUpdateEvent))]
 
     [ExcludeFromCodeCoverage]
     internal sealed partial class JsonContext : JsonSerializerContext;
