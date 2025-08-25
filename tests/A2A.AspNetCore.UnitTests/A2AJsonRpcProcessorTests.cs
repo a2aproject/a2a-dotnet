@@ -23,6 +23,7 @@ public class A2AJsonRpcProcessorTests
             "id": {{idValue}},
             "params": {
                 "message": {
+                    "kind" : "message",
                     "messageId": "test-message-id",
                     "role": "user",
                     "parts": [{ "kind":"text","text":"hi" }]
@@ -67,6 +68,7 @@ public class A2AJsonRpcProcessorTests
             "id": "some",
             "params": {
                 "message": {
+                    "kind": "message",
                     "messageId": "test-message-id",
                     "role": "user",
                     "parts": []
@@ -108,6 +110,7 @@ public class A2AJsonRpcProcessorTests
             "id": "test-id",
             "params": {
                 "message": {
+                    "kind" : "message",
                     "messageId": "test-message-id",
                     "role": "user",
                     "parts": [{ "kind":"text","text":"hi" }]
@@ -142,7 +145,7 @@ public class A2AJsonRpcProcessorTests
     }
 
     [Theory]
-    [InlineData("{\"message\":{\"messageId\":\"test\", \"role\": \"user\", \"parts\": [{\"kind\":\"text\",\"text\":\"hi\"}]}}", null)]  // Valid object params - should succeed
+    [InlineData("{\"message\":{\"kind\":\"message\", \"messageId\":\"test\", \"role\": \"user\", \"parts\": [{\"kind\":\"text\",\"text\":\"hi\"}]}}", null)]  // Valid object params - should succeed
     [InlineData("[]", -32602)]                                                                      // Array params - should return invalid params error
     [InlineData("\"string-params\"", -32602)]                                                       // String params - should return invalid params error
     [InlineData("42", -32602)]                                                                      // Number params - should return invalid params error
