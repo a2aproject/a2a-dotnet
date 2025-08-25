@@ -387,7 +387,7 @@ public class A2AResponseTests
         """;
 
         // Act / Assert
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<A2AEvent>(json, A2AJsonUtilities.DefaultOptions));
+        Assert.Throws<NotSupportedException>(() => JsonSerializer.Deserialize<A2AEvent>(json, A2AJsonUtilities.DefaultOptions));
     }
 
     [Fact]
@@ -403,7 +403,7 @@ public class A2AResponseTests
         """;
 
         // Act / Assert
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<A2AResponse>(json, A2AJsonUtilities.DefaultOptions));
+        Assert.Throws<NotSupportedException>(() => JsonSerializer.Deserialize<A2AResponse>(json, A2AJsonUtilities.DefaultOptions));
     }
 
     [Fact]
@@ -412,8 +412,8 @@ public class A2AResponseTests
         // Arrange
         const string json = """
         {
-            "role": "user",
             "kind": "message",
+            "role": "user",
             "parts": [ { "kind": "text", "text": "hi" } ],
             "messageId": "m-7"
         }
@@ -439,8 +439,8 @@ public class A2AResponseTests
         // Arrange
         const string json = """
         {
-            "role": "user",
             "kind": "message",
+            "role": "user",
             "parts": [ { "kind": "text", "text": "hi" } ],
             "messageId": "m-7"
         }

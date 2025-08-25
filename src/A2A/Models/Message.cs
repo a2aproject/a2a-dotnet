@@ -52,11 +52,9 @@ public sealed class MessageRoleConverter : JsonConverter<MessageRole>
 /// <summary>
 /// Represents a single message exchanged between user and agent.
 /// </summary>
-public sealed class Message : A2AResponse
+public sealed class Message() : A2AResponse(KindValue)
 {
-    /// <inheritdoc />
-    [JsonPropertyName("kind")]
-    public override string Kind => "message";
+    internal const string KindValue = "message";
 
     /// <summary>
     /// Message sender's role.

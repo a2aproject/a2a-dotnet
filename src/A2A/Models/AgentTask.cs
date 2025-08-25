@@ -6,11 +6,9 @@ namespace A2A;
 /// <summary>
 /// Represents a task that can be processed by an agent.
 /// </summary>
-public sealed class AgentTask : A2AResponse
+public sealed class AgentTask() : A2AResponse(KindValue)
 {
-    /// <inheritdoc />
-    [JsonPropertyName("kind")]
-    public override string Kind => "task";
+    internal const string KindValue = "task";
 
     /// <summary>
     /// Unique identifier for the task.

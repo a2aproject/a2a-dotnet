@@ -5,11 +5,9 @@ namespace A2A;
 /// <summary>
 /// Event sent by server during sendStream or subscribe requests.
 /// </summary>
-public sealed class TaskStatusUpdateEvent : TaskUpdateEvent
+public sealed class TaskStatusUpdateEvent() : TaskUpdateEvent(KindValue)
 {
-    /// <inheritdoc />
-    [JsonPropertyName("kind")]
-    public override string Kind => "status-update";
+    internal const string KindValue = "status-update";
 
     /// <summary>
     /// Gets or sets the current status of the task.

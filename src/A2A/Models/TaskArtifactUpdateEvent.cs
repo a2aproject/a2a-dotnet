@@ -5,11 +5,9 @@ namespace A2A;
 /// <summary>
 /// Sent by server during sendStream or subscribe requests.
 /// </summary>
-public sealed class TaskArtifactUpdateEvent : TaskUpdateEvent
+public sealed class TaskArtifactUpdateEvent() : TaskUpdateEvent(KindValue)
 {
-    /// <inheritdoc />
-    [JsonPropertyName("kind")]
-    public override string Kind => "artifact-update";
+    internal const string KindValue = "artifact-update";
 
     /// <summary>
     /// Generated artifact.
