@@ -54,8 +54,6 @@ public sealed class MessageRoleConverter : JsonConverter<MessageRole>
 /// </summary>
 public sealed class Message : A2AResponse
 {
-    internal const string KindValue = "message";
-
     /// <summary>
     /// Message sender's role.
     /// </summary>

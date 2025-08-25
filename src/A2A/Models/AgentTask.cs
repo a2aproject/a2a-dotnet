@@ -8,8 +8,6 @@ namespace A2A;
 /// </summary>
 public sealed class AgentTask : A2AResponse
 {
-    internal const string KindValue = "task";
-
     /// <summary>
     /// Unique identifier for the task.
     /// </summary>

@@ -7,8 +7,6 @@ namespace A2A;
 /// </summary>
 public sealed class TaskArtifactUpdateEvent : TaskUpdateEvent
 {
-    internal const string KindValue = "artifact-update";
-
     /// <summary>
     /// Generated artifact.
     /// </summary>
