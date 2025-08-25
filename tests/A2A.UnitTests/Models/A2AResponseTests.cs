@@ -448,8 +448,8 @@ public class A2AResponseTests
         var expectedParts = new[] { new TextPart() { Text = "hi" } };
 
         // Act
-        var a2aEvent = JsonSerializer.Deserialize<A2AResponse>(json, A2AJsonUtilities.DefaultOptions);
-        var message = Assert.IsType<Message>(a2aEvent);
+        var a2aResponse = JsonSerializer.Deserialize<A2AResponse>(json, A2AJsonUtilities.DefaultOptions);
+        var message = Assert.IsType<Message>(a2aResponse);
 
         // Assert
         Assert.Equal("message", message.Kind);
