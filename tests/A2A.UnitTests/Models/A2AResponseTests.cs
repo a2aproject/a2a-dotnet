@@ -488,6 +488,53 @@ public class A2AResponseTests
     }
 
     [Fact]
+    public void A2AEvent_RoundTrip_MessageSendParams_Succeeds()
+    {
+        // Arrange
+        var msp = new MessageSendParams
+        {
+            Message = new Message
+            {
+                Role = MessageRole.User,
+                MessageId = "m-8",
+                Parts = [new TextPart { Text = "hello" }]
+            }
+        };
+
+        var serialized = JsonSerializer.Serialize(msp, A2AJsonUtilities.DefaultOptions);
+
+        var deserialized = JsonSerializer.Deserialize<MessageSendParams>(serialized, A2AJsonUtilities.DefaultOptions);
+
+        Assert.NotNull(deserialized);
+        Assert.Equal(msp.Message.Kind, deserialized.Message.Kind);
+        Assert.Equal(msp.Message.Role, deserialized.Message.Role);
+        Assert.Equal(msp.Message.MessageId, deserialized.Message.MessageId);
+        Assert.NotNull(deserialized.Message.Parts);
+        Assert.Single(deserialized.Message.Parts);
+        var part = Assert.IsType<TextPart>(deserialized?.Message.Parts[0]);
+        Assert.Equal("hello", part.Text);
+    }
+
+    [Fact]
+    public void A2AEvent_Serialized_MessageSendParams_HasKindOnMessage()
+    {
+        // Arrange
+        var msp = new MessageSendParams
+        {
+            Message = new Message
+            {
+                Role = MessageRole.User,
+                MessageId = "m-8",
+                Parts = [new TextPart { Text = "hello" }]
+            }
+        };
+
+        var serialized = JsonSerializer.Serialize(msp, A2AJsonUtilities.DefaultOptions);
+
+        Assert.Contains("\"kind\":\"message\"", serialized);
+    }
+
+    [Fact]
     public void A2AResponse_Serialize_AllKnownType_Succeeds()
     {
         // Arrange
