@@ -7,6 +7,10 @@ namespace A2A;
 /// </summary>
 public sealed class TaskArtifactUpdateEvent : TaskUpdateEvent
 {
+    /// <inheritdoc />
+    [JsonPropertyName("kind")]
+    public override string Kind => "artifact-update";
+
     /// <summary>
     /// Generated artifact.
     /// </summary>

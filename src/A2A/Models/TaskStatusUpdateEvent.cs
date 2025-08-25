@@ -7,6 +7,10 @@ namespace A2A;
 /// </summary>
 public sealed class TaskStatusUpdateEvent : TaskUpdateEvent
 {
+    /// <inheritdoc />
+    [JsonPropertyName("kind")]
+    public override string Kind => "status-update";
+
     /// <summary>
     /// Gets or sets the current status of the task.
     /// </summary>
