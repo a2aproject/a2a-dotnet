@@ -37,7 +37,6 @@ public class A2AResponseTests
         var message = Assert.IsType<Message>(a2aEvent);
 
         // Assert
-        Assert.Equal("message", message.Kind);
         Assert.Equal(MessageRole.User, message.Role);
         Assert.Equal("m-1", message.MessageId);
         Assert.Equal("t-1", message.TaskId);
@@ -80,7 +79,6 @@ public class A2AResponseTests
         var message = Assert.IsType<Message>(a2aResponse);
 
         // Assert
-        Assert.Equal("message", message.Kind);
         Assert.Equal(MessageRole.User, message.Role);
         Assert.Equal("m-2", message.MessageId);
         Assert.Equal("t-2", message.TaskId);
@@ -139,7 +137,6 @@ public class A2AResponseTests
         var agentTask = Assert.IsType<AgentTask>(a2aEvent);
 
         // Assert
-        Assert.Equal("task", agentTask.Kind);
         Assert.Equal("t-3", agentTask.Id);
         Assert.Equal("c-3", agentTask.ContextId);
         Assert.Equal(TaskState.Submitted, agentTask.Status.State);
@@ -150,7 +147,6 @@ public class A2AResponseTests
         Assert.Equal(expectedArtifacts[0].Description, agentTask.Artifacts[0].Description);
         Assert.NotNull(agentTask.History);
         Assert.Single(agentTask.History);
-        Assert.Equal(expectedHistory[0].Kind, agentTask.History![0].Kind);
         Assert.Equal(expectedHistory[0].Role, agentTask.History![0].Role);
         Assert.Equal(expectedHistory[0].MessageId, agentTask.History![0].MessageId);
         Assert.NotNull(agentTask.Metadata);
@@ -202,7 +198,6 @@ public class A2AResponseTests
         var agentTask = Assert.IsType<AgentTask>(a2aResponse);
 
         // Assert
-        Assert.Equal("task", agentTask.Kind);
         Assert.Equal("t-4", agentTask.Id);
         Assert.Equal("c-4", agentTask.ContextId);
         Assert.Equal(TaskState.Submitted, agentTask.Status.State);
@@ -213,7 +208,6 @@ public class A2AResponseTests
         Assert.Equal(expectedArtifacts[0].Description, agentTask.Artifacts[0].Description);
         Assert.NotNull(agentTask.History);
         Assert.Single(agentTask.History);
-        Assert.Equal(expectedHistory[0].Kind, agentTask.History![0].Kind);
         Assert.Equal(expectedHistory[0].Role, agentTask.History![0].Role);
         Assert.Equal(expectedHistory[0].MessageId, agentTask.History![0].MessageId);
         Assert.NotNull(agentTask.Metadata);
@@ -243,7 +237,6 @@ public class A2AResponseTests
         var taskStatusUpdateEvent = Assert.IsType<TaskStatusUpdateEvent>(a2aEvent);
 
         // Assert
-        Assert.Equal("status-update", taskStatusUpdateEvent.Kind);
         Assert.Equal("t-5", taskStatusUpdateEvent.TaskId);
         Assert.Equal("c-5", taskStatusUpdateEvent.ContextId);
         Assert.Equal(TaskState.Working, taskStatusUpdateEvent.Status.State);
@@ -305,7 +298,6 @@ public class A2AResponseTests
         var taskArtifactUpdateEvent = Assert.IsType<TaskArtifactUpdateEvent>(a2aEvent);
 
         // Assert
-        Assert.Equal("artifact-update", taskArtifactUpdateEvent.Kind);
         Assert.Equal("t-7", taskArtifactUpdateEvent.TaskId);
         Assert.Equal("c-7", taskArtifactUpdateEvent.ContextId);
         Assert.Equal(expectedArtifact.ArtifactId, taskArtifactUpdateEvent.Artifact.ArtifactId);
@@ -425,7 +417,6 @@ public class A2AResponseTests
         var message = Assert.IsType<Message>(a2aEvent);
 
         // Assert
-        Assert.Equal("message", message.Kind);
         Assert.Equal(MessageRole.User, message.Role);
         Assert.Equal("m-7", message.MessageId);
         Assert.Single(message.Parts);
@@ -452,7 +443,6 @@ public class A2AResponseTests
         var message = Assert.IsType<Message>(a2aResponse);
 
         // Assert
-        Assert.Equal("message", message.Kind);
         Assert.Equal(MessageRole.User, message.Role);
         Assert.Equal("m-7", message.MessageId);
         Assert.Single(message.Parts);
@@ -506,7 +496,6 @@ public class A2AResponseTests
         var deserialized = JsonSerializer.Deserialize<MessageSendParams>(serialized, A2AJsonUtilities.DefaultOptions);
 
         Assert.NotNull(deserialized);
-        Assert.Equal(msp.Message.Kind, deserialized.Message.Kind);
         Assert.Equal(msp.Message.Role, deserialized.Message.Role);
         Assert.Equal(msp.Message.MessageId, deserialized.Message.MessageId);
         Assert.NotNull(deserialized.Message.Parts);

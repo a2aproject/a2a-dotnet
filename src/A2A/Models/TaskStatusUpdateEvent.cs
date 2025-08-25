@@ -5,7 +5,7 @@ namespace A2A;
 /// <summary>
 /// Event sent by server during sendStream or subscribe requests.
 /// </summary>
-public sealed class TaskStatusUpdateEvent() : TaskUpdateEvent(KindValue)
+public sealed class TaskStatusUpdateEvent : TaskUpdateEvent
 {
     internal const string KindValue = "status-update";
 

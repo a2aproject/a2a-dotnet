@@ -5,7 +5,7 @@ namespace A2A;
 /// <summary>
 /// Sent by server during sendStream or subscribe requests.
 /// </summary>
-public sealed class TaskArtifactUpdateEvent() : TaskUpdateEvent(KindValue)
+public sealed class TaskArtifactUpdateEvent : TaskUpdateEvent
 {
     internal const string KindValue = "artifact-update";
 

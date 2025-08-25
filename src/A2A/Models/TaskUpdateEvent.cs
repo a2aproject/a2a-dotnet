@@ -6,8 +6,7 @@ namespace A2A;
 /// <summary>
 /// Base class for task update events.
 /// </summary>
-/// <param name="kind">The event kind discriminator.</param>
-public abstract class TaskUpdateEvent(string kind) : A2AEvent(kind)
+public abstract class TaskUpdateEvent : A2AEvent
 {
     /// <summary>
     /// Gets or sets the task ID.

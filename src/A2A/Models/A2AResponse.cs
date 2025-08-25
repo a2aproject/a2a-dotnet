@@ -14,20 +14,7 @@ namespace A2A;
 [JsonDerivedType(typeof(TaskArtifactUpdateEvent), TaskArtifactUpdateEvent.KindValue)]
 [JsonDerivedType(typeof(Message), Message.KindValue)]
 [JsonDerivedType(typeof(AgentTask), AgentTask.KindValue)]
-public abstract class A2AEvent
-{
-    /// <summary>
-    /// Initializes a new instance of the <see cref="A2AEvent"/> class.
-    /// </summary>
-    /// <param name="kind">The event kind discriminator used for polymorphic serialization.</param>
-    protected internal A2AEvent(string kind) => this.Kind = kind;
-
-    /// <summary>
-    /// Gets the event kind discriminator used for polymorphic serialization.
-    /// </summary>
-    [JsonIgnore]
-    public string Kind { get; }
-}
+public abstract class A2AEvent { }
 
 /// <summary>
 /// A2A response objects.
@@ -35,11 +22,4 @@ public abstract class A2AEvent
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
 [JsonDerivedType(typeof(Message), Message.KindValue)]
 [JsonDerivedType(typeof(AgentTask), AgentTask.KindValue)]
-public abstract class A2AResponse: A2AEvent
-{
-    /// <summary>
-    /// Initializes a new instance of the <see cref="A2AResponse"/> class.
-    /// </summary>
-    /// <param name="kind">The event kind discriminator used for polymorphic serialization.</param>
-    protected internal A2AResponse(string kind) : base(kind) { }
-}
+public abstract class A2AResponse : A2AEvent { }
