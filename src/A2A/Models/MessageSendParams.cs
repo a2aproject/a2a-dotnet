@@ -12,11 +12,21 @@ namespace A2A;
 public sealed class MessageSendParams
 {
     /// <summary>
+    /// The base-typed value of the message being sent to the server, required for JSON serialization to properly handle serializing the descriminator value.
+    /// </summary>
+    /// <remarks>We hide this from external devs as it's strictly a serialization nuance due to JSON polymorphism and discriminators.</remarks>
+    [JsonInclude, JsonPropertyName("message"), JsonRequired, Obsolete("This property is only to be used during internal de/serialization", error: false)]
+    internal A2AEvent JsonValue
+    {
+        get => this.Message;
+        set => this.Message = (Message)value;
+    }
+
+    /// <summary>
     /// The message being sent to the server.
     /// </summary>
-    [JsonPropertyName("message")]
-    [JsonRequired]
-    public Message Message { get; set; } = new Message();
+    [JsonIgnore]
+    public Message Message { get; set; } = new();
 
     /// <summary>
     /// Send message configuration.
