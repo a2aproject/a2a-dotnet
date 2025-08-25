@@ -297,7 +297,7 @@ public class A2AResponseTests
         var expectedArtifact = new Artifact
         {
             ArtifactId = "a-1",
-            Parts = [ new TextPart { Text = "chunk" } ]
+            Parts = [new TextPart { Text = "chunk" }]
         };
 
         // Act
@@ -412,8 +412,8 @@ public class A2AResponseTests
         // Arrange
         const string json = """
         {
-            "kind": "message",
             "role": "user",
+            "kind": "message",
             "parts": [ { "kind": "text", "text": "hi" } ],
             "messageId": "m-7"
         }
@@ -439,8 +439,8 @@ public class A2AResponseTests
         // Arrange
         const string json = """
         {
-            "kind": "message",
             "role": "user",
+            "kind": "message",
             "parts": [ { "kind": "text", "text": "hi" } ],
             "messageId": "m-7"
         }
