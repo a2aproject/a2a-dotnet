@@ -23,6 +23,7 @@ public static partial class A2AJsonUtilities
     /// <item>Enables <see cref="JsonSerializerDefaults.Web"/> defaults.</item>
     /// <item>Enables <see cref="JsonIgnoreCondition.WhenWritingNull"/> as the default ignore condition for properties.</item>
     /// <item>Enables <see cref="JsonNumberHandling.AllowReadingFromString"/> as the default number handling for number types.</item>
+    /// <item>Enables <c>AllowOutOfOrderMetadataProperties</c> to allow for type discriminators anywhere in a JSON payload.</item>
     /// </list>
     /// </para>
     /// </remarks>
@@ -31,7 +32,8 @@ public static partial class A2AJsonUtilities
     // Keep in sync with CreateDefaultOptions above.
     [JsonSourceGenerationOptions(JsonSerializerDefaults.Web,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        NumberHandling = JsonNumberHandling.AllowReadingFromString)]
+        NumberHandling = JsonNumberHandling.AllowReadingFromString,
+        AllowOutOfOrderMetadataProperties = true)]
 
     // JSON-RPC
     [JsonSerializable(typeof(JsonRpcError))]
