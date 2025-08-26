@@ -16,7 +16,7 @@ public sealed class MessageSendParams
     /// </summary>
     /// <remarks>We hide this from external devs as it's strictly a serialization nuance due to JSON polymorphism and discriminators.</remarks>
     [JsonInclude, JsonPropertyName("message"), JsonRequired, Obsolete("This property is only to be used during internal de/serialization", error: false)]
-    internal A2AEvent JsonValue
+    internal A2AEvent MessageJsonValue
     {
         get => this.Message;
         set
