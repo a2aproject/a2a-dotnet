@@ -19,7 +19,17 @@ public sealed class MessageSendParams
     internal A2AEvent JsonValue
     {
         get => this.Message;
-        set => this.Message = (Message)value;
+        set
+        {
+            try
+            {
+                this.Message = (Message)value;
+            }
+            catch (Exception e)
+            {
+                throw new A2AException("Invalid MessageSendParameter", e, A2AErrorCode.InvalidRequest);
+            }
+        }
     }
 
     /// <summary>

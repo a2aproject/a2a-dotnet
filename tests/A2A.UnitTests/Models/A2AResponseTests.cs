@@ -652,4 +652,24 @@ public class A2AResponseTests
         Assert.Equal(1, task.Artifacts?.Count);
         Assert.Equal(3, task.History?.Count);
     }
+
+    [Fact]
+    public void MessageSendParams_Deserialize_NonMessageKind_Throws()
+    {
+        // Arrange
+        const string json = """
+        {
+            "message": {
+                "kind": "task",
+                "id": "t-13",
+                "contextId": "c-13",
+                "status": { "state": "submitted" }
+            }
+        }
+        """;
+
+        // Act / Assert
+        var ex = Assert.Throws<A2AException>(() => JsonSerializer.Deserialize<MessageSendParams>(json, A2AJsonUtilities.DefaultOptions));
+        Assert.Equal(A2AErrorCode.InvalidRequest, ex.ErrorCode);
+    }
 }
