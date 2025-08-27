@@ -57,6 +57,13 @@ public static class A2AJsonRpcProcessor
             var errorId = rpcRequest?.Id ?? new JsonRpcId(ex.GetRequestId());
             return new JsonRpcResponseResult(JsonRpcResponse.CreateJsonRpcErrorResponse(errorId, ex));
         }
+        // Missing JSON polymorphic discriminator case.
+        catch (NotSupportedException ex)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            var errorId = rpcRequest?.Id ?? new JsonRpcId((string?)null);
+            return new JsonRpcResponseResult(JsonRpcResponse.InvalidParamsResponse(errorId, ex.Message));
+        }
         catch (Exception ex)
         {
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
