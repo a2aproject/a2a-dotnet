@@ -197,7 +197,7 @@ public class A2AJsonRpcProcessorTests
         TaskManager taskManager = new();
         MessageSendParams sendParams = new()
         {
-            Message = new Message { MessageId = "test-message-id", Parts = [new TextPart { Text = "hi" }] }
+            Message = new AgentMessage { MessageId = "test-message-id", Parts = [new TextPart { Text = "hi" }] }
         };
         JsonRpcRequest req = new()
         {

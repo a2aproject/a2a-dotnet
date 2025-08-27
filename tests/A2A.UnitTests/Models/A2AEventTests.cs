@@ -34,7 +34,7 @@ namespace A2A.UnitTests.Models
 
             // Act
             var a2aEvent = JsonSerializer.Deserialize<A2AEvent>(json, A2AJsonUtilities.DefaultOptions);
-            var message = Assert.IsType<Message>(a2aEvent);
+            var message = Assert.IsType<AgentMessage>(a2aEvent);
 
             // Assert
             Assert.Equal(MessageRole.User, message.Role);
@@ -83,7 +83,7 @@ namespace A2A.UnitTests.Models
             };
             var expectedHistory = new[]
             {
-                new Message
+                new AgentMessage
                 {
                     Role = MessageRole.User,
                     MessageId = "m-3",
@@ -234,7 +234,7 @@ namespace A2A.UnitTests.Models
 
             // Act
             var a2aEvent = JsonSerializer.Deserialize<A2AEvent>(json, A2AJsonUtilities.DefaultOptions);
-            var message = Assert.IsType<Message>(a2aEvent);
+            var message = Assert.IsType<AgentMessage>(a2aEvent);
 
             // Assert
             Assert.Equal(MessageRole.User, message.Role);
@@ -249,7 +249,7 @@ namespace A2A.UnitTests.Models
         {
             // Arrange
             var a2aEvents = new A2AEvent[] {
-                new Message { Role = MessageRole.User, MessageId = "m-7", Parts = [new TextPart { Text = "hello" }] },
+                new AgentMessage { Role = MessageRole.User, MessageId = "m-7", Parts = [new TextPart { Text = "hello" }] },
                 new AgentTask { Id = "t-9", ContextId = "c-9", Status = new AgentTaskStatus { State = TaskState.Submitted, Timestamp = DateTimeOffset.Parse("2023-01-01T00:00:00+00:00", null) } },
                 new TaskStatusUpdateEvent { TaskId = "t-10", ContextId = "c-10", Status = new AgentTaskStatus { State = TaskState.Working, Timestamp = DateTimeOffset.Parse("2023-01-01T00:00:00+00:00", null) } },
                 new TaskArtifactUpdateEvent { TaskId = "t-11", ContextId = "c-11" }

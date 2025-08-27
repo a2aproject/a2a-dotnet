@@ -48,7 +48,7 @@ public sealed class ClientTests : IClassFixture<JsonSchemaFixture>, IDisposable
         // Arrange
         var taskSendParams = new MessageSendParams
         {
-            Message = new Message()
+            Message = new AgentMessage()
             {
                 Parts =
                 [
