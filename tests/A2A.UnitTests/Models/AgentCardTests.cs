@@ -55,7 +55,13 @@ public class AgentCardTests
               "url": "https://jsonrpc.example.com/agent"
             }
           ],
-          "preferredTransport": "GRPC"
+          "preferredTransport": "GRPC",
+          "signatures": [
+            {
+              "protected": "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpPU0UiLCJraWQiOiJrZXktMSIsImprdSI6Imh0dHBzOi8vZXhhbXBsZS5jb20vYWdlbnQvandrcy5qc29uIn0",
+              "signature": "QFdkNLNszlGj3z3u0YQGt_T9LixY3qtdQpZmsTdDHDe3fXV9y9-B3m2-XgCpzuhiLt8E0tV6HXoZKHv4GtHgKQ"
+            }
+          ]
         }
         """;
 
@@ -126,6 +132,14 @@ public class AgentCardTests
         Assert.Single(deserializedCard.AdditionalInterfaces);
         Assert.Equal("JSONRPC", deserializedCard.AdditionalInterfaces[0].Transport.Label);
         Assert.Equal("https://jsonrpc.example.com/agent", deserializedCard.AdditionalInterfaces[0].Url);
+
+        // Signatures
+        Assert.NotNull(deserializedCard.Signatures);
+        Assert.Single(deserializedCard.Signatures);
+        var signature = deserializedCard.Signatures[0];
+        Assert.Equal("eyJhbGciOiJFUzI1NiIsInR5cCI6IkpPU0UiLCJraWQiOiJrZXktMSIsImprdSI6Imh0dHBzOi8vZXhhbXBsZS5jb20vYWdlbnQvandrcy5qc29uIn0", signature.Protected);
+        Assert.Equal("QFdkNLNszlGj3z3u0YQGt_T9LixY3qtdQpZmsTdDHDe3fXV9y9-B3m2-XgCpzuhiLt8E0tV6HXoZKHv4GtHgKQ", signature.Signature);
+        Assert.Null(signature.Header);
     }
 
     [Fact]
@@ -184,7 +198,14 @@ public class AgentCardTests
                     Url = "https://jsonrpc.example.com/agent"
                 }
             ],
-            PreferredTransport = new AgentTransport("GRPC")
+            PreferredTransport = new AgentTransport("GRPC"),
+            Signatures = [
+                new AgentCardSignature
+                {
+                    Protected = "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpPU0UiLCJraWQiOiJrZXktMSIsImprdSI6Imh0dHBzOi8vZXhhbXBsZS5jb20vYWdlbnQvandrcy5qc29uIn0",
+                    Signature = "QFdkNLNszlGj3z3u0YQGt_T9LixY3qtdQpZmsTdDHDe3fXV9y9-B3m2-XgCpzuhiLt8E0tV6HXoZKHv4GtHgKQ"
+                }
+            ]
         };
 
         // Act
