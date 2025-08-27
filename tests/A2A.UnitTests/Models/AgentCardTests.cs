@@ -4,8 +4,6 @@ namespace A2A.UnitTests.Models;
 
 public class AgentCardTests
 {
-    private static readonly JsonSerializerOptions s_jsonOptions = new() { WriteIndented = true };
-
     private const string ExpectedJson = """
         {
           "name": "Test Agent",
@@ -60,7 +58,13 @@ public class AgentCardTests
               "url": "https://jsonrpc.example.com/agent"
             }
           ],
-          "preferredTransport": "GRPC"
+          "preferredTransport": "GRPC",
+          "signatures": [
+            {
+              "protected": "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpPU0UiLCJraWQiOiJrZXktMSIsImprdSI6Imh0dHBzOi8vZXhhbXBsZS5jb20vYWdlbnQvandrcy5qc29uIn0",
+              "signature": "QFdkNLNszlGj3z3u0YQGt_T9LixY3qtdQpZmsTdDHDe3fXV9y9-B3m2-XgCpzuhiLt8E0tV6HXoZKHv4GtHgKQ"
+            }
+          ]
         }
         """;
 
@@ -68,7 +72,7 @@ public class AgentCardTests
     public void AgentCard_Deserialize_AllPropertiesCorrect()
     {
         // Act
-        var deserializedCard = JsonSerializer.Deserialize<AgentCard>(ExpectedJson);
+        var deserializedCard = JsonSerializer.Deserialize<AgentCard>(ExpectedJson, A2AJsonUtilities.DefaultOptions);
 
         // Assert
         Assert.NotNull(deserializedCard);
@@ -140,6 +144,14 @@ public class AgentCardTests
         Assert.Single(deserializedCard.AdditionalInterfaces);
         Assert.Equal("JSONRPC", deserializedCard.AdditionalInterfaces[0].Transport.Label);
         Assert.Equal("https://jsonrpc.example.com/agent", deserializedCard.AdditionalInterfaces[0].Url);
+
+        // Signatures
+        Assert.NotNull(deserializedCard.Signatures);
+        Assert.Single(deserializedCard.Signatures);
+        var signature = deserializedCard.Signatures[0];
+        Assert.Equal("eyJhbGciOiJFUzI1NiIsInR5cCI6IkpPU0UiLCJraWQiOiJrZXktMSIsImprdSI6Imh0dHBzOi8vZXhhbXBsZS5jb20vYWdlbnQvandrcy5qc29uIn0", signature.Protected);
+        Assert.Equal("QFdkNLNszlGj3z3u0YQGt_T9LixY3qtdQpZmsTdDHDe3fXV9y9-B3m2-XgCpzuhiLt8E0tV6HXoZKHv4GtHgKQ", signature.Signature);
+        Assert.Null(signature.Header);
     }
 
     [Fact]
@@ -204,16 +216,23 @@ public class AgentCardTests
                     Url = "https://jsonrpc.example.com/agent"
                 }
             ],
-            PreferredTransport = new AgentTransport("GRPC")
+            PreferredTransport = new AgentTransport("GRPC"),
+            Signatures = [
+                new AgentCardSignature
+                {
+                    Protected = "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpPU0UiLCJraWQiOiJrZXktMSIsImprdSI6Imh0dHBzOi8vZXhhbXBsZS5jb20vYWdlbnQvandrcy5qc29uIn0",
+                    Signature = "QFdkNLNszlGj3z3u0YQGt_T9LixY3qtdQpZmsTdDHDe3fXV9y9-B3m2-XgCpzuhiLt8E0tV6HXoZKHv4GtHgKQ"
+                }
+            ]
         };
 
         // Act
-        var serializedJson = JsonSerializer.Serialize(agentCard, s_jsonOptions);
+        var serializedJson = JsonSerializer.Serialize(agentCard, A2AJsonUtilities.DefaultOptions);
 
         // Assert - Compare objects instead of raw JSON strings to avoid formatting/ordering issues
         // and provide more meaningful error messages when properties don't match
-        var expectedCard = JsonSerializer.Deserialize<AgentCard>(ExpectedJson);
-        var actualCard = JsonSerializer.Deserialize<AgentCard>(serializedJson);
+        var expectedCard = JsonSerializer.Deserialize<AgentCard>(ExpectedJson, A2AJsonUtilities.DefaultOptions);
+        var actualCard = JsonSerializer.Deserialize<AgentCard>(serializedJson, A2AJsonUtilities.DefaultOptions);
 
         Assert.NotNull(actualCard);
         Assert.NotNull(expectedCard);

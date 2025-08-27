@@ -143,4 +143,10 @@ public sealed class AgentCard
     /// </remarks>
     [JsonPropertyName("preferredTransport")]
     public AgentTransport? PreferredTransport { get; set; }
+
+    /// <summary>
+    /// JSON Web Signatures computed for this AgentCard.
+    /// </summary>
+    [JsonPropertyName("signatures")]
+    public List<AgentCardSignature>? Signatures { get; set; }
 }
