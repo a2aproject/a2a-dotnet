@@ -14,7 +14,7 @@ public interface ITaskManager
     /// <remarks>
     /// <para>The handler needs to return a <see cref="AgentMessage"/> or an <see cref="AgentTask"/>.</para>
     /// <para>
-    /// For more details about choosing AgentMessage or <see cref="AgentTask"/> refer to:
+    /// For more details about choosing <see cref="AgentMessage"/> or <see cref="AgentTask"/> refer to:
     /// <see href="https://github.com/a2aproject/A2A/blob/main/docs/topics/life-of-a-task.md#agent-message-or-a-task"/>.
     /// </para>
     /// </remarks>
@@ -128,14 +128,14 @@ public interface ITaskManager
     /// </remarks>
     /// <param name="messageSendParams">The message parameters containing the message content and optional task/context IDs.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
-    /// <returns>The agent's response as either <see cref="AgentTask"/> or a direct AgentMessage from the handler.</returns>
+    /// <returns>The agent's response as either <see cref="AgentTask"/> or a direct <see cref="AgentMessage"/> from the handler.</returns>
     Task<A2AResponse?> SendMessageAsync(MessageSendParams messageSendParams, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Processes a message request and returns a stream of events as they occur.
     /// </summary>
     /// <remarks>
-    /// Creates or updates a task and establishes an event stream that yields <see cref="AgentTask"/>, AgentMessage,
+    /// Creates or updates a task and establishes an event stream that yields <see cref="AgentTask"/>, <see cref="AgentMessage"/>,
     /// TaskStatusUpdateEvent, and TaskArtifactUpdateEvent objects as they are generated.
     /// </remarks>
     /// <param name="messageSendParams">The message parameters containing the message content and optional task/context IDs.</param>
