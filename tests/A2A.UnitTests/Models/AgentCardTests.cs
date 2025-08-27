@@ -45,7 +45,12 @@ public class AgentCardTests
               "tags": ["test", "skill"],
               "examples": ["Example usage"],
               "inputModes": ["text"],
-              "outputModes": ["text"]
+              "outputModes": ["text"],
+              "security": [
+                {
+                  "oauth": ["read"]
+                }
+              ]
             }
           ],
           "supportsAuthenticatedExtendedCard": true,
@@ -119,6 +124,15 @@ public class AgentCardTests
         Assert.Contains("test", skill.Tags);
         Assert.Contains("skill", skill.Tags);
 
+        // Skill Security
+        Assert.NotNull(skill.Security);
+        Assert.Single(skill.Security);
+        var skillSecurityRequirement = skill.Security[0];
+        Assert.NotNull(skillSecurityRequirement);
+        Assert.Single(skillSecurityRequirement);
+        Assert.True(skillSecurityRequirement.ContainsKey("oauth"));
+        Assert.Equal(["read"], skillSecurityRequirement["oauth"]);
+
         // Transport properties
         Assert.NotNull(deserializedCard.PreferredTransport);
         Assert.Equal("GRPC", deserializedCard.PreferredTransport.Value.Label);
@@ -173,7 +187,13 @@ public class AgentCardTests
                     Tags = ["test", "skill"],
                     Examples = ["Example usage"],
                     InputModes = ["text"],
-                    OutputModes = ["text"]
+                    OutputModes = ["text"],
+                    Security = [
+                        new Dictionary<string, string[]>
+                        {
+                            ["oauth"] = ["read"]
+                        }
+                    ]
                 }
             ],
             SupportsAuthenticatedExtendedCard = true,
@@ -233,6 +253,18 @@ public class AgentCardTests
             Assert.Equal(expectedSkill.Examples, actualSkill.Examples);
             Assert.Equal(expectedSkill.InputModes, actualSkill.InputModes);
             Assert.Equal(expectedSkill.OutputModes, actualSkill.OutputModes);
+
+            // Skill Security
+            Assert.Equal(expectedSkill.Security?.Count, actualSkill.Security?.Count);
+            if (expectedSkill.Security?.Count > 0 && actualSkill.Security?.Count > 0)
+            {
+                Assert.Equal(expectedSkill.Security[0].Count, actualSkill.Security[0].Count);
+                foreach (var kvp in expectedSkill.Security[0])
+                {
+                    Assert.True(actualSkill.Security[0].ContainsKey(kvp.Key));
+                    Assert.Equal(kvp.Value, actualSkill.Security[0][kvp.Key]);
+                }
+            }
         }
 
         // Transport properties
