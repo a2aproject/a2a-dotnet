@@ -21,7 +21,7 @@ public class EchoAgent
         var messageText = messageSendParams.Message.Parts.OfType<TextPart>().First().Text;
 
         // Create and return an artifact
-        var message = new Message()
+        var message = new AgentMessage()
         {
             Role = MessageRole.Agent,
             MessageId = Guid.NewGuid().ToString(),

@@ -49,7 +49,7 @@ public sealed class InMemoryTaskStore : ITaskStore
     }
 
     /// <inheritdoc />
-    public Task<AgentTaskStatus> UpdateStatusAsync(string taskId, TaskState status, Message? message = null, CancellationToken cancellationToken = default)
+    public Task<AgentTaskStatus> UpdateStatusAsync(string taskId, TaskState status, AgentMessage? message = null, CancellationToken cancellationToken = default)
     {
         if (cancellationToken.IsCancellationRequested)
         {

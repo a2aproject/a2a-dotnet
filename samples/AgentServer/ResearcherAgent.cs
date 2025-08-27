@@ -53,7 +53,7 @@ public class ResearcherAgent
         {
             case AgentState.Planning:
                 await DoPlanningAsync(taskId, message, cancellationToken);
-                await _taskManager.UpdateStatusAsync(taskId, TaskState.InputRequired, new Message()
+                await _taskManager.UpdateStatusAsync(taskId, TaskState.InputRequired, new AgentMessage()
                 {
                     Parts = [new TextPart() { Text = "When ready say go ahead" }],
                 },
@@ -68,7 +68,7 @@ public class ResearcherAgent
                 {
                     // Take the message and redo planning
                     await DoPlanningAsync(taskId, message, cancellationToken);
-                    await _taskManager.UpdateStatusAsync(taskId, TaskState.InputRequired, new Message()
+                    await _taskManager.UpdateStatusAsync(taskId, TaskState.InputRequired, new AgentMessage()
                     {
                         Parts = [new TextPart() { Text = "When ready say go ahead" }],
                     },
@@ -103,7 +103,7 @@ public class ResearcherAgent
             },
             cancellationToken);
 
-        await _taskManager.UpdateStatusAsync(taskId, TaskState.Completed, new Message()
+        await _taskManager.UpdateStatusAsync(taskId, TaskState.Completed, new AgentMessage()
         {
             Parts = [new TextPart() { Text = "Task completed successfully" }],
         },
@@ -135,7 +135,7 @@ public class ResearcherAgent
             },
             cancellationToken);
 
-        await _taskManager.UpdateStatusAsync(taskId, TaskState.InputRequired, new Message()
+        await _taskManager.UpdateStatusAsync(taskId, TaskState.InputRequired, new AgentMessage()
         {
             Parts = [new TextPart() { Text = "When ready say go ahead" }],
         },

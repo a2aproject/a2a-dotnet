@@ -12,9 +12,9 @@ public interface ITaskManager
     /// Gets or sets the handler for when a message is received.
     /// </summary>
     /// <remarks>
-    /// <para>The handler needs to return a <see cref="Message"/> or an <see cref="AgentTask"/>.</para>
+    /// <para>The handler needs to return a <see cref="AgentMessage"/> or an <see cref="AgentTask"/>.</para>
     /// <para>
-    /// For more details about choosing Message or a Task refer to:
+    /// For more details about choosing AgentMessage or a Task refer to:
     /// <see href="https://github.com/a2aproject/A2A/blob/main/docs/topics/life-of-a-task.md#agent-message-or-a-task"/>.
     /// </para>
     /// </remarks>
@@ -94,7 +94,7 @@ public interface ITaskManager
     /// <param name="final">Whether this is a final status update that should close any active streams.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    Task UpdateStatusAsync(string taskId, TaskState status, Message? message = null, bool final = false, CancellationToken cancellationToken = default);
+    Task UpdateStatusAsync(string taskId, TaskState status, AgentMessage? message = null, bool final = false, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Cancels a task by setting its status to Canceled and invoking the cancellation handler.
@@ -128,14 +128,14 @@ public interface ITaskManager
     /// </remarks>
     /// <param name="messageSendParams">The message parameters containing the message content and optional task/context IDs.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
-    /// <returns>The agent's response as either a Task object or a direct Message from the handler.</returns>
+    /// <returns>The agent's response as either a Task object or a direct AgentMessage from the handler.</returns>
     Task<A2AResponse?> SendMessageAsync(MessageSendParams messageSendParams, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Processes a message request and returns a stream of events as they occur.
     /// </summary>
     /// <remarks>
-    /// Creates or updates a task and establishes an event stream that yields Task, Message,
+    /// Creates or updates a task and establishes an event stream that yields Task, AgentMessage,
     /// TaskStatusUpdateEvent, and TaskArtifactUpdateEvent objects as they are generated.
     /// </remarks>
     /// <param name="messageSendParams">The message parameters containing the message content and optional task/context IDs.</param>
