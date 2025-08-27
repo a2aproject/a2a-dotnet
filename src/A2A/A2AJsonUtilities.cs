@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -27,7 +28,14 @@ public static partial class A2AJsonUtilities
     /// </list>
     /// </para>
     /// </remarks>
-    public static JsonSerializerOptions DefaultOptions => JsonContext.Default.Options;
+    public static JsonSerializerOptions DefaultOptions => defaultOptions.Value;
+
+    private static Lazy<JsonSerializerOptions> defaultOptions = new(() =>
+        new JsonSerializerOptions(JsonContext.Default.Options)
+        {
+            // Required for DateTimeOffset serialization to not have the '+' escaped.
+            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        });
 
     // Keep in sync with CreateDefaultOptions above.
     [JsonSourceGenerationOptions(JsonSerializerDefaults.Web,

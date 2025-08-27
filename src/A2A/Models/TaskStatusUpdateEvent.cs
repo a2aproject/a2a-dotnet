@@ -7,6 +7,8 @@ namespace A2A;
 /// </summary>
 public sealed class TaskStatusUpdateEvent : TaskUpdateEvent
 {
+    internal const string DiscriminatorValue = "status-update";
+
     /// <summary>
     /// Gets or sets the current status of the task.
     /// </summary>

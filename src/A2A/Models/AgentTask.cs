@@ -8,6 +8,8 @@ namespace A2A;
 /// </summary>
 public sealed class AgentTask : A2AResponse
 {
+    internal const string DiscriminatorValue = "task";
+
     /// <summary>
     /// Unique identifier for the task.
     /// </summary>

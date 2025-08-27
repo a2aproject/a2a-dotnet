@@ -188,7 +188,7 @@ namespace A2A.UnitTests.Models
         }
 
         [Fact]
-        public void A2AEvent_Deserialize_UnknownKind_Throws()
+        public void A2AEvent_Deserialize_UnknownKind_Throws_A2AException()
         {
             // Arrange
             const string json = """
@@ -199,7 +199,8 @@ namespace A2A.UnitTests.Models
             """;
 
             // Act / Assert
-            Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<A2AEvent>(json, A2AJsonUtilities.DefaultOptions));
+            var ex = Assert.Throws<A2AException>(() => JsonSerializer.Deserialize<A2AEvent>(json, A2AJsonUtilities.DefaultOptions));
+            Assert.Equal(A2AErrorCode.InvalidRequest, ex.ErrorCode);
         }
 
         [Fact]
@@ -215,7 +216,8 @@ namespace A2A.UnitTests.Models
             """;
 
             // Act / Assert
-            Assert.Throws<NotSupportedException>(() => JsonSerializer.Deserialize<A2AEvent>(json, A2AJsonUtilities.DefaultOptions));
+            var ex = Assert.Throws<A2AException>(() => JsonSerializer.Deserialize<A2AEvent>(json, A2AJsonUtilities.DefaultOptions));
+            Assert.Equal(A2AErrorCode.InvalidRequest, ex.ErrorCode);
         }
 
         [Fact]

@@ -54,6 +54,8 @@ public sealed class MessageRoleConverter : JsonConverter<MessageRole>
 /// </summary>
 public sealed class AgentMessage : A2AResponse
 {
+    internal const string DiscriminatorValue = "message";
+
     /// <summary>
     /// Message sender's role.
     /// </summary>

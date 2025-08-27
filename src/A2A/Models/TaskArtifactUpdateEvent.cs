@@ -7,6 +7,8 @@ namespace A2A;
 /// </summary>
 public sealed class TaskArtifactUpdateEvent : TaskUpdateEvent
 {
+    internal const string DiscriminatorValue = "artifact-update";
+
     /// <summary>
     /// Generated artifact.
     /// </summary>
