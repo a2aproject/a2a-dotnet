@@ -1245,4 +1245,70 @@ public class TaskManagerTests
         await Assert.ThrowsAsync<OperationCanceledException>(() =>
             taskManager.UpdateArtifactAsync("test-id", artifact, cancellationToken: cts.Token));
     }
+
+    [Fact]
+    public async Task UpdateArtifactAsync_ShouldSetAppendFalse_WhenAppendTrueButNoExistingArtifacts()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+        var task = await taskManager.CreateTaskAsync();
+
+        // Send initial message to ensure event stream is registered
+        var sendParams = new MessageSendParams
+        {
+            Message = new Message
+            {
+                TaskId = task.Id,
+                Parts = [new TextPart { Text = "init" }]
+            }
+        };
+        await taskManager.SendMessageAsync(sendParams);
+
+        var events = new List<TaskArtifactUpdateEvent>();
+        var tcs = new TaskCompletionSource();
+
+        // Capture events using the stream
+        var eventProcessor = Task.Run(async () =>
+        {
+            await foreach (var evt in taskManager.SendMessageStreamAsync(sendParams))
+            {
+                if (!tcs.Task.IsCompleted)
+                {
+                    tcs.SetResult();
+                }
+
+                if (evt is TaskArtifactUpdateEvent artifactEvent)
+                {
+                    events.Add(artifactEvent);
+                    break; // Just capture the first artifact event
+                }
+            }
+        });
+
+        await tcs.Task; // Wait for event processor to start
+
+        // Act - Call with append=true when no artifacts exist
+        var artifact = new Artifact
+        {
+            ArtifactId = "test-artifact",
+            Name = "Test Artifact",
+            Parts = [new TextPart { Text = "First content" }]
+        };
+        await taskManager.UpdateArtifactAsync(task.Id, artifact, append: true);
+
+        await eventProcessor;
+
+        // Assert
+        Assert.Single(events);
+        Assert.False(events[0].Append); // Should be false because we created a new artifact, not appended
+        Assert.Equal("test-artifact", events[0].Artifact.ArtifactId);
+        Assert.Single(events[0].Artifact.Parts);
+
+        // Verify that the artifact was actually created
+        var retrievedTask = await taskManager.GetTaskAsync(new TaskQueryParams { Id = task.Id });
+        Assert.NotNull(retrievedTask);
+        Assert.NotNull(retrievedTask.Artifacts);
+        Assert.Single(retrievedTask.Artifacts);
+        Assert.Equal("test-artifact", retrievedTask.Artifacts[0].ArtifactId);
+    }
 }

@@ -530,7 +530,7 @@ public sealed class TaskManager : ITaskManager
                         {
                             TaskId = task.Id,
                             Artifact = artifact,
-                            Append = append,
+                            Append = false, // Always false when creating a new artifact
                             LastChunk = lastChunk
                         };
                         enumerator.NotifyEvent(taskUpdateEvent);
