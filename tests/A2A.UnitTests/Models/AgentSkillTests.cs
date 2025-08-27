@@ -4,12 +4,6 @@ namespace A2A.UnitTests.Models;
 
 public class AgentSkillTests
 {
-    private static readonly JsonSerializerOptions s_jsonOptions = new()
-    {
-        WriteIndented = true,
-        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
-    };
-
     [Fact]
     public void AgentSkill_SecurityProperty_SerializesCorrectly()
     {
@@ -35,7 +29,7 @@ public class AgentSkillTests
         };
 
         // Act
-        var json = JsonSerializer.Serialize(skill, s_jsonOptions);
+        var json = JsonSerializer.Serialize(skill, A2AJsonUtilities.DefaultOptions);
 
         // Assert
         Assert.Contains("\"security\"", json);
@@ -69,7 +63,7 @@ public class AgentSkillTests
         """;
 
         // Act
-        var skill = JsonSerializer.Deserialize<AgentSkill>(json, s_jsonOptions);
+        var skill = JsonSerializer.Deserialize<AgentSkill>(json, A2AJsonUtilities.DefaultOptions);
 
         // Assert
         Assert.NotNull(skill);
@@ -109,8 +103,8 @@ public class AgentSkillTests
         };
 
         // Act
-        var json = JsonSerializer.Serialize(skill, s_jsonOptions);
-        var deserializedSkill = JsonSerializer.Deserialize<AgentSkill>(json, s_jsonOptions);
+        var json = JsonSerializer.Serialize(skill, A2AJsonUtilities.DefaultOptions);
+        var deserializedSkill = JsonSerializer.Deserialize<AgentSkill>(json, A2AJsonUtilities.DefaultOptions);
 
         // Assert
         Assert.DoesNotContain("\"security\"", json); // Should be omitted when null
@@ -141,8 +135,8 @@ public class AgentSkillTests
         };
 
         // Act
-        var json = JsonSerializer.Serialize(originalSkill, s_jsonOptions);
-        var deserializedSkill = JsonSerializer.Deserialize<AgentSkill>(json, s_jsonOptions);
+        var json = JsonSerializer.Serialize(originalSkill, A2AJsonUtilities.DefaultOptions);
+        var deserializedSkill = JsonSerializer.Deserialize<AgentSkill>(json, A2AJsonUtilities.DefaultOptions);
 
         // Assert
         Assert.NotNull(deserializedSkill);
