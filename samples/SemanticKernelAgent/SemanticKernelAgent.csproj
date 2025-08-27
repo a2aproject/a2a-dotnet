@@ -10,6 +10,7 @@
 	<ItemGroup>
 		<PackageReference Include="Microsoft.SemanticKernel.Agents.Core" />
 		<PackageReference Include="Microsoft.SemanticKernel.Agents.OpenAI" />
+		<PackageReference Include="Microsoft.SemanticKernel.Connectors.AzureOpenAI" />
 		<PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
 		<PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
 		<PackageReference Include="OpenTelemetry.Instrumentation.Http" />

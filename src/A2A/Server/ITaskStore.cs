@@ -30,7 +30,7 @@ public interface ITaskStore
     /// <param name="message">Optional message associated with the status.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>The updated task status.</returns>
-    Task<AgentTaskStatus> UpdateStatusAsync(string taskId, TaskState status, Message? message = null, CancellationToken cancellationToken = default);
+    Task<AgentTaskStatus> UpdateStatusAsync(string taskId, TaskState status, AgentMessage? message = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Stores or updates a task.

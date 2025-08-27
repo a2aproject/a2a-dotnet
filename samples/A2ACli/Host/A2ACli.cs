@@ -179,7 +179,7 @@ public static class A2ACli
         }
 
         // Create message with text part
-        var message = new Message
+        var message = new AgentMessage
         {
             Role = MessageRole.User,
             Parts =
@@ -252,7 +252,7 @@ public static class A2ACli
         Console.WriteLine($"Send task payload => {JsonSerializer.Serialize(payload, jsonOptions)}");
         if (streaming)
         {
-            await foreach (var result in client.SendMessageStreamAsync(payload, cancellationToken))
+            await foreach (var result in client.SendMessageStreamingAsync(payload, cancellationToken))
             {
                 Console.WriteLine($"Stream event => {JsonSerializer.Serialize(result, jsonOptions)}");
             }

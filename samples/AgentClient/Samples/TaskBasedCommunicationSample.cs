@@ -74,7 +74,7 @@ internal sealed class TaskBasedCommunicationSample
     {
         Console.WriteLine("\nShort-lived Task");
 
-        Message userMessage = new()
+        AgentMessage userMessage = new()
         {
             Parts = [new TextPart { Text = "Hello from a short-lived task sample!" }],
             Role = MessageRole.User
@@ -92,7 +92,7 @@ internal sealed class TaskBasedCommunicationSample
     {
         Console.WriteLine("\nLong-running Task");
 
-        Message userMessage = new()
+        AgentMessage userMessage = new()
         {
             Parts = [new TextPart { Text = "Hello from a long-running task sample!" }],
             Role = MessageRole.User,

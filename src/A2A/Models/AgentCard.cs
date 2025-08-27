@@ -91,7 +91,7 @@ public sealed class AgentCard
     /// Gets or sets the security requirements for contacting the agent.
     /// </summary>
     [JsonPropertyName("security")]
-    public Dictionary<string, string[]>? Security { get; set; }
+    public List<Dictionary<string, string[]>>? Security { get; set; }
 
     /// <summary>
     /// Gets or sets the set of interaction modes that the agent supports across all skills.

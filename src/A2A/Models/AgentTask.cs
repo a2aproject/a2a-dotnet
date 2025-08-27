@@ -39,7 +39,7 @@ public sealed class AgentTask : A2AResponse
     /// Collection of messages in the task history.
     /// </summary>
     [JsonPropertyName("history")]
-    public List<Message>? History { get; set; } = [];
+    public List<AgentMessage>? History { get; set; } = [];
 
     /// <summary>
     /// Extension metadata.

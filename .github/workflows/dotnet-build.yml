@@ -20,7 +20,7 @@ jobs:
           - dotnet-version: 9.x
             framework: net9.0
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Setup .NET 9.x
         uses: actions/setup-dotnet@v4
         with:
@@ -33,12 +33,14 @@ jobs:
         run: dotnet restore
       - name: BuildLibs
         run: dotnet build ./src/A2ALibs.slnx --framework ${{ matrix.framework }}
+      - name: BuildNetStandard
+        run: dotnet build ./src/A2A/A2A.csproj --framework netstandard2.0
       - name: TestLibs
         run: dotnet test ./src/A2ALibs.slnx --no-build --verbosity normal --framework ${{ matrix.framework }}
   buildSamples:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Setup .NET 9.x
         uses: actions/setup-dotnet@v4
         with:

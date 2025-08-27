@@ -10,18 +10,18 @@ public class EchoAgent
         taskManager.OnAgentCardQuery = GetAgentCardAsync;
     }
 
-    private Task<Message> ProcessMessageAsync(MessageSendParams messageSendParams, CancellationToken cancellationToken)
+    private Task<A2AResponse> ProcessMessageAsync(MessageSendParams messageSendParams, CancellationToken cancellationToken)
     {
         if (cancellationToken.IsCancellationRequested)
         {
-            return Task.FromCanceled<Message>(cancellationToken);
+            return Task.FromCanceled<A2AResponse>(cancellationToken);
         }
 
         // Process the message
         var messageText = messageSendParams.Message.Parts.OfType<TextPart>().First().Text;
 
         // Create and return an artifact
-        var message = new Message()
+        var message = new AgentMessage()
         {
             Role = MessageRole.Agent,
             MessageId = Guid.NewGuid().ToString(),
@@ -31,7 +31,7 @@ public class EchoAgent
             }]
         };
 
-        return Task.FromResult(message);
+        return Task.FromResult<A2AResponse>(message);
     }
 
     private Task<AgentCard> GetAgentCardAsync(string agentUrl, CancellationToken cancellationToken)

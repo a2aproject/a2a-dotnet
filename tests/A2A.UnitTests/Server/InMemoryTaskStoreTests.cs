@@ -39,7 +39,7 @@ public class InMemoryTaskStoreTests
         var sut = new InMemoryTaskStore();
         var task = new AgentTask { Id = "task2", Status = new AgentTaskStatus { State = TaskState.Submitted } };
         await sut.SetTaskAsync(task);
-        var message = new Message { MessageId = "msg1" };
+        var message = new AgentMessage { MessageId = "msg1" };
 
         // Act
         var status = await sut.UpdateStatusAsync("task2", TaskState.Working, message);

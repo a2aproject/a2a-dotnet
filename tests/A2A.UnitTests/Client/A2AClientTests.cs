@@ -13,11 +13,11 @@ public class A2AClientTests
         // Arrange
         HttpRequestMessage? capturedRequest = null;
 
-        var sut = CreateA2AClient(new Message() { MessageId = "id-1", Role = MessageRole.User, Parts = [] }, req => capturedRequest = req);
+        var sut = CreateA2AClient(new AgentMessage() { MessageId = "id-1", Role = MessageRole.User, Parts = [] }, req => capturedRequest = req);
 
         var sendParams = new MessageSendParams
         {
-            Message = new Message
+            Message = new AgentMessage
             {
                 Parts = [new TextPart { Text = "Hello" }],
                 Role = MessageRole.User,
@@ -72,7 +72,7 @@ public class A2AClientTests
     public async Task SendMessageAsync_MapsResponseCorrectly()
     {
         // Arrange
-        var expectedMessage = new Message
+        var expectedMessage = new AgentMessage
         {
             Role = MessageRole.Agent,
             Parts =
@@ -92,7 +92,7 @@ public class A2AClientTests
         var sendParams = new MessageSendParams();
 
         // Act
-        var result = await sut.SendMessageAsync(sendParams) as Message;
+        var result = await sut.SendMessageAsync(sendParams) as AgentMessage;
 
         // Assert
         Assert.NotNull(result);
@@ -144,7 +144,7 @@ public class A2AClientTests
             ContextId = "ctx-ctx",
             Status = new AgentTaskStatus { State = TaskState.Working },
             Artifacts = [new Artifact { ArtifactId = "a1", Parts = { new TextPart { Text = "part" } } }],
-            History = [new Message { MessageId = "m1" }],
+            History = [new AgentMessage { MessageId = "m1" }],
             Metadata = new Dictionary<string, JsonElement> { { "foo", JsonDocument.Parse("\"bar\"").RootElement } }
         };
 
@@ -204,7 +204,7 @@ public class A2AClientTests
             ContextId = "ctx-ctx",
             Status = new AgentTaskStatus { State = TaskState.Working },
             Artifacts = [new Artifact { ArtifactId = "a1", Parts = { new TextPart { Text = "part" } } }],
-            History = [new Message { MessageId = "m1" }],
+            History = [new AgentMessage { MessageId = "m1" }],
             Metadata = new Dictionary<string, JsonElement> { { "foo", JsonDocument.Parse("\"bar\"").RootElement } }
         };
 
@@ -398,16 +398,16 @@ public class A2AClientTests
     }
 
     [Fact]
-    public async Task SendMessageStreamAsync_MapsRequestParamsCorrectly()
+    public async Task SendMessageStreamingAsync_MapsRequestParamsCorrectly()
     {
         // Arrange
         HttpRequestMessage? capturedRequest = null;
 
-        var sut = CreateA2AClient(new Message() { MessageId = "id-1", Role = MessageRole.User, Parts = [] }, req => capturedRequest = req, isSse: true);
+        var sut = CreateA2AClient(new AgentMessage() { MessageId = "id-1", Role = MessageRole.User, Parts = [] }, req => capturedRequest = req, isSse: true);
 
         var sendParams = new MessageSendParams
         {
-            Message = new Message
+            Message = new AgentMessage
             {
                 Parts = [new TextPart { Text = "Hello" }],
                 Role = MessageRole.User,
@@ -428,7 +428,7 @@ public class A2AClientTests
         };
 
         // Act
-        await foreach (var _ in sut.SendMessageStreamAsync(sendParams))
+        await foreach (var _ in sut.SendMessageStreamingAsync(sendParams))
         {
             break; // Only need to trigger the request
         }
@@ -459,10 +459,10 @@ public class A2AClientTests
     }
 
     [Fact]
-    public async Task SendMessageStreamAsync_MapsResponseCorrectly()
+    public async Task SendMessageStreamingAsync_MapsResponseCorrectly()
     {
         // Arrange
-        var expectedMessage = new Message
+        var expectedMessage = new AgentMessage
         {
             Role = MessageRole.Agent,
             Parts =
@@ -483,7 +483,7 @@ public class A2AClientTests
 
         // Act
         SseItem<A2AEvent>? result = null;
-        await foreach (var item in sut.SendMessageStreamAsync(sendParams))
+        await foreach (var item in sut.SendMessageStreamingAsync(sendParams))
         {
             result = item;
             break;
@@ -491,7 +491,7 @@ public class A2AClientTests
 
         // Assert
         Assert.NotNull(result);
-        var message = Assert.IsType<Message>(result.Value.Data);
+        var message = Assert.IsType<AgentMessage>(result.Value.Data);
         Assert.Equal(expectedMessage.Role, message.Role);
         Assert.Equal(expectedMessage.Parts.Count, message.Parts.Count);
         Assert.IsType<TextPart>(message.Parts[0]);
@@ -511,7 +511,7 @@ public class A2AClientTests
         // Arrange
         HttpRequestMessage? capturedRequest = null;
 
-        var sut = CreateA2AClient(new Message() { MessageId = "id-1", Role = MessageRole.User, Parts = [] }, req => capturedRequest = req, isSse: true);
+        var sut = CreateA2AClient(new AgentMessage() { MessageId = "id-1", Role = MessageRole.User, Parts = [] }, req => capturedRequest = req, isSse: true);
 
         var taskId = "task-123";
 
@@ -537,7 +537,7 @@ public class A2AClientTests
     public async Task SubscribeToTaskAsync_MapsResponseCorrectly()
     {
         // Arrange
-        var expectedMessage = new Message
+        var expectedMessage = new AgentMessage
         {
             Role = MessageRole.Agent,
             Parts =
@@ -564,7 +564,7 @@ public class A2AClientTests
 
         // Assert
         Assert.NotNull(result);
-        var message = Assert.IsType<Message>(result.Value.Data);
+        var message = Assert.IsType<AgentMessage>(result.Value.Data);
         Assert.Equal(expectedMessage.Role, message.Role);
         Assert.Equal(expectedMessage.Parts.Count, message.Parts.Count);
         Assert.IsType<TextPart>(message.Parts[0]);
@@ -579,7 +579,7 @@ public class A2AClientTests
     }
 
     [Fact]
-    public async Task SendMessageStreamAsync_ThrowsOnJsonRpcError()
+    public async Task SendMessageStreamingAsync_ThrowsOnJsonRpcError()
     {
         // Arrange
         var sut = CreateA2AClient(JsonRpcResponse.InvalidParamsResponse("test-id"), isSse: true);
@@ -589,7 +589,7 @@ public class A2AClientTests
         // Act & Assert
         var exception = await Assert.ThrowsAsync<A2AException>(async () =>
         {
-            await foreach (var _ in sut.SendMessageStreamAsync(sendParams))
+            await foreach (var _ in sut.SendMessageStreamingAsync(sendParams))
             {
                 // Should throw before yielding any items
             }
