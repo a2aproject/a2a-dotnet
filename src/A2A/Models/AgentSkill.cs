@@ -61,4 +61,15 @@ public sealed class AgentSkill
     /// </summary>
     [JsonPropertyName("outputModes")]
     public List<string>? OutputModes { get; set; }
+
+    /// <summary>
+    /// Security schemes necessary for the agent to leverage this skill.
+    /// </summary>
+    /// <remarks>
+    /// As in the overall AgentCard.security, this list represents a logical OR of security
+    /// requirement objects. Each object is a set of security schemes that must be used together
+    /// (a logical AND).
+    /// </remarks>
+    [JsonPropertyName("security")]
+    public List<Dictionary<string, string[]>>? Security { get; set; }
 }
