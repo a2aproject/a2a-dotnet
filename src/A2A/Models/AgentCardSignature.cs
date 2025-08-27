@@ -27,6 +27,5 @@ public sealed class AgentCardSignature
     /// The unprotected JWS header values.
     /// </summary>
     [JsonPropertyName("header")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, object>? Header { get; set; }
 }

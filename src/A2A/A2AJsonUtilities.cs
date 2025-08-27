@@ -46,6 +46,7 @@ public static partial class A2AJsonUtilities
     [JsonSerializable(typeof(A2AEvent))]
     [JsonSerializable(typeof(A2AResponse))]
     [JsonSerializable(typeof(AgentCard))]
+    [JsonSerializable(typeof(AgentCardSignature))]
     [JsonSerializable(typeof(AgentTask))]
     [JsonSerializable(typeof(GetTaskPushNotificationConfigParams))]
     [JsonSerializable(typeof(MessageSendParams))]

@@ -4,8 +4,6 @@ namespace A2A.UnitTests.Models;
 
 public class AgentCardTests
 {
-    private static readonly JsonSerializerOptions s_jsonOptions = new() { WriteIndented = true };
-
     private const string ExpectedJson = """
         {
           "name": "Test Agent",
@@ -69,7 +67,7 @@ public class AgentCardTests
     public void AgentCard_Deserialize_AllPropertiesCorrect()
     {
         // Act
-        var deserializedCard = JsonSerializer.Deserialize<AgentCard>(ExpectedJson);
+        var deserializedCard = JsonSerializer.Deserialize<AgentCard>(ExpectedJson, A2AJsonUtilities.DefaultOptions);
 
         // Assert
         Assert.NotNull(deserializedCard);
@@ -209,12 +207,12 @@ public class AgentCardTests
         };
 
         // Act
-        var serializedJson = JsonSerializer.Serialize(agentCard, s_jsonOptions);
+        var serializedJson = JsonSerializer.Serialize(agentCard, A2AJsonUtilities.DefaultOptions);
 
         // Assert - Compare objects instead of raw JSON strings to avoid formatting/ordering issues
         // and provide more meaningful error messages when properties don't match
-        var expectedCard = JsonSerializer.Deserialize<AgentCard>(ExpectedJson);
-        var actualCard = JsonSerializer.Deserialize<AgentCard>(serializedJson);
+        var expectedCard = JsonSerializer.Deserialize<AgentCard>(ExpectedJson, A2AJsonUtilities.DefaultOptions);
+        var actualCard = JsonSerializer.Deserialize<AgentCard>(serializedJson, A2AJsonUtilities.DefaultOptions);
 
         Assert.NotNull(actualCard);
         Assert.NotNull(expectedCard);

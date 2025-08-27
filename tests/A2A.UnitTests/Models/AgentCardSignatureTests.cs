@@ -1,16 +1,9 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace A2A.UnitTests.Models;
 
 public class AgentCardSignatureTests
 {
-    private static readonly JsonSerializerOptions s_jsonOptions = new()
-    {
-        WriteIndented = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-    };
-
     [Fact]
     public void AgentCardSignature_SerializesAndDeserializesCorrectly()
     {
@@ -27,8 +20,8 @@ public class AgentCardSignatureTests
         };
 
         // Act
-        var json = JsonSerializer.Serialize(signature, s_jsonOptions);
-        var deserialized = JsonSerializer.Deserialize<AgentCardSignature>(json, s_jsonOptions);
+        var json = JsonSerializer.Serialize(signature, A2AJsonUtilities.DefaultOptions);
+        var deserialized = JsonSerializer.Deserialize<AgentCardSignature>(json, A2AJsonUtilities.DefaultOptions);
 
         // Assert
         Assert.NotNull(deserialized);
@@ -51,8 +44,8 @@ public class AgentCardSignatureTests
         };
 
         // Act
-        var json = JsonSerializer.Serialize(signature, s_jsonOptions);
-        var deserialized = JsonSerializer.Deserialize<AgentCardSignature>(json, s_jsonOptions);
+        var json = JsonSerializer.Serialize(signature, A2AJsonUtilities.DefaultOptions);
+        var deserialized = JsonSerializer.Deserialize<AgentCardSignature>(json, A2AJsonUtilities.DefaultOptions);
 
         // Assert
         Assert.NotNull(deserialized);
@@ -76,7 +69,7 @@ public class AgentCardSignatureTests
         """;
 
         // Act
-        var deserialized = JsonSerializer.Deserialize<AgentCardSignature>(specJson);
+        var deserialized = JsonSerializer.Deserialize<AgentCardSignature>(specJson, A2AJsonUtilities.DefaultOptions);
 
         // Assert
         Assert.NotNull(deserialized);
