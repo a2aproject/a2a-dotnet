@@ -52,7 +52,7 @@ public sealed class MessageRoleConverter : JsonConverter<MessageRole>
 /// <summary>
 /// Represents a single message exchanged between user and agent.
 /// </summary>
-public sealed class Message : A2AResponse
+public sealed class AgentMessage : A2AResponse
 {
     /// <summary>
     /// Message sender's role.

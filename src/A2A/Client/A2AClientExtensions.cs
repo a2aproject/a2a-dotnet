@@ -12,7 +12,7 @@ public static class A2AClientExtensions
     /// <inheritdoc cref="A2AClient.SendMessageAsync(MessageSendParams, CancellationToken)"/>
     public static Task<A2AResponse> SendMessageAsync(
         this A2AClient client,
-        Message message,
+        AgentMessage message,
         MessageSendConfiguration? configuration = null,
         Dictionary<string, JsonElement>? metadata = null,
         CancellationToken cancellationToken = default)
@@ -109,7 +109,7 @@ public static class A2AClientExtensions
     /// <inheritdoc cref="A2AClient.SendMessageStreamingAsync(MessageSendParams, CancellationToken)"/>
     public static IAsyncEnumerable<SseItem<A2AEvent>> SendMessageStreamingAsync(
         this A2AClient client,
-        Message message,
+        AgentMessage message,
         MessageSendConfiguration? configuration = null,
         Dictionary<string, JsonElement>? metadata = null,
         CancellationToken cancellationToken = default)

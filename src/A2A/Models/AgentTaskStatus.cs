@@ -21,7 +21,7 @@ public struct AgentTaskStatus()
     /// Additional status updates for client.
     /// </summary>
     [JsonPropertyName("message")]
-    public Message? Message { get; set; }
+    public AgentMessage? Message { get; set; }
 
     /// <summary>
     /// ISO 8601 datetime string when the status was recorded.

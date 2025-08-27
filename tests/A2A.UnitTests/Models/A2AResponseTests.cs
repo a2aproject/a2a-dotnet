@@ -34,7 +34,7 @@ public class A2AResponseTests
 
         // Act
         var a2aResponse = JsonSerializer.Deserialize<A2AResponse>(json, A2AJsonUtilities.DefaultOptions);
-        var message = Assert.IsType<Message>(a2aResponse);
+        var message = Assert.IsType<AgentMessage>(a2aResponse);
 
         // Assert
         Assert.Equal(MessageRole.User, message.Role);
@@ -83,7 +83,7 @@ public class A2AResponseTests
         };
         var expectedHistory = new[]
         {
-            new Message
+            new AgentMessage
             {
                 Role = MessageRole.User,
                 MessageId = "m-4",
@@ -205,7 +205,7 @@ public class A2AResponseTests
 
         // Act
         var a2aResponse = JsonSerializer.Deserialize<A2AResponse>(json, A2AJsonUtilities.DefaultOptions);
-        var message = Assert.IsType<Message>(a2aResponse);
+        var message = Assert.IsType<AgentMessage>(a2aResponse);
 
         // Assert
         Assert.Equal(MessageRole.User, message.Role);
@@ -220,7 +220,7 @@ public class A2AResponseTests
     {
         // Arrange
         var a2aResponses = new A2AResponse[] {
-            new Message { Role = MessageRole.User, MessageId = "m-8", Parts = [new TextPart { Text = "hello" }] },
+            new AgentMessage { Role = MessageRole.User, MessageId = "m-8", Parts = [new TextPart { Text = "hello" }] },
             new AgentTask { Id = "t-12", ContextId = "c-12", Status = new AgentTaskStatus { State = TaskState.Submitted, Timestamp = DateTimeOffset.Parse("2023-01-01T00:00:00+00:00", null) } }
         };
         var serializedA2aResponses = new string[] {

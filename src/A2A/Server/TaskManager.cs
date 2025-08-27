@@ -357,7 +357,7 @@ public sealed class TaskManager : ITaskManager
     }
 
     /// <inheritdoc />
-    public async Task UpdateStatusAsync(string taskId, TaskState status, Message? message = null, bool final = false, CancellationToken cancellationToken = default)
+    public async Task UpdateStatusAsync(string taskId, TaskState status, AgentMessage? message = null, bool final = false, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
 

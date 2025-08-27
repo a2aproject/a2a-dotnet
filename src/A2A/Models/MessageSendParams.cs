@@ -23,7 +23,7 @@ public sealed class MessageSendParams
         {
             try
             {
-                this.Message = (Message)value;
+                this.Message = (AgentMessage)value;
             }
             catch (Exception e)
             {
@@ -36,7 +36,7 @@ public sealed class MessageSendParams
     /// The message being sent to the server.
     /// </summary>
     [JsonIgnore]
-    public Message Message { get; set; } = new();
+    public AgentMessage Message { get; set; } = new();
 
     /// <summary>
     /// Send message configuration.

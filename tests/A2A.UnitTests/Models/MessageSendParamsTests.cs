@@ -30,7 +30,7 @@ namespace A2A.UnitTests.Models
             // Arrange
             var msp = new MessageSendParams
             {
-                Message = new Message
+                Message = new AgentMessage
                 {
                     Role = MessageRole.User,
                     MessageId = "m-8",
@@ -49,7 +49,7 @@ namespace A2A.UnitTests.Models
             // Arrange
             var msp = new MessageSendParams
             {
-                Message = new Message
+                Message = new AgentMessage
                 {
                     Role = MessageRole.User,
                     MessageId = "m-8",

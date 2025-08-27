@@ -179,7 +179,7 @@ public static class A2ACli
         }
 
         // Create message with text part
-        var message = new Message
+        var message = new AgentMessage
         {
             Role = MessageRole.User,
             Parts =
