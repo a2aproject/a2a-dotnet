@@ -22,10 +22,8 @@ public enum MessageRole
 /// <summary>
 /// Represents a single message exchanged between user and agent.
 /// </summary>
-public sealed class AgentMessage : A2AResponse
+public sealed class AgentMessage() : A2AResponse(A2AEventKind.Message)
 {
-    internal const string DiscriminatorValue = "message";
-
     /// <summary>
     /// Message sender's role.
     /// </summary>

@@ -5,10 +5,8 @@ namespace A2A;
 /// <summary>
 /// Sent by server during sendStream or subscribe requests.
 /// </summary>
-public sealed class TaskArtifactUpdateEvent : TaskUpdateEvent
+public sealed class TaskArtifactUpdateEvent() : TaskUpdateEvent(A2AEventKind.ArtifactUpdate)
 {
-    internal const string DiscriminatorValue = "artifact-update";
-
     /// <summary>
     /// Generated artifact.
     /// </summary>

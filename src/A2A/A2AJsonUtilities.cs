@@ -31,11 +31,17 @@ public static partial class A2AJsonUtilities
     public static JsonSerializerOptions DefaultOptions => defaultOptions.Value;
 
     private static Lazy<JsonSerializerOptions> defaultOptions = new(() =>
-        new JsonSerializerOptions(JsonContext.Default.Options)
+    {
+        // Clone source-generated options so we can customize
+        var opts = new JsonSerializerOptions(JsonContext.Default.Options)
         {
-            // Required for DateTimeOffset serialization to not have the '+' escaped.
-            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-        });
+            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping // optional: keep '+' unescaped
+        };
+
+        // Register custom converters at options-level (not attributes)
+        opts.Converters.Add(new A2AJsonConverter<MessageSendParams>());
+        return opts;
+    });
 
     // Keep in sync with CreateDefaultOptions above.
     [JsonSourceGenerationOptions(JsonSerializerDefaults.Web,

@@ -9,15 +9,35 @@ namespace A2A.UnitTests.Models
         {
             // Arrange
             const string json = """
-        {
-            "message": {
-                "kind": "task",
-                "id": "t-13",
-                "contextId": "c-13",
-                "status": { "state": "submitted" }
+            {
+                "message": {
+                    "kind": "task",
+                    "id": "t-13",
+                    "contextId": "c-13",
+                    "status": { "state": "submitted" }
+                }
             }
+            """;
+
+            // Act / Assert
+            var ex = Assert.Throws<A2AException>(() => JsonSerializer.Deserialize<MessageSendParams>(json, A2AJsonUtilities.DefaultOptions));
+            Assert.Equal(A2AErrorCode.InvalidRequest, ex.ErrorCode);
         }
-        """;
+
+        [Fact]
+        public void MessageSendParams_Deserialize_UnknownMessageKind_Throws()
+        {
+            // Arrange
+            const string json = """
+            {
+                "message": {
+                    "kind": "foo",
+                    "id": "t-13",
+                    "contextId": "c-13",
+                    "status": { "state": "submitted" }
+                }
+            }
+            """;
 
             // Act / Assert
             var ex = Assert.Throws<A2AException>(() => JsonSerializer.Deserialize<MessageSendParams>(json, A2AJsonUtilities.DefaultOptions));
