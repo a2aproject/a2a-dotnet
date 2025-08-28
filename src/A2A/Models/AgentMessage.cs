@@ -20,36 +20,6 @@ public enum MessageRole
 }
 
 /// <summary>
-/// JSON converter for MessageRole enum.
-/// </summary>
-public sealed class MessageRoleConverter : JsonConverter<MessageRole>
-{
-    /// <inheritdoc />
-    public override MessageRole Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-    {
-        var value = reader.GetString();
-        return value switch
-        {
-            "user" => MessageRole.User,
-            "agent" => MessageRole.Agent,
-            _ => throw new JsonException($"Unknown message role: {value}")
-        };
-    }
-
-    /// <inheritdoc />
-    public override void Write(Utf8JsonWriter writer, MessageRole value, JsonSerializerOptions options)
-    {
-        var role = value switch
-        {
-            MessageRole.User => "user",
-            MessageRole.Agent => "agent",
-            _ => throw new JsonException($"Unknown message role: {value}")
-        };
-        writer.WriteStringValue(role);
-    }
-}
-
-/// <summary>
 /// Represents a single message exchanged between user and agent.
 /// </summary>
 public sealed class AgentMessage : A2AResponse
