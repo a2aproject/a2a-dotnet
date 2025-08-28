@@ -92,7 +92,7 @@ internal class A2AEventConverterViaKindDiscriminator<T> : JsonConverter<T> where
             var kindValue = kindProp.Deserialize(A2AJsonUtilities.JsonContext.Default.A2AEventKind);
 #pragma warning disable CS8524 // The switch expression does not handle some values of its input type (it is not exhaustive) involving an unnamed enum value.
             // We don't need to handle this because the previous Deserialize call would have thrown if the value was invalid.
-            JsonTypeInfo? typeInfo = kindValue switch
+            JsonTypeInfo typeInfo = kindValue switch
             {
                 A2AEventKind.Message => options.GetTypeInfo(typeof(AgentMessage)),
                 A2AEventKind.Task => options.GetTypeInfo(typeof(AgentTask)),
@@ -101,7 +101,7 @@ internal class A2AEventConverterViaKindDiscriminator<T> : JsonConverter<T> where
             };
 #pragma warning restore CS8524 // The switch expression does not handle some values of its input type (it is not exhaustive) involving an unnamed enum value.
 
-            evt = typeInfo is null ? null : (T?)root.Deserialize(typeInfo);
+            evt = (T?)root.Deserialize(typeInfo);
         }
         catch (Exception e)
         {
