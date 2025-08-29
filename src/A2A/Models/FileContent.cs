@@ -52,14 +52,8 @@ public class FileContent(FileContentKind kind)
 /// <summary>
 /// Define the variant where 'bytes' is present and 'uri' is absent.
 /// </summary>
-public sealed class FileWithBytes : FileContent
+public sealed class FileWithBytes() : FileContent(FileContentKind.Bytes)
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="FileWithBytes"/> class.
-    /// </summary>
-    public FileWithBytes() : base(FileContentKind.Bytes)
-    {
-    }
     /// <summary>
     /// Optional name for the file.
     /// </summary>
@@ -89,14 +83,8 @@ public sealed class FileWithBytes : FileContent
 /// <summary>
 /// Define the variant where 'uri' is present and 'bytes' is absent.
 /// </summary>
-public sealed class FileWithUri : FileContent
+public sealed class FileWithUri() : FileContent(FileContentKind.Uri)
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="FileWithUri"/> class.
-    /// </summary>
-    public FileWithUri() : base(FileContentKind.Uri)
-    {
-    }
     /// <summary>
     /// Optional name for the file.
     /// </summary>
