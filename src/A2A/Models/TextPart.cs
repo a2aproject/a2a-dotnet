@@ -8,6 +8,12 @@ namespace A2A;
 public sealed class TextPart : Part
 {
     /// <summary>
+    /// Initializes a new instance of the <see cref="TextPart"/> class.
+    /// </summary>
+    public TextPart() : base(PartKind.Text)
+    {
+    }
+    /// <summary>
     /// Gets or sets the text content.
     /// </summary>
     [JsonPropertyName("text")]

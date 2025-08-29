@@ -9,6 +9,12 @@ namespace A2A;
 public sealed class DataPart : Part
 {
     /// <summary>
+    /// Initializes a new instance of the <see cref="DataPart"/> class.
+    /// </summary>
+    public DataPart() : base(PartKind.Data)
+    {
+    }
+    /// <summary>
     /// Structured data content.
     /// </summary>
     [JsonPropertyName("data")]
