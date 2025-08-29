@@ -85,8 +85,8 @@ internal class A2AEventConverterViaKindDiscriminator<T> : JsonConverter<T> where
             throw new A2AException($"Missing required '{DiscriminatorPropertyName}' discriminator for {typeof(T).Name}.", A2AErrorCode.InvalidRequest);
         }
 
-        T? evt = null;
-        Exception? ex = null;
+        T? a2aEventObj = null;
+        Exception? deserializationException = null;
         try
         {
             var kindValue = kindProp.Deserialize(A2AJsonUtilities.JsonContext.Default.A2AEventKind);
@@ -101,19 +101,19 @@ internal class A2AEventConverterViaKindDiscriminator<T> : JsonConverter<T> where
             };
 #pragma warning restore CS8524 // The switch expression does not handle some values of its input type (it is not exhaustive) involving an unnamed enum value.
 
-            evt = (T?)root.Deserialize(typeInfo);
+            a2aEventObj = (T?)root.Deserialize(typeInfo);
         }
         catch (Exception e)
         {
-            ex = e;
+            deserializationException = e;
         }
 
-        if (ex is not null || evt is null)
+        if (deserializationException is not null || a2aEventObj is null)
         {
-            throw new A2AException($"Failed to deserialize {kindProp.GetString()} event", ex, A2AErrorCode.InvalidRequest);
+            throw new A2AException($"Failed to deserialize {kindProp.GetString()} event", deserializationException, A2AErrorCode.InvalidRequest);
         }
 
-        return evt;
+        return a2aEventObj;
     }
 
     public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options)
