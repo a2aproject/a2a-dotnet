@@ -23,25 +23,6 @@ internal static class A2AHttpProcessor
     public static readonly ActivitySource ActivitySource = new("A2A.HttpProcessor", "1.0.0");
 
     /// <summary>
-    /// Processes a request to retrieve the agent card containing agent capabilities and metadata.
-    /// </summary>
-    /// <remarks>
-    /// Invokes the task manager's agent card query handler to get current agent information.
-    /// </remarks>
-    /// <param name="taskManager">The task manager instance containing the agent card query handler.</param>
-    /// <param name="logger">Logger instance for recording operation details and errors.</param>
-    /// <param name="agentUrl">The URL of the agent to retrieve the card for.</param>
-    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
-    /// <returns>An HTTP result containing the agent card JSON or an error response.</returns>
-    internal static Task<IResult> GetAgentCardAsync(ITaskManager taskManager, ILogger logger, string agentUrl, CancellationToken cancellationToken)
-        => WithExceptionHandlingAsync(logger, "GetAgentCard", async ct =>
-        {
-            var agentCard = await taskManager.OnAgentCardQuery(agentUrl, ct);
-
-            return Results.Ok(agentCard);
-        }, cancellationToken: cancellationToken);
-
-    /// <summary>
     /// Processes a request to retrieve a specific task by its ID.
     /// </summary>
     /// <remarks>
