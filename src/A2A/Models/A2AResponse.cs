@@ -55,7 +55,7 @@ public abstract class A2AEvent(A2AEventKind kind)
     /// <summary>
     /// The 'kind' discriminator value
     /// </summary>
-    [JsonRequired, JsonPropertyName(A2AEventConverterViaKindDiscriminator<A2AEvent>.DiscriminatorPropertyName), JsonInclude, JsonPropertyOrder(int.MinValue)]
+    [JsonRequired, JsonPropertyName(BaseKindDiscriminatorConverter<A2AEvent, A2AEventKind>.DiscriminatorPropertyName), JsonInclude, JsonPropertyOrder(int.MinValue)]
     public A2AEventKind Kind { get; internal set; } = kind;
 }
 
@@ -71,61 +71,18 @@ public abstract class A2AEvent(A2AEventKind kind)
 // we implement our own converter to handle that, with the discriminator logic implemented by-hand.
 public abstract class A2AResponse(A2AEventKind kind) : A2AEvent(kind);
 
-internal class A2AEventConverterViaKindDiscriminator<T> : JsonConverter<T> where T : A2AEvent
+internal class A2AEventConverterViaKindDiscriminator<T> : BaseKindDiscriminatorConverter<T, A2AEventKind> where T : A2AEvent
 {
-    internal const string DiscriminatorPropertyName = "kind";
-
-    public override T Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    protected override Type?[] GetKindToTypeMapping() => new Type?[]
     {
-        using var document = JsonDocument.ParseValue(ref reader);
-        var root = document.RootElement;
+        typeof(AgentMessage),           // A2AEventKind.Message = 0
+        typeof(AgentTask),              // A2AEventKind.Task = 1
+        typeof(TaskStatusUpdateEvent),  // A2AEventKind.StatusUpdate = 2
+        typeof(TaskArtifactUpdateEvent) // A2AEventKind.ArtifactUpdate = 3
+    };
 
-        if (!root.TryGetProperty(DiscriminatorPropertyName, out var kindProp) || kindProp.ValueKind is not JsonValueKind.String)
-        {
-            throw new A2AException($"Missing required '{DiscriminatorPropertyName}' discriminator for {typeof(T).Name}.", A2AErrorCode.InvalidRequest);
-        }
+    protected override string GetEntityName() => "event";
 
-        T? a2aEventObj = null;
-        Exception? deserializationException = null;
-        try
-        {
-            var kindValue = kindProp.Deserialize(A2AJsonUtilities.JsonContext.Default.A2AEventKind);
-#pragma warning disable CS8524 // The switch expression does not handle some values of its input type (it is not exhaustive) involving an unnamed enum value.
-            // We don't need to handle this because the previous Deserialize call would have thrown if the value was invalid.
-            JsonTypeInfo typeInfo = kindValue switch
-            {
-                A2AEventKind.Message => options.GetTypeInfo(typeof(AgentMessage)),
-                A2AEventKind.Task => options.GetTypeInfo(typeof(AgentTask)),
-                A2AEventKind.StatusUpdate => options.GetTypeInfo(typeof(TaskStatusUpdateEvent)),
-                A2AEventKind.ArtifactUpdate => options.GetTypeInfo(typeof(TaskArtifactUpdateEvent)),
-            };
-#pragma warning restore CS8524 // The switch expression does not handle some values of its input type (it is not exhaustive) involving an unnamed enum value.
-
-            a2aEventObj = (T?)root.Deserialize(typeInfo);
-        }
-        catch (Exception e)
-        {
-            deserializationException = e;
-        }
-
-        if (deserializationException is not null || a2aEventObj is null)
-        {
-            throw new A2AException($"Failed to deserialize {kindProp.GetString()} event", deserializationException, A2AErrorCode.InvalidRequest);
-        }
-
-        return a2aEventObj;
-    }
-
-    public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options)
-    {
-        var element = JsonSerializer.SerializeToElement(value, options.GetTypeInfo(value.GetType()));
-        writer.WriteStartObject();
-
-        foreach (var prop in element.EnumerateObject())
-        {
-            prop.WriteTo(writer);
-        }
-
-        writer.WriteEndObject();
-    }
+    protected override A2AEventKind DeserializeKind(JsonElement kindProp) =>
+        kindProp.Deserialize(A2AJsonUtilities.JsonContext.Default.A2AEventKind);
 }

@@ -48,7 +48,7 @@ public abstract class Part(PartKind kind)
     /// <summary>
     /// The 'kind' discriminator value
     /// </summary>
-    [JsonRequired, JsonPropertyName(PartConverterViaKindDiscriminator<Part>.DiscriminatorPropertyName), JsonInclude, JsonPropertyOrder(int.MinValue)]
+    [JsonRequired, JsonPropertyName(BaseKindDiscriminatorConverter<Part, PartKind>.DiscriminatorPropertyName), JsonInclude, JsonPropertyOrder(int.MinValue)]
     public PartKind Kind { get; internal set; } = kind;
     /// <summary>
     /// Optional metadata associated with the part.
@@ -84,60 +84,17 @@ public abstract class Part(PartKind kind)
         throw new InvalidCastException($"Cannot cast {GetType().Name} to DataPart.");
 }
 
-internal class PartConverterViaKindDiscriminator<T> : JsonConverter<T> where T : Part
+internal class PartConverterViaKindDiscriminator<T> : BaseKindDiscriminatorConverter<T, PartKind> where T : Part
 {
-    internal const string DiscriminatorPropertyName = "kind";
-
-    public override T Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    protected override Type?[] GetKindToTypeMapping() => new Type?[]
     {
-        using var document = JsonDocument.ParseValue(ref reader);
-        var root = document.RootElement;
+        typeof(TextPart),   // PartKind.Text = 0
+        typeof(FilePart),   // PartKind.File = 1
+        typeof(DataPart)    // PartKind.Data = 2
+    };
 
-        if (!root.TryGetProperty(DiscriminatorPropertyName, out var kindProp) || kindProp.ValueKind is not JsonValueKind.String)
-        {
-            throw new A2AException($"Missing required '{DiscriminatorPropertyName}' discriminator for {typeof(T).Name}.", A2AErrorCode.InvalidRequest);
-        }
+    protected override string GetEntityName() => "part";
 
-        T? partObj = null;
-        Exception? deserializationException = null;
-        try
-        {
-            var kindValue = kindProp.Deserialize(A2AJsonUtilities.JsonContext.Default.PartKind);
-#pragma warning disable CS8524 // The switch expression does not handle some values of its input type (it is not exhaustive) involving an unnamed enum value.
-            // We don't need to handle this because the previous Deserialize call would have thrown if the value was invalid.
-            JsonTypeInfo typeInfo = kindValue switch
-            {
-                PartKind.Text => options.GetTypeInfo(typeof(TextPart)),
-                PartKind.File => options.GetTypeInfo(typeof(FilePart)),
-                PartKind.Data => options.GetTypeInfo(typeof(DataPart)),
-            };
-#pragma warning restore CS8524 // The switch expression does not handle some values of its input type (it is not exhaustive) involving an unnamed enum value.
-
-            partObj = (T?)root.Deserialize(typeInfo);
-        }
-        catch (Exception e)
-        {
-            deserializationException = e;
-        }
-
-        if (deserializationException is not null || partObj is null)
-        {
-            throw new A2AException($"Failed to deserialize {kindProp.GetString()} part", deserializationException, A2AErrorCode.InvalidRequest);
-        }
-
-        return partObj;
-    }
-
-    public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options)
-    {
-        var element = JsonSerializer.SerializeToElement(value, options.GetTypeInfo(value.GetType()));
-        writer.WriteStartObject();
-
-        foreach (var prop in element.EnumerateObject())
-        {
-            prop.WriteTo(writer);
-        }
-
-        writer.WriteEndObject();
-    }
+    protected override PartKind DeserializeKind(JsonElement kindProp) =>
+        kindProp.Deserialize(A2AJsonUtilities.JsonContext.Default.PartKind);
 }

@@ -41,7 +41,7 @@ public class FileContent(FileContentKind kind)
     /// <summary>
     /// The 'kind' discriminator value
     /// </summary>
-    [JsonRequired, JsonPropertyName(FileContentConverterViaKindDiscriminator<FileContent>.DiscriminatorPropertyName), JsonInclude, JsonPropertyOrder(int.MinValue)]
+    [JsonRequired, JsonPropertyName(BaseKindDiscriminatorConverter<FileContent, FileContentKind>.DiscriminatorPropertyName), JsonInclude, JsonPropertyOrder(int.MinValue)]
     public FileContentKind Kind { get; internal set; } = kind;
     /// <summary>
     /// Optional metadata for the file.
@@ -105,59 +105,16 @@ public sealed class FileWithUri() : FileContent(FileContentKind.Uri)
     public string Uri { get; set; } = string.Empty;
 }
 
-internal class FileContentConverterViaKindDiscriminator<T> : JsonConverter<T> where T : FileContent
+internal class FileContentConverterViaKindDiscriminator<T> : BaseKindDiscriminatorConverter<T, FileContentKind> where T : FileContent
 {
-    internal const string DiscriminatorPropertyName = "kind";
-
-    public override T Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    protected override Type?[] GetKindToTypeMapping() => new Type?[]
     {
-        using var document = JsonDocument.ParseValue(ref reader);
-        var root = document.RootElement;
+        typeof(FileWithBytes),   // FileContentKind.Bytes = 0
+        typeof(FileWithUri)      // FileContentKind.Uri = 1
+    };
 
-        if (!root.TryGetProperty(DiscriminatorPropertyName, out var kindProp) || kindProp.ValueKind is not JsonValueKind.String)
-        {
-            throw new A2AException($"Missing required '{DiscriminatorPropertyName}' discriminator for {typeof(T).Name}.", A2AErrorCode.InvalidRequest);
-        }
+    protected override string GetEntityName() => "file content";
 
-        T? fileContentObj = null;
-        Exception? deserializationException = null;
-        try
-        {
-            var kindValue = kindProp.Deserialize(A2AJsonUtilities.JsonContext.Default.FileContentKind);
-#pragma warning disable CS8524 // The switch expression does not handle some values of its input type (it is not exhaustive) involving an unnamed enum value.
-            // We don't need to handle this because the previous Deserialize call would have thrown if the value was invalid.
-            JsonTypeInfo typeInfo = kindValue switch
-            {
-                FileContentKind.Bytes => options.GetTypeInfo(typeof(FileWithBytes)),
-                FileContentKind.Uri => options.GetTypeInfo(typeof(FileWithUri)),
-            };
-#pragma warning restore CS8524 // The switch expression does not handle some values of its input type (it is not exhaustive) involving an unnamed enum value.
-
-            fileContentObj = (T?)root.Deserialize(typeInfo);
-        }
-        catch (Exception e)
-        {
-            deserializationException = e;
-        }
-
-        if (deserializationException is not null || fileContentObj is null)
-        {
-            throw new A2AException($"Failed to deserialize {kindProp.GetString()} file content", deserializationException, A2AErrorCode.InvalidRequest);
-        }
-
-        return fileContentObj;
-    }
-
-    public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options)
-    {
-        var element = JsonSerializer.SerializeToElement(value, options.GetTypeInfo(value.GetType()));
-        writer.WriteStartObject();
-
-        foreach (var prop in element.EnumerateObject())
-        {
-            prop.WriteTo(writer);
-        }
-
-        writer.WriteEndObject();
-    }
+    protected override FileContentKind DeserializeKind(JsonElement kindProp) =>
+        kindProp.Deserialize(A2AJsonUtilities.JsonContext.Default.FileContentKind);
 }
