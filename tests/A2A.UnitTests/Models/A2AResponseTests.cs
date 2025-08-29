@@ -130,7 +130,8 @@ public class A2AResponseTests
         """;
 
         // Act / Assert
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<A2AResponse>(json, A2AJsonUtilities.DefaultOptions));
+        var ex = Assert.Throws<A2AException>(() => JsonSerializer.Deserialize<A2AResponse>(json, A2AJsonUtilities.DefaultOptions));
+        Assert.Equal(A2AErrorCode.InvalidRequest, ex.ErrorCode);
     }
 
     [Fact]
@@ -155,7 +156,8 @@ public class A2AResponseTests
         """;
 
         // Act / Assert
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<A2AResponse>(json, A2AJsonUtilities.DefaultOptions));
+        var ex = Assert.Throws<A2AException>(() => JsonSerializer.Deserialize<A2AResponse>(json, A2AJsonUtilities.DefaultOptions));
+        Assert.Equal(A2AErrorCode.InvalidRequest, ex.ErrorCode);
     }
 
     [Fact]
@@ -170,7 +172,8 @@ public class A2AResponseTests
         """;
 
         // Act / Assert
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<A2AResponse>(json, A2AJsonUtilities.DefaultOptions));
+        var ex = Assert.Throws<A2AException>(() => JsonSerializer.Deserialize<A2AResponse>(json, A2AJsonUtilities.DefaultOptions));
+        Assert.Equal(A2AErrorCode.InvalidRequest, ex.ErrorCode);
     }
 
     [Fact]
@@ -186,7 +189,8 @@ public class A2AResponseTests
         """;
 
         // Act / Assert
-        Assert.Throws<NotSupportedException>(() => JsonSerializer.Deserialize<A2AResponse>(json, A2AJsonUtilities.DefaultOptions));
+        var ex = Assert.Throws<A2AException>(() => JsonSerializer.Deserialize<A2AResponse>(json, A2AJsonUtilities.DefaultOptions));
+        Assert.Equal(A2AErrorCode.InvalidRequest, ex.ErrorCode);
     }
 
     [Fact]

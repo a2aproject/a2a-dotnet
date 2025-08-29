@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -27,7 +28,20 @@ public static partial class A2AJsonUtilities
     /// </list>
     /// </para>
     /// </remarks>
-    public static JsonSerializerOptions DefaultOptions => JsonContext.Default.Options;
+    public static JsonSerializerOptions DefaultOptions => defaultOptions.Value;
+
+    private static Lazy<JsonSerializerOptions> defaultOptions = new(() =>
+    {
+        // Clone source-generated options so we can customize
+        var opts = new JsonSerializerOptions(JsonContext.Default.Options)
+        {
+            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping // optional: keep '+' unescaped
+        };
+
+        // Register custom converters at options-level (not attributes)
+        opts.Converters.Add(new A2AJsonConverter<MessageSendParams>());
+        return opts;
+    });
 
     // Keep in sync with CreateDefaultOptions above.
     [JsonSourceGenerationOptions(JsonSerializerDefaults.Web,
