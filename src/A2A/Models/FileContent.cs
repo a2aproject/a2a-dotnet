@@ -107,13 +107,13 @@ public sealed class FileWithUri() : FileContent(FileContentKind.Uri)
 
 internal class FileContentConverterViaKindDiscriminator<T> : BaseKindDiscriminatorConverter<T, FileContentKind> where T : FileContent
 {
-    protected override Type?[] GetKindToTypeMapping() => new Type?[]
+    protected override Type?[] TypeMapping => new Type?[]
     {
         typeof(FileWithBytes),   // FileContentKind.Bytes = 0
         typeof(FileWithUri)      // FileContentKind.Uri = 1
     };
 
-    protected override string GetEntityName() => "file content";
+    protected override string DisplayName => "file content";
 
     protected override FileContentKind DeserializeKind(JsonElement kindProp) =>
         kindProp.Deserialize(A2AJsonUtilities.JsonContext.Default.FileContentKind);

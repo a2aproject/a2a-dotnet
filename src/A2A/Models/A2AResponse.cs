@@ -73,7 +73,7 @@ public abstract class A2AResponse(A2AEventKind kind) : A2AEvent(kind);
 
 internal class A2AEventConverterViaKindDiscriminator<T> : BaseKindDiscriminatorConverter<T, A2AEventKind> where T : A2AEvent
 {
-    protected override Type?[] GetKindToTypeMapping() => new Type?[]
+    protected override Type?[] TypeMapping => new Type?[]
     {
         typeof(AgentMessage),           // A2AEventKind.Message = 0
         typeof(AgentTask),              // A2AEventKind.Task = 1
@@ -81,7 +81,7 @@ internal class A2AEventConverterViaKindDiscriminator<T> : BaseKindDiscriminatorC
         typeof(TaskArtifactUpdateEvent) // A2AEventKind.ArtifactUpdate = 3
     };
 
-    protected override string GetEntityName() => "event";
+    protected override string DisplayName => "event";
 
     protected override A2AEventKind DeserializeKind(JsonElement kindProp) =>
         kindProp.Deserialize(A2AJsonUtilities.JsonContext.Default.A2AEventKind);

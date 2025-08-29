@@ -19,14 +19,12 @@ internal abstract class BaseKindDiscriminatorConverter<TBase, TKind> : JsonConve
     /// <summary>
     /// Gets the mapping from kind enum values to their corresponding concrete types.
     /// </summary>
-    /// <returns>An array mapping kind values to types, indexed by enum value.</returns>
-    protected abstract Type?[] GetKindToTypeMapping();
+    protected abstract Type?[] TypeMapping { get; }
 
     /// <summary>
     /// Gets the entity name used in error messages (e.g., "part", "file content", "event").
     /// </summary>
-    /// <returns>A human-readable name for the entity type.</returns>
-    protected abstract string GetEntityName();
+    protected abstract string DisplayName { get; }
 
     /// <summary>
     /// Deserializes the kind enum value from the JSON property using the appropriate JsonTypeInfo.
@@ -50,12 +48,12 @@ internal abstract class BaseKindDiscriminatorConverter<TBase, TKind> : JsonConve
         try
         {
             var kindValue = DeserializeKind(kindProp);
-            var kindToTypeMapping = GetKindToTypeMapping();
+            var kindToTypeMapping = TypeMapping;
             var kindIndex = Convert.ToInt32(kindValue, CultureInfo.InvariantCulture);
 
             if (kindIndex < 0 || kindIndex >= kindToTypeMapping.Length || kindToTypeMapping[kindIndex] is not Type targetType)
             {
-                throw new A2AException($"Unknown {GetEntityName()} kind: {kindProp.GetString()}", A2AErrorCode.InvalidRequest);
+                throw new A2AException($"Unknown {DisplayName} kind: {kindProp.GetString()}", A2AErrorCode.InvalidRequest);
             }
 
             var typeInfo = options.GetTypeInfo(targetType);
@@ -68,7 +66,7 @@ internal abstract class BaseKindDiscriminatorConverter<TBase, TKind> : JsonConve
 
         if (deserializationException is not null || obj is null)
         {
-            throw new A2AException($"Failed to deserialize {kindProp.GetString()} {GetEntityName()}", deserializationException, A2AErrorCode.InvalidRequest);
+            throw new A2AException($"Failed to deserialize {kindProp.GetString()} {DisplayName}", deserializationException, A2AErrorCode.InvalidRequest);
         }
 
         return obj;

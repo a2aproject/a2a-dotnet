@@ -86,14 +86,14 @@ public abstract class Part(PartKind kind)
 
 internal class PartConverterViaKindDiscriminator<T> : BaseKindDiscriminatorConverter<T, PartKind> where T : Part
 {
-    protected override Type?[] GetKindToTypeMapping() => new Type?[]
+    protected override Type?[] TypeMapping => new Type?[]
     {
         typeof(TextPart),   // PartKind.Text = 0
         typeof(FilePart),   // PartKind.File = 1
         typeof(DataPart)    // PartKind.Data = 2
     };
 
-    protected override string GetEntityName() => "part";
+    protected override string DisplayName => "part";
 
     protected override PartKind DeserializeKind(JsonElement kindProp) =>
         kindProp.Deserialize(A2AJsonUtilities.JsonContext.Default.PartKind);
