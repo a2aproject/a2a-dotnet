@@ -39,7 +39,7 @@ internal sealed class A2A0001_TypeMappingStartsWithNullAnalyzer : DiagnosticAnal
         var baseType = classSymbol.BaseType;
         if (baseType is null || baseType.OriginalDefinition is null)
             return;
-        if (baseType.OriginalDefinition.ToDisplayString() != "A2A.BaseKindDiscriminatorConverter<TBase, TKind>")
+        if (baseType.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) != "global::A2A.BaseKindDiscriminatorConverter<TBase, TKind>")
             return;
 
         // Find override property TypeMapping
@@ -51,41 +51,50 @@ internal sealed class A2A0001_TypeMappingStartsWithNullAnalyzer : DiagnosticAnal
                 if (!prop.Modifiers.Any(m => m.IsKind(SyntaxKind.OverrideKeyword)))
                     continue;
 
-                // Expect an array initializer with first element null
-                if (prop.ExpressionBody?.Expression is not null)
+                // Examine array or collection initializers, both expression-bodied and initializer forms
+                var exprOrValue = (SyntaxNode?)prop.ExpressionBody?.Expression ?? prop.Initializer?.Value;
+                if (exprOrValue is null)
+                    continue;
+
+                // Handle C# collection expressions: [ ... ]
+                if (exprOrValue is CollectionExpressionSyntax collection)
                 {
-                    if (prop.ExpressionBody.Expression is ImplicitArrayCreationExpressionSyntax implicitArray &&
-                        implicitArray.Initializer is { } init)
-                    {
-                        if (init.Expressions.Count == 0) return; // handled by compiler
-                        var first = init.Expressions[0];
-                        if (first is LiteralExpressionSyntax lit && lit.IsKind(SyntaxKind.NullLiteralExpression))
-                            return; // ok
-                    }
-                    else if (prop.ExpressionBody.Expression is ArrayCreationExpressionSyntax arrayCreation &&
-                             arrayCreation.Initializer is { } init2)
-                    {
-                        if (init2.Expressions.Count == 0) return;
-                        var first = init2.Expressions[0];
-                        if (first is LiteralExpressionSyntax lit && lit.IsKind(SyntaxKind.NullLiteralExpression))
-                            return; // ok
-                    }
-                }
-                else if (prop.Initializer?.Value is { } valueExpr)
-                {
-                    if (valueExpr is ImplicitArrayCreationExpressionSyntax iac && iac.Initializer is { } init3)
-                    {
-                        if (init3.Expressions.Count == 0) return;
-                        var first = init3.Expressions[0];
-                        if (first is LiteralExpressionSyntax lit && lit.IsKind(SyntaxKind.NullLiteralExpression))
-                            return; // ok
-                    }
+                    if (!collection.Elements.Any())
+                        return;
+
+                    var firstEl = collection.Elements[0] as ExpressionElementSyntax;
+                    if (firstEl?.Expression is LiteralExpressionSyntax lit && lit.IsKind(SyntaxKind.NullLiteralExpression))
+                        return; // ok
+
+                    Report(prop, classSymbol.Name, context);
+                    continue;
                 }
 
-                // If we get here, not starting with null
-                var diag = Diagnostic.Create(Rule, prop.GetLocation(), classSymbol.Name);
-                context.ReportDiagnostic(diag);
+                // Handle implicit/explicit array creation expressions with initializers
+                InitializerExpressionSyntax? init = null;
+                if (exprOrValue is ImplicitArrayCreationExpressionSyntax iac && iac.Initializer is { } initIac)
+                    init = initIac;
+                else if (exprOrValue is ArrayCreationExpressionSyntax ac && ac.Initializer is { } initAc)
+                    init = initAc;
+
+                if (init is null)
+                    continue;
+
+                if (!init.Expressions.Any())
+                    return;
+
+                var first = init.Expressions[0];
+                if (first is LiteralExpressionSyntax lit2 && lit2.IsKind(SyntaxKind.NullLiteralExpression))
+                    return; // ok
+
+                Report(prop, classSymbol.Name, context);
             }
         }
+    }
+
+    private static void Report(PropertyDeclarationSyntax prop, string className, SyntaxNodeAnalysisContext context)
+    {
+        var diag = Diagnostic.Create(Rule, prop.GetLocation(), className);
+        context.ReportDiagnostic(diag);
     }
 }

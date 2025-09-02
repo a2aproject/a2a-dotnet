@@ -19,7 +19,7 @@ internal sealed class A2A0003_CountLastCodeFix : CodeFixProvider
         var root = await context.Document.GetSyntaxRootAsync(context.CancellationToken).ConfigureAwait(false);
         if (root is null) return;
 
-        var diagnostic = context.Diagnostics.First();
+        var diagnostic = context.Diagnostics[0];
         var node = root.FindNode(diagnostic.Location.SourceSpan);
         var enumDecl = node.FirstAncestorOrSelf<EnumDeclarationSyntax>();
         if (enumDecl is null) return;

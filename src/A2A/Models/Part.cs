@@ -98,7 +98,6 @@ internal class PartConverterViaKindDiscriminator<T> : BaseKindDiscriminatorConve
 {
     protected override Type?[] TypeMapping { get; } =
     [
-        null,
         typeof(TextPart),   // PartKind.Text = 1
         typeof(FilePart),   // PartKind.File = 2
         typeof(DataPart)    // PartKind.Data = 3

@@ -40,18 +40,11 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\src\A2A.Analyzers\A2A.Analyzers.csproj" OutputItemType="Analyzer" />
-    </ItemGroup>
-
-    <ItemGroup>
         <None Include="..\..\README.md" Pack="true" PackagePath="\" />
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\A2A.Analyzers\A2A.Analyzers.csproj" >
-            <PrivateAssets>all</PrivateAssets>
-            <IncludeAssets>analyzers</IncludeAssets>
-        </ProjectReference>
+      <ProjectReference Include="..\A2A.CodeFixes\A2A.CodeFixes.csproj" PrivateAssets="all" OutputAnalyzers="all" />
     </ItemGroup>
 
 </Project>

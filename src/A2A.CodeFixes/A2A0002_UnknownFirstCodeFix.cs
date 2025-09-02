@@ -19,7 +19,7 @@ internal sealed class A2A0002_UnknownFirstCodeFix : CodeFixProvider
         var root = await context.Document.GetSyntaxRootAsync(context.CancellationToken).ConfigureAwait(false);
         if (root is null) return;
 
-        var diagnostic = context.Diagnostics.First();
+        var diagnostic = context.Diagnostics[0];
         var node = root.FindNode(diagnostic.Location.SourceSpan);
         var enumDecl = node.FirstAncestorOrSelf<EnumDeclarationSyntax>();
         if (enumDecl is null) return;
@@ -47,7 +47,7 @@ internal sealed class A2A0002_UnknownFirstCodeFix : CodeFixProvider
             .WithEqualsValue(SyntaxFactory.EqualsValueClause(SyntaxFactory.LiteralExpression(SyntaxKind.NumericLiteralExpression, SyntaxFactory.Literal(0))));
 
         // Insert at start
-        editor.InsertBefore(members.First(), unknown);
+        editor.InsertBefore(members[0], unknown);
         return editor.GetChangedDocument();
     }
 }
