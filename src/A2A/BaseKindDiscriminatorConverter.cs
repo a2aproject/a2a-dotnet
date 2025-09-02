@@ -38,9 +38,13 @@ internal abstract class BaseKindDiscriminatorConverter<TBase, TKind> : JsonConve
         using var document = JsonDocument.ParseValue(ref reader);
         var root = document.RootElement;
 
-        if (!root.TryGetProperty(DiscriminatorPropertyName, out var kindProp) || kindProp.ValueKind is not JsonValueKind.String)
+        if (!root.TryGetProperty(DiscriminatorPropertyName, out var kindProp))
         {
             throw new A2AException($"Missing required '{DiscriminatorPropertyName}' discriminator for {typeof(TBase).Name}.", A2AErrorCode.InvalidRequest);
+        }
+        else if (kindProp.ValueKind is not JsonValueKind.String)
+        {
+            throw new A2AException($"Invalid '{DiscriminatorPropertyName}' discriminator for {typeof(TBase).Name}.", A2AErrorCode.InvalidRequest);
         }
 
         TBase? obj = null;
