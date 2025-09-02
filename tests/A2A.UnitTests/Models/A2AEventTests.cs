@@ -278,9 +278,10 @@ namespace A2A.UnitTests.Models
         [InlineData("{ \"kind\": 1 }")]
         [InlineData("{ \"kind\": null }")]
         [InlineData("{ \"kind\": \"unknown\" }")]
+        [InlineData("{ \"kind\": \"count\" }")]
         [InlineData("{ \"kind\": \"neveravaluethatsgoingtooccurinthewild\" }")]
         [InlineData("{ \"kind\": \"\" }")]
-        public void A2AEvent_Deserialize_InvalidOrUnknownKind_Throws(string json)
+        public void A2AEvent_Deserialize_BadValue_Throws(string json)
         {
             var ex = Assert.Throws<A2AException>(() => JsonSerializer.Deserialize<A2AEvent>(json, A2AJsonUtilities.DefaultOptions));
             testOutput.WriteLine($"Exception: {ex}");
