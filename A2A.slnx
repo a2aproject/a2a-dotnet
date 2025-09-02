@@ -16,6 +16,7 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/A2A/A2A.csproj" />
+    <Project Path="src/A2A.Analyzers/A2A.Analyzers.csproj" />
     <Project Path="src/A2A.AspNetCore/A2A.AspNetCore.csproj" />
     <File Path="src/Directory.Build.props" />
   </Folder>
