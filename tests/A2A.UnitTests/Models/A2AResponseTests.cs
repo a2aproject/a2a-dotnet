@@ -225,7 +225,7 @@ public class A2AResponseTests
         // Arrange
         var a2aResponses = new A2AResponse[] {
             new AgentMessage { Role = MessageRole.User, MessageId = "m-8", Parts = [new TextPart { Text = "hello" }] },
-            new AgentTask { Id = "t-12", ContextId = "c-12", Status = new AgentTaskStatus { State = TaskState.Submitted, Timestamp = DateTimeOffset.Parse("2023-01-01T00:00:00+00:00", null) } }
+            new AgentTask { Id = "t-12", ContextId = "c-12", Status = new AgentTaskStatus { State = TaskState.Submitted, Timestamp = DateTimeOffset.Parse("2023-01-01T00:00:00+00:00", null) } },
         };
         var serializedA2aResponses = new string[] {
             "{\"kind\":\"message\",\"role\":\"user\",\"parts\":[{\"kind\":\"text\",\"text\":\"hello\"}],\"messageId\":\"m-8\"}",

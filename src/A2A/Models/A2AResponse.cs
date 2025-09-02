@@ -14,6 +14,11 @@ namespace A2A;
 public enum A2AEventKind
 {
     /// <summary>
+    /// Unknown value, used for unrecognized values.
+    /// </summary>
+    Unknown = 0,
+
+    /// <summary>
     /// A conversational message from an agent.
     /// </summary>
     /// <seealso cref="AgentMessage"/>
@@ -35,7 +40,12 @@ public enum A2AEventKind
     /// A notification that artifacts associated with a task have changed.
     /// </summary>
     /// <seealso cref="TaskArtifactUpdateEvent"/>
-    ArtifactUpdate
+    ArtifactUpdate,
+
+    /// <summary>
+    /// Helper value to track the number of enum values when used as array indices. This must always be the last value in the enumeration.
+    /// </summary>
+    Count
 }
 
 /// <summary>
@@ -73,16 +83,28 @@ public abstract class A2AResponse(A2AEventKind kind) : A2AEvent(kind);
 
 internal class A2AEventConverterViaKindDiscriminator<T> : BaseKindDiscriminatorConverter<T, A2AEventKind> where T : A2AEvent
 {
-    protected override Type[] TypeMapping { get; } =
+    protected override Type?[] TypeMapping { get; } =
     [
-        typeof(AgentMessage),           // A2AEventKind.Message = 0
-        typeof(AgentTask),              // A2AEventKind.Task = 1
-        typeof(TaskStatusUpdateEvent),  // A2AEventKind.StatusUpdate = 2
-        typeof(TaskArtifactUpdateEvent) // A2AEventKind.ArtifactUpdate = 3
+        null,
+        typeof(AgentMessage),           // A2AEventKind.Message = 1
+        typeof(AgentTask),              // A2AEventKind.Task = 2
+        typeof(TaskStatusUpdateEvent),  // A2AEventKind.StatusUpdate = 3
+        typeof(TaskArtifactUpdateEvent) // A2AEventKind.ArtifactUpdate = 4
     ];
 
     protected override string DisplayName { get; } = "event";
 
-    protected override A2AEventKind DeserializeKind(JsonElement kindProp) =>
-        kindProp.Deserialize(A2AJsonUtilities.JsonContext.Default.A2AEventKind);
+    protected override bool TryDeserializeKind(JsonElement kindProp, out A2AEventKind value)
+    {
+        value = A2AEventKind.Unknown;
+        try
+        {
+            value = kindProp.Deserialize(A2AJsonUtilities.JsonContext.Default.A2AEventKind);
+            return value is not A2AEventKind.Unknown;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }

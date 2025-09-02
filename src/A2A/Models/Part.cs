@@ -11,8 +11,13 @@ namespace A2A;
 /// Values are serialized as lowercase kebab-case strings via <see cref="KebabCaseLowerJsonStringEnumConverter{TEnum}"/>.
 /// </remarks>
 [JsonConverter(typeof(KebabCaseLowerJsonStringEnumConverter<PartKind>))]
-public enum PartKind
+public enum PartKind : int
 {
+    /// <summary>
+    /// Unknown value, used for unrecognized values.
+    /// </summary>
+    Unknown = 0,
+
     /// <summary>
     /// A text part containing plain textual content.
     /// </summary>
@@ -29,7 +34,12 @@ public enum PartKind
     /// A data part containing structured JSON data.
     /// </summary>
     /// <seealso cref="DataPart"/>
-    Data
+    Data,
+
+    /// <summary>
+    /// Helper value to track the number of enum values when used as array indices. This must always be the last value in the enumeration.
+    /// </summary>
+    Count
 }
 
 /// <summary>
@@ -86,15 +96,27 @@ public abstract class Part(PartKind kind)
 
 internal class PartConverterViaKindDiscriminator<T> : BaseKindDiscriminatorConverter<T, PartKind> where T : Part
 {
-    protected override Type[] TypeMapping { get; } =
+    protected override Type?[] TypeMapping { get; } =
     [
-        typeof(TextPart),   // PartKind.Text = 0
-        typeof(FilePart),   // PartKind.File = 1
-        typeof(DataPart)    // PartKind.Data = 2
+        null,
+        typeof(TextPart),   // PartKind.Text = 1
+        typeof(FilePart),   // PartKind.File = 2
+        typeof(DataPart)    // PartKind.Data = 3
     ];
 
     protected override string DisplayName { get; } = "part";
 
-    protected override PartKind DeserializeKind(JsonElement kindProp) =>
-        kindProp.Deserialize(A2AJsonUtilities.JsonContext.Default.PartKind);
+    protected override bool TryDeserializeKind(JsonElement kindProp, out PartKind value)
+    {
+        value = PartKind.Unknown;
+        try
+        {
+            value = kindProp.Deserialize(A2AJsonUtilities.JsonContext.Default.PartKind);
+            return value is not PartKind.Unknown;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }

@@ -14,6 +14,11 @@ namespace A2A;
 public enum FileContentKind
 {
     /// <summary>
+    /// Unknown value, used for unrecognized values.
+    /// </summary>
+    Unknown = 0,
+
+    /// <summary>
     /// A file content containing bytes.
     /// </summary>
     /// <seealso cref="FileWithBytes"/>
@@ -23,7 +28,12 @@ public enum FileContentKind
     /// A file content containing a URI.
     /// </summary>
     /// <seealso cref="FileWithUri"/>
-    Uri
+    Uri,
+
+    /// <summary>
+    /// Helper value to track the number of enum values when used as array indices. This must always be the last value in the enumeration.
+    /// </summary>
+    Count
 }
 
 /// <summary>
@@ -107,14 +117,26 @@ public sealed class FileWithUri() : FileContent(FileContentKind.Uri)
 
 internal class FileContentConverterViaKindDiscriminator<T> : BaseKindDiscriminatorConverter<T, FileContentKind> where T : FileContent
 {
-    protected override Type[] TypeMapping { get; } =
+    protected override Type?[] TypeMapping { get; } =
     [
-        typeof(FileWithBytes),   // FileContentKind.Bytes = 0
-        typeof(FileWithUri)      // FileContentKind.Uri = 1
+        null,
+        typeof(FileWithBytes),   // FileContentKind.Bytes = 1
+        typeof(FileWithUri)      // FileContentKind.Uri = 2
     ];
 
     protected override string DisplayName { get; } = "file content";
 
-    protected override FileContentKind DeserializeKind(JsonElement kindProp) =>
-        kindProp.Deserialize(A2AJsonUtilities.JsonContext.Default.FileContentKind);
+    protected override bool TryDeserializeKind(JsonElement kindProp, out FileContentKind value)
+    {
+        value = FileContentKind.Unknown;
+        try
+        {
+            value = kindProp.Deserialize(A2AJsonUtilities.JsonContext.Default.FileContentKind);
+            return value is not FileContentKind.Unknown;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }

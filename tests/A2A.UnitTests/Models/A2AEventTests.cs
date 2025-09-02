@@ -193,7 +193,7 @@ namespace A2A.UnitTests.Models
             // Arrange
             const string json = """
             {
-                "kind": "unknown",
+                "kind": "lorem",
                 "foo": "bar"
             }
             """;

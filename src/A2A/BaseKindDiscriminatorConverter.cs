@@ -19,7 +19,7 @@ internal abstract class BaseKindDiscriminatorConverter<TBase, TKind> : JsonConve
     /// <summary>
     /// Gets the mapping from kind enum values to their corresponding concrete types.
     /// </summary>
-    protected abstract Type[] TypeMapping { get; }
+    protected abstract Type?[] TypeMapping { get; }
 
     /// <summary>
     /// Gets the entity name used in error messages (e.g., "part", "file content", "event").
@@ -27,11 +27,12 @@ internal abstract class BaseKindDiscriminatorConverter<TBase, TKind> : JsonConve
     protected abstract string DisplayName { get; }
 
     /// <summary>
-    /// Deserializes the kind enum value from the JSON property using the appropriate JsonTypeInfo.
+    /// Attempts to deserialize the kind enum value from the JSON property using the appropriate JsonTypeInfo.
     /// </summary>
     /// <param name="kindProp">The JSON property containing the kind value.</param>
-    /// <returns>The deserialized enum value.</returns>
-    protected abstract TKind DeserializeKind(JsonElement kindProp);
+    /// <param name="value">The deserialized enum value.</param>
+    /// <returns>True if deserialization was successful; otherwise, false.</returns>
+    protected abstract bool TryDeserializeKind(JsonElement kindProp, out TKind value);
 
     public override TBase Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
@@ -51,16 +52,19 @@ internal abstract class BaseKindDiscriminatorConverter<TBase, TKind> : JsonConve
         Exception? deserializationException = null;
         try
         {
-            var kindValue = DeserializeKind(kindProp);
+            if (!TryDeserializeKind(kindProp, out var kindValue))
+            {
+                throw new A2AException($"Unsupported {DisplayName} {DiscriminatorPropertyName}: '{kindProp.GetString()}'", A2AErrorCode.InvalidRequest);
+            }
+
             var kindToTypeMapping = TypeMapping;
             var kindIndex = Convert.ToInt32(kindValue, CultureInfo.InvariantCulture);
 
-            if (kindIndex < 0 || kindIndex >= kindToTypeMapping.Length)
+            if (kindIndex < 0 || kindIndex >= kindToTypeMapping.Length || kindToTypeMapping[kindIndex] is not Type targetType)
             {
-                throw new A2AException($"Unknown {DisplayName} kind: {kindProp.GetString()}", A2AErrorCode.InvalidRequest);
+                throw new A2AException($"Unknown {DisplayName} kind: '{kindProp.GetString()}'", A2AErrorCode.InvalidRequest);
             }
 
-            var targetType = kindToTypeMapping[kindIndex];
             var typeInfo = options.GetTypeInfo(targetType);
             obj = (TBase?)root.Deserialize(typeInfo);
         }
@@ -71,7 +75,7 @@ internal abstract class BaseKindDiscriminatorConverter<TBase, TKind> : JsonConve
 
         if (deserializationException is not null || obj is null)
         {
-            throw new A2AException($"Failed to deserialize {kindProp.GetString()} {DisplayName}", deserializationException, A2AErrorCode.InvalidRequest);
+            throw new A2AException($"Failed to deserialize '{kindProp.GetString()}' {DisplayName}", deserializationException, A2AErrorCode.InvalidRequest);
         }
 
         return obj;
