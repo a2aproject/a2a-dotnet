@@ -113,7 +113,7 @@ internal class FileContentConverterViaKindDiscriminator<T> : BaseKindDiscriminat
         typeof(FileWithUri)      // FileContentKind.Uri = 1
     ];
 
-    protected override string DisplayName => "file content";
+    protected override string DisplayName { get; } = "file content";
 
     protected override FileContentKind DeserializeKind(JsonElement kindProp) =>
         kindProp.Deserialize(A2AJsonUtilities.JsonContext.Default.FileContentKind);

@@ -81,7 +81,7 @@ internal class A2AEventConverterViaKindDiscriminator<T> : BaseKindDiscriminatorC
         typeof(TaskArtifactUpdateEvent) // A2AEventKind.ArtifactUpdate = 3
     ];
 
-    protected override string DisplayName => "event";
+    protected override string DisplayName { get; } = "event";
 
     protected override A2AEventKind DeserializeKind(JsonElement kindProp) =>
         kindProp.Deserialize(A2AJsonUtilities.JsonContext.Default.A2AEventKind);

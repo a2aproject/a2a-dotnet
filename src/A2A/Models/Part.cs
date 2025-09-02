@@ -93,7 +93,7 @@ internal class PartConverterViaKindDiscriminator<T> : BaseKindDiscriminatorConve
         typeof(DataPart)    // PartKind.Data = 2
     ];
 
-    protected override string DisplayName => "part";
+    protected override string DisplayName { get; } = "part";
 
     protected override PartKind DeserializeKind(JsonElement kindProp) =>
         kindProp.Deserialize(A2AJsonUtilities.JsonContext.Default.PartKind);
