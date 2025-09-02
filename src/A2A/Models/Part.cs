@@ -86,12 +86,12 @@ public abstract class Part(PartKind kind)
 
 internal class PartConverterViaKindDiscriminator<T> : BaseKindDiscriminatorConverter<T, PartKind> where T : Part
 {
-    protected override Type?[] TypeMapping => new Type?[]
-    {
+    protected override Type[] TypeMapping { get; } =
+    [
         typeof(TextPart),   // PartKind.Text = 0
         typeof(FilePart),   // PartKind.File = 1
         typeof(DataPart)    // PartKind.Data = 2
-    };
+    ];
 
     protected override string DisplayName => "part";
 

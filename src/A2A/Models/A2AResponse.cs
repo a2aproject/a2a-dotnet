@@ -73,13 +73,13 @@ public abstract class A2AResponse(A2AEventKind kind) : A2AEvent(kind);
 
 internal class A2AEventConverterViaKindDiscriminator<T> : BaseKindDiscriminatorConverter<T, A2AEventKind> where T : A2AEvent
 {
-    protected override Type?[] TypeMapping => new Type?[]
-    {
+    protected override Type[] TypeMapping { get; } =
+    [
         typeof(AgentMessage),           // A2AEventKind.Message = 0
         typeof(AgentTask),              // A2AEventKind.Task = 1
         typeof(TaskStatusUpdateEvent),  // A2AEventKind.StatusUpdate = 2
         typeof(TaskArtifactUpdateEvent) // A2AEventKind.ArtifactUpdate = 3
-    };
+    ];
 
     protected override string DisplayName => "event";
 

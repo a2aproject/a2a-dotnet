@@ -107,11 +107,11 @@ public sealed class FileWithUri() : FileContent(FileContentKind.Uri)
 
 internal class FileContentConverterViaKindDiscriminator<T> : BaseKindDiscriminatorConverter<T, FileContentKind> where T : FileContent
 {
-    protected override Type?[] TypeMapping => new Type?[]
-    {
+    protected override Type[] TypeMapping { get; } =
+    [
         typeof(FileWithBytes),   // FileContentKind.Bytes = 0
         typeof(FileWithUri)      // FileContentKind.Uri = 1
-    };
+    ];
 
     protected override string DisplayName => "file content";
 
