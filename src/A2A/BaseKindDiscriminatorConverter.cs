@@ -45,7 +45,7 @@ internal abstract class BaseKindDiscriminatorConverter<TBase, TKind> : JsonConve
         }
         else if (kindProp.ValueKind is not JsonValueKind.String)
         {
-            throw new A2AException($"Invalid '{DiscriminatorPropertyName}' discriminator for {typeof(TBase).Name}.", A2AErrorCode.InvalidRequest);
+            throw new A2AException($"Invalid '{DiscriminatorPropertyName}' discriminator for {typeof(TBase).Name}: '{(kindProp.ValueKind is JsonValueKind.Null ? "null" : kindProp)}'.", A2AErrorCode.InvalidRequest);
         }
 
         TBase? obj = null;

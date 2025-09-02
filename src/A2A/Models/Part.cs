@@ -11,7 +11,7 @@ namespace A2A;
 /// Values are serialized as lowercase kebab-case strings via <see cref="KebabCaseLowerJsonStringEnumConverter{TEnum}"/>.
 /// </remarks>
 [JsonConverter(typeof(KebabCaseLowerJsonStringEnumConverter<PartKind>))]
-public enum PartKind : int
+public enum PartKind
 {
     /// <summary>
     /// Unknown value, used for unrecognized values.
