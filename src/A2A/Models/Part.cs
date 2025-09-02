@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
@@ -96,12 +97,11 @@ public abstract class Part(PartKind kind)
 
 internal class PartConverterViaKindDiscriminator<T> : BaseKindDiscriminatorConverter<T, PartKind> where T : Part
 {
-    protected override Type?[] TypeMapping { get; } =
-    [
+    protected override DiscriminatorTypeMapping<PartKind> TypeMapping { get; } = new(
         typeof(TextPart),   // PartKind.Text = 1
         typeof(FilePart),   // PartKind.File = 2
         typeof(DataPart)    // PartKind.Data = 3
-    ];
+    );
 
     protected override string DisplayName { get; } = "part";
 

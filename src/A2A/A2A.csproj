@@ -44,7 +44,8 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\A2A.CodeFixes\A2A.CodeFixes.csproj" PrivateAssets="all" OutputAnalyzers="all" />
+        <ProjectReference Include="..\A2A.Analyzers\A2A.Analyzers.csproj" PrivateAssets="all" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+        <ProjectReference Include="..\A2A.CodeFixes\A2A.CodeFixes.csproj" PrivateAssets="all" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     </ItemGroup>
 
 </Project>

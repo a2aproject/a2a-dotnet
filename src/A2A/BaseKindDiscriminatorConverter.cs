@@ -19,7 +19,7 @@ internal abstract class BaseKindDiscriminatorConverter<TBase, TKind> : JsonConve
     /// <summary>
     /// Gets the mapping from kind enum values to their corresponding concrete types.
     /// </summary>
-    protected abstract Type?[] TypeMapping { get; }
+    protected abstract DiscriminatorTypeMapping<TKind> TypeMapping { get; }
 
     /// <summary>
     /// Gets the entity name used in error messages (e.g., "part", "file content", "event").
@@ -60,7 +60,7 @@ internal abstract class BaseKindDiscriminatorConverter<TBase, TKind> : JsonConve
             var kindToTypeMapping = TypeMapping;
             var kindIndex = Convert.ToInt32(kindValue, CultureInfo.InvariantCulture);
 
-            if (kindIndex < 0 || kindIndex >= kindToTypeMapping.Length || kindToTypeMapping[kindIndex] is not Type targetType)
+            if (kindIndex < 0 || kindIndex >= kindToTypeMapping.Count || kindToTypeMapping[kindIndex] is not Type targetType)
             {
                 throw new A2AException($"Unknown {DisplayName} kind: '{kindProp.GetString()}'", A2AErrorCode.InvalidRequest);
             }
@@ -93,4 +93,17 @@ internal abstract class BaseKindDiscriminatorConverter<TBase, TKind> : JsonConve
 
         writer.WriteEndObject();
     }
+}
+
+internal class DiscriminatorTypeMapping<TEnum>(params Type[] typeMappings) : IReadOnlyList<Type?> where TEnum : Enum
+{
+    private readonly IReadOnlyList<Type?> _typeMappings = [null, .. typeMappings];
+
+    public int Count { get; } = typeMappings.Length;
+
+    public IEnumerator<Type?> GetEnumerator() => _typeMappings.GetEnumerator();
+
+    public Type? this[int index] => _typeMappings[index];
+
+    System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
 }
