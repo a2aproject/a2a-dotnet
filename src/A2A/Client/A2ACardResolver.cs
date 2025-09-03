@@ -19,12 +19,12 @@ public sealed class A2ACardResolver
     /// </summary>
     /// <param name="baseUrl">The base url of the agent's hosting service.</param>
     /// <param name="httpClient">Optional HTTP client (if not provided, a shared one will be used).</param>
-    /// <param name="agentCardPath">Path to the agent card (defaults to "/.well-known/agent.json").</param>
+    /// <param name="agentCardPath">Path to the agent card (defaults to "/.well-known/agent-card.json").</param>
     /// <param name="logger">Optional logger.</param>
     public A2ACardResolver(
         Uri baseUrl,
         HttpClient? httpClient = null,
-        string agentCardPath = "/.well-known/agent.json",
+        string agentCardPath = "/.well-known/agent-card.json",
         ILogger? logger = null)
     {
         if (baseUrl is null)
