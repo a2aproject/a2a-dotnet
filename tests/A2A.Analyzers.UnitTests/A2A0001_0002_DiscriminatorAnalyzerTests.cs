@@ -8,7 +8,7 @@ using VerifyAnalyzer = Microsoft.CodeAnalysis.CSharp.Testing.CSharpAnalyzerVerif
 
 namespace A2A.Analyzers.UnitTests;
 
-public class A2A0001_0002_DiscriminatorEnumShapeAnalyzerOnlyTests
+public class A2A0001_0002_DiscriminatorAnalyzerTests
 {
     private const string UsingsAndNamespace = """
         using A2A;

@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using System.Collections.Immutable;
+using System.Collections.Generic;
 
 namespace A2A.Analyzers;
 
@@ -31,54 +32,157 @@ public sealed class A2A0001_0002_DiscriminatorEnumShapeAnalyzer : DiagnosticAnal
     {
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.EnableConcurrentExecution();
-        // Only analyze classes that derive from BaseKindDiscriminatorConverter<,>
-        context.RegisterSyntaxNodeAction(AnalyzeClass, SyntaxKind.ClassDeclaration);
-    }
 
-    private static void AnalyzeClass(SyntaxNodeAnalysisContext context)
-    {
-        var classDecl = (ClassDeclarationSyntax)context.Node;
-        var model = context.SemanticModel;
-        var classSymbol = model.GetDeclaredSymbol(classDecl);
-        if (classSymbol?.BaseType is null)
-            return;
-
-        if (classSymbol.BaseType.OriginalDefinition?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) != "global::A2A.BaseKindDiscriminatorConverter<TBase, TKind>")
-            return;
-
-        // TKind symbol
-        if (classSymbol.BaseType is INamedTypeSymbol baseNamed && baseNamed.TypeArguments.Length == 2)
+        context.RegisterCompilationStartAction(startContext =>
         {
-            if (baseNamed.TypeArguments[1] is not INamedTypeSymbol tKind || tKind.TypeKind != TypeKind.Enum)
+            // Resolve the generic converter type once per compilation
+            var converterGeneric = startContext.Compilation.GetTypeByMetadataName("A2A.BaseKindDiscriminatorConverter`2");
+            if (converterGeneric is null)
+            {
                 return;
+            }
 
-            // Validate the enum shape because it's actually used as a discriminator type parameter.
-            ValidateEnumShape(context, tKind);
-        }
+            // Cache already validated enum kinds to avoid duplicate work across multiple converters
+            var validatedKinds = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
+
+            startContext.RegisterSymbolAction(symbolContext =>
+            {
+                if (symbolContext.Symbol is not INamedTypeSymbol classSymbol || classSymbol.TypeKind != TypeKind.Class)
+                {
+                    return;
+                }
+
+                var baseType = classSymbol.BaseType as INamedTypeSymbol;
+                if (baseType is null)
+                {
+                    return;
+                }
+
+                // Only classes directly derived from BaseKindDiscriminatorConverter<,>
+                if (!SymbolEqualityComparer.Default.Equals(baseType.OriginalDefinition, converterGeneric))
+                {
+                    return;
+                }
+
+                if (baseType.TypeArguments.Length != 2)
+                {
+                    return;
+                }
+
+                if (baseType.TypeArguments[1] is not INamedTypeSymbol tKind || tKind.TypeKind != TypeKind.Enum)
+                {
+                    return;
+                }
+
+                // Ensure we validate each enum kind only once per compilation
+                if (!validatedKinds.Add(tKind))
+                {
+                    return;
+                }
+
+                ValidateEnumShape(symbolContext, tKind);
+            }, SymbolKind.NamedType);
+        });
     }
 
-    private static void ValidateEnumShape(SyntaxNodeAnalysisContext context, INamedTypeSymbol enumSymbol)
+    private static void ValidateEnumShape(SymbolAnalysisContext context, INamedTypeSymbol enumSymbol)
     {
-        // Prefer to report on the enum identifier for better UX (code fix on enum name)
-        var enumDecl = enumSymbol.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(context.CancellationToken) as EnumDeclarationSyntax;
-        var enumNameLocation = enumDecl?.Identifier.GetLocation() ?? enumSymbol.Locations.FirstOrDefault();
-
-        // Get members (fields)
-        var members = enumSymbol.GetMembers().OfType<IFieldSymbol>().Where(f => f.HasConstantValue).OrderBy(f => f.ConstantValue).ToList();
-        if (members.Count == 0) return;
-
-        // Check Unknown = 0 is first
-        var first = members[0];
-        if (!(first.Name == "Unknown" && Convert.ToInt64(first.ConstantValue, System.Globalization.CultureInfo.InvariantCulture) == 0))
+        var underlying = enumSymbol.EnumUnderlyingType;
+        if (underlying is null)
         {
-            context.ReportDiagnostic(Diagnostic.Create(UnknownRule, enumNameLocation, enumSymbol.Name));
+            return;
         }
 
-        // Check last is Count
-        var last = members.Last();
-        if (last.Name != "Count")
+        bool isUnsigned = underlying.SpecialType is SpecialType.System_Byte or SpecialType.System_UInt16 or SpecialType.System_UInt32 or SpecialType.System_UInt64;
+
+        bool hasAny = false;
+        string? firstName = null;
+        string? lastName = null;
+        bool minSet = false, maxSet = false;
+        ulong min = 0, max = 0;
+
+        // Local comparison helpers avoid allocations and branch on signedness only in comparisons
+        bool Less(ulong a, ulong b) => isUnsigned ? a < b : unchecked((long)a) < unchecked((long)b);
+        bool Greater(ulong a, ulong b) => isUnsigned ? a > b : unchecked((long)a) > unchecked((long)b);
+
+        foreach (var member in enumSymbol.GetMembers())
         {
-            context.ReportDiagnostic(Diagnostic.Create(CountRule, enumNameLocation, enumSymbol.Name));
+            if (member is not IFieldSymbol field || !field.HasConstantValue)
+            {
+                continue;
+            }
+
+            hasAny = true;
+
+            // Read constant as widened 64-bit value without boxing or Convert
+            ulong value;
+            switch (underlying.SpecialType)
+            {
+                case SpecialType.System_Byte:
+                    value = (byte)field.ConstantValue!;
+                    break;
+                case SpecialType.System_UInt16:
+                    value = (ushort)field.ConstantValue!;
+                    break;
+                case SpecialType.System_UInt32:
+                    value = (uint)field.ConstantValue!;
+                    break;
+                case SpecialType.System_UInt64:
+                    value = (ulong)field.ConstantValue!;
+                    break;
+                case SpecialType.System_SByte:
+                    value = unchecked((ulong)(long)(sbyte)field.ConstantValue!);
+                    break;
+                case SpecialType.System_Int16:
+                    value = unchecked((ulong)(long)(short)field.ConstantValue!);
+                    break;
+                case SpecialType.System_Int32:
+                    value = unchecked((ulong)(long)(int)field.ConstantValue!);
+                    break;
+                case SpecialType.System_Int64:
+                    value = unchecked((ulong)(long)field.ConstantValue!);
+                    break;
+                default:
+                    continue; // Unknown underlying type; ignore
+            }
+
+            if (!minSet || Less(value, min))
+            {
+                minSet = true;
+                min = value;
+                firstName = field.Name;
+            }
+            // For max, if equal we pick the later-declared member
+            if (!maxSet || Greater(value, max) || value == max)
+            {
+                maxSet = true;
+                max = value;
+                lastName = field.Name;
+            }
+        }
+
+        if (!hasAny)
+        {
+            return;
+        }
+
+        bool unknownFail = !(firstName == "Unknown" && (isUnsigned ? min == 0UL : unchecked((long)min) == 0L));
+        bool countFail = lastName != "Count";
+
+        if (unknownFail || countFail)
+        {
+            // Prefer to report on the enum identifier for better UX (code fix on enum name) - compute lazily
+            var enumDecl = enumSymbol.DeclaringSyntaxReferences.Length > 0 ? enumSymbol.DeclaringSyntaxReferences[0].GetSyntax(context.CancellationToken) as EnumDeclarationSyntax : null;
+            var enumNameLocation = enumDecl?.Identifier.GetLocation() ?? (enumSymbol.Locations.Length > 0 ? enumSymbol.Locations[0] : null);
+
+            if (unknownFail)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(UnknownRule, enumNameLocation, enumSymbol.Name));
+            }
+            if (countFail)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(CountRule, enumNameLocation, enumSymbol.Name));
+            }
         }
     }
 }

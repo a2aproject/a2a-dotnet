@@ -14,7 +14,7 @@ using VerifyUnknownFixTest = Microsoft.CodeAnalysis.CSharp.Testing.CSharpCodeFix
 
 namespace A2A.Analyzers.UnitTests;
 
-public class A2A0001_0002_DiscriminatorEnumShapeTests
+public class A2A0001_0002_DiscriminatorCodefixTests
 {
     private const string UsingsAndNamespace =
         """
