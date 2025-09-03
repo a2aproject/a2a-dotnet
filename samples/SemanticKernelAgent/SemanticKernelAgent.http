@@ -1,7 +1,7 @@
 @host = http://localhost:5000
 
 ### Query agent card for the Semantic Kernel agent
-GET {{host}}/.well-known/agent.json
+GET {{host}}/.well-known/agent-card.json
 
 ### Send a task to the Semantic Kernel agent
 POST {{host}}/
