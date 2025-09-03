@@ -31,10 +31,10 @@
     <PackageVersion Include="System.CommandLine" Version="2.0.0-beta5.25306.1" />
     <!-- Build / infrastructure dependencies -->
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.0" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageVersion Include="System.Threading.Channels" Version="9.0.7" />
     <PackageVersion Include="xunit" Version="2.9.3" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.0" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
     <!-- Code analyzers -->
     <PackageVersion Include="Roslynator.Analyzers" Version="4.13.1" />
     <PackageReference Include="Roslynator.Analyzers">
@@ -46,12 +46,12 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-      <!-- Roslyn for Analyzers / CodeFixes -->
-      <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.11.0" />
-      <!-- Roslyn Workspaces for CodeFixes -->
-      <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.11.0" />
-      <!-- Roslyn Testing packages -->
-      <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing.XUnit" Version="1.1.2" />
-      <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.CodeFix.Testing.XUnit" Version="1.1.2" />
+    <!-- Roslyn for Analyzers / CodeFixes -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.11.0" />
+    <!-- Roslyn Workspaces for CodeFixes -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" />
+    <!-- Roslyn Testing packages -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing.XUnit" Version="1.1.2" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.CodeFix.Testing.XUnit" Version="1.1.2" />
   </ItemGroup>
 </Project>

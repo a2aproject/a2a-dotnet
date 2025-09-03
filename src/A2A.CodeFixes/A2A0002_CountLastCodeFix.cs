@@ -35,7 +35,9 @@ public sealed class A2A0002_CountLastCodeFix : CodeFixProvider
 
         var diagnostic = context.Diagnostics[0];
         var node = root.FindNode(diagnostic.Location.SourceSpan);
-        var enumDecl = node.FirstAncestorOrSelf<EnumDeclarationSyntax>() ?? node as EnumDeclarationSyntax;
+
+        // The diagnostic is reported on the enum identifier, so we need to find the containing enum declaration
+        var enumDecl = node.FirstAncestorOrSelf<EnumDeclarationSyntax>();
         if (enumDecl is null)
             return;
 

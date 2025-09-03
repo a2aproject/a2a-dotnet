@@ -61,7 +61,7 @@ public class A2A0001_0002_DiscriminatorCodefixTests
                 protected override TestPartKind UnknownValue { get; } = default;
             }
             """;
-        var testInstance = new VerifyUnknownFixTest { TestCode = UsingsAndNamespace + test, FixedCode = UsingsAndNamespace + expected, CodeFixTestBehaviors = Microsoft.CodeAnalysis.Testing.CodeFixTestBehaviors.SkipLocalDiagnosticCheck }.AsStrongNamedAssembly();
+        var testInstance = new VerifyUnknownFixTest { TestCode = UsingsAndNamespace + test, FixedCode = UsingsAndNamespace + expected }.ConfigureForTest();
         testInstance.TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(System.Text.Json.JsonSerializer).GetTypeInfo().Assembly.Location));
         testInstance.TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(A2A.BaseKindDiscriminatorConverter<,>).GetTypeInfo().Assembly.Location));
 
@@ -103,7 +103,7 @@ public class A2A0001_0002_DiscriminatorCodefixTests
                 protected override TestPartKind UnknownValue { get; } = default;
             }
             """;
-        var testInstance = new VerifyCountFixTest { TestCode = UsingsAndNamespace + test, FixedCode = UsingsAndNamespace + expected, CodeFixTestBehaviors = Microsoft.CodeAnalysis.Testing.CodeFixTestBehaviors.SkipLocalDiagnosticCheck }.AsStrongNamedAssembly();
+        var testInstance = new VerifyCountFixTest { TestCode = UsingsAndNamespace + test, FixedCode = UsingsAndNamespace + expected }.ConfigureForTest();
         testInstance.TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(System.Text.Json.JsonSerializer).GetTypeInfo().Assembly.Location));
         testInstance.TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(A2A.BaseKindDiscriminatorConverter<,>).GetTypeInfo().Assembly.Location));
 

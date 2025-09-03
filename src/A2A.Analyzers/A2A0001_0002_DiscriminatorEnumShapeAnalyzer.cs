@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using System.Collections.Immutable;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace A2A.Analyzers;
 
@@ -42,50 +43,55 @@ public sealed class A2A0001_0002_DiscriminatorEnumShapeAnalyzer : DiagnosticAnal
                 return;
             }
 
-            // Cache already validated enum kinds to avoid duplicate work across multiple converters
-            var validatedKinds = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
-
-            startContext.RegisterSymbolAction(symbolContext =>
+            // Use syntax-based analysis for enum declarations to provide local diagnostics for code fixes
+            startContext.RegisterSyntaxNodeAction(syntaxContext =>
             {
-                if (symbolContext.Symbol is not INamedTypeSymbol classSymbol || classSymbol.TypeKind != TypeKind.Class)
+                var enumDecl = (EnumDeclarationSyntax)syntaxContext.Node;
+                var enumSymbol = syntaxContext.SemanticModel.GetDeclaredSymbol(enumDecl);
+                if (enumSymbol is null)
                 {
                     return;
                 }
 
-                var baseType = classSymbol.BaseType as INamedTypeSymbol;
-                if (baseType is null)
+                // Check if this enum is used as a discriminator type
+                var isDiscriminatorEnum = IsDiscriminatorEnum(syntaxContext.SemanticModel.Compilation, enumSymbol, converterGeneric);
+                if (!isDiscriminatorEnum)
                 {
                     return;
                 }
 
-                // Only classes directly derived from BaseKindDiscriminatorConverter<,>
-                if (!SymbolEqualityComparer.Default.Equals(baseType.OriginalDefinition, converterGeneric))
-                {
-                    return;
-                }
-
-                if (baseType.TypeArguments.Length != 2)
-                {
-                    return;
-                }
-
-                if (baseType.TypeArguments[1] is not INamedTypeSymbol tKind || tKind.TypeKind != TypeKind.Enum)
-                {
-                    return;
-                }
-
-                // Ensure we validate each enum kind only once per compilation
-                if (!validatedKinds.Add(tKind))
-                {
-                    return;
-                }
-
-                ValidateEnumShape(symbolContext, tKind);
-            }, SymbolKind.NamedType);
+                // Validate and report diagnostics directly on the enum declaration
+                ValidateEnumShapeWithSyntaxContext(syntaxContext, enumSymbol, enumDecl);
+            }, SyntaxKind.EnumDeclaration);
         });
     }
 
-    private static void ValidateEnumShape(SymbolAnalysisContext context, INamedTypeSymbol enumSymbol)
+    private static bool IsDiscriminatorEnum(Compilation compilation, INamedTypeSymbol enumSymbol, INamedTypeSymbol converterGeneric)
+    {
+        // Look for any class in the compilation that uses this enum as a discriminator
+        foreach (var type in compilation.GetSymbolsWithName(_ => true, SymbolFilter.Type).OfType<INamedTypeSymbol>())
+        {
+            if (type.TypeKind != TypeKind.Class)
+                continue;
+
+            var baseType = type.BaseType as INamedTypeSymbol;
+            if (baseType is null)
+                continue;
+
+            if (!SymbolEqualityComparer.Default.Equals(baseType.OriginalDefinition, converterGeneric))
+                continue;
+
+            if (baseType.TypeArguments.Length != 2)
+                continue;
+
+            if (SymbolEqualityComparer.Default.Equals(baseType.TypeArguments[1], enumSymbol))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static void ValidateEnumShapeWithSyntaxContext(SyntaxNodeAnalysisContext context, INamedTypeSymbol enumSymbol, EnumDeclarationSyntax enumDecl)
     {
         var underlying = enumSymbol.EnumUnderlyingType;
         if (underlying is null)
@@ -171,9 +177,8 @@ public sealed class A2A0001_0002_DiscriminatorEnumShapeAnalyzer : DiagnosticAnal
 
         if (unknownFail || countFail)
         {
-            // Prefer to report on the enum identifier for better UX (code fix on enum name) - compute lazily
-            var enumDecl = enumSymbol.DeclaringSyntaxReferences.Length > 0 ? enumSymbol.DeclaringSyntaxReferences[0].GetSyntax(context.CancellationToken) as EnumDeclarationSyntax : null;
-            var enumNameLocation = enumDecl?.Identifier.GetLocation() ?? (enumSymbol.Locations.Length > 0 ? enumSymbol.Locations[0] : null);
+            // Use the enum identifier location for syntax-based analysis
+            var enumNameLocation = enumDecl.Identifier.GetLocation();
 
             if (unknownFail)
             {
