@@ -29,6 +29,6 @@ GET {{host}}/echo/v1/card
 ## Get agent card
 # Description: Retrieves the agent card at the application root
 # Profile: Any agent profile (echo-agent, echotasks-agent, researcher-agent)
-GET {{host}}/.well-known/agent.json
+GET {{host}}/.well-known/agent-card.json
 
 ###
