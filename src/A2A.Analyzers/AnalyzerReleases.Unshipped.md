@@ -6,5 +6,4 @@
 Rule ID | Category | Severity | Notes
 --------|----------|----------|-------
 A2A0001 | A2A | Error | A2A0001_TypeMappingStartsWithNullAnalyzer
-A2A0002 | A2A | Error | A2A0002_0003_DiscriminatorEnumShapeAnalyzer
-A2A0003 | A2A | Error | A2A0002_0003_DiscriminatorEnumShapeAnalyzer
+A2A0002 | A2A | Error | A2A0001_0002_DiscriminatorEnumShapeAnalyzer

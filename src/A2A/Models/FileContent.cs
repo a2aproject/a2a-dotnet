@@ -124,17 +124,7 @@ internal class FileContentConverterViaKindDiscriminator<T> : BaseKindDiscriminat
 
     protected override string DisplayName { get; } = "file content";
 
-    protected override bool TryDeserializeKind(JsonElement kindProp, out FileContentKind value)
-    {
-        value = FileContentKind.Unknown;
-        try
-        {
-            value = kindProp.Deserialize(A2AJsonUtilities.JsonContext.Default.FileContentKind);
-            return value is not FileContentKind.Unknown;
-        }
-        catch
-        {
-            return false;
-        }
-    }
+    protected override JsonTypeInfo<FileContentKind> JsonTypeInfo { get; } = A2AJsonUtilities.JsonContext.Default.FileContentKind;
+
+    protected override FileContentKind UnknownValue { get; } = FileContentKind.Unknown;
 }

@@ -15,9 +15,7 @@
     <Project Path="samples/SemanticKernelAgent/SemanticKernelAgent.csproj" />
   </Folder>
   <Folder Name="/src/">
-    <Project Path="src/A2A.CodeFixes/A2A.CodeFixes.csproj" />
     <Project Path="src/A2A/A2A.csproj" />
-    <Project Path="src/A2A.Analyzers/A2A.Analyzers.csproj" />
     <Project Path="src/A2A.AspNetCore/A2A.AspNetCore.csproj" />
     <File Path="src/Directory.Build.props" />
   </Folder>
@@ -28,6 +26,11 @@
      <File Path="Directory.Packages.props" />
      <File Path="README.md" />
      <File Path="logo.png" />
+  </Folder>
+  <Folder Name="/src/roslyn/">
+    <Project Path="src/A2A.Analyzers/A2A.Analyzers.csproj" />
+    <Project Path="src/A2A.CodeFixes/A2A.CodeFixes.csproj" />
+    <Project Path="tests/A2A.Analyzers.UnitTests/A2A.Analyzers.UnitTests.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/A2A.AspNetCore.UnitTests/A2A.AspNetCore.UnitTests.csproj" />

@@ -5,11 +5,6 @@ using System.Text.Json.Serialization.Metadata;
 
 namespace A2A;
 
-/// <summary>
-/// Base class for JSON converters that use a "kind" discriminator to deserialize to different derived types.
-/// </summary>
-/// <typeparam name="TBase">The base type being converted.</typeparam>
-/// <typeparam name="TKind">The enum type used as the discriminator.</typeparam>
 internal abstract class BaseKindDiscriminatorConverter<TBase, TKind> : JsonConverter<TBase>
     where TBase : class
     where TKind : struct, Enum
@@ -22,18 +17,47 @@ internal abstract class BaseKindDiscriminatorConverter<TBase, TKind> : JsonConve
     protected abstract DiscriminatorTypeMapping<TKind> TypeMapping { get; }
 
     /// <summary>
+    /// Gets the JsonTypeInfo used to deserialize the discriminator value.
+    /// </summary>
+    protected abstract JsonTypeInfo<TKind> JsonTypeInfo { get; }
+
+    /// <summary>
+    /// Gets the sentinel <c>Unknown</c> value for the enum discriminator.
+    /// </summary>
+    protected abstract TKind UnknownValue { get; }
+
+    /// <summary>
     /// Gets the entity name used in error messages (e.g., "part", "file content", "event").
     /// </summary>
     protected abstract string DisplayName { get; }
 
     /// <summary>
-    /// Attempts to deserialize the kind enum value from the JSON property using the appropriate JsonTypeInfo.
+    /// Attempts to deserialize the kind enum value from the provided JsonElement using the configured JsonTypeInfo.
     /// </summary>
-    /// <param name="kindProp">The JSON property containing the kind value.</param>
-    /// <param name="value">The deserialized enum value.</param>
-    /// <returns>True if deserialization was successful; otherwise, false.</returns>
-    protected abstract bool TryDeserializeKind(JsonElement kindProp, out TKind value);
+    /// <param name="kindProp">The JSON element containing the kind value.</param>
+    /// <param name="value">When this method returns, contains the deserialized enum value if the operation succeeded; otherwise the UnknownValue.</param>
+    /// <returns>True if deserialization succeeded; otherwise false.</returns>
+    protected bool TryDeserializeKind(JsonElement kindProp, out TKind value)
+    {
+        value = this.UnknownValue;
+        try
+        {
+            value = kindProp.Deserialize(this.JsonTypeInfo);
+            return value.Equals(this.UnknownValue);
+        }
+        catch
+        {
+            return false;
+        }
+    }
 
+    /// <summary>
+    /// Reads an instance of <typeparamref name="TBase"/> from JSON using a kind discriminator.
+    /// </summary>
+    /// <param name="reader">The <see cref="Utf8JsonReader"/> to read from.</param>
+    /// <param name="typeToConvert">The type to convert (ignored).</param>
+    /// <param name="options">Serialization options used to obtain type metadata.</param>
+    /// <returns>The deserialized instance of <typeparamref name="TBase"/>.</returns>
     public override TBase Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         using var document = JsonDocument.ParseValue(ref reader);
@@ -81,6 +105,12 @@ internal abstract class BaseKindDiscriminatorConverter<TBase, TKind> : JsonConve
         return obj;
     }
 
+    /// <summary>
+    /// Writes the provided <typeparamref name="TBase"/> value to JSON.
+    /// </summary>
+    /// <param name="writer">The <see cref="Utf8JsonWriter"/> to write to.</param>
+    /// <param name="value">The value to write.</param>
+    /// <param name="options">Serialization options used to obtain type metadata.</param>
     public override void Write(Utf8JsonWriter writer, TBase value, JsonSerializerOptions options)
     {
         var element = JsonSerializer.SerializeToElement(value, options.GetTypeInfo(value.GetType()));
@@ -95,14 +125,31 @@ internal abstract class BaseKindDiscriminatorConverter<TBase, TKind> : JsonConve
     }
 }
 
+/// <summary>
+/// Initializes a new instance of the <see cref="DiscriminatorTypeMapping{TEnum}"/> class.
+/// </summary>
+/// <param name="typeMappings">The concrete types corresponding to the enum values (excluding the leading unknown slot).</param>
 internal class DiscriminatorTypeMapping<TEnum>(params Type[] typeMappings) : IReadOnlyList<Type?> where TEnum : Enum
 {
-    private readonly IReadOnlyList<Type?> _typeMappings = [null, .. typeMappings];
+    private readonly IReadOnlyList<Type?> _typeMappings = [
+            null, // index 0 reserved for Unknown/null
+            .. typeMappings
+        ];
 
-    public int Count { get; } = typeMappings.Length;
+    /// <summary>
+    /// Gets the number of mappings provided (including the leading null slot).
+    /// </summary>
+    public int Count => _typeMappings.Count;
 
+    /// <summary>
+    /// Gets an enumerator over the mapped types (including the leading null entry).
+    /// </summary>
     public IEnumerator<Type?> GetEnumerator() => _typeMappings.GetEnumerator();
 
+    /// <summary>
+    /// Gets the mapped <see cref="Type"/> at the specified index.
+    /// </summary>
+    /// <param name="index">The index to retrieve.</param>
     public Type? this[int index] => _typeMappings[index];
 
     System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();

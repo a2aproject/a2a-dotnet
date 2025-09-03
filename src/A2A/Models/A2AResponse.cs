@@ -92,17 +92,7 @@ internal class A2AEventConverterViaKindDiscriminator<T> : BaseKindDiscriminatorC
 
     protected override string DisplayName { get; } = "event";
 
-    protected override bool TryDeserializeKind(JsonElement kindProp, out A2AEventKind value)
-    {
-        value = A2AEventKind.Unknown;
-        try
-        {
-            value = kindProp.Deserialize(A2AJsonUtilities.JsonContext.Default.A2AEventKind);
-            return value is not A2AEventKind.Unknown;
-        }
-        catch
-        {
-            return false;
-        }
-    }
+    protected override JsonTypeInfo<A2AEventKind> JsonTypeInfo { get; }= A2AJsonUtilities.JsonContext.Default.A2AEventKind;
+
+    protected override A2AEventKind UnknownValue { get; } = A2AEventKind.Unknown;
 }

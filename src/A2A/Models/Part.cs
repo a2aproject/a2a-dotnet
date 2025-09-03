@@ -105,17 +105,7 @@ internal class PartConverterViaKindDiscriminator<T> : BaseKindDiscriminatorConve
 
     protected override string DisplayName { get; } = "part";
 
-    protected override bool TryDeserializeKind(JsonElement kindProp, out PartKind value)
-    {
-        value = PartKind.Unknown;
-        try
-        {
-            value = kindProp.Deserialize(A2AJsonUtilities.JsonContext.Default.PartKind);
-            return value is not PartKind.Unknown;
-        }
-        catch
-        {
-            return false;
-        }
-    }
+    protected override JsonTypeInfo<PartKind> JsonTypeInfo { get; } = A2AJsonUtilities.JsonContext.Default.PartKind;
+
+    protected override PartKind UnknownValue { get; } = PartKind.Unknown;
 }

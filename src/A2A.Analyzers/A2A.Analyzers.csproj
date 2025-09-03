@@ -14,6 +14,6 @@
     <ItemGroup>
         <Compile Remove="A2A0001_TypeMappingStartsWithNullCodeFix.cs" />
         <Compile Remove="A2A0002_UnknownFirstCodeFix.cs" />
-        <Compile Remove="A2A0003_CountLastCodeFix.cs" />
+        <Compile Remove="A2A0002_CountLastCodeFix.cs" />
     </ItemGroup>
 </Project>

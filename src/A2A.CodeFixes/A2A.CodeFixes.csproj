@@ -9,6 +9,7 @@
     <ProjectReference Include="..\A2A.Analyzers\A2A.Analyzers.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Pin via Central Package Management. Keep private so packages don't flow to consumers. -->
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" PrivateAssets="all" />
   </ItemGroup>
 </Project>
