@@ -1,5 +1,4 @@
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.Testing;
 using System.Reflection;
 using Xunit;
 using VerifyAnalyzer = Microsoft.CodeAnalysis.CSharp.Testing.CSharpAnalyzerVerifier<A2A.Analyzers.A2A0001_0002_DiscriminatorEnumShapeAnalyzer, Microsoft.CodeAnalysis.Testing.DefaultVerifier>;

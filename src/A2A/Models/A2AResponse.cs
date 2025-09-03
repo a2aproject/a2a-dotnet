@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 
@@ -92,7 +91,7 @@ internal class A2AEventConverterViaKindDiscriminator<T> : BaseKindDiscriminatorC
 
     protected override string DisplayName { get; } = "event";
 
-    protected override JsonTypeInfo<A2AEventKind> JsonTypeInfo { get; }= A2AJsonUtilities.JsonContext.Default.A2AEventKind;
+    protected override JsonTypeInfo<A2AEventKind> JsonTypeInfo { get; } = A2AJsonUtilities.JsonContext.Default.A2AEventKind;
 
     protected override A2AEventKind UnknownValue { get; } = A2AEventKind.Unknown;
 }
