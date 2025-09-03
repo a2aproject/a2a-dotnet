@@ -45,7 +45,7 @@ public sealed class MessageSendConfiguration
     /// <summary>
     /// Where the server should send notifications when disconnected.
     /// </summary>
-    [JsonPropertyName("pushNotification")]
+    [JsonPropertyName("pushNotificationConfig")]
     public PushNotificationConfig? PushNotification { get; set; }
 
     /// <summary>
