@@ -1,15 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
-    <AssemblyName>A2A.CodeFixes</AssemblyName>
-    <RootNamespace>A2A.CodeFixes</RootNamespace>
-    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
-  </PropertyGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\A2A.Analyzers\A2A.Analyzers.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <!-- Pin via Central Package Management. Keep private so packages don't flow to consumers. -->
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" PrivateAssets="all" />
-  </ItemGroup>
+    <PropertyGroup>
+        <TargetFrameworks>net9.0;net8.0;netstandard2.0</TargetFrameworks>
+        <AssemblyName>A2A.CodeFixes</AssemblyName>
+        <RootNamespace>A2A.CodeFixes</RootNamespace>
+        <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\A2A.Analyzers\A2A.Analyzers.csproj" />
+    </ItemGroup>
+    <ItemGroup>
+        <!-- Pin via Central Package Management. Keep private so packages don't flow to consumers. -->
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" PrivateAssets="all" />
+    </ItemGroup>
 </Project>
