@@ -43,7 +43,7 @@ internal abstract class BaseKindDiscriminatorConverter<TBase, TKind> : JsonConve
         try
         {
             value = kindProp.Deserialize(this.JsonTypeInfo);
-            return value.Equals(this.UnknownValue);
+            return !value.Equals(this.UnknownValue);
         }
         catch
         {
