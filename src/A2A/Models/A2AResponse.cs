@@ -1,51 +1,8 @@
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
+using static A2A.A2AEvent;
 
 namespace A2A;
-
-/// <summary>
-/// Defines the set of A2A event kinds used as the 'kind' discriminator in serialized payloads.
-/// </summary>
-/// <remarks>
-/// Values are serialized as lowercase kebab-case strings via <see cref="KebabCaseLowerJsonStringEnumConverter{TEnum}"/>.
-/// </remarks>
-[JsonConverter(typeof(KebabCaseLowerJsonStringEnumConverter<A2AEventKind>))]
-public enum A2AEventKind
-{
-    /// <summary>
-    /// Unknown value, used for unrecognized values.
-    /// </summary>
-    Unknown = 0,
-
-    /// <summary>
-    /// A conversational message from an agent.
-    /// </summary>
-    /// <seealso cref="AgentMessage"/>
-    Message,
-
-    /// <summary>
-    /// A task issued to or produced by an agent.
-    /// </summary>
-    /// <seealso cref="AgentTask"/>
-    Task,
-
-    /// <summary>
-    /// An update describing the current state of a task execution.
-    /// </summary>
-    /// <seealso cref="TaskStatusUpdateEvent"/>
-    StatusUpdate,
-
-    /// <summary>
-    /// A notification that artifacts associated with a task have changed.
-    /// </summary>
-    /// <seealso cref="TaskArtifactUpdateEvent"/>
-    ArtifactUpdate,
-
-    /// <summary>
-    /// Helper value to track the number of enum values when used as array indices. This must always be the last value in the enumeration.
-    /// </summary>
-    Count
-}
 
 /// <summary>
 /// Base class for A2A events.
@@ -66,6 +23,50 @@ public abstract class A2AEvent(A2AEventKind kind)
     /// </summary>
     [JsonRequired, JsonPropertyName(BaseKindDiscriminatorConverter<A2AEvent, A2AEventKind>.DiscriminatorPropertyName), JsonInclude, JsonPropertyOrder(int.MinValue)]
     public A2AEventKind Kind { get; internal set; } = kind;
+
+    /// <summary>
+    /// Defines the set of A2A event kinds used as the 'kind' discriminator in serialized payloads.
+    /// </summary>
+    /// <remarks>
+    /// Values are serialized as lowercase kebab-case strings via <see cref="KebabCaseLowerJsonStringEnumConverter{TEnum}"/>.
+    /// </remarks>
+    [JsonConverter(typeof(KebabCaseLowerJsonStringEnumConverter<A2AEventKind>))]
+    public enum A2AEventKind
+    {
+        /// <summary>
+        /// Unknown value, used for unrecognized values.
+        /// </summary>
+        Unknown = 0,
+
+        /// <summary>
+        /// A conversational message from an agent.
+        /// </summary>
+        /// <seealso cref="AgentMessage"/>
+        Message,
+
+        /// <summary>
+        /// A task issued to or produced by an agent.
+        /// </summary>
+        /// <seealso cref="AgentTask"/>
+        Task,
+
+        /// <summary>
+        /// An update describing the current state of a task execution.
+        /// </summary>
+        /// <seealso cref="TaskStatusUpdateEvent"/>
+        StatusUpdate,
+
+        /// <summary>
+        /// A notification that artifacts associated with a task have changed.
+        /// </summary>
+        /// <seealso cref="TaskArtifactUpdateEvent"/>
+        ArtifactUpdate,
+
+        /// <summary>
+        /// Helper value to track the number of enum values when used as array indices. This must always be the last value in the enumeration.
+        /// </summary>
+        Count
+    }
 }
 
 /// <summary>

@@ -1,40 +1,9 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
+using static A2A.FileContent;
 
 namespace A2A;
-
-/// <summary>
-/// Defines the set of FileContent kinds used as the 'kind' discriminator in serialized payloads.
-/// </summary>
-/// <remarks>
-/// Values are serialized as lowercase kebab-case strings via <see cref="KebabCaseLowerJsonStringEnumConverter{TEnum}"/>.
-/// </remarks>
-[JsonConverter(typeof(KebabCaseLowerJsonStringEnumConverter<FileContentKind>))]
-public enum FileContentKind
-{
-    /// <summary>
-    /// Unknown value, used for unrecognized values.
-    /// </summary>
-    Unknown = 0,
-
-    /// <summary>
-    /// A file content containing bytes.
-    /// </summary>
-    /// <seealso cref="FileWithBytes"/>
-    Bytes,
-
-    /// <summary>
-    /// A file content containing a URI.
-    /// </summary>
-    /// <seealso cref="FileWithUri"/>
-    Uri,
-
-    /// <summary>
-    /// Helper value to track the number of enum values when used as array indices. This must always be the last value in the enumeration.
-    /// </summary>
-    Count
-}
 
 /// <summary>
 /// Represents the base entity for FileParts.
@@ -57,6 +26,38 @@ public class FileContent(FileContentKind kind)
     /// Optional metadata for the file.
     /// </summary>
     public Dictionary<string, JsonElement> Metadata { get; set; } = [];
+
+    /// <summary>
+    /// Defines the set of FileContent kinds used as the 'kind' discriminator in serialized payloads.
+    /// </summary>
+    /// <remarks>
+    /// Values are serialized as lowercase kebab-case strings via <see cref="KebabCaseLowerJsonStringEnumConverter{TEnum}"/>.
+    /// </remarks>
+    [JsonConverter(typeof(KebabCaseLowerJsonStringEnumConverter<FileContentKind>))]
+    public enum FileContentKind
+    {
+        /// <summary>
+        /// Unknown value, used for unrecognized values.
+        /// </summary>
+        Unknown = 0,
+
+        /// <summary>
+        /// A file content containing bytes.
+        /// </summary>
+        /// <seealso cref="FileWithBytes"/>
+        Bytes,
+
+        /// <summary>
+        /// A file content containing a URI.
+        /// </summary>
+        /// <seealso cref="FileWithUri"/>
+        Uri,
+
+        /// <summary>
+        /// Helper value to track the number of enum values when used as array indices. This must always be the last value in the enumeration.
+        /// </summary>
+        Count
+    }
 }
 
 /// <summary>

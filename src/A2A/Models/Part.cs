@@ -1,46 +1,9 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
+using static A2A.Part;
 
 namespace A2A;
-
-/// <summary>
-/// Defines the set of Part kinds used as the 'kind' discriminator in serialized payloads.
-/// </summary>
-/// <remarks>
-/// Values are serialized as lowercase kebab-case strings via <see cref="KebabCaseLowerJsonStringEnumConverter{TEnum}"/>.
-/// </remarks>
-[JsonConverter(typeof(KebabCaseLowerJsonStringEnumConverter<PartKind>))]
-public enum PartKind
-{
-    /// <summary>
-    /// Unknown value, used for unrecognized values.
-    /// </summary>
-    Unknown = 0,
-
-    /// <summary>
-    /// A text part containing plain textual content.
-    /// </summary>
-    /// <seealso cref="TextPart"/>
-    Text,
-
-    /// <summary>
-    /// A file part containing file content.
-    /// </summary>
-    /// <seealso cref="FilePart"/>
-    File,
-
-    /// <summary>
-    /// A data part containing structured JSON data.
-    /// </summary>
-    /// <seealso cref="DataPart"/>
-    Data,
-
-    /// <summary>
-    /// Helper value to track the number of enum values when used as array indices. This must always be the last value in the enumeration.
-    /// </summary>
-    Count
-}
 
 /// <summary>
 /// Represents a part of a message, which can be text, a file, or structured data.
@@ -92,6 +55,44 @@ public abstract class Part(PartKind kind)
     public DataPart AsDataPart() => this is DataPart dataPart ?
         dataPart :
         throw new InvalidCastException($"Cannot cast {GetType().Name} to DataPart.");
+
+    /// <summary>
+    /// Defines the set of Part kinds used as the 'kind' discriminator in serialized payloads.
+    /// </summary>
+    /// <remarks>
+    /// Values are serialized as lowercase kebab-case strings via <see cref="KebabCaseLowerJsonStringEnumConverter{TEnum}"/>.
+    /// </remarks>
+    [JsonConverter(typeof(KebabCaseLowerJsonStringEnumConverter<PartKind>))]
+    public enum PartKind
+    {
+        /// <summary>
+        /// Unknown value, used for unrecognized values.
+        /// </summary>
+        Unknown = 0,
+
+        /// <summary>
+        /// A text part containing plain textual content.
+        /// </summary>
+        /// <seealso cref="TextPart"/>
+        Text,
+
+        /// <summary>
+        /// A file part containing file content.
+        /// </summary>
+        /// <seealso cref="FilePart"/>
+        File,
+
+        /// <summary>
+        /// A data part containing structured JSON data.
+        /// </summary>
+        /// <seealso cref="DataPart"/>
+        Data,
+
+        /// <summary>
+        /// Helper value to track the number of enum values when used as array indices. This must always be the last value in the enumeration.
+        /// </summary>
+        Count
+    }
 }
 
 internal class PartConverterViaKindDiscriminator<T> : BaseKindDiscriminatorConverter<T, PartKind> where T : Part
