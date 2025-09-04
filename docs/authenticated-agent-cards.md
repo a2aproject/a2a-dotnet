@@ -137,16 +137,14 @@ var email = authContext.GetClaimValues(ClaimTypes.Email).FirstOrDefault();
 
 ## API Endpoints
 
-### Standard Agent Card
-- **GET** `/v1/card` - Returns the standard agent card
+### Agent Card Discovery
+- **GET** `/v1/card` - Returns agent card based on authentication context
 - **GET** `/.well-known/agent-card.json` - Returns the standard agent card
 
-### Authenticated Agent Card
-- **GET** `/v1/card/authenticated` - Returns the extended agent card for authenticated users
-
-The authenticated endpoint:
+The `/v1/card` endpoint:
 - Returns the extended card if the user is authenticated and an authenticated handler is configured
 - Falls back to the standard card if the user is not authenticated or no authenticated handler exists
+- Automatically detects authentication information from the request
 
 ## Example: Role-Based Features
 

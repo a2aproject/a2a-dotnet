@@ -85,12 +85,8 @@ public static class A2ARouteBuilderExtensions
 
         var routeGroup = endpoints.MapGroup(path);
 
-        // /v1/card endpoint - Agent discovery
+        // /v1/card endpoint - Agent discovery (supports both authenticated and unauthenticated requests)
         routeGroup.MapGet("/v1/card", async (HttpRequest request, CancellationToken cancellationToken) =>
-            await A2AHttpProcessor.GetAgentCardAsync(taskManager, logger, $"{request.Scheme}://{request.Host}{path}", cancellationToken).ConfigureAwait(false));
-
-        // /v1/card/authenticated endpoint - Authenticated agent discovery with extended capabilities
-        routeGroup.MapGet("/v1/card/authenticated", async (HttpRequest request, CancellationToken cancellationToken) =>
         {
             var agentUrl = $"{request.Scheme}://{request.Host}{path}";
             var authContext = A2AHttpProcessor.ExtractAuthenticationContext(request);
