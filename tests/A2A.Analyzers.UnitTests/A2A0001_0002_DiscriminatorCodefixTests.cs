@@ -16,7 +16,7 @@ namespace A2A.Analyzers.UnitTests;
 
 public class A2A0001_0002_DiscriminatorCodefixTests
 {
-    private const string UsingsAndNamespace =
+    private const string Boilerplate =
         """
         using A2A;
 
@@ -26,7 +26,31 @@ public class A2A0001_0002_DiscriminatorCodefixTests
         using System.Text.Json.Serialization.Metadata;
 
         namespace A2A;
-
+        
+        // Minimal type definitions needed for the analyzer tests
+        public abstract class Part { }
+        public class TextPart : Part { }
+        public class FilePart : Part { }
+        public class DataPart : Part { }
+        
+        public class DiscriminatorTypeMapping<T> where T : Enum
+        {
+            public DiscriminatorTypeMapping(params Type[] types) { }
+        }
+        
+        public abstract class BaseKindDiscriminatorConverter<TBase, TKind> where TKind : Enum
+        {
+            protected abstract DiscriminatorTypeMapping<TKind> TypeMapping { get; }
+            protected abstract string DisplayName { get; }
+            protected abstract JsonTypeInfo<TKind> JsonTypeInfo { get; }
+            protected abstract TKind UnknownValue { get; }
+        }
+        
+        public static class A2AJsonUtilities
+        {
+            public static JsonSerializerOptions DefaultOptions { get; } = new JsonSerializerOptions();
+        }
+        
         """;
     [Fact]
     public async Task ReportsOnEnumIdentifier_And_FixesUnknownFirstAsync()
@@ -61,10 +85,7 @@ public class A2A0001_0002_DiscriminatorCodefixTests
                 protected override TestPartKind UnknownValue { get; } = default;
             }
             """;
-        var testInstance = new VerifyUnknownFixTest { TestCode = UsingsAndNamespace + test, FixedCode = UsingsAndNamespace + expected }.ConfigureForTest();
-        testInstance.TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(System.Text.Json.JsonSerializer).GetTypeInfo().Assembly.Location));
-        testInstance.TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(A2A.BaseKindDiscriminatorConverter<,>).GetTypeInfo().Assembly.Location));
-
+        var testInstance = new VerifyUnknownFixTest { TestCode = Boilerplate + test, FixedCode = Boilerplate + expected }.ConfigureForTest();
         var expectedDiag = VerifyAnalyzer.Diagnostic("A2A0001").WithLocation(0).WithArguments("TestPartKind");
         testInstance.ExpectedDiagnostics.Add(expectedDiag);
 
@@ -103,10 +124,7 @@ public class A2A0001_0002_DiscriminatorCodefixTests
                 protected override TestPartKind UnknownValue { get; } = default;
             }
             """;
-        var testInstance = new VerifyCountFixTest { TestCode = UsingsAndNamespace + test, FixedCode = UsingsAndNamespace + expected }.ConfigureForTest();
-        testInstance.TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(System.Text.Json.JsonSerializer).GetTypeInfo().Assembly.Location));
-        testInstance.TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(A2A.BaseKindDiscriminatorConverter<,>).GetTypeInfo().Assembly.Location));
-
+        var testInstance = new VerifyCountFixTest { TestCode = Boilerplate + test, FixedCode = Boilerplate + expected }.ConfigureForTest();
         var expectedDiag = VerifyAnalyzer.Diagnostic("A2A0002").WithLocation(0).WithArguments("TestPartKind");
         testInstance.ExpectedDiagnostics.Add(expectedDiag);
 

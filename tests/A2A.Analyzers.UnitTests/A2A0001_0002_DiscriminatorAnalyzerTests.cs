@@ -1,11 +1,23 @@
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Testing;
 using System.Collections.Immutable;
-using System.Reflection;
 using Xunit;
 using AnalyzerTest = Microsoft.CodeAnalysis.CSharp.Testing.CSharpAnalyzerTest<A2A.Analyzers.A2A0001_0002_DiscriminatorEnumShapeAnalyzer, Microsoft.CodeAnalysis.Testing.DefaultVerifier>;
 using VerifyAnalyzer = Microsoft.CodeAnalysis.CSharp.Testing.CSharpAnalyzerVerifier<A2A.Analyzers.A2A0001_0002_DiscriminatorEnumShapeAnalyzer, Microsoft.CodeAnalysis.Testing.DefaultVerifier>;
+
+#if NET8_0
+using NuGet.Common;
+using NuGet.Configuration;
+using NuGet.Frameworks;
+using NuGet.Packaging;
+using NuGet.Packaging.Core;
+using NuGet.Protocol;
+using NuGet.Protocol.Core.Types;
+
+using System.Globalization;
+
+using PackageIdentity = NuGet.Packaging.Core.PackageIdentity;
+#endif
 
 namespace A2A.Analyzers.UnitTests;
 
@@ -20,30 +32,6 @@ public class A2A0001_0002_DiscriminatorAnalyzerTests
         using System.Text.Json.Serialization.Metadata;
 
         namespace A2A;
-
-        // Minimal type definitions needed for the analyzer tests
-        public abstract class Part { }
-        public class TextPart : Part { }
-        public class FilePart : Part { }
-        public class DataPart : Part { }
-
-        public class DiscriminatorTypeMapping<T> where T : Enum
-        {
-            public DiscriminatorTypeMapping(params Type[] types) { }
-        }
-
-        public abstract class BaseKindDiscriminatorConverter<TBase, TKind> where TKind : Enum
-        {
-            protected abstract DiscriminatorTypeMapping<TKind> TypeMapping { get; }
-            protected abstract string DisplayName { get; }
-            protected abstract JsonTypeInfo<TKind> JsonTypeInfo { get; }
-            protected abstract TKind UnknownValue { get; }
-        }
-
-        public static class A2AJsonUtilities
-        {
-            public static JsonSerializerOptions DefaultOptions { get; } = new JsonSerializerOptions();
-        }
 
         """;
 
@@ -63,7 +51,7 @@ public class A2A0001_0002_DiscriminatorAnalyzerTests
             {
                 protected override DiscriminatorTypeMapping<TestPartKind> TypeMapping { get; } = new(typeof(TextPart), typeof(FilePart), typeof(DataPart));
                 protected override string DisplayName { get; } = "part";
-                protected override System.Text.Json.Serialization.Metadata.JsonTypeInfo<TestPartKind> JsonTypeInfo { get; } = (System.Text.Json.Serialization.Metadata.JsonTypeInfo<TestPartKind>)A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(TestPartKind));
+                protected override JsonTypeInfo<TestPartKind> JsonTypeInfo { get; } = (JsonTypeInfo<TestPartKind>)A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(TestPartKind));
                 protected override TestPartKind UnknownValue { get; } = default;
             }
             """;
@@ -96,7 +84,7 @@ public class A2A0001_0002_DiscriminatorAnalyzerTests
             {
                 protected override DiscriminatorTypeMapping<TestPartKind> TypeMapping { get; } = new(typeof(TextPart), typeof(FilePart), typeof(DataPart));
                 protected override string DisplayName { get; } = "part";
-                protected override System.Text.Json.Serialization.Metadata.JsonTypeInfo<TestPartKind> JsonTypeInfo { get; } = (System.Text.Json.Serialization.Metadata.JsonTypeInfo<TestPartKind>)A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(TestPartKind));
+                protected override JsonTypeInfo<TestPartKind> JsonTypeInfo { get; } = (JsonTypeInfo<TestPartKind>)A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(TestPartKind));
                 protected override TestPartKind UnknownValue { get; } = default;
             }
             """;
@@ -124,7 +112,7 @@ public class A2A0001_0002_DiscriminatorAnalyzerTests
             {
                 protected override DiscriminatorTypeMapping<TestPartKind> TypeMapping { get; } = new(typeof(TextPart), typeof(FilePart), typeof(DataPart));
                 protected override string DisplayName { get; } = "part";
-                protected override System.Text.Json.Serialization.Metadata.JsonTypeInfo<TestPartKind> JsonTypeInfo { get; } = (System.Text.Json.Serialization.Metadata.JsonTypeInfo<TestPartKind>)A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(TestPartKind));
+                protected override JsonTypeInfo<TestPartKind> JsonTypeInfo { get; } = (JsonTypeInfo<TestPartKind>)A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(TestPartKind));
                 protected override TestPartKind UnknownValue { get; } = default;
             }
             """;
@@ -153,7 +141,7 @@ public class A2A0001_0002_DiscriminatorAnalyzerTests
             {
                 protected override DiscriminatorTypeMapping<TestPartKind> TypeMapping { get; } = new(typeof(TextPart), typeof(FilePart), typeof(DataPart));
                 protected override string DisplayName { get; } = "part";
-                protected override System.Text.Json.Serialization.Metadata.JsonTypeInfo<TestPartKind> JsonTypeInfo { get; } = (System.Text.Json.Serialization.Metadata.JsonTypeInfo<TestPartKind>)A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(TestPartKind));
+                protected override JsonTypeInfo<TestPartKind> JsonTypeInfo { get; } = (JsonTypeInfo<TestPartKind>)A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(TestPartKind));
                 protected override TestPartKind UnknownValue { get; } = TestPartKind.Unknown;
             }
             """;
@@ -166,6 +154,7 @@ public class A2A0001_0002_DiscriminatorAnalyzerTests
 internal static class TestExtensions
 {
     private static readonly ImmutableArray<byte> PublicKey = [.. HexToBytes("0024000004800000940000000602000000240000525341310004000001000100fdff21bdfb01242cffd857fcfe4fd1048248b80c2d5779adf1916ba0f2fdfb7d9f780ba2c7eb359d8b2c40be090f54d99f29ada7769f3b50d5db1e92e645577abc702cb53a9ccdae1ff5aaf4c413f9ba4fd26f298f8756d38d0c4c9c813b39dd6f760f29ed0094f55af0dd698df03c714dace31a70362a2970fd0fa5a5dc5ec1")];
+
     public static AnalyzerTest<TVerifier> ConfigureForTest<TVerifier>(this AnalyzerTest<TVerifier> test, string asmName = "AnalyzerTests.Generated", string? publicKey = null)
         where TVerifier : IVerifier, new()
     {
@@ -175,23 +164,166 @@ internal static class TestExtensions
         test.SolutionTransforms.Add((solution, projectId) =>
         {
             var project = solution.GetProject(projectId)!;
-            project = project.WithAssemblyName(asmName)
+            project = project
+                .WithAssemblyName(asmName)
                 .WithCompilationOptions(project.CompilationOptions!
                     .WithCryptoPublicKey(publicKeyBytes)
                     .WithPublicSign(true));
+#if NET8_0
+            project = replaceSystemTextJsonDllsWithNet9NugetPackageContents(ref project);
+            // The Roslyn Workspace doesn't properly *replace* STJ DLLs with nupkg contents if we use AddPackage
+            // (as we do for netstandard2.0) so we have to manually get the entire dependency tree of STJ9 and
+            // replace the corresponding DLLs from 8.0 with those from the pkg otherwise we'll get a dependency
+            // mismatch exception at runtime ("Type Exists in both 8.0 and 9.0", etc.)
+            // https://github.com/dotnet/roslyn-sdk/issues/1219
+            static Project replaceSystemTextJsonDllsWithNet9NugetPackageContents(ref Project p)
+            {
+                NuGetFramework targetFramework = NuGetFramework.ParseFolder("net8.0");
+                var nugetSettings = Settings.LoadDefaultSettings(null);
+                var stj9dlls = getAllDllPaths(
+                        resolveAllDependenciesAsync(new("System.Text.Json", new NuGet.Versioning.NuGetVersion(9, 0, 8)),
+                            nugetSettings, targetFramework).GetAwaiter().GetResult(),
+                        nugetSettings, targetFramework);
+
+                return p.WithMetadataReferences(p.MetadataReferences.Where(i => !stj9dlls.Any(j => Path.GetFileName(j).Equals(Path.GetFileName(i.Display), StringComparison.OrdinalIgnoreCase)))
+                    .Concat(stj9dlls.Select(i => MetadataReference.CreateFromFile(i))));
+
+                static IEnumerable<string> getAllDllPaths(IEnumerable<PackageIdentity> packages, ISettings settings, NuGetFramework targetFramework)
+                {
+                    var globalPackagesFolder = SettingsUtility.GetGlobalPackagesFolder(settings);
+                    var allDlls = new List<string>();
+
+                    foreach (var package in packages)
+                    {
+                        string packagePath = Path.Combine(globalPackagesFolder, package.Id.ToLower(CultureInfo.InvariantCulture), package.Version.ToNormalizedString());
+                        // You might want to try several fallback folder names for TFM
+                        string libPath = Path.Combine(packagePath, "lib", targetFramework.GetShortFolderName());
+
+                        if (Directory.Exists(libPath))
+                        {
+                            foreach (var dll in Directory.GetFiles(libPath, "*.dll"))
+                            {
+                                yield return dll;
+                            }
+                        }
+                    }
+                }
+
+                static async Task<IEnumerable<PackageIdentity>> resolveAllDependenciesAsync(PackageIdentity rootPackage, ISettings settings, NuGetFramework targetFramework)
+                {
+                    var resolved = new HashSet<PackageIdentity>(PackageIdentityComparer.Default);
+                    var toProcess = new Queue<PackageIdentity>([rootPackage]);
+
+                    // Load the active nuget.config settings
+                    var packageSourceProvider = new PackageSourceProvider(settings);
+                    var packageSources = packageSourceProvider.LoadPackageSources().Where(s => s.IsEnabled).ToList();
+
+                    var globalPackagesFolder = SettingsUtility.GetGlobalPackagesFolder(settings);
+                    while (toProcess.Count > 0)
+                    {
+                        var current = toProcess.Dequeue();
+                        if (resolved.Contains(current)) continue;
+
+                        resolved.Add(current);
+
+                        string packagePath = await findAndDownloadPackageAsync(current, globalPackagesFolder, packageSources);
+
+                        // Get dependencies
+                        foreach (var dep in getPackageDependencies(packagePath, targetFramework))
+                        {
+                            if (!resolved.Contains(dep))
+                                toProcess.Enqueue(dep);
+                        }
+                    }
+
+                    return resolved;
+
+                    static async Task<string> findAndDownloadPackageAsync(PackageIdentity package, string globalPackagesFolder, IEnumerable<PackageSource> packageSources)
+                    {
+                        // First, check if package exists locally in global packages folder
+                        string localPackagePath = Path.Combine(globalPackagesFolder, package.Id.ToLower(CultureInfo.InvariantCulture), package.Version.ToNormalizedString());
+                        string localNupkgPath = Path.Combine(localPackagePath, $"{package.Id}.{package.Version.ToNormalizedString()}.nupkg");
+
+                        if (File.Exists(localNupkgPath))
+                        {
+                            return localNupkgPath;
+                        }
+
+                        string downloadFolder = Path.Combine(Environment.CurrentDirectory, "packages");
+                        string downloadPath = Path.Combine(downloadFolder, $"{package.Id}.{package.Version}.nupkg");
+
+                        if (File.Exists(downloadPath))
+                        {
+                            return downloadPath;
+                        }
+
+                        // If not found locally, search through package sources in order
+                        foreach (var packageSource in packageSources)
+                        {
+                            try
+                            {
+                                var sourceRepository = Repository.Factory.GetCoreV3(packageSource);
+                                var findPackageByIdResource = await sourceRepository.GetResourceAsync<FindPackageByIdResource>();
+
+                                // Check if package exists in this source
+                                SourceCacheContext cache = new();
+                                if (await findPackageByIdResource.DoesPackageExistAsync(package.Id, package.Version, cache, NullLogger.Instance, CancellationToken.None))
+                                {
+                                    // Package found in this source, download it
+                                    Directory.CreateDirectory(downloadFolder);
+
+                                    using var packageDownloader = await findPackageByIdResource.GetPackageDownloaderAsync(package, cache, NullLogger.Instance, CancellationToken.None);
+                                    await packageDownloader.CopyNupkgFileToAsync(downloadPath, CancellationToken.None);
+
+                                    return downloadPath;
+                                }
+                            }
+                            catch
+                            {
+                                // Continue to next source if this one fails
+                                continue;
+                            }
+                        }
+
+                        throw new InvalidOperationException($"Package {package.Id} {package.Version} not found in any configured package source.");
+                    }
+
+                    static IEnumerable<PackageIdentity> getPackageDependencies(string nupkgFile, NuGetFramework targetFramework)
+                    {
+                        if (!File.Exists(nupkgFile))
+                            throw new FileNotFoundException("Package file missing.", nupkgFile);
+
+                        using var packageReader = new PackageArchiveReader(nupkgFile);
+                        var nuspecReader = packageReader.NuspecReader;
+                        var dependenciesGroups = nuspecReader.GetDependencyGroups();
+
+                        // Find dependencies for target framework or fallback
+                        var depsForFramework = dependenciesGroups.FirstOrDefault(g => g.TargetFramework.Equals(targetFramework))
+                            ?? dependenciesGroups.FirstOrDefault(g => g.TargetFramework.Equals(NuGetFramework.AnyFramework));
+
+                        foreach (var dep in depsForFramework?.Packages ?? [])
+                        {
+                            yield return new PackageIdentity(dep.Id, dep.VersionRange.MinVersion);
+                            // Note: VersionRange may specify min and max, 
+                            // here we take min version for simplicity
+                        }
+                    }
+                }
+            }
+#endif
             return project.Solution;
         });
 
 #if NET8_0
-        test.TestState.ReferenceAssemblies = ReferenceAssemblies.Net.Net80;
+        test.ReferenceAssemblies = ReferenceAssemblies.Net.Net80;
 #elif NET9_0_OR_GREATER
-        test.TestState.ReferenceAssemblies = ReferenceAssemblies.Net.Net90;
+        test.ReferenceAssemblies = ReferenceAssemblies.Net.Net90;
 #else
-        test.TestState.ReferenceAssemblies = ReferenceAssemblies.NetStandard.NetStandard20;
-        test.TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(System.Text.Json.JsonSerializer).GetTypeInfo().Assembly.Location));
+        test.ReferenceAssemblies = ReferenceAssemblies.NetStandard.NetStandard20
+            .AddPackages([new("System.Text.Json", "9.0.8")]);
 #endif
 
-        // Don't add the A2A assembly reference - the test will define the minimal types it needs
+        test.TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(BaseKindDiscriminatorConverter<,>).Assembly.Location));
 
         return test;
     }
