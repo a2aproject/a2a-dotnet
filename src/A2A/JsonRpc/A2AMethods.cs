@@ -41,6 +41,11 @@ public static class A2AMethods
     public const string TaskPushNotificationConfigGet = "tasks/pushNotificationConfig/get";
 
     /// <summary>
+    /// Method for retrieving authenticated extended agent card.
+    /// </summary>
+    public const string AgentGetAuthenticatedExtendedCard = "agent/getAuthenticatedExtendedCard";
+
+    /// <summary>
     /// Determines if a method requires streaming response handling.
     /// </summary>
     /// <param name="method">The method name to check.</param>
@@ -52,5 +57,5 @@ public static class A2AMethods
     /// </summary>
     /// <param name="method">The method name to validate.</param>
     /// <returns>True if the method is valid, false otherwise.</returns>
-    public static bool IsValidMethod(string method) => method is MessageSend or MessageStream or TaskGet or TaskCancel or TaskSubscribe or TaskPushNotificationConfigSet or TaskPushNotificationConfigGet;
+    public static bool IsValidMethod(string method) => method is MessageSend or MessageStream or TaskGet or TaskCancel or TaskSubscribe or TaskPushNotificationConfigSet or TaskPushNotificationConfigGet or AgentGetAuthenticatedExtendedCard;
 }

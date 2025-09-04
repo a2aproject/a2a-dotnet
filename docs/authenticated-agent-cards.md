@@ -146,6 +146,21 @@ The `/v1/card` endpoint:
 - Falls back to the standard card if the user is not authenticated or no authenticated handler exists
 - Automatically detects authentication information from the request
 
+### JSON-RPC Method
+- **`agent/getAuthenticatedExtendedCard`** - JSON-RPC method for retrieving authenticated agent cards
+
+Parameters:
+```json
+{
+  "agentUrl": "https://example.com/agent"
+}
+```
+
+The JSON-RPC method:
+- Uses the same shared implementation as the HTTP endpoint
+- Automatically extracts authentication context from the request
+- Falls back to the standard agent card for unauthenticated requests
+
 ## Example: Role-Based Features
 
 ```csharp

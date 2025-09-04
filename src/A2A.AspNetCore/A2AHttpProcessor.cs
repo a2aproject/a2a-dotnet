@@ -57,17 +57,34 @@ internal static class A2AHttpProcessor
     internal static Task<IResult> GetAuthenticatedAgentCardAsync(ITaskManager taskManager, ILogger logger, string agentUrl, AuthenticationContext? authContext, CancellationToken cancellationToken)
         => WithExceptionHandlingAsync(logger, "GetAuthenticatedAgentCard", async ct =>
         {
-            // If there's an authenticated handler and the user is authenticated, use it
-            if (taskManager.OnAuthenticatedAgentCardQuery != null && authContext?.IsAuthenticated == true)
-            {
-                var extendedAgentCard = await taskManager.OnAuthenticatedAgentCardQuery(agentUrl, authContext, ct);
-                return Results.Ok(extendedAgentCard);
-            }
-
-            // Fall back to standard agent card
-            var agentCard = await taskManager.OnAgentCardQuery(agentUrl, ct);
+            var agentCard = await GetAuthenticatedAgentCardCoreAsync(taskManager, agentUrl, authContext, ct);
             return Results.Ok(agentCard);
         }, cancellationToken: cancellationToken);
+
+    /// <summary>
+    /// Core implementation for getting authenticated agent cards.
+    /// </summary>
+    /// <remarks>
+    /// Shared implementation for getting authenticated agent cards that can be used by both
+    /// HTTP and JSON-RPC endpoints. Falls back to standard agent card if no authenticated
+    /// handler is configured or user is not authenticated.
+    /// </remarks>
+    /// <param name="taskManager">The task manager instance containing the agent card handlers.</param>
+    /// <param name="agentUrl">The URL of the agent to retrieve the card for.</param>
+    /// <param name="authContext">The authentication context containing user information and permissions.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
+    /// <returns>The agent card with appropriate capabilities based on authentication status.</returns>
+    internal static async Task<AgentCard> GetAuthenticatedAgentCardCoreAsync(ITaskManager taskManager, string agentUrl, AuthenticationContext? authContext, CancellationToken cancellationToken)
+    {
+        // If there's an authenticated handler and the user is authenticated, use it
+        if (taskManager.OnAuthenticatedAgentCardQuery != null && authContext?.IsAuthenticated == true)
+        {
+            return await taskManager.OnAuthenticatedAgentCardQuery(agentUrl, authContext, cancellationToken).ConfigureAwait(false);
+        }
+
+        // Fall back to standard agent card
+        return await taskManager.OnAgentCardQuery(agentUrl, cancellationToken).ConfigureAwait(false);
+    }
 
     /// <summary>
     /// Processes a request to retrieve a specific task by its ID.
