@@ -11,12 +11,12 @@ public class AuthenticatedAgentCardTests
     public async Task GetAuthenticatedAgentCardAsync_WithAuthenticatedUser_ReturnsExtendedCard()
     {
         // Arrange
-        var taskManager = new TaskManager();
+        var agentCardProvider = new AgentCardProvider();
         var logger = CreateLogger();
         var agentUrl = "https://example.com/agent";
 
         // Set up standard agent card handler
-        taskManager.OnAgentCardQuery = (url, ct) => Task.FromResult(new AgentCard
+        agentCardProvider.OnAgentCardQuery = (url, ct) => Task.FromResult(new AgentCard
         {
             Name = "Standard Agent",
             Url = url,
@@ -25,7 +25,7 @@ public class AuthenticatedAgentCardTests
         });
 
         // Set up authenticated agent card handler
-        taskManager.OnAuthenticatedAgentCardQuery = (url, authContext, ct) => Task.FromResult(new AgentCard
+        agentCardProvider.OnAuthenticatedAgentCardQuery = (url, authContext, ct) => Task.FromResult(new AgentCard
         {
             Name = "Extended Agent",
             Url = url,
@@ -51,7 +51,7 @@ public class AuthenticatedAgentCardTests
         };
 
         // Act
-        var result = await A2AHttpProcessor.GetAuthenticatedAgentCardAsync(taskManager, logger, agentUrl, authContext, CancellationToken.None);
+        var result = await A2AHttpProcessor.GetAuthenticatedAgentCardAsync(agentCardProvider, logger, agentUrl, authContext, CancellationToken.None);
 
         // Assert
         Assert.NotNull(result);
@@ -69,12 +69,12 @@ public class AuthenticatedAgentCardTests
     public async Task GetAuthenticatedAgentCardAsync_WithoutAuthenticatedUser_ReturnsStandardCard()
     {
         // Arrange
-        var taskManager = new TaskManager();
+        var agentCardProvider = new AgentCardProvider();
         var logger = CreateLogger();
         var agentUrl = "https://example.com/agent";
 
         // Set up standard agent card handler
-        taskManager.OnAgentCardQuery = (url, ct) => Task.FromResult(new AgentCard
+        agentCardProvider.OnAgentCardQuery = (url, ct) => Task.FromResult(new AgentCard
         {
             Name = "Standard Agent",
             Url = url,
@@ -83,7 +83,7 @@ public class AuthenticatedAgentCardTests
         });
 
         // Set up authenticated agent card handler  
-        taskManager.OnAuthenticatedAgentCardQuery = (url, authContext, ct) => Task.FromResult(new AgentCard
+        agentCardProvider.OnAuthenticatedAgentCardQuery = (url, authContext, ct) => Task.FromResult(new AgentCard
         {
             Name = "Extended Agent",
             Url = url,
@@ -91,7 +91,7 @@ public class AuthenticatedAgentCardTests
         });
 
         // Act - no authentication context
-        var result = await A2AHttpProcessor.GetAuthenticatedAgentCardAsync(taskManager, logger, agentUrl, null, CancellationToken.None);
+        var result = await A2AHttpProcessor.GetAuthenticatedAgentCardAsync(agentCardProvider, logger, agentUrl, null, CancellationToken.None);
 
         // Assert
         Assert.NotNull(result);
@@ -107,12 +107,12 @@ public class AuthenticatedAgentCardTests
     public async Task GetAuthenticatedAgentCardAsync_WithoutAuthenticatedHandler_ReturnsStandardCard()
     {
         // Arrange
-        var taskManager = new TaskManager();
+        var agentCardProvider = new AgentCardProvider();
         var logger = CreateLogger();
         var agentUrl = "https://example.com/agent";
 
         // Set up only standard agent card handler (no authenticated handler)
-        taskManager.OnAgentCardQuery = (url, ct) => Task.FromResult(new AgentCard
+        agentCardProvider.OnAgentCardQuery = (url, ct) => Task.FromResult(new AgentCard
         {
             Name = "Standard Agent",
             Url = url,
@@ -128,7 +128,7 @@ public class AuthenticatedAgentCardTests
         };
 
         // Act
-        var result = await A2AHttpProcessor.GetAuthenticatedAgentCardAsync(taskManager, logger, agentUrl, authContext, CancellationToken.None);
+        var result = await A2AHttpProcessor.GetAuthenticatedAgentCardAsync(agentCardProvider, logger, agentUrl, authContext, CancellationToken.None);
 
         // Assert
         Assert.NotNull(result);

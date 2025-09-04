@@ -16,9 +16,10 @@ public class A2AEndpointRouteBuilderExtensionsTests
 
         var app = WebApplication.CreateBuilder().Build();
         var taskManager = new TaskManager();
+        var agentCardProvider = new AgentCardProvider();
 
         // Act & Assert - Should not throw
-        var result = app.MapA2A(taskManager, "/agent");
+        var result = app.MapA2A(taskManager, agentCardProvider, "/agent");
         Assert.NotNull(result);
     }
 
@@ -32,10 +33,10 @@ public class A2AEndpointRouteBuilderExtensionsTests
         var services = serviceCollection.BuildServiceProvider();
 
         var app = WebApplication.CreateBuilder().Build();
-        var taskManager = new TaskManager();
+        var agentCardProvider = new AgentCardProvider();
 
         // Act & Assert - Should not throw
-        var result = app.MapWellKnownAgentCard(taskManager, "/agent");
+        var result = app.MapWellKnownAgentCard(agentCardProvider, "/agent");
         Assert.NotNull(result);
     }
 
@@ -50,10 +51,11 @@ public class A2AEndpointRouteBuilderExtensionsTests
 
         var app = WebApplication.CreateBuilder().Build();
         var taskManager = new TaskManager();
+        var agentCardProvider = new AgentCardProvider();
 
         // Act & Assert - Should not throw when calling both
-        var result1 = app.MapA2A(taskManager, "/agent");
-        var result2 = app.MapWellKnownAgentCard(taskManager, "/agent");
+        var result1 = app.MapA2A(taskManager, agentCardProvider, "/agent");
+        var result2 = app.MapWellKnownAgentCard(agentCardProvider, "/agent");
 
         Assert.NotNull(result1);
         Assert.NotNull(result2);
@@ -67,15 +69,16 @@ public class A2AEndpointRouteBuilderExtensionsTests
         // Arrange
         var app = WebApplication.CreateBuilder().Build();
         var taskManager = new TaskManager();
+        var agentCardProvider = new AgentCardProvider();
 
         // Act & Assert
         if (path == null)
         {
-            Assert.Throws<ArgumentNullException>(() => app.MapA2A(taskManager, path!));
+            Assert.Throws<ArgumentNullException>(() => app.MapA2A(taskManager, agentCardProvider, path!));
         }
         else
         {
-            Assert.Throws<ArgumentException>(() => app.MapA2A(taskManager, path));
+            Assert.Throws<ArgumentException>(() => app.MapA2A(taskManager, agentCardProvider, path));
         }
     }
 
@@ -86,16 +89,16 @@ public class A2AEndpointRouteBuilderExtensionsTests
     {
         // Arrange
         var app = WebApplication.CreateBuilder().Build();
-        var taskManager = new TaskManager();
+        var agentCardProvider = new AgentCardProvider();
 
         // Act & Assert
         if (agentPath == null)
         {
-            Assert.Throws<ArgumentNullException>(() => app.MapWellKnownAgentCard(taskManager, agentPath!));
+            Assert.Throws<ArgumentNullException>(() => app.MapWellKnownAgentCard(agentCardProvider, agentPath!));
         }
         else
         {
-            Assert.Throws<ArgumentException>(() => app.MapWellKnownAgentCard(taskManager, agentPath));
+            Assert.Throws<ArgumentException>(() => app.MapWellKnownAgentCard(agentCardProvider, agentPath));
         }
     }
 
@@ -104,13 +107,14 @@ public class A2AEndpointRouteBuilderExtensionsTests
     {
         // Arrange
         var app = WebApplication.CreateBuilder().Build();
+        var agentCardProvider = new AgentCardProvider();
 
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => app.MapA2A(null!, "/agent"));
+        Assert.Throws<ArgumentNullException>(() => app.MapA2A(null!, agentCardProvider, "/agent"));
     }
 
     [Fact]
-    public void MapWellKnownAgentCard_RequiresNonNullTaskManager()
+    public void MapWellKnownAgentCard_RequiresNonNullAgentCardProvider()
     {
         // Arrange
         var app = WebApplication.CreateBuilder().Build();

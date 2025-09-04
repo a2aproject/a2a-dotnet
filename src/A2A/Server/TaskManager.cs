@@ -35,15 +35,6 @@ public sealed class TaskManager : ITaskManager
     /// <inheritdoc />
     public Func<AgentTask, CancellationToken, Task> OnTaskUpdated { get; set; } = static (_, _) => Task.CompletedTask;
 
-    /// <inheritdoc />
-    public Func<string, CancellationToken, Task<AgentCard>> OnAgentCardQuery { get; set; }
-        = static (agentUrl, ct) => ct.IsCancellationRequested
-            ? Task.FromCanceled<AgentCard>(ct)
-            : Task.FromResult(new AgentCard() { Name = "Unknown", Url = agentUrl });
-
-    /// <inheritdoc />
-    public Func<string, AuthenticationContext?, CancellationToken, Task<AgentCard>>? OnAuthenticatedAgentCardQuery { get; set; }
-
     /// <summary>
     /// Initializes a new instance of the TaskManager class.
     /// </summary>

@@ -35,37 +35,38 @@ var agentType = GetAgentTypeFromArgs(args);
 
 // Create and register the specified agent
 var taskManager = new TaskManager();
+var agentCardProvider = new AgentCardProvider();
 
 switch (agentType.ToLowerInvariant())
 {
     case "echo":
         var echoAgent = new EchoAgent();
-        echoAgent.Attach(taskManager);
-        app.MapA2A(taskManager, "/echo");
-        app.MapWellKnownAgentCard(taskManager, "/echo");
-        app.MapHttpA2A(taskManager, "/echo");
+        echoAgent.Attach(taskManager, agentCardProvider);
+        app.MapA2A(taskManager, agentCardProvider, "/echo");
+        app.MapWellKnownAgentCard(agentCardProvider, "/echo");
+        app.MapHttpA2A(taskManager, agentCardProvider, "/echo");
         break;
 
     case "echotasks":
         var echoAgentWithTasks = new EchoAgentWithTasks();
-        echoAgentWithTasks.Attach(taskManager);
-        app.MapA2A(taskManager, "/echotasks");
-        app.MapWellKnownAgentCard(taskManager, "/echotasks");
-        app.MapHttpA2A(taskManager, "/echotasks");
+        echoAgentWithTasks.Attach(taskManager, agentCardProvider);
+        app.MapA2A(taskManager, agentCardProvider, "/echotasks");
+        app.MapWellKnownAgentCard(agentCardProvider, "/echotasks");
+        app.MapHttpA2A(taskManager, agentCardProvider, "/echotasks");
         break;
 
     case "researcher":
         var researcherAgent = new ResearcherAgent();
-        researcherAgent.Attach(taskManager);
-        app.MapA2A(taskManager, "/researcher");
-        app.MapWellKnownAgentCard(taskManager, "/researcher");
+        researcherAgent.Attach(taskManager, agentCardProvider);
+        app.MapA2A(taskManager, agentCardProvider, "/researcher");
+        app.MapWellKnownAgentCard(agentCardProvider, "/researcher");
         break;
 
     case "speccompliance":
         var specComplianceAgent = new SpecComplianceAgent();
-        specComplianceAgent.Attach(taskManager);
-        app.MapA2A(taskManager, "/speccompliance");
-        app.MapWellKnownAgentCard(taskManager, "/speccompliance");
+        specComplianceAgent.Attach(taskManager, agentCardProvider);
+        app.MapA2A(taskManager, agentCardProvider, "/speccompliance");
+        app.MapWellKnownAgentCard(agentCardProvider, "/speccompliance");
         break;
 
     default:

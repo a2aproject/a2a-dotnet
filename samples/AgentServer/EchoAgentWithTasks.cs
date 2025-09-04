@@ -7,12 +7,12 @@ public class EchoAgentWithTasks
 {
     private ITaskManager? _taskManager;
 
-    public void Attach(ITaskManager taskManager)
+    public void Attach(ITaskManager taskManager, IAgentCardProvider agentCardProvider)
     {
         _taskManager = taskManager;
         taskManager.OnTaskCreated = ProcessMessageAsync;
         taskManager.OnTaskUpdated = ProcessMessageAsync;
-        taskManager.OnAgentCardQuery = GetAgentCardAsync;
+        agentCardProvider.OnAgentCardQuery = GetAgentCardAsync;
     }
 
     private async Task ProcessMessageAsync(AgentTask task, CancellationToken cancellationToken)

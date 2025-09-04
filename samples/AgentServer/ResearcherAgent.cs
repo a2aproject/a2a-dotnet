@@ -15,7 +15,7 @@ public class ResearcherAgent
         Researching
     }
 
-    public void Attach(ITaskManager taskManager)
+    public void Attach(ITaskManager taskManager, IAgentCardProvider agentCardProvider)
     {
         _taskManager = taskManager;
         _taskManager.OnTaskCreated = async (task, cancellationToken) =>
@@ -32,7 +32,7 @@ public class ResearcherAgent
             var message = ((TextPart?)task.History?.Last()?.Parts?.FirstOrDefault())?.Text ?? string.Empty;
             await InvokeAsync(task.Id, message, cancellationToken);
         };
-        _taskManager.OnAgentCardQuery = GetAgentCardAsync;
+        agentCardProvider.OnAgentCardQuery = GetAgentCardAsync;
     }
 
     // This is the main entry point for the agent. It is called when a task is created or updated.

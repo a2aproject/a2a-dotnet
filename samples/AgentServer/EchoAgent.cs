@@ -4,11 +4,11 @@ namespace AgentServer;
 
 public class EchoAgent
 {
-    public void Attach(ITaskManager taskManager)
+    public void Attach(ITaskManager taskManager, IAgentCardProvider agentCardProvider)
     {
         taskManager.OnMessageReceived = ProcessMessageAsync;
-        taskManager.OnAgentCardQuery = GetAgentCardAsync;
-        taskManager.OnAuthenticatedAgentCardQuery = GetAuthenticatedAgentCardAsync;
+        agentCardProvider.OnAgentCardQuery = GetAgentCardAsync;
+        agentCardProvider.OnAuthenticatedAgentCardQuery = GetAuthenticatedAgentCardAsync;
     }
 
     private Task<A2AResponse> ProcessMessageAsync(MessageSendParams messageSendParams, CancellationToken cancellationToken)

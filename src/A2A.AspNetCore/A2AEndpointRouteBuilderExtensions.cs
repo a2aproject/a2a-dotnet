@@ -24,12 +24,14 @@ public static class A2ARouteBuilderExtensions
     /// </summary>
     /// <param name="endpoints">The endpoint route builder to configure.</param>
     /// <param name="taskManager">The task manager for handling A2A operations.</param>
+    /// <param name="agentCardProvider">The agent card provider for handling agent card queries.</param>
     /// <param name="path">The base path for the A2A endpoints.</param>
     /// <returns>An endpoint convention builder for further configuration.</returns>
-    public static IEndpointConventionBuilder MapA2A(this IEndpointRouteBuilder endpoints, ITaskManager taskManager, [StringSyntax("Route")] string path)
+    public static IEndpointConventionBuilder MapA2A(this IEndpointRouteBuilder endpoints, ITaskManager taskManager, IAgentCardProvider agentCardProvider, [StringSyntax("Route")] string path)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(taskManager);
+        ArgumentNullException.ThrowIfNull(agentCardProvider);
         ArgumentException.ThrowIfNullOrEmpty(path);
 
         var loggerFactory = endpoints.ServiceProvider.GetRequiredService<ILoggerFactory>();
@@ -37,7 +39,7 @@ public static class A2ARouteBuilderExtensions
 
         var routeGroup = endpoints.MapGroup("");
 
-        routeGroup.MapPost(path, (HttpRequest request, CancellationToken cancellationToken) => A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, request, cancellationToken));
+        routeGroup.MapPost(path, (HttpRequest request, CancellationToken cancellationToken) => A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, agentCardProvider, request, cancellationToken));
 
         return routeGroup;
     }
@@ -46,13 +48,13 @@ public static class A2ARouteBuilderExtensions
     /// Enables the well-known agent card endpoint for agent discovery.
     /// </summary>
     /// <param name="endpoints">The endpoint route builder to configure.</param>
-    /// <param name="taskManager">The task manager for handling A2A operations.</param>
+    /// <param name="agentCardProvider">The agent card provider for handling agent card queries.</param>
     /// <param name="agentPath">The base path where the A2A agent is hosted.</param>
     /// <returns>An endpoint convention builder for further configuration.</returns>
-    public static IEndpointConventionBuilder MapWellKnownAgentCard(this IEndpointRouteBuilder endpoints, ITaskManager taskManager, [StringSyntax("Route")] string agentPath)
+    public static IEndpointConventionBuilder MapWellKnownAgentCard(this IEndpointRouteBuilder endpoints, IAgentCardProvider agentCardProvider, [StringSyntax("Route")] string agentPath)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
-        ArgumentNullException.ThrowIfNull(taskManager);
+        ArgumentNullException.ThrowIfNull(agentCardProvider);
         ArgumentException.ThrowIfNullOrEmpty(agentPath);
 
         var routeGroup = endpoints.MapGroup("");
@@ -60,7 +62,7 @@ public static class A2ARouteBuilderExtensions
         routeGroup.MapGet(".well-known/agent-card.json", async (HttpRequest request, CancellationToken cancellationToken) =>
         {
             var agentUrl = $"{request.Scheme}://{request.Host}{agentPath}";
-            var agentCard = await taskManager.OnAgentCardQuery(agentUrl, cancellationToken);
+            var agentCard = await agentCardProvider.OnAgentCardQuery(agentUrl, cancellationToken);
             return Results.Ok(agentCard);
         });
 
@@ -72,12 +74,14 @@ public static class A2ARouteBuilderExtensions
     /// </summary>
     /// <param name="endpoints">The endpoint route builder to configure.</param>
     /// <param name="taskManager">The task manager for handling A2A operations.</param>
+    /// <param name="agentCardProvider">The agent card provider for handling agent card queries.</param>
     /// <param name="path">The base path for the HTTP A2A endpoints.</param>
     /// <returns>An endpoint convention builder for further configuration.</returns>
-    public static IEndpointConventionBuilder MapHttpA2A(this IEndpointRouteBuilder endpoints, ITaskManager taskManager, [StringSyntax("Route")] string path)
+    public static IEndpointConventionBuilder MapHttpA2A(this IEndpointRouteBuilder endpoints, ITaskManager taskManager, IAgentCardProvider agentCardProvider, [StringSyntax("Route")] string path)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(taskManager);
+        ArgumentNullException.ThrowIfNull(agentCardProvider);
         ArgumentException.ThrowIfNullOrEmpty(path);
 
         var loggerFactory = endpoints.ServiceProvider.GetRequiredService<ILoggerFactory>();
@@ -90,7 +94,7 @@ public static class A2ARouteBuilderExtensions
         {
             var agentUrl = $"{request.Scheme}://{request.Host}{path}";
             var authContext = A2AHttpProcessor.ExtractAuthenticationContext(request);
-            return await A2AHttpProcessor.GetAuthenticatedAgentCardAsync(taskManager, logger, agentUrl, authContext, cancellationToken).ConfigureAwait(false);
+            return await A2AHttpProcessor.GetAuthenticatedAgentCardAsync(agentCardProvider, logger, agentUrl, authContext, cancellationToken).ConfigureAwait(false);
         });
 
         // /v1/tasks/{id} endpoint

@@ -6,9 +6,9 @@ public class SpecComplianceAgent
 {
     private ITaskManager? _taskManager;
 
-    public void Attach(ITaskManager taskManager)
+    public void Attach(ITaskManager taskManager, IAgentCardProvider agentCardProvider)
     {
-        taskManager.OnAgentCardQuery = GetAgentCard;
+        agentCardProvider.OnAgentCardQuery = GetAgentCard;
         taskManager.OnTaskCreated = OnTaskCreatedAsync;
         taskManager.OnTaskUpdated = OnTaskUpdatedAsync;
         _taskManager = taskManager;
