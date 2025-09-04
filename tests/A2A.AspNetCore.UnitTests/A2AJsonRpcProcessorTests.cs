@@ -570,16 +570,17 @@ public class A2AJsonRpcProcessorTests
             SupportsAuthenticatedExtendedCard = true
         });
 
-        var agentCardParams = new AgentCardParams { AgentUrl = "https://example.com/agent" };
-
         // Create authenticated request
         var httpRequest = new DefaultHttpContext().Request;
+        httpRequest.Scheme = "https";
+        httpRequest.Host = new HostString("example.com");
+        httpRequest.PathBase = "/agent";
         httpRequest.HttpContext.User = new System.Security.Claims.ClaimsPrincipal(
             new System.Security.Claims.ClaimsIdentity(
                 [new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Name, "testuser")], "Bearer"));
 
         // Act
-        var result = await A2AJsonRpcProcessor.SingleResponseAsync(taskManager, agentCardProvider, httpRequest, "9", A2AMethods.AgentGetAuthenticatedExtendedCard, ToJsonElement(agentCardParams), CancellationToken.None);
+        var result = await A2AJsonRpcProcessor.SingleResponseAsync(taskManager, agentCardProvider, httpRequest, "9", A2AMethods.AgentGetAuthenticatedExtendedCard, null, CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -598,12 +599,12 @@ public class A2AJsonRpcProcessorTests
     }
 
     [Fact]
-    public async Task AgentGetAuthenticatedExtendedCard_WithoutAuthentication_ReturnsFallbackCard()
+    public async Task AgentGetAuthenticatedExtendedCard_WithoutAuthentication_ReturnsAuthenticationRequiredError()
     {
         // Arrange
         var taskManager = new TaskManager();
         var agentCardProvider = CreateAgentCardProvider();
-        agentCardProvider.OnAgentCardQuery = (url, ct) => Task.FromResult(new AgentCard
+        agentCardProvider.OnAgentCardQuery = (url, cancellationToken) => Task.FromResult(new AgentCard
         {
             Name = "Test Agent",
             Description = "Basic agent",
@@ -612,7 +613,7 @@ public class A2AJsonRpcProcessorTests
             SupportsAuthenticatedExtendedCard = true
         });
 
-        agentCardProvider.OnAuthenticatedAgentCardQuery = (url, authContext, ct) => Task.FromResult(new AgentCard
+        agentCardProvider.OnAuthenticatedAgentCardQuery = (url, authContext, cancellationToken) => Task.FromResult(new AgentCard
         {
             Name = "Test Agent (Extended)",
             Description = "Should not be returned for unauthenticated requests",
@@ -624,40 +625,14 @@ public class A2AJsonRpcProcessorTests
             SupportsAuthenticatedExtendedCard = true
         });
 
-        var agentCardParams = new AgentCardParams { AgentUrl = "https://example.com/agent" };
-
         // Create unauthenticated request
         var httpRequest = new DefaultHttpContext().Request;
+        httpRequest.Scheme = "https";
+        httpRequest.Host = new HostString("example.com");
+        httpRequest.PathBase = "/agent";
 
         // Act
-        var result = await A2AJsonRpcProcessor.SingleResponseAsync(taskManager, agentCardProvider, httpRequest, "10", A2AMethods.AgentGetAuthenticatedExtendedCard, ToJsonElement(agentCardParams), CancellationToken.None);
-
-        // Assert
-        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
-        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
-
-        Assert.Equal(StatusCodes.Status200OK, StatusCode);
-        Assert.Equal("application/json", ContentType);
-        Assert.NotNull(BodyContent.Result);
-
-        var agentCard = JsonSerializer.Deserialize<AgentCard>(BodyContent.Result, A2AJsonUtilities.DefaultOptions);
-        Assert.NotNull(agentCard);
-        Assert.Equal("Test Agent", agentCard.Name); // Should be basic agent card
-        Assert.Equal("Basic agent", agentCard.Description);
-        Assert.Single(agentCard.Skills); // Should only have basic skill
-        Assert.Equal("basic", agentCard.Skills[0].Id);
-    }
-
-    [Fact]
-    public async Task AgentGetAuthenticatedExtendedCard_InvalidParams_ReturnsError()
-    {
-        // Arrange
-        var taskManager = new TaskManager();
-        var agentCardProvider = CreateAgentCardProvider();
-        var mockHttpRequest = new DefaultHttpContext().Request;
-
-        // Act
-        var result = await A2AJsonRpcProcessor.SingleResponseAsync(taskManager, agentCardProvider, mockHttpRequest, "11", A2AMethods.AgentGetAuthenticatedExtendedCard, null, CancellationToken.None);
+        var result = await A2AJsonRpcProcessor.SingleResponseAsync(taskManager, agentCardProvider, httpRequest, "10", A2AMethods.AgentGetAuthenticatedExtendedCard, null, CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -666,6 +641,7 @@ public class A2AJsonRpcProcessorTests
         Assert.Equal(StatusCodes.Status200OK, StatusCode);
         Assert.Equal("application/json", ContentType);
         Assert.NotNull(BodyContent.Error);
-        Assert.Equal(-32602, BodyContent.Error!.Code); // Invalid params
+        Assert.Equal(-32007, BodyContent.Error.Code); // Authentication required error
+        Assert.Equal("Authentication required to access extended agent card", BodyContent.Error.Message);
     }
 }

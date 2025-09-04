@@ -31,6 +31,11 @@ public enum A2AErrorCode
     ContentTypeNotSupported = -32005,
 
     /// <summary>
+    /// Authentication required - The operation requires authentication.
+    /// </summary>
+    AuthenticationRequired = -32007,
+
+    /// <summary>
     /// Invalid request - The JSON is not a valid Request object.
     /// </summary>
     InvalidRequest = -32600,

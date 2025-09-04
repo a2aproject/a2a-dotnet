@@ -11,8 +11,8 @@ public sealed class AgentCardProvider : IAgentCardProvider
 {
     /// <inheritdoc />
     public Func<string, CancellationToken, Task<AgentCard>> OnAgentCardQuery { get; set; }
-        = static (agentUrl, ct) => ct.IsCancellationRequested
-            ? Task.FromCanceled<AgentCard>(ct)
+        = static (agentUrl, cancellationToken) => cancellationToken.IsCancellationRequested
+            ? Task.FromCanceled<AgentCard>(cancellationToken)
             : Task.FromResult(new AgentCard() { Name = "Unknown", Url = agentUrl });
 
     /// <inheritdoc />

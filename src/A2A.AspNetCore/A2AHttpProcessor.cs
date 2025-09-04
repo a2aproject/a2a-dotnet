@@ -76,14 +76,20 @@ internal static class A2AHttpProcessor
     /// <returns>The agent card with appropriate capabilities based on authentication status.</returns>
     internal static async Task<AgentCard> GetAuthenticatedAgentCardCoreAsync(IAgentCardProvider agentCardProvider, string agentUrl, AuthenticationContext? authContext, CancellationToken cancellationToken)
     {
-        // If there's an authenticated handler and the user is authenticated, use it
-        if (agentCardProvider.OnAuthenticatedAgentCardQuery != null && authContext?.IsAuthenticated == true)
+        // Check if authenticated handler is available
+        if (agentCardProvider.OnAuthenticatedAgentCardQuery == null)
         {
-            return await agentCardProvider.OnAuthenticatedAgentCardQuery(agentUrl, authContext, cancellationToken).ConfigureAwait(false);
+            throw new A2AException("Extended authenticated agent card is not supported", A2AErrorCode.AuthenticationRequired);
         }
 
-        // Fall back to standard agent card
-        return await agentCardProvider.OnAgentCardQuery(agentUrl, cancellationToken).ConfigureAwait(false);
+        // Check if user is authenticated
+        if (authContext?.IsAuthenticated != true)
+        {
+            throw new A2AException("Authentication required to access extended agent card", A2AErrorCode.AuthenticationRequired);
+        }
+
+        // Use authenticated handler
+        return await agentCardProvider.OnAuthenticatedAgentCardQuery(agentUrl, authContext, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>

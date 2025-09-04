@@ -220,6 +220,22 @@ public sealed class JsonRpcResponse
     };
 
     /// <summary>
+    /// Creates a JSON-RPC error response for authentication required.
+    /// </summary>
+    /// <param name="requestId">The request ID.</param>
+    /// <param name="message">The error message.</param>
+    /// <returns>A JSON-RPC error response.</returns>
+    public static JsonRpcResponse AuthenticationRequiredResponse(JsonRpcId requestId, string? message = null) => new()
+    {
+        Id = requestId,
+        Error = new JsonRpcError
+        {
+            Code = (int)A2AErrorCode.AuthenticationRequired,
+            Message = message ?? "Authentication required",
+        },
+    };
+
+    /// <summary>
     /// Creates a JSON-RPC error response for content type not supported.
     /// </summary>
     /// <param name="requestId">The request ID.</param>

@@ -135,7 +135,7 @@ public class SemanticKernelTravelAgent : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    public void Attach(ITaskManager taskManager, IAgentCardProvider agentCardProvider)
+    public void Attach(IAgentCardProvider agentCardProvider, ITaskManager taskManager)
     {
         _taskManager = taskManager;
         taskManager.OnTaskCreated = ExecuteAgentTaskAsync;

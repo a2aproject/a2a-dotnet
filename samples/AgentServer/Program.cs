@@ -41,9 +41,8 @@ switch (agentType.ToLowerInvariant())
 {
     case "echo":
         var echoAgent = new EchoAgent();
-        echoAgent.Attach(taskManager, agentCardProvider);
+        echoAgent.Attach(agentCardProvider, taskManager);
         app.MapA2A(taskManager, agentCardProvider, "/echo");
-        app.MapWellKnownAgentCard(agentCardProvider, "/echo");
         app.MapHttpA2A(taskManager, agentCardProvider, "/echo");
         break;
 
@@ -51,7 +50,6 @@ switch (agentType.ToLowerInvariant())
         var echoAgentWithTasks = new EchoAgentWithTasks();
         echoAgentWithTasks.Attach(taskManager, agentCardProvider);
         app.MapA2A(taskManager, agentCardProvider, "/echotasks");
-        app.MapWellKnownAgentCard(agentCardProvider, "/echotasks");
         app.MapHttpA2A(taskManager, agentCardProvider, "/echotasks");
         break;
 
@@ -59,14 +57,14 @@ switch (agentType.ToLowerInvariant())
         var researcherAgent = new ResearcherAgent();
         researcherAgent.Attach(taskManager, agentCardProvider);
         app.MapA2A(taskManager, agentCardProvider, "/researcher");
-        app.MapWellKnownAgentCard(agentCardProvider, "/researcher");
+        app.MapHttpA2A(taskManager, agentCardProvider, "/researcher");
         break;
 
     case "speccompliance":
         var specComplianceAgent = new SpecComplianceAgent();
         specComplianceAgent.Attach(taskManager, agentCardProvider);
         app.MapA2A(taskManager, agentCardProvider, "/speccompliance");
-        app.MapWellKnownAgentCard(agentCardProvider, "/speccompliance");
+        app.MapHttpA2A(taskManager, agentCardProvider, "/speccompliance");
         break;
 
     default:

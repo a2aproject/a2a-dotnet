@@ -4,7 +4,7 @@ namespace AgentServer;
 
 public class EchoAgent
 {
-    public void Attach(ITaskManager taskManager, IAgentCardProvider agentCardProvider)
+    public void Attach(IAgentCardProvider agentCardProvider, ITaskManager taskManager)
     {
         taskManager.OnMessageReceived = ProcessMessageAsync;
         agentCardProvider.OnAgentCardQuery = GetAgentCardAsync;
