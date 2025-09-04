@@ -8,6 +8,7 @@ public class EchoAgent
     {
         taskManager.OnMessageReceived = ProcessMessageAsync;
         taskManager.OnAgentCardQuery = GetAgentCardAsync;
+        taskManager.OnAuthenticatedAgentCardQuery = GetAuthenticatedAgentCardAsync;
     }
 
     private Task<A2AResponse> ProcessMessageAsync(MessageSendParams messageSendParams, CancellationToken cancellationToken)
@@ -57,6 +58,71 @@ public class EchoAgent
             DefaultOutputModes = ["text"],
             Capabilities = capabilities,
             Skills = [],
+            SupportsAuthenticatedExtendedCard = true, // Indicate support for authenticated extended cards
+        });
+    }
+
+    private Task<AgentCard> GetAuthenticatedAgentCardAsync(string agentUrl, AuthenticationContext? authContext, CancellationToken cancellationToken)
+    {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return Task.FromCanceled<AgentCard>(cancellationToken);
+        }
+
+        var capabilities = new AgentCapabilities()
+        {
+            Streaming = true,
+            PushNotifications = false,
+        };
+
+        // Base skills available to all users
+        var skills = new List<AgentSkill>
+        {
+            new()
+            {
+                Id = "echo",
+                Name = "Echo Messages",
+                Description = "Echoes back any message sent to the agent"
+            }
+        };
+
+        // Add additional skills for authenticated users
+        if (authContext?.IsAuthenticated == true)
+        {
+            skills.Add(new AgentSkill
+            {
+                Id = "admin-echo",
+                Name = "Admin Echo",
+                Description = "Enhanced echo functionality with user information (requires authentication)",
+                Examples = ["Show my user info", "Echo with authentication details"]
+            });
+
+            // Add special admin skills for users with admin role
+            if (authContext.HasClaim("role", "admin"))
+            {
+                skills.Add(new AgentSkill
+                {
+                    Id = "system-info",
+                    Name = "System Information",
+                    Description = "Provides system information and diagnostics (admin only)",
+                    Examples = ["Show system status", "Get server information"]
+                });
+            }
+        }
+
+        return Task.FromResult(new AgentCard()
+        {
+            Name = "Echo Agent (Extended)",
+            Description = authContext?.IsAuthenticated == true
+                ? $"Enhanced echo agent with extended capabilities for authenticated user: {authContext.UserName}"
+                : "Agent which will echo every message it receives.",
+            Url = agentUrl,
+            Version = "1.0.0",
+            DefaultInputModes = ["text"],
+            DefaultOutputModes = ["text"],
+            Capabilities = capabilities,
+            Skills = skills,
+            SupportsAuthenticatedExtendedCard = true,
         });
     }
 }

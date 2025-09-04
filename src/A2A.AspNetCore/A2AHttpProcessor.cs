@@ -42,6 +42,34 @@ internal static class A2AHttpProcessor
         }, cancellationToken: cancellationToken);
 
     /// <summary>
+    /// Processes a request to retrieve the authenticated agent card containing extended capabilities and metadata.
+    /// </summary>
+    /// <remarks>
+    /// Invokes the task manager's authenticated agent card query handler to get extended agent information
+    /// available only to authenticated users. Falls back to standard agent card if no authenticated handler is configured.
+    /// </remarks>
+    /// <param name="taskManager">The task manager instance containing the authenticated agent card query handler.</param>
+    /// <param name="logger">Logger instance for recording operation details and errors.</param>
+    /// <param name="agentUrl">The URL of the agent to retrieve the card for.</param>
+    /// <param name="authContext">The authentication context containing user information and permissions.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
+    /// <returns>An HTTP result containing the extended agent card JSON or an error response.</returns>
+    internal static Task<IResult> GetAuthenticatedAgentCardAsync(ITaskManager taskManager, ILogger logger, string agentUrl, AuthenticationContext? authContext, CancellationToken cancellationToken)
+        => WithExceptionHandlingAsync(logger, "GetAuthenticatedAgentCard", async ct =>
+        {
+            // If there's an authenticated handler and the user is authenticated, use it
+            if (taskManager.OnAuthenticatedAgentCardQuery != null && authContext?.IsAuthenticated == true)
+            {
+                var extendedAgentCard = await taskManager.OnAuthenticatedAgentCardQuery(agentUrl, authContext, ct);
+                return Results.Ok(extendedAgentCard);
+            }
+
+            // Fall back to standard agent card
+            var agentCard = await taskManager.OnAgentCardQuery(agentUrl, ct);
+            return Results.Ok(agentCard);
+        }, cancellationToken: cancellationToken);
+
+    /// <summary>
     /// Processes a request to retrieve a specific task by its ID.
     /// </summary>
     /// <remarks>
@@ -308,6 +336,35 @@ internal static class A2AHttpProcessor
             // but provides a safety net for future enum additions or unexpected values
             _ => Results.Problem(detail: exception.Message, statusCode: StatusCodes.Status500InternalServerError)
         };
+    }
+
+    /// <summary>
+    /// Extracts authentication context from an HTTP request.
+    /// </summary>
+    /// <param name="request">The HTTP request to extract authentication from.</param>
+    /// <returns>An AuthenticationContext if authentication is present, null otherwise.</returns>
+    internal static AuthenticationContext? ExtractAuthenticationContext(HttpRequest request)
+    {
+        if (request.HttpContext.User.Identity?.IsAuthenticated != true)
+        {
+            return null;
+        }
+
+        var authContext = new AuthenticationContext
+        {
+            User = request.HttpContext.User,
+            Scheme = request.HttpContext.User.Identity.AuthenticationType
+        };
+
+        // Extract additional properties from the authentication context
+        var authFeature = request.HttpContext.Features.Get<Microsoft.AspNetCore.Authentication.IAuthenticateResultFeature>();
+        if (authFeature?.AuthenticateResult?.Properties?.Items != null)
+        {
+            authContext.Properties = authFeature.AuthenticateResult.Properties.Items
+                .ToDictionary(kvp => kvp.Key, kvp => (object)(kvp.Value ?? string.Empty));
+        }
+
+        return authContext;
     }
 }
 

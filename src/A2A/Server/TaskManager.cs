@@ -41,6 +41,9 @@ public sealed class TaskManager : ITaskManager
             ? Task.FromCanceled<AgentCard>(ct)
             : Task.FromResult(new AgentCard() { Name = "Unknown", Url = agentUrl });
 
+    /// <inheritdoc />
+    public Func<string, AuthenticationContext?, CancellationToken, Task<AgentCard>>? OnAuthenticatedAgentCardQuery { get; set; }
+
     /// <summary>
     /// Initializes a new instance of the TaskManager class.
     /// </summary>

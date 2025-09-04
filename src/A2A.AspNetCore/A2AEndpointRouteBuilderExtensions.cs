@@ -89,6 +89,14 @@ public static class A2ARouteBuilderExtensions
         routeGroup.MapGet("/v1/card", async (HttpRequest request, CancellationToken cancellationToken) =>
             await A2AHttpProcessor.GetAgentCardAsync(taskManager, logger, $"{request.Scheme}://{request.Host}{path}", cancellationToken).ConfigureAwait(false));
 
+        // /v1/card/authenticated endpoint - Authenticated agent discovery with extended capabilities
+        routeGroup.MapGet("/v1/card/authenticated", async (HttpRequest request, CancellationToken cancellationToken) =>
+        {
+            var agentUrl = $"{request.Scheme}://{request.Host}{path}";
+            var authContext = A2AHttpProcessor.ExtractAuthenticationContext(request);
+            return await A2AHttpProcessor.GetAuthenticatedAgentCardAsync(taskManager, logger, agentUrl, authContext, cancellationToken).ConfigureAwait(false);
+        });
+
         // /v1/tasks/{id} endpoint
         routeGroup.MapGet("/v1/tasks/{id}", (string id, [FromQuery] int? historyLength, [FromQuery] string? metadata, CancellationToken cancellationToken) =>
             A2AHttpProcessor.GetTaskAsync(taskManager, logger, id, historyLength, metadata, cancellationToken));
