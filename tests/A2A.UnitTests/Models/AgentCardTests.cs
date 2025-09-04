@@ -14,7 +14,7 @@ public class AgentCardTests
             "url": "https://testorg.com"
           },
           "version": "1.0.0",
-          "protocolVersion": "0.2.6",
+          "protocolVersion": "0.3.0",
           "documentationUrl": "https://docs.example.com",
           "capabilities": {
             "streaming": true,
@@ -80,7 +80,7 @@ public class AgentCardTests
         Assert.Equal("A test agent for MVP serialization", deserializedCard.Description);
         Assert.Equal("https://example.com/agent", deserializedCard.Url);
         Assert.Equal("1.0.0", deserializedCard.Version);
-        Assert.Equal("0.2.6", deserializedCard.ProtocolVersion);
+        Assert.Equal("0.3.0", deserializedCard.ProtocolVersion);
         Assert.Equal("https://docs.example.com", deserializedCard.DocumentationUrl);
         Assert.True(deserializedCard.SupportsAuthenticatedExtendedCard);
 
@@ -169,7 +169,7 @@ public class AgentCardTests
                 Url = "https://testorg.com"
             },
             Version = "1.0.0",
-            ProtocolVersion = "0.2.6",
+            ProtocolVersion = "0.3.0",
             DocumentationUrl = "https://docs.example.com",
             Capabilities = new AgentCapabilities
             {

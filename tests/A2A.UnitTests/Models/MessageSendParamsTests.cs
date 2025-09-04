@@ -89,5 +89,35 @@ namespace A2A.UnitTests.Models
             var part = Assert.IsType<TextPart>(deserialized?.Message.Parts[0]);
             Assert.Equal("hello", part.Text);
         }
+
+        [Fact]
+        public void MessageSendConfiguration_Serialized_UsesPushNotificationConfigPropertyName()
+        {
+            // Arrange
+            var msp = new MessageSendParams
+            {
+                Message = new AgentMessage
+                {
+                    Role = MessageRole.User,
+                    MessageId = "m-8",
+                    Parts = [new TextPart { Text = "hello" }]
+                },
+                Configuration = new MessageSendConfiguration
+                {
+                    AcceptedOutputModes = ["text"],
+                    PushNotification = new PushNotificationConfig
+                    {
+                        Url = "https://example.com/webhook"
+                    }
+                }
+            };
+
+            // Act
+            var serialized = JsonSerializer.Serialize(msp, A2AJsonUtilities.DefaultOptions);
+
+            // Assert
+            Assert.Contains("\"pushNotificationConfig\"", serialized);
+            Assert.DoesNotContain("\"pushNotification\":", serialized);
+        }
     }
 }
