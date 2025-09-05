@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using static A2A.A2AEvent;
 
 namespace A2A;
 

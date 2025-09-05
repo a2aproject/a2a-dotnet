@@ -1,6 +1,4 @@
-﻿using System.Net;
-
-namespace A2A.UnitTests.JsonRpc;
+﻿namespace A2A.UnitTests.JsonRpc;
 
 public class ErrorTypesTests
 {
