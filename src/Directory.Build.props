@@ -3,7 +3,7 @@
   <Import Project="..\Directory.Build.props" />
 
   <PropertyGroup>
-    <Version>0.3.1-preview</Version>
+    <Version>0.3.2-preview</Version>
     <Authors>Community Contributors</Authors>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/a2aproject/a2a-dotnet</PackageProjectUrl>
