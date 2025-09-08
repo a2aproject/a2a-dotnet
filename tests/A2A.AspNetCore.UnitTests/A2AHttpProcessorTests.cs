@@ -14,11 +14,11 @@ public class A2AHttpProcessorTests
     public async Task GetAgentCard_ShouldReturnValidJsonResult()
     {
         // Arrange
-        var taskManager = new TaskManager();
+        var agentCardProvider = new AgentCardProvider();
         var logger = NullLogger.Instance;
 
         // Act
-        var result = await A2AHttpProcessor.GetAgentCardAsync(taskManager, logger, "http://example.com", CancellationToken.None);
+        var result = await A2AHttpProcessor.GetAgentCardAsync(agentCardProvider, logger, "http://example.com", CancellationToken.None);
         (int statusCode, string? contentType, AgentCard agentCard) = await GetAgentCardResponse(result);
 
         // Assert
@@ -169,5 +169,157 @@ public class A2AHttpProcessorTests
         context.Response.Body.Position = 0;
         var card = await JsonSerializer.DeserializeAsync<AgentCard>(context.Response.Body, A2AJsonUtilities.DefaultOptions);
         return (context.Response.StatusCode, context.Response.ContentType, card!);
+    }
+
+    [Fact]
+    public async Task GetAuthenticatedAgentCardCoreAsync_WithAuthenticatedUser_ReturnsExtendedCard()
+    {
+        // Arrange
+        var agentCardProvider = new AgentCardProvider();
+        var agentUrl = "https://example.com/agent";
+
+        // Set up standard agent card handler
+        agentCardProvider.OnAgentCardQuery = (url, cancellationToken) => Task.FromResult(new AgentCard
+        {
+            Name = "Standard Agent",
+            Url = url,
+            Description = "Standard description",
+            SupportsAuthenticatedExtendedCard = true
+        });
+
+        // Set up authenticated agent card handler
+        agentCardProvider.OnAuthenticatedAgentCardQuery = (url, authContext, cancellationToken) => Task.FromResult(new AgentCard
+        {
+            Name = "Extended Agent",
+            Url = url,
+            Description = "Extended description with additional capabilities",
+            SupportsAuthenticatedExtendedCard = true,
+            Skills = [
+                new AgentSkill
+                {
+                    Id = "admin-skill",
+                    Name = "Admin Skill",
+                    Description = "Administrative capabilities available only to authenticated users"
+                }
+            ]
+        });
+
+        var authContext = new AuthenticationContext
+        {
+            User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity([
+                new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Name, "testuser"),
+                new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, "admin")
+            ], "Bearer")),
+            Scheme = "Bearer"
+        };
+
+        // Act
+        var agentCard = await A2AHttpProcessor.GetAuthenticatedAgentCardCoreAsync(agentCardProvider, agentUrl, authContext, CancellationToken.None);
+
+        // Assert
+        Assert.Equal("Extended Agent", agentCard.Name);
+        Assert.Equal("Extended description with additional capabilities", agentCard.Description);
+        Assert.True(agentCard.SupportsAuthenticatedExtendedCard);
+        Assert.Single(agentCard.Skills);
+        Assert.Equal("admin-skill", agentCard.Skills[0].Id);
+    }
+
+    [Fact]
+    public async Task GetAuthenticatedAgentCardCoreAsync_WithoutAuthenticatedUser_ThrowsAuthenticationRequired()
+    {
+        // Arrange
+        var agentCardProvider = new AgentCardProvider();
+        var agentUrl = "https://example.com/agent";
+
+        // Set up standard agent card handler
+        agentCardProvider.OnAgentCardQuery = (url, cancellationToken) => Task.FromResult(new AgentCard
+        {
+            Name = "Standard Agent",
+            Url = url,
+            Description = "Standard description",
+            SupportsAuthenticatedExtendedCard = true
+        });
+
+        // Set up authenticated agent card handler  
+        agentCardProvider.OnAuthenticatedAgentCardQuery = (url, authContext, cancellationToken) => Task.FromResult(new AgentCard
+        {
+            Name = "Extended Agent",
+            Url = url,
+            Description = "Extended description"
+        });
+
+        // Act & Assert - no authentication context
+        var exception = await Assert.ThrowsAsync<A2AException>(() =>
+            A2AHttpProcessor.GetAuthenticatedAgentCardCoreAsync(agentCardProvider, agentUrl, null, CancellationToken.None));
+
+        Assert.Equal(A2AErrorCode.AuthenticationRequired, exception.ErrorCode);
+        Assert.Equal("Authentication required to access extended agent card", exception.Message);
+    }
+
+    [Fact]
+    public async Task GetAuthenticatedAgentCardCoreAsync_WithoutAuthenticatedHandler_ThrowsAuthenticationRequired()
+    {
+        // Arrange
+        var agentCardProvider = new AgentCardProvider();
+        var agentUrl = "https://example.com/agent";
+
+        // Set up only standard agent card handler (no authenticated handler)
+        agentCardProvider.OnAgentCardQuery = (url, cancellationToken) => Task.FromResult(new AgentCard
+        {
+            Name = "Standard Agent",
+            Url = url,
+            Description = "Standard description"
+        });
+
+        var authContext = new AuthenticationContext
+        {
+            User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity([
+                new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Name, "testuser")
+            ], "Bearer")),
+            Scheme = "Bearer"
+        };
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<A2AException>(() =>
+            A2AHttpProcessor.GetAuthenticatedAgentCardCoreAsync(agentCardProvider, agentUrl, authContext, CancellationToken.None));
+
+        Assert.Equal(A2AErrorCode.AuthenticationRequired, exception.ErrorCode);
+        Assert.Equal("Extended authenticated agent card is not supported", exception.Message);
+    }
+
+    [Fact]
+    public void ExtractAuthenticationContext_WithAuthenticatedUser_ReturnsAuthContext()
+    {
+        // Arrange
+        var httpContext = new DefaultHttpContext();
+        httpContext.User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity([
+            new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Name, "testuser"),
+            new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, "admin")
+        ], "Bearer"));
+
+        // Act
+        var result = A2AHttpProcessor.ExtractAuthenticationContext(httpContext.Request);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.True(result.IsAuthenticated);
+        Assert.Equal("testuser", result.UserName);
+        Assert.Equal("Bearer", result.Scheme);
+        Assert.True(result.HasClaim(System.Security.Claims.ClaimTypes.Name, "testuser"));
+        Assert.True(result.HasClaim(System.Security.Claims.ClaimTypes.Role, "admin"));
+    }
+
+    [Fact]
+    public void ExtractAuthenticationContext_WithoutAuthenticatedUser_ReturnsNull()
+    {
+        // Arrange
+        var httpContext = new DefaultHttpContext();
+        // No authenticated user
+
+        // Act
+        var result = A2AHttpProcessor.ExtractAuthenticationContext(httpContext.Request);
+
+        // Assert
+        Assert.Null(result);
     }
 }

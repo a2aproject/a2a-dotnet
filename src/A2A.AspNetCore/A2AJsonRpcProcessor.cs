@@ -27,10 +27,11 @@ public static class A2AJsonRpcProcessor
     /// based on the method name and dispatches accordingly.
     /// </remarks>
     /// <param name="taskManager">The task manager instance for handling A2A operations.</param>
+    /// <param name="agentCardProvider">The agent card provider instance for handling agent card queries.</param>
     /// <param name="request">Http request containing the JSON-RPC request body.</param>
     /// <param name="cancellationToken">The cancellation token to cancel the operation if needed.</param>
     /// <returns>An HTTP result containing either a single JSON-RPC response or a streaming SSE response.</returns>
-    internal static async Task<IResult> ProcessRequestAsync(ITaskManager taskManager, HttpRequest request, CancellationToken cancellationToken)
+    internal static async Task<IResult> ProcessRequestAsync(ITaskManager taskManager, IAgentCardProvider agentCardProvider, HttpRequest request, CancellationToken cancellationToken)
     {
         using var activity = ActivitySource.StartActivity("HandleA2ARequest", ActivityKind.Server);
 
@@ -49,7 +50,7 @@ public static class A2AJsonRpcProcessor
                 return StreamResponse(taskManager, rpcRequest.Id, rpcRequest.Method, rpcRequest.Params, cancellationToken);
             }
 
-            return await SingleResponseAsync(taskManager, rpcRequest.Id, rpcRequest.Method, rpcRequest.Params, cancellationToken).ConfigureAwait(false);
+            return await SingleResponseAsync(taskManager, agentCardProvider, request, rpcRequest.Id, rpcRequest.Method, rpcRequest.Params, cancellationToken).ConfigureAwait(false);
         }
         catch (A2AException ex)
         {
@@ -73,12 +74,14 @@ public static class A2AJsonRpcProcessor
     /// and push notification configuration operations.
     /// </remarks>
     /// <param name="taskManager">The task manager instance for handling A2A operations.</param>
+    /// <param name="agentCardProvider">The agent card provider instance for handling agent card queries.</param>
+    /// <param name="request">The HTTP request for accessing authentication context.</param>
     /// <param name="requestId">The JSON-RPC request ID for response correlation.</param>
     /// <param name="method">The JSON-RPC method name to execute.</param>
     /// <param name="parameters">The JSON parameters for the method call.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>A JSON-RPC response result containing the operation result or error.</returns>
-    internal static async Task<JsonRpcResponseResult> SingleResponseAsync(ITaskManager taskManager, JsonRpcId requestId, string method, JsonElement? parameters, CancellationToken cancellationToken)
+    internal static async Task<JsonRpcResponseResult> SingleResponseAsync(ITaskManager taskManager, IAgentCardProvider agentCardProvider, HttpRequest request, JsonRpcId requestId, string method, JsonElement? parameters, CancellationToken cancellationToken)
     {
         using var activity = ActivitySource.StartActivity($"SingleResponse/{method}", ActivityKind.Server);
         activity?.SetTag("request.id", requestId.ToString());
@@ -86,7 +89,7 @@ public static class A2AJsonRpcProcessor
 
         JsonRpcResponse? response = null;
 
-        if (parameters == null)
+        if (parameters == null && method != A2AMethods.AgentGetAuthenticatedExtendedCard)
         {
             activity?.SetStatus(ActivityStatusCode.Error, "Invalid parameters");
             return new JsonRpcResponseResult(JsonRpcResponse.InvalidParamsResponse(requestId));
@@ -95,11 +98,21 @@ public static class A2AJsonRpcProcessor
         switch (method)
         {
             case A2AMethods.MessageSend:
+                if (parameters == null)
+                {
+                    response = JsonRpcResponse.InvalidParamsResponse(requestId);
+                    break;
+                }
                 var taskSendParams = DeserializeAndValidate<MessageSendParams>(parameters.Value);
                 var a2aResponse = await taskManager.SendMessageAsync(taskSendParams, cancellationToken).ConfigureAwait(false);
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, a2aResponse);
                 break;
             case A2AMethods.TaskGet:
+                if (parameters == null)
+                {
+                    response = JsonRpcResponse.InvalidParamsResponse(requestId);
+                    break;
+                }
                 var taskIdParams = DeserializeAndValidate<TaskQueryParams>(parameters.Value);
                 var getAgentTask = await taskManager.GetTaskAsync(taskIdParams, cancellationToken).ConfigureAwait(false);
                 response = getAgentTask is null
@@ -107,19 +120,47 @@ public static class A2AJsonRpcProcessor
                     : JsonRpcResponse.CreateJsonRpcResponse(requestId, getAgentTask);
                 break;
             case A2AMethods.TaskCancel:
+                if (parameters == null)
+                {
+                    response = JsonRpcResponse.InvalidParamsResponse(requestId);
+                    break;
+                }
                 var taskIdParamsCancel = DeserializeAndValidate<TaskIdParams>(parameters.Value);
                 var cancelledTask = await taskManager.CancelTaskAsync(taskIdParamsCancel, cancellationToken).ConfigureAwait(false);
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, cancelledTask);
                 break;
             case A2AMethods.TaskPushNotificationConfigSet:
+                if (parameters == null)
+                {
+                    response = JsonRpcResponse.InvalidParamsResponse(requestId);
+                    break;
+                }
                 var taskPushNotificationConfig = DeserializeAndValidate<TaskPushNotificationConfig>(parameters.Value);
                 var setConfig = await taskManager.SetPushNotificationAsync(taskPushNotificationConfig, cancellationToken).ConfigureAwait(false);
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, setConfig);
                 break;
             case A2AMethods.TaskPushNotificationConfigGet:
+                if (parameters == null)
+                {
+                    response = JsonRpcResponse.InvalidParamsResponse(requestId);
+                    break;
+                }
                 var notificationConfigParams = DeserializeAndValidate<GetTaskPushNotificationConfigParams>(parameters.Value);
                 var getConfig = await taskManager.GetPushNotificationAsync(notificationConfigParams, cancellationToken).ConfigureAwait(false);
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, getConfig);
+                break;
+            case A2AMethods.AgentGetAuthenticatedExtendedCard:
+                try
+                {
+                    var agentUrl = $"{request.Scheme}://{request.Host}{request.PathBase}";
+                    var authContext = A2AHttpProcessor.ExtractAuthenticationContext(request);
+                    var agentCard = await A2AHttpProcessor.GetAuthenticatedAgentCardCoreAsync(agentCardProvider, agentUrl, authContext, cancellationToken).ConfigureAwait(false);
+                    response = JsonRpcResponse.CreateJsonRpcResponse(requestId, agentCard);
+                }
+                catch (A2AException ex) when (ex.ErrorCode == A2AErrorCode.AuthenticationRequired)
+                {
+                    response = JsonRpcResponse.AuthenticationRequiredResponse(requestId, ex.Message);
+                }
                 break;
             default:
                 response = JsonRpcResponse.MethodNotFoundResponse(requestId);
