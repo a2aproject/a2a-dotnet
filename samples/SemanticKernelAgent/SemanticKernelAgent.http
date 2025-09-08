@@ -10,14 +10,15 @@ Content-Type: application/json
 {
     "id": "3",
     "jsonrpc": "2.0",
-    "method": "task/send",
+    "method": "message/send",
     "params": {
-        "id": "12345",
         "message": {
+            "kind": "message",
+            "messageId": "12345",
             "role": "user",
             "parts": [
                 {
-                    "type": "text",
+                    "kind": "text",
                     "text": "I am based in London. What's the exchange rate and recommended itinerary for visiting Galway?"
                 }
             ]
