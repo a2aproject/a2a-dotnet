@@ -6,7 +6,7 @@ namespace A2A;
 /// <remarks>
 /// Values are serialized as lowercase kebab-case strings.
 /// </remarks>
-public static class FileContentKind
+internal static class FileContentKind
 {
     /// <summary>
     /// A file content containing bytes.

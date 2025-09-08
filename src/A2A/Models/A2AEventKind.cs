@@ -6,7 +6,7 @@ namespace A2A;
 /// <remarks>
 /// Values are serialized as lowercase kebab-case strings.
 /// </remarks>
-public static class A2AEventKind
+internal static class A2AEventKind
 {
     /// <summary>
     /// A conversational message from an agent.

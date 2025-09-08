@@ -6,7 +6,7 @@ namespace A2A;
 /// <remarks>
 /// Values are serialized as lowercase kebab-case strings.
 /// </remarks>
-public static class PartKind
+internal static class PartKind
 {
     /// <summary>
     /// A text part containing plain textual content.
