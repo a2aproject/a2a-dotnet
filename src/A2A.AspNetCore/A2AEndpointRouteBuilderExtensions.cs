@@ -57,7 +57,7 @@ public static class A2ARouteBuilderExtensions
 
         var routeGroup = endpoints.MapGroup("");
 
-        routeGroup.MapGet(".well-known/agent.json", async (HttpRequest request, CancellationToken cancellationToken) =>
+        routeGroup.MapGet(".well-known/agent-card.json", async (HttpRequest request, CancellationToken cancellationToken) =>
         {
             var agentUrl = $"{request.Scheme}://{request.Host}{agentPath}";
             var agentCard = await taskManager.OnAgentCardQuery(agentUrl, cancellationToken);

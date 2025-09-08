@@ -9,15 +9,35 @@ namespace A2A.UnitTests.Models
         {
             // Arrange
             const string json = """
-        {
-            "message": {
-                "kind": "task",
-                "id": "t-13",
-                "contextId": "c-13",
-                "status": { "state": "submitted" }
+            {
+                "message": {
+                    "kind": "task",
+                    "id": "t-13",
+                    "contextId": "c-13",
+                    "status": { "state": "submitted" }
+                }
             }
+            """;
+
+            // Act / Assert
+            var ex = Assert.Throws<A2AException>(() => JsonSerializer.Deserialize<MessageSendParams>(json, A2AJsonUtilities.DefaultOptions));
+            Assert.Equal(A2AErrorCode.InvalidRequest, ex.ErrorCode);
         }
-        """;
+
+        [Fact]
+        public void MessageSendParams_Deserialize_UnknownMessageKind_Throws()
+        {
+            // Arrange
+            const string json = """
+            {
+                "message": {
+                    "kind": "foo",
+                    "id": "t-13",
+                    "contextId": "c-13",
+                    "status": { "state": "submitted" }
+                }
+            }
+            """;
 
             // Act / Assert
             var ex = Assert.Throws<A2AException>(() => JsonSerializer.Deserialize<MessageSendParams>(json, A2AJsonUtilities.DefaultOptions));
@@ -68,6 +88,36 @@ namespace A2A.UnitTests.Models
             Assert.Single(deserialized.Message.Parts);
             var part = Assert.IsType<TextPart>(deserialized?.Message.Parts[0]);
             Assert.Equal("hello", part.Text);
+        }
+
+        [Fact]
+        public void MessageSendConfiguration_Serialized_UsesPushNotificationConfigPropertyName()
+        {
+            // Arrange
+            var msp = new MessageSendParams
+            {
+                Message = new AgentMessage
+                {
+                    Role = MessageRole.User,
+                    MessageId = "m-8",
+                    Parts = [new TextPart { Text = "hello" }]
+                },
+                Configuration = new MessageSendConfiguration
+                {
+                    AcceptedOutputModes = ["text"],
+                    PushNotification = new PushNotificationConfig
+                    {
+                        Url = "https://example.com/webhook"
+                    }
+                }
+            };
+
+            // Act
+            var serialized = JsonSerializer.Serialize(msp, A2AJsonUtilities.DefaultOptions);
+
+            // Assert
+            Assert.Contains("\"pushNotificationConfig\"", serialized);
+            Assert.DoesNotContain("\"pushNotification\":", serialized);
         }
     }
 }

@@ -6,7 +6,7 @@ namespace A2A;
 /// <summary>
 /// Represents a task that can be processed by an agent.
 /// </summary>
-public sealed class AgentTask : A2AResponse
+public sealed class AgentTask() : A2AResponse(A2AEventKind.Task)
 {
     /// <summary>
     /// Unique identifier for the task.

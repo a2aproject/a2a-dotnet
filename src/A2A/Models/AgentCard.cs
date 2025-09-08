@@ -66,7 +66,7 @@ public sealed class AgentCard
     /// </summary>
     [JsonPropertyName("protocolVersion")]
     [JsonRequired]
-    public string ProtocolVersion { get; set; } = "0.2.6";
+    public string ProtocolVersion { get; set; } = "0.3.0";
 
     /// <summary>
     /// Gets or sets a URL to documentation for the agent.
@@ -143,4 +143,10 @@ public sealed class AgentCard
     /// </remarks>
     [JsonPropertyName("preferredTransport")]
     public AgentTransport? PreferredTransport { get; set; }
+
+    /// <summary>
+    /// JSON Web Signatures computed for this AgentCard.
+    /// </summary>
+    [JsonPropertyName("signatures")]
+    public List<AgentCardSignature>? Signatures { get; set; }
 }

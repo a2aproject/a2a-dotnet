@@ -1,8 +1,9 @@
 ﻿using System.Text.Json;
+using Xunit.Abstractions;
 
 namespace A2A.UnitTests.Models
 {
-    public sealed class A2AEventTests
+    public sealed class A2AEventTests(ITestOutputHelper testOutput)
     {
         private static readonly Dictionary<string, string> expectedMetadata = new()
         {
@@ -188,18 +189,19 @@ namespace A2A.UnitTests.Models
         }
 
         [Fact]
-        public void A2AEvent_Deserialize_UnknownKind_Throws()
+        public void A2AEvent_Deserialize_UnknownKind_Throws_A2AException()
         {
             // Arrange
             const string json = """
             {
-                "kind": "unknown",
+                "kind": "lorem",
                 "foo": "bar"
             }
             """;
 
             // Act / Assert
-            Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<A2AEvent>(json, A2AJsonUtilities.DefaultOptions));
+            var ex = Assert.Throws<A2AException>(() => JsonSerializer.Deserialize<A2AEvent>(json, A2AJsonUtilities.DefaultOptions));
+            Assert.Equal(A2AErrorCode.InvalidRequest, ex.ErrorCode);
         }
 
         [Fact]
@@ -215,7 +217,8 @@ namespace A2A.UnitTests.Models
             """;
 
             // Act / Assert
-            Assert.Throws<NotSupportedException>(() => JsonSerializer.Deserialize<A2AEvent>(json, A2AJsonUtilities.DefaultOptions));
+            var ex = Assert.Throws<A2AException>(() => JsonSerializer.Deserialize<A2AEvent>(json, A2AJsonUtilities.DefaultOptions));
+            Assert.Equal(A2AErrorCode.InvalidRequest, ex.ErrorCode);
         }
 
         [Fact]
@@ -269,6 +272,21 @@ namespace A2A.UnitTests.Models
                 // Assert
                 Assert.Equal(serializedA2aEvents[i], json);
             }
+        }
+
+        [Theory]
+        [InlineData("{ \"kind\": 1 }")]
+        [InlineData("{ \"kind\": null }")]
+        [InlineData("{ \"kind\": \"unknown\" }")]
+        [InlineData("{ \"kind\": \"count\" }")]
+        [InlineData("{ \"kind\": \"neveravaluethatsgoingtooccurinthewild\" }")]
+        [InlineData("{ \"kind\": \"\" }")]
+        public void A2AEvent_Deserialize_BadValue_Throws(string json)
+        {
+            var ex = Assert.Throws<A2AException>(() => JsonSerializer.Deserialize<A2AEvent>(json, A2AJsonUtilities.DefaultOptions));
+            testOutput.WriteLine($"Exception: {ex}");
+
+            Assert.Equal(A2AErrorCode.InvalidRequest, ex.ErrorCode);
         }
     }
 }
