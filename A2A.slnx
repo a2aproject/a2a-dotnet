@@ -27,11 +27,6 @@
      <File Path="README.md" />
      <File Path="logo.png" />
   </Folder>
-  <Folder Name="/src/roslyn/">
-    <Project Path="src/A2A.Analyzers/A2A.Analyzers.csproj" />
-    <Project Path="src/A2A.CodeFixes/A2A.CodeFixes.csproj" />
-    <Project Path="tests/A2A.Analyzers.UnitTests/A2A.Analyzers.UnitTests.csproj" />
-  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/A2A.AspNetCore.UnitTests/A2A.AspNetCore.UnitTests.csproj" />
     <Project Path="tests/A2A.UnitTests/A2A.UnitTests.csproj" />

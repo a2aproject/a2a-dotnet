@@ -47,7 +47,7 @@ internal abstract class BaseKindDiscriminatorConverter<TBase> : JsonConverter<TB
         }
 
         var kindToTypeMapping = KindToTypeMapping;
-        if (!kindToTypeMapping.TryGetValue(kindValue, out var targetType))
+        if (!kindToTypeMapping.TryGetValue(kindValue!, out var targetType))
         {
             throw new A2AException($"Unknown {DisplayName} kind: '{kindValue}'", A2AErrorCode.InvalidRequest);
         }
