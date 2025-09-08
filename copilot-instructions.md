@@ -124,6 +124,10 @@ When implementing discriminator converters, ensure:
 3. **Cache type info** when possible
 4. **Use culture-invariant operations** for string handling
 
+## Implemention guidelines
+
+1. Follow **principle of least privilege/visibility** for new types
+
 ## Example Implementation
 
 See the existing implementations of `A2AEvent`, `Part`, and `FileContent` hierarchies as reference patterns for implementing new discriminated types.
