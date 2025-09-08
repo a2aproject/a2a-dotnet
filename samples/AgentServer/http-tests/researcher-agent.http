@@ -27,6 +27,7 @@ Content-Type: application/json
     "method": "message/send",
     "params": {
        "message": {
+            "kind": "message",
             "messageId": "asdasdasd",
             "role": "user",
             "parts": [
@@ -70,6 +71,7 @@ Content-Type: application/json
     "method": "message/send",
     "params": {
         "message": {
+            "kind": "message",
             "messageId": "abcdef",
             "taskId": "c65e7047-2938-432f-bae0-660d6d9fda50",
             "role": "user",
