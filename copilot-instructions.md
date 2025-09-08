@@ -11,7 +11,7 @@ The A2A SDK uses a custom JSON discriminator pattern for polymorphic serializati
 
 When implementing discriminator-based serialization:
 
-1. **Use static classes for kind constants** instead of enums
+1. **Use internal static classes for kind constants** instead of enums
    - Create static classes like `A2AEventKind`, `PartKind`, `FileContentKind`
    - Use `const string` fields with lowercase kebab-case values
    - Include XML documentation linking to related types
@@ -27,8 +27,8 @@ When implementing discriminator-based serialization:
    }
    ```
 
-2. **Use string-based BaseKindDiscriminatorConverter**
-   - Inherit from `BaseKindDiscriminatorConverter<TBase>` (not the old enum-based version)
+2. **Use BaseKindDiscriminatorConverter**
+   - Inherit from `BaseKindDiscriminatorConverter<TBase>`
    - Implement `KindToTypeMapping` as `IReadOnlyDictionary<string, Type>`
    - Implement `DisplayName` property for error messages
 
