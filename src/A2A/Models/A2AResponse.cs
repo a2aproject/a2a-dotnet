@@ -1,6 +1,4 @@
 using System.Text.Json.Serialization;
-using System.Text.Json.Serialization.Metadata;
-using static A2A.A2AEvent;
 
 namespace A2A;
 
@@ -16,57 +14,13 @@ namespace A2A;
 // You might be wondering why we don't use JsonPolymorphic here. The reason is that it automatically throws a NotSupportedException if the 
 // discriminator isn't present or accounted for. In the case of A2A, we want to throw a more specific A2AException with an error code, so
 // we implement our own converter to handle that, with the discriminator logic implemented by-hand.
-public abstract class A2AEvent(A2AEventKind kind)
+public abstract class A2AEvent(string kind)
 {
     /// <summary>
     /// The 'kind' discriminator value
     /// </summary>
-    [JsonRequired, JsonPropertyName(BaseKindDiscriminatorConverter<A2AEvent, A2AEventKind>.DiscriminatorPropertyName), JsonInclude, JsonPropertyOrder(int.MinValue)]
-    public A2AEventKind Kind { get; internal set; } = kind;
-
-    /// <summary>
-    /// Defines the set of A2A event kinds used as the 'kind' discriminator in serialized payloads.
-    /// </summary>
-    /// <remarks>
-    /// Values are serialized as lowercase kebab-case strings via <see cref="KebabCaseLowerJsonStringEnumConverter{TEnum}"/>.
-    /// </remarks>
-    [JsonConverter(typeof(KebabCaseLowerJsonStringEnumConverter<A2AEventKind>))]
-    public enum A2AEventKind
-    {
-        /// <summary>
-        /// Unknown value, used for unrecognized values.
-        /// </summary>
-        Unknown = 0,
-
-        /// <summary>
-        /// A conversational message from an agent.
-        /// </summary>
-        /// <seealso cref="AgentMessage"/>
-        Message,
-
-        /// <summary>
-        /// A task issued to or produced by an agent.
-        /// </summary>
-        /// <seealso cref="AgentTask"/>
-        Task,
-
-        /// <summary>
-        /// An update describing the current state of a task execution.
-        /// </summary>
-        /// <seealso cref="TaskStatusUpdateEvent"/>
-        StatusUpdate,
-
-        /// <summary>
-        /// A notification that artifacts associated with a task have changed.
-        /// </summary>
-        /// <seealso cref="TaskArtifactUpdateEvent"/>
-        ArtifactUpdate,
-
-        /// <summary>
-        /// Helper value to track the number of enum values when used as array indices. This must always be the last value in the enumeration.
-        /// </summary>
-        Count
-    }
+    [JsonRequired, JsonPropertyName(BaseKindDiscriminatorConverter<A2AEvent>.DiscriminatorPropertyName), JsonInclude, JsonPropertyOrder(int.MinValue)]
+    public string Kind { get; internal set; } = kind;
 }
 
 /// <summary>
@@ -79,20 +33,17 @@ public abstract class A2AEvent(A2AEventKind kind)
 // You might be wondering why we don't use JsonPolymorphic here. The reason is that it automatically throws a NotSupportedException if the 
 // discriminator isn't present or accounted for. In the case of A2A, we want to throw a more specific A2AException with an error code, so
 // we implement our own converter to handle that, with the discriminator logic implemented by-hand.
-public abstract class A2AResponse(A2AEventKind kind) : A2AEvent(kind);
+public abstract class A2AResponse(string kind) : A2AEvent(kind);
 
-internal class A2AEventConverterViaKindDiscriminator<T> : BaseKindDiscriminatorConverter<T, A2AEventKind> where T : A2AEvent
+internal class A2AEventConverterViaKindDiscriminator<T> : BaseKindDiscriminatorConverter<T> where T : A2AEvent
 {
-    protected override DiscriminatorTypeMapping<A2AEventKind> TypeMapping { get; } = new(
-        typeof(AgentMessage),           // A2AEventKind.Message = 1
-        typeof(AgentTask),              // A2AEventKind.Task = 2
-        typeof(TaskStatusUpdateEvent),  // A2AEventKind.StatusUpdate = 3
-        typeof(TaskArtifactUpdateEvent) // A2AEventKind.ArtifactUpdate = 4
-    );
+    protected override IReadOnlyDictionary<string, Type> KindToTypeMapping { get; } = new Dictionary<string, Type>
+    {
+        [A2AEventKind.Message] = typeof(AgentMessage),
+        [A2AEventKind.Task] = typeof(AgentTask),
+        [A2AEventKind.StatusUpdate] = typeof(TaskStatusUpdateEvent),
+        [A2AEventKind.ArtifactUpdate] = typeof(TaskArtifactUpdateEvent)
+    };
 
     protected override string DisplayName { get; } = "event";
-
-    protected override JsonTypeInfo<A2AEventKind> JsonTypeInfo { get; } = A2AJsonUtilities.JsonContext.Default.A2AEventKind;
-
-    protected override A2AEventKind UnknownValue { get; } = A2AEventKind.Unknown;
 }

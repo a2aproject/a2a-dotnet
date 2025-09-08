@@ -1,7 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.Json.Serialization.Metadata;
-using static A2A.FileContent;
 
 namespace A2A;
 
@@ -15,49 +13,17 @@ namespace A2A;
 // You might be wondering why we don't use JsonPolymorphic here. The reason is that it automatically throws a NotSupportedException if the 
 // discriminator isn't present or accounted for. In the case of A2A, we want to throw a more specific A2AException with an error code, so
 // we implement our own converter to handle that, with the discriminator logic implemented by-hand.
-public class FileContent(FileContentKind kind)
+public class FileContent(string kind)
 {
     /// <summary>
     /// The 'kind' discriminator value
     /// </summary>
-    [JsonRequired, JsonPropertyName(BaseKindDiscriminatorConverter<FileContent, FileContentKind>.DiscriminatorPropertyName), JsonInclude, JsonPropertyOrder(int.MinValue)]
-    public FileContentKind Kind { get; internal set; } = kind;
+    [JsonRequired, JsonPropertyName(BaseKindDiscriminatorConverter<FileContent>.DiscriminatorPropertyName), JsonInclude, JsonPropertyOrder(int.MinValue)]
+    public string Kind { get; internal set; } = kind;
     /// <summary>
     /// Optional metadata for the file.
     /// </summary>
     public Dictionary<string, JsonElement> Metadata { get; set; } = [];
-
-    /// <summary>
-    /// Defines the set of FileContent kinds used as the 'kind' discriminator in serialized payloads.
-    /// </summary>
-    /// <remarks>
-    /// Values are serialized as lowercase kebab-case strings via <see cref="KebabCaseLowerJsonStringEnumConverter{TEnum}"/>.
-    /// </remarks>
-    [JsonConverter(typeof(KebabCaseLowerJsonStringEnumConverter<FileContentKind>))]
-    public enum FileContentKind
-    {
-        /// <summary>
-        /// Unknown value, used for unrecognized values.
-        /// </summary>
-        Unknown = 0,
-
-        /// <summary>
-        /// A file content containing bytes.
-        /// </summary>
-        /// <seealso cref="FileWithBytes"/>
-        Bytes,
-
-        /// <summary>
-        /// A file content containing a URI.
-        /// </summary>
-        /// <seealso cref="FileWithUri"/>
-        Uri,
-
-        /// <summary>
-        /// Helper value to track the number of enum values when used as array indices. This must always be the last value in the enumeration.
-        /// </summary>
-        Count
-    }
 }
 
 /// <summary>
@@ -116,16 +82,13 @@ public sealed class FileWithUri() : FileContent(FileContentKind.Uri)
     public string Uri { get; set; } = string.Empty;
 }
 
-internal class FileContentConverterViaKindDiscriminator<T> : BaseKindDiscriminatorConverter<T, FileContentKind> where T : FileContent
+internal class FileContentConverterViaKindDiscriminator<T> : BaseKindDiscriminatorConverter<T> where T : FileContent
 {
-    protected override DiscriminatorTypeMapping<FileContentKind> TypeMapping { get; } = new(
-        typeof(FileWithBytes),   // FileContentKind.Bytes = 1
-        typeof(FileWithUri)      // FileContentKind.Uri = 2
-    );
+    protected override IReadOnlyDictionary<string, Type> KindToTypeMapping { get; } = new Dictionary<string, Type>
+    {
+        [FileContentKind.Bytes] = typeof(FileWithBytes),
+        [FileContentKind.Uri] = typeof(FileWithUri)
+    };
 
     protected override string DisplayName { get; } = "file content";
-
-    protected override JsonTypeInfo<FileContentKind> JsonTypeInfo { get; } = A2AJsonUtilities.JsonContext.Default.FileContentKind;
-
-    protected override FileContentKind UnknownValue { get; } = FileContentKind.Unknown;
 }
