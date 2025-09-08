@@ -16,8 +16,6 @@ internal sealed class JsonRpcRequestConverter : JsonConverter<JsonRpcRequest>
 
     public override JsonRpcRequest? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        string? requestId = null;
-
         try
         {
             // Create JsonElement from Utf8JsonReader
@@ -25,11 +23,11 @@ internal sealed class JsonRpcRequestConverter : JsonConverter<JsonRpcRequest>
             var rootElement = jsonDoc.RootElement;
 
             // Validate the JSON-RPC request structure
-            requestId = ReadAndValidateIdField(rootElement);
-
+            var idField = ReadAndValidateIdField(rootElement);
+            var requestId = idField.ToString();
             return new JsonRpcRequest
             {
-                Id = requestId,
+                Id = idField,
                 JsonRpc = ReadAndValidateJsonRpcField(rootElement, requestId),
                 Method = ReadAndValidateMethodField(rootElement, requestId),
                 Params = ReadAndValidateParamsField(rootElement, requestId)
@@ -50,7 +48,25 @@ internal sealed class JsonRpcRequestConverter : JsonConverter<JsonRpcRequest>
 
         writer.WriteStartObject();
         writer.WriteString("jsonrpc", value.JsonRpc);
-        writer.WriteString("id", value.Id);
+
+        writer.WritePropertyName("id");
+        if (!value.Id.HasValue)
+        {
+            writer.WriteNullValue();
+        }
+        else if (value.Id.IsString)
+        {
+            writer.WriteStringValue(value.Id.AsString());
+        }
+        else if (value.Id.IsNumber)
+        {
+            writer.WriteNumberValue(value.Id.AsNumber()!.Value);
+        }
+        else
+        {
+            writer.WriteNullValue();
+        }
+
         writer.WriteString("method", value.Method);
 
         if (value.Params.HasValue)
@@ -66,22 +82,29 @@ internal sealed class JsonRpcRequestConverter : JsonConverter<JsonRpcRequest>
     /// Reads and validates the 'id' field of a JSON-RPC request.
     /// </summary>
     /// <param name="rootElement">The root JSON element containing the request.</param>
-    /// <returns>The extracted request ID as a string, or null if not present.</returns>
-    private static string? ReadAndValidateIdField(JsonElement rootElement)
+    /// <returns>The extracted request ID as a JsonRpcId.</returns>
+    private static JsonRpcId ReadAndValidateIdField(JsonElement rootElement)
     {
         if (rootElement.TryGetProperty("id", out var idElement))
         {
-            if (idElement.ValueKind != JsonValueKind.String &&
+            if ((idElement.ValueKind != JsonValueKind.String &&
                 idElement.ValueKind != JsonValueKind.Number &&
                 idElement.ValueKind != JsonValueKind.Null)
+                || (idElement.ValueKind is JsonValueKind.Number && !idElement.TryGetInt64(out var _)))
             {
-                throw new A2AException("Invalid JSON-RPC request: 'id' field must be a string, number, or null.", A2AErrorCode.InvalidRequest);
+                throw new A2AException("Invalid JSON-RPC request: 'id' field must be a string, non-fractional number, or null.", A2AErrorCode.InvalidRequest);
             }
 
-            return idElement.ValueKind == JsonValueKind.Null ? null : idElement.ToString();
+            return idElement.ValueKind switch
+            {
+                JsonValueKind.Null => new JsonRpcId((string?)null),
+                JsonValueKind.String => new JsonRpcId(idElement.GetString()),
+                JsonValueKind.Number => new JsonRpcId(idElement.GetInt64()),
+                _ => new JsonRpcId((string?)null)
+            };
         }
 
-        return null;
+        return new JsonRpcId((string?)null);
     }
 
     /// <summary>

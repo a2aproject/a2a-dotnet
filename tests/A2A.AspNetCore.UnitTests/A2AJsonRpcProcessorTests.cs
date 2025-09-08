@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Http;
-using System.Text.Json;
 using System.Text;
+using System.Text.Json;
 
 namespace A2A.AspNetCore.Tests;
 
@@ -8,7 +8,8 @@ public class A2AJsonRpcProcessorTests
 {
     [Theory]
     [InlineData("\"test-id\"", true)]   // String ID - valid
-    //[InlineData(42, true)]            // Number ID - valid: Uncomment when numeric IDs are supported
+    [InlineData(42, true)]              // Number ID - valid: Uncomment when numeric IDs are supported
+    [InlineData(42.1, false)]           // Fractional number ID - invalid (should throw error)
     [InlineData("null", true)]          // Null ID - valid
     [InlineData("true", false)]         // Boolean ID - invalid (should throw error)
     public async Task ValidateIdField_HandlesVariousIdTypes(object? idValue, bool isValid)
@@ -22,6 +23,7 @@ public class A2AJsonRpcProcessorTests
             "id": {{idValue}},
             "params": {
                 "message": {
+                    "kind" : "message",
                     "messageId": "test-message-id",
                     "role": "user",
                     "parts": [{ "kind":"text","text":"hi" }]
@@ -66,6 +68,7 @@ public class A2AJsonRpcProcessorTests
             "id": "some",
             "params": {
                 "message": {
+                    "kind": "message",
                     "messageId": "test-message-id",
                     "role": "user",
                     "parts": []
@@ -107,6 +110,7 @@ public class A2AJsonRpcProcessorTests
             "id": "test-id",
             "params": {
                 "message": {
+                    "kind" : "message",
                     "messageId": "test-message-id",
                     "role": "user",
                     "parts": [{ "kind":"text","text":"hi" }]
@@ -141,7 +145,7 @@ public class A2AJsonRpcProcessorTests
     }
 
     [Theory]
-    [InlineData("{\"message\":{\"messageId\":\"test\", \"role\": \"user\", \"parts\": [{\"kind\":\"text\",\"text\":\"hi\"}]}}", null)]  // Valid object params - should succeed
+    [InlineData("{\"message\":{\"kind\":\"message\", \"messageId\":\"test\", \"role\": \"user\", \"parts\": [{\"kind\":\"text\",\"text\":\"hi\"}]}}", null)]  // Valid object params - should succeed
     [InlineData("[]", -32602)]                                                                      // Array params - should return invalid params error
     [InlineData("\"string-params\"", -32602)]                                                       // String params - should return invalid params error
     [InlineData("42", -32602)]                                                                      // Number params - should return invalid params error
@@ -193,7 +197,7 @@ public class A2AJsonRpcProcessorTests
         TaskManager taskManager = new();
         MessageSendParams sendParams = new()
         {
-            Message = new Message { MessageId = "test-message-id", Parts = [new TextPart { Text = "hi" }] }
+            Message = new AgentMessage { MessageId = "test-message-id", Parts = [new TextPart { Text = "hi" }] }
         };
         JsonRpcRequest req = new()
         {

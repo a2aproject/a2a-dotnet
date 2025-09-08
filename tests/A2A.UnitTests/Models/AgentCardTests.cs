@@ -4,8 +4,6 @@ namespace A2A.UnitTests.Models;
 
 public class AgentCardTests
 {
-    private static readonly JsonSerializerOptions s_jsonOptions = new() { WriteIndented = true };
-
     private const string ExpectedJson = """
         {
           "name": "Test Agent",
@@ -16,7 +14,7 @@ public class AgentCardTests
             "url": "https://testorg.com"
           },
           "version": "1.0.0",
-          "protocolVersion": "0.2.6",
+          "protocolVersion": "0.3.0",
           "documentationUrl": "https://docs.example.com",
           "capabilities": {
             "streaming": true,
@@ -30,9 +28,11 @@ public class AgentCardTests
               "in": "header"
             }
           },
-          "security": {
-            "apiKey": []
-          },
+          "security": [
+            {
+              "apiKey": []
+            }
+          ],
           "defaultInputModes": ["text", "image"],
           "defaultOutputModes": ["text", "json"],
           "skills": [
@@ -43,7 +43,12 @@ public class AgentCardTests
               "tags": ["test", "skill"],
               "examples": ["Example usage"],
               "inputModes": ["text"],
-              "outputModes": ["text"]
+              "outputModes": ["text"],
+              "security": [
+                {
+                  "oauth": ["read"]
+                }
+              ]
             }
           ],
           "supportsAuthenticatedExtendedCard": true,
@@ -53,7 +58,13 @@ public class AgentCardTests
               "url": "https://jsonrpc.example.com/agent"
             }
           ],
-          "preferredTransport": "GRPC"
+          "preferredTransport": "GRPC",
+          "signatures": [
+            {
+              "protected": "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpPU0UiLCJraWQiOiJrZXktMSIsImprdSI6Imh0dHBzOi8vZXhhbXBsZS5jb20vYWdlbnQvandrcy5qc29uIn0",
+              "signature": "QFdkNLNszlGj3z3u0YQGt_T9LixY3qtdQpZmsTdDHDe3fXV9y9-B3m2-XgCpzuhiLt8E0tV6HXoZKHv4GtHgKQ"
+            }
+          ]
         }
         """;
 
@@ -61,7 +72,7 @@ public class AgentCardTests
     public void AgentCard_Deserialize_AllPropertiesCorrect()
     {
         // Act
-        var deserializedCard = JsonSerializer.Deserialize<AgentCard>(ExpectedJson);
+        var deserializedCard = JsonSerializer.Deserialize<AgentCard>(ExpectedJson, A2AJsonUtilities.DefaultOptions);
 
         // Assert
         Assert.NotNull(deserializedCard);
@@ -69,7 +80,7 @@ public class AgentCardTests
         Assert.Equal("A test agent for MVP serialization", deserializedCard.Description);
         Assert.Equal("https://example.com/agent", deserializedCard.Url);
         Assert.Equal("1.0.0", deserializedCard.Version);
-        Assert.Equal("0.2.6", deserializedCard.ProtocolVersion);
+        Assert.Equal("0.3.0", deserializedCard.ProtocolVersion);
         Assert.Equal("https://docs.example.com", deserializedCard.DocumentationUrl);
         Assert.True(deserializedCard.SupportsAuthenticatedExtendedCard);
 
@@ -91,8 +102,15 @@ public class AgentCardTests
         var apisec = Assert.IsType<ApiKeySecurityScheme>(deserializedCard.SecuritySchemes["apiKey"]);
         Assert.False(string.IsNullOrWhiteSpace(apisec.Name));
         Assert.False(string.IsNullOrWhiteSpace(apisec.KeyLocation));
+
         Assert.NotNull(deserializedCard.Security);
         Assert.Single(deserializedCard.Security);
+
+        var securityRequirement = deserializedCard.Security[0];
+        Assert.NotNull(securityRequirement);
+        Assert.Single(securityRequirement);
+        Assert.True(securityRequirement.ContainsKey("apiKey"));
+        Assert.Empty(securityRequirement["apiKey"]);
 
         // Input/Output modes
         Assert.Equal(new List<string> { "text", "image" }, deserializedCard.DefaultInputModes);
@@ -110,6 +128,15 @@ public class AgentCardTests
         Assert.Contains("test", skill.Tags);
         Assert.Contains("skill", skill.Tags);
 
+        // Skill Security
+        Assert.NotNull(skill.Security);
+        Assert.Single(skill.Security);
+        var skillSecurityRequirement = skill.Security[0];
+        Assert.NotNull(skillSecurityRequirement);
+        Assert.Single(skillSecurityRequirement);
+        Assert.True(skillSecurityRequirement.ContainsKey("oauth"));
+        Assert.Equal(["read"], skillSecurityRequirement["oauth"]);
+
         // Transport properties
         Assert.NotNull(deserializedCard.PreferredTransport);
         Assert.Equal("GRPC", deserializedCard.PreferredTransport.Value.Label);
@@ -117,6 +144,14 @@ public class AgentCardTests
         Assert.Single(deserializedCard.AdditionalInterfaces);
         Assert.Equal("JSONRPC", deserializedCard.AdditionalInterfaces[0].Transport.Label);
         Assert.Equal("https://jsonrpc.example.com/agent", deserializedCard.AdditionalInterfaces[0].Url);
+
+        // Signatures
+        Assert.NotNull(deserializedCard.Signatures);
+        Assert.Single(deserializedCard.Signatures);
+        var signature = deserializedCard.Signatures[0];
+        Assert.Equal("eyJhbGciOiJFUzI1NiIsInR5cCI6IkpPU0UiLCJraWQiOiJrZXktMSIsImprdSI6Imh0dHBzOi8vZXhhbXBsZS5jb20vYWdlbnQvandrcy5qc29uIn0", signature.Protected);
+        Assert.Equal("QFdkNLNszlGj3z3u0YQGt_T9LixY3qtdQpZmsTdDHDe3fXV9y9-B3m2-XgCpzuhiLt8E0tV6HXoZKHv4GtHgKQ", signature.Signature);
+        Assert.Null(signature.Header);
     }
 
     [Fact]
@@ -134,7 +169,7 @@ public class AgentCardTests
                 Url = "https://testorg.com"
             },
             Version = "1.0.0",
-            ProtocolVersion = "0.2.6",
+            ProtocolVersion = "0.3.0",
             DocumentationUrl = "https://docs.example.com",
             Capabilities = new AgentCapabilities
             {
@@ -146,9 +181,12 @@ public class AgentCardTests
             {
                 ["apiKey"] = new ApiKeySecurityScheme("X-API-Key", "header")
             },
-            Security = new Dictionary<string, string[]>
+            Security = new List<Dictionary<string, string[]>>
             {
-                ["apiKey"] = []
+                new()
+                {
+                    ["apiKey"] = []
+                }
             },
             DefaultInputModes = ["text", "image"],
             DefaultOutputModes = ["text", "json"],
@@ -161,7 +199,13 @@ public class AgentCardTests
                     Tags = ["test", "skill"],
                     Examples = ["Example usage"],
                     InputModes = ["text"],
-                    OutputModes = ["text"]
+                    OutputModes = ["text"],
+                    Security = [
+                        new Dictionary<string, string[]>
+                        {
+                            ["oauth"] = ["read"]
+                        }
+                    ]
                 }
             ],
             SupportsAuthenticatedExtendedCard = true,
@@ -172,16 +216,23 @@ public class AgentCardTests
                     Url = "https://jsonrpc.example.com/agent"
                 }
             ],
-            PreferredTransport = new AgentTransport("GRPC")
+            PreferredTransport = new AgentTransport("GRPC"),
+            Signatures = [
+                new AgentCardSignature
+                {
+                    Protected = "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpPU0UiLCJraWQiOiJrZXktMSIsImprdSI6Imh0dHBzOi8vZXhhbXBsZS5jb20vYWdlbnQvandrcy5qc29uIn0",
+                    Signature = "QFdkNLNszlGj3z3u0YQGt_T9LixY3qtdQpZmsTdDHDe3fXV9y9-B3m2-XgCpzuhiLt8E0tV6HXoZKHv4GtHgKQ"
+                }
+            ]
         };
 
         // Act
-        var serializedJson = JsonSerializer.Serialize(agentCard, s_jsonOptions);
+        var serializedJson = JsonSerializer.Serialize(agentCard, A2AJsonUtilities.DefaultOptions);
 
         // Assert - Compare objects instead of raw JSON strings to avoid formatting/ordering issues
         // and provide more meaningful error messages when properties don't match
-        var expectedCard = JsonSerializer.Deserialize<AgentCard>(ExpectedJson);
-        var actualCard = JsonSerializer.Deserialize<AgentCard>(serializedJson);
+        var expectedCard = JsonSerializer.Deserialize<AgentCard>(ExpectedJson, A2AJsonUtilities.DefaultOptions);
+        var actualCard = JsonSerializer.Deserialize<AgentCard>(serializedJson, A2AJsonUtilities.DefaultOptions);
 
         Assert.NotNull(actualCard);
         Assert.NotNull(expectedCard);
@@ -221,6 +272,18 @@ public class AgentCardTests
             Assert.Equal(expectedSkill.Examples, actualSkill.Examples);
             Assert.Equal(expectedSkill.InputModes, actualSkill.InputModes);
             Assert.Equal(expectedSkill.OutputModes, actualSkill.OutputModes);
+
+            // Skill Security
+            Assert.Equal(expectedSkill.Security?.Count, actualSkill.Security?.Count);
+            if (expectedSkill.Security?.Count > 0 && actualSkill.Security?.Count > 0)
+            {
+                Assert.Equal(expectedSkill.Security[0].Count, actualSkill.Security[0].Count);
+                foreach (var kvp in expectedSkill.Security[0])
+                {
+                    Assert.True(actualSkill.Security[0].ContainsKey(kvp.Key));
+                    Assert.Equal(kvp.Value, actualSkill.Security[0][kvp.Key]);
+                }
+            }
         }
 
         // Transport properties

@@ -14,9 +14,8 @@ public sealed class MessageSendParams
     /// <summary>
     /// The message being sent to the server.
     /// </summary>
-    [JsonPropertyName("message")]
-    [JsonRequired]
-    public Message Message { get; set; } = new Message();
+    [JsonRequired, JsonPropertyName("message")]
+    public AgentMessage Message { get; set; } = new();
 
     /// <summary>
     /// Send message configuration.
@@ -46,7 +45,7 @@ public sealed class MessageSendConfiguration
     /// <summary>
     /// Where the server should send notifications when disconnected.
     /// </summary>
-    [JsonPropertyName("pushNotification")]
+    [JsonPropertyName("pushNotificationConfig")]
     public PushNotificationConfig? PushNotification { get; set; }
 
     /// <summary>

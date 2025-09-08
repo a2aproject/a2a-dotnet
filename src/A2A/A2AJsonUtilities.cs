@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -23,18 +24,34 @@ public static partial class A2AJsonUtilities
     /// <item>Enables <see cref="JsonSerializerDefaults.Web"/> defaults.</item>
     /// <item>Enables <see cref="JsonIgnoreCondition.WhenWritingNull"/> as the default ignore condition for properties.</item>
     /// <item>Enables <see cref="JsonNumberHandling.AllowReadingFromString"/> as the default number handling for number types.</item>
+    /// <item>Enables <c>AllowOutOfOrderMetadataProperties</c> to allow for type discriminators anywhere in a JSON payload.</item>
     /// </list>
     /// </para>
     /// </remarks>
-    public static JsonSerializerOptions DefaultOptions => JsonContext.Default.Options;
+    public static JsonSerializerOptions DefaultOptions => defaultOptions.Value;
+
+    private static Lazy<JsonSerializerOptions> defaultOptions = new(() =>
+    {
+        // Clone source-generated options so we can customize
+        var opts = new JsonSerializerOptions(JsonContext.Default.Options)
+        {
+            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping // optional: keep '+' unescaped
+        };
+
+        // Register custom converters at options-level (not attributes)
+        opts.Converters.Add(new A2AJsonConverter<MessageSendParams>());
+        return opts;
+    });
 
     // Keep in sync with CreateDefaultOptions above.
     [JsonSourceGenerationOptions(JsonSerializerDefaults.Web,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        NumberHandling = JsonNumberHandling.AllowReadingFromString)]
+        NumberHandling = JsonNumberHandling.AllowReadingFromString,
+        AllowOutOfOrderMetadataProperties = true)]
 
     // JSON-RPC
     [JsonSerializable(typeof(JsonRpcError))]
+    [JsonSerializable(typeof(JsonRpcId))]
     [JsonSerializable(typeof(JsonRpcRequest))]
     [JsonSerializable(typeof(JsonRpcResponse))]
     [JsonSerializable(typeof(Dictionary<string, JsonElement>))]

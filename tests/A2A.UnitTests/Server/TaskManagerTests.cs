@@ -13,7 +13,7 @@ public class TaskManagerTests
             messageReceived = messageSendParams.Message.Parts.OfType<TextPart>().First().Text;
             return Task.FromResult<A2AResponse>(CreateMessage("Goodbye, World!"));
         };
-        var a2aResponse = await taskManager.SendMessageAsync(taskSendParams) as Message;
+        var a2aResponse = await taskManager.SendMessageAsync(taskSendParams) as AgentMessage;
         Assert.NotNull(a2aResponse);
         Assert.Equal("Goodbye, World!", a2aResponse.Parts.OfType<TextPart>().First().Text);
         Assert.Equal("Hello, World!", messageReceived);
@@ -42,12 +42,12 @@ public class TaskManagerTests
 
         if (stream)
         {
-            Assert.IsType<Message>(await taskManager.SendMessageStreamAsync(firstMessage).SingleAsync());
-            Assert.IsType<AgentTask>(await taskManager.SendMessageStreamAsync(secondMessage).SingleAsync());
+            Assert.IsType<AgentMessage>(await taskManager.SendMessageStreamingAsync(firstMessage).SingleAsync());
+            Assert.IsType<AgentTask>(await taskManager.SendMessageStreamingAsync(secondMessage).SingleAsync());
         }
         else
         {
-            Assert.IsType<Message>(await taskManager.SendMessageAsync(firstMessage));
+            Assert.IsType<AgentMessage>(await taskManager.SendMessageAsync(firstMessage));
             Assert.IsType<AgentTask>(await taskManager.SendMessageAsync(secondMessage));
         }
     }
@@ -122,7 +122,7 @@ public class TaskManagerTests
 
         var updateSendParams = new MessageSendParams
         {
-            Message = new Message
+            Message = new AgentMessage
             {
                 TaskId = task.Id,
                 Parts = [
@@ -200,7 +200,7 @@ public class TaskManagerTests
         };
 
         var taskSendParams = CreateMessageSendParams("Hello, World!");
-        var taskEvents = taskManager.SendMessageStreamAsync(taskSendParams);
+        var taskEvents = taskManager.SendMessageStreamingAsync(taskSendParams);
         var taskCount = 0;
         await foreach (var taskEvent in taskEvents)
         {
@@ -219,7 +219,7 @@ public class TaskManagerTests
         };
 
         var taskSendParams = CreateMessageSendParams("Hello, World!");
-        var taskEvents = taskManager.SendMessageStreamAsync(taskSendParams);
+        var taskEvents = taskManager.SendMessageStreamingAsync(taskSendParams);
 
         var isFirstEvent = true;
         await foreach (var taskEvent in taskEvents)
@@ -349,7 +349,7 @@ public class TaskManagerTests
 
         var sendParams = new MessageSendParams
         {
-            Message = new Message
+            Message = new AgentMessage
             {
                 TaskId = task.Id,
                 Parts = [new TextPart { Text = "init" }]
@@ -361,7 +361,7 @@ public class TaskManagerTests
 
         var processor = Task.Run(async () =>
         {
-            await foreach (var i in sut.SendMessageStreamAsync(sendParams))
+            await foreach (var i in sut.SendMessageStreamingAsync(sendParams))
             {
                 events.Add(i);
                 if (events.Count is 1)
@@ -477,7 +477,7 @@ public class TaskManagerTests
         var taskManager = new TaskManager();
         var taskSendParams = new MessageSendParams
         {
-            Message = new Message
+            Message = new AgentMessage
             {
                 Parts = [new TextPart { Text = "First" }]
             },
@@ -490,14 +490,14 @@ public class TaskManagerTests
         {
             var updateParams = new MessageSendParams
             {
-                Message = new Message { TaskId = task.Id, Parts = [new TextPart { Text = $"Msg{i}" }] },
+                Message = new AgentMessage { TaskId = task.Id, Parts = [new TextPart { Text = $"Msg{i}" }] },
             };
             await taskManager.SendMessageAsync(updateParams);
         }
         // Request with historyLength = 3
         var checkParams = new MessageSendParams
         {
-            Message = new Message { TaskId = task.Id, Parts = [new TextPart { Text = "Check" }] },
+            Message = new AgentMessage { TaskId = task.Id, Parts = [new TextPart { Text = "Check" }] },
             Configuration = new() { HistoryLength = 3 }
         };
         var resultTask = await taskManager.SendMessageAsync(checkParams) as AgentTask;
@@ -640,7 +640,7 @@ public class TaskManagerTests
     }
 
     [Fact]
-    public async Task SendMessageStreamAsync_ShouldThrowOperationCanceledException_WhenCancellationTokenIsCanceled()
+    public async Task SendMessageStreamingAsync_ShouldThrowOperationCanceledException_WhenCancellationTokenIsCanceled()
     {
         // Arrange
         var taskManager = new TaskManager();
@@ -650,7 +650,7 @@ public class TaskManagerTests
         await cts.CancelAsync();
 
         // Act & Assert
-        await Assert.ThrowsAsync<OperationCanceledException>(() => taskManager.SendMessageStreamAsync(messageSendParams, cts.Token).ToArrayAsync().AsTask());
+        await Assert.ThrowsAsync<OperationCanceledException>(() => taskManager.SendMessageStreamingAsync(messageSendParams, cts.Token).ToArrayAsync().AsTask());
     }
 
     [Fact]
@@ -729,7 +729,7 @@ public class TaskManagerTests
         var taskManager = new TaskManager();
         var messageSendParams = new MessageSendParams
         {
-            Message = new Message
+            Message = new AgentMessage
             {
                 TaskId = "non-existent-task-id",
                 Parts = [new TextPart { Text = "Hello, World!" }]
@@ -742,13 +742,13 @@ public class TaskManagerTests
     }
 
     [Fact]
-    public async Task SendMessageStreamAsync_ShouldThrowA2AException_WhenTaskIdSpecifiedButTaskDoesNotExist()
+    public async Task SendMessageStreamingAsync_ShouldThrowA2AException_WhenTaskIdSpecifiedButTaskDoesNotExist()
     {
         // Arrange
         var taskManager = new TaskManager();
         var messageSendParams = new MessageSendParams
         {
-            Message = new Message
+            Message = new AgentMessage
             {
                 TaskId = "non-existent-task-id",
                 Parts = [new TextPart { Text = "Hello, World!" }]
@@ -756,7 +756,7 @@ public class TaskManagerTests
         };
 
         // Act & Assert
-        var exception = await Assert.ThrowsAsync<A2AException>(() => taskManager.SendMessageStreamAsync(messageSendParams).ToArrayAsync().AsTask());
+        var exception = await Assert.ThrowsAsync<A2AException>(() => taskManager.SendMessageStreamingAsync(messageSendParams).ToArrayAsync().AsTask());
         Assert.Equal(A2AErrorCode.TaskNotFound, exception.ErrorCode);
     }
 
@@ -767,7 +767,7 @@ public class TaskManagerTests
         var taskManager = new TaskManager();
         var messageSendParams = new MessageSendParams
         {
-            Message = new Message
+            Message = new AgentMessage
             {
                 // No TaskId specified
                 Parts = [new TextPart { Text = "Hello, World!" }]
@@ -784,13 +784,13 @@ public class TaskManagerTests
     }
 
     [Fact]
-    public async Task SendMessageStreamAsync_ShouldCreateNewTask_WhenNoTaskIdSpecified()
+    public async Task SendMessageStreamingAsync_ShouldCreateNewTask_WhenNoTaskIdSpecified()
     {
         // Arrange
         var taskManager = new TaskManager();
         var messageSendParams = new MessageSendParams
         {
-            Message = new Message
+            Message = new AgentMessage
             {
                 // No TaskId specified
                 Parts = [new TextPart { Text = "Hello, World!" }]
@@ -799,7 +799,7 @@ public class TaskManagerTests
 
         // Act
         var events = new List<A2AEvent>();
-        await foreach (var evt in taskManager.SendMessageStreamAsync(messageSendParams))
+        await foreach (var evt in taskManager.SendMessageStreamingAsync(messageSendParams))
         {
             events.Add(evt);
             break; // Just get the first event (which should be the task)
@@ -818,8 +818,8 @@ public class TaskManagerTests
             Message = CreateMessage(text)
         };
 
-    private static Message CreateMessage(string text)
-        => new Message
+    private static AgentMessage CreateMessage(string text)
+        => new AgentMessage
         {
             Parts = [new TextPart { Text = text }]
         };

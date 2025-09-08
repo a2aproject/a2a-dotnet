@@ -33,7 +33,7 @@ public sealed class AgentCard
         DocumentationUrl = source.DocumentationUrl;
         Capabilities = source.Capabilities is null ? new AgentCapabilities() : new AgentCapabilities(source.Capabilities);
         SecuritySchemes = source.SecuritySchemes is null ? null : new Dictionary<string, SecurityScheme>(source.SecuritySchemes, source.SecuritySchemes.Comparer);
-        Security = source.Security is not null ? new Dictionary<string, string[]>(source.Security) : null;
+        Security = source.Security;
         DefaultInputModes = [.. source.DefaultInputModes];
         DefaultOutputModes = [.. source.DefaultOutputModes];
         Skills = [.. source.Skills];
@@ -95,7 +95,7 @@ public sealed class AgentCard
     /// </summary>
     [JsonPropertyName("protocolVersion")]
     [JsonRequired]
-    public string ProtocolVersion { get; set; } = "0.2.6";
+    public string ProtocolVersion { get; set; } = "0.3.0";
 
     /// <summary>
     /// Gets or sets a URL to documentation for the agent.
@@ -120,7 +120,7 @@ public sealed class AgentCard
     /// Gets or sets the security requirements for contacting the agent.
     /// </summary>
     [JsonPropertyName("security")]
-    public Dictionary<string, string[]>? Security { get; set; }
+    public List<Dictionary<string, string[]>>? Security { get; set; }
 
     /// <summary>
     /// Gets or sets the set of interaction modes that the agent supports across all skills.
@@ -172,4 +172,10 @@ public sealed class AgentCard
     /// </remarks>
     [JsonPropertyName("preferredTransport")]
     public AgentTransport? PreferredTransport { get; set; }
+
+    /// <summary>
+    /// JSON Web Signatures computed for this AgentCard.
+    /// </summary>
+    [JsonPropertyName("signatures")]
+    public List<AgentCardSignature>? Signatures { get; set; }
 }

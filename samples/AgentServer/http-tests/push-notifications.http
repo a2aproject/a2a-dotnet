@@ -22,6 +22,7 @@ POST {{host}}/echotasks/v1/message:send
 Content-Type: application/json
 {
         "message": {
+            "kind": "message",
             "messageId": "12345",
             "role": "user",
             "parts": [
@@ -92,6 +93,7 @@ Content-Type: application/json
     "method": "message/send",
     "params": {
           "message": {
+            "kind": "message",
             "messageId": "12345",
             "role": "user",
             "parts": [

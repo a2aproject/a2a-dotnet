@@ -60,7 +60,7 @@ public class DistributedCacheTaskStore(IDistributedCache cache)
     }
 
     /// <inheritdoc/>
-    public async Task<AgentTaskStatus> UpdateStatusAsync(string taskId, TaskState status, Message? message = null, CancellationToken cancellationToken = default)
+    public async Task<AgentTaskStatus> UpdateStatusAsync(string taskId, TaskState status, AgentMessage? message = null, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (string.IsNullOrEmpty(taskId))

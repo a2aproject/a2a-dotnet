@@ -40,7 +40,8 @@ public class JsonRpcRequestConverterTests
         // Assert
         Assert.NotNull(result);
         Assert.Equal("2.0", result.JsonRpc);
-        Assert.Equal("test-id", result.Id);
+        Assert.True(result.Id.IsString);
+        Assert.Equal("test-id", result.Id.AsString());
         Assert.Equal("message/send", result.Method);
         Assert.True(result.Params.HasValue);
         Assert.True(result.Params.Value.TryGetProperty("message", out _));
@@ -64,7 +65,8 @@ public class JsonRpcRequestConverterTests
         // Assert
         Assert.NotNull(result);
         Assert.Equal("2.0", result.JsonRpc);
-        Assert.Equal("test-id", result.Id);
+        Assert.True(result.Id.IsString);
+        Assert.Equal("test-id", result.Id.AsString());
         Assert.Equal("tasks/get", result.Method);
         Assert.False(result.Params.HasValue);
     }
@@ -87,16 +89,16 @@ public class JsonRpcRequestConverterTests
         // Assert
         Assert.NotNull(result);
         Assert.Equal("2.0", result.JsonRpc);
-        Assert.Null(result.Id);
+        Assert.False(result.Id.HasValue);
         Assert.Equal("message/send", result.Method);
         Assert.True(result.Params.HasValue);
     }
 
     [Theory]
-    [InlineData("\"string-id\"", "string-id")]
-    [InlineData("123", "123")]
-    [InlineData("null", null)]
-    public void Read_ValidIdTypes_ReturnsCorrectId(string idJson, string? expectedId)
+    [InlineData("\"string-id\"", "string-id", true, false)]
+    [InlineData("123", "123", false, true)]
+    [InlineData("null", null, false, false)]
+    public void Read_ValidIdTypes_ReturnsCorrectId(string idJson, string? expectedStringValue, bool shouldBeString, bool shouldBeNumber)
     {
         // Arrange
         var json = $$"""
@@ -112,7 +114,21 @@ public class JsonRpcRequestConverterTests
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal(expectedId, result.Id);
+
+        if (expectedStringValue == null)
+        {
+            Assert.False(result.Id.HasValue);
+        }
+        else if (shouldBeString)
+        {
+            Assert.True(result.Id.IsString);
+            Assert.Equal(expectedStringValue, result.Id.AsString());
+        }
+        else if (shouldBeNumber)
+        {
+            Assert.True(result.Id.IsNumber);
+            Assert.Equal(123L, result.Id.AsNumber());
+        }
     }
 
     [Theory]
@@ -256,6 +272,7 @@ public class JsonRpcRequestConverterTests
     [Theory]
     [InlineData("true")]
     [InlineData("[]")]
+    [InlineData("42.1")]
     public void Read_InvalidIdType_ThrowsA2AException(string idJson)
     {
         // Arrange
@@ -272,7 +289,7 @@ public class JsonRpcRequestConverterTests
             JsonSerializer.Deserialize<JsonRpcRequest>(json, _options));
 
         Assert.Equal(A2AErrorCode.InvalidRequest, exception.ErrorCode);
-        Assert.Contains("'id' field must be a string, number, or null", exception.Message);
+        Assert.Contains("'id' field must be a string, non-fractional number, or null", exception.Message);
     }
 
     [Theory]
@@ -403,7 +420,7 @@ public class JsonRpcRequestConverterTests
         var request = new JsonRpcRequest
         {
             JsonRpc = "2.0",
-            Id = null,
+            Id = new JsonRpcId((string?)null),
             Method = "tasks/get",
             Params = null
         };
@@ -532,6 +549,88 @@ public class JsonRpcRequestConverterTests
         Assert.NotNull(result);
         Assert.True(result.Params.HasValue);
         Assert.Equal(JsonValueKind.Object, result.Params.Value.ValueKind);
+    }
+
+    #endregion
+
+    #region ID Type Preservation Tests
+
+    [Fact]
+    public void RoundTrip_NumericId_PreservesNumericType()
+    {
+        // Arrange
+        var originalJson = """
+        {
+            "jsonrpc": "2.0",
+            "id": 123,
+            "method": "tasks/get"
+        }
+        """;
+
+        // Act - deserialize and serialize back
+        var request = JsonSerializer.Deserialize<JsonRpcRequest>(originalJson, _options);
+        var serializedJson = JsonSerializer.Serialize(request, _options);
+
+        // Assert - check the request
+        Assert.NotNull(request);
+        Assert.True(request.Id.IsNumber);
+        Assert.Equal(123L, request.Id.AsNumber());
+        Assert.False(request.Id.IsString);
+
+        // Assert - check the serialized JSON maintains numeric type
+        using var doc = JsonDocument.Parse(serializedJson);
+        var idElement = doc.RootElement.GetProperty("id");
+        Assert.Equal(JsonValueKind.Number, idElement.ValueKind);
+        Assert.Equal(123, idElement.GetInt32());
+
+        // Act - test response creation maintains type
+        var response = JsonRpcResponse.CreateJsonRpcResponse(request.Id, "test result");
+        var responseJson = JsonSerializer.Serialize(response, A2AJsonUtilities.DefaultOptions);
+
+        // Assert - response maintains numeric type
+        using var responseDoc = JsonDocument.Parse(responseJson);
+        var responseIdElement = responseDoc.RootElement.GetProperty("id");
+        Assert.Equal(JsonValueKind.Number, responseIdElement.ValueKind);
+        Assert.Equal(123, responseIdElement.GetInt32());
+    }
+
+    [Fact]
+    public void RoundTrip_StringId_PreservesStringType()
+    {
+        // Arrange
+        var originalJson = """
+        {
+            "jsonrpc": "2.0",
+            "id": "test-string-id",
+            "method": "tasks/get"
+        }
+        """;
+
+        // Act - deserialize and serialize back
+        var request = JsonSerializer.Deserialize<JsonRpcRequest>(originalJson, _options);
+        var serializedJson = JsonSerializer.Serialize(request, _options);
+
+        // Assert - check the request
+        Assert.NotNull(request);
+        Assert.True(request.Id.IsString);
+        Assert.Equal("test-string-id", request.Id.AsString());
+        Assert.False(request.Id.IsNumber);
+
+        // Assert - check the serialized JSON maintains string type
+        using var doc = JsonDocument.Parse(serializedJson);
+        var idElement = doc.RootElement.GetProperty("id");
+        Assert.Equal(JsonValueKind.String, idElement.ValueKind);
+        Assert.Equal("test-string-id", idElement.GetString());
+
+        // Act - test response creation maintains type
+        var response = JsonRpcResponse.CreateJsonRpcResponse(request.Id, "test result");
+        var responseJson = JsonSerializer.Serialize(response, A2AJsonUtilities.DefaultOptions);
+
+        // Assert - response maintains string type
+        using var responseDoc = JsonDocument.Parse(responseJson);
+        var responseIdElement = responseDoc.RootElement.GetProperty("id");
+        Assert.Equal(JsonValueKind.String, responseIdElement.ValueKind);
+        Assert.Equal("test-string-id", responseIdElement.GetString());
     }
 
     #endregion

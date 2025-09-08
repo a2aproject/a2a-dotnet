@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/.github/">
+    <File Path=".github/copilot-instructions.md" />
     <File Path=".github/dependabot.yml" />
   </Folder>
   <Folder Name="/.github/workflows/">
@@ -15,9 +16,9 @@
     <Project Path="samples/SemanticKernelAgent/SemanticKernelAgent.csproj" />
   </Folder>
   <Folder Name="/src/">
-    <Project Path="src/A2A/A2A.csproj" />
-    <Project Path="src/A2A.AspNetCore/A2A.AspNetCore.csproj" />
     <File Path="src/Directory.Build.props" />
+    <Project Path="src/A2A.AspNetCore/A2A.AspNetCore.csproj" />
+    <Project Path="src/A2A/A2A.csproj" />
   </Folder>
    <Folder Name="/Solution Items/">
      <File Path=".editorconfig" />

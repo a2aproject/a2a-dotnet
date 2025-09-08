@@ -74,7 +74,7 @@ public static class A2ARouteBuilderExtensions
         var loggerFactory = endpoints.ServiceProvider.GetRequiredService<ILoggerFactory>();
         var logger = loggerFactory.CreateLogger<IEndpointRouteBuilder>();
 
-        routeGroup.MapGet(".well-known/agent.json", async (HttpRequest request, CancellationToken cancellationToken) =>
+        routeGroup.MapGet(".well-known/agent-card.json", async (HttpRequest request, CancellationToken cancellationToken) =>
         {
             using var activity = ActivitySource.StartActivity("GetAgentCard", ActivityKind.Server);
 

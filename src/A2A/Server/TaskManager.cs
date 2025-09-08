@@ -201,7 +201,7 @@ public sealed class TaskManager : ITaskManager
     }
 
     /// <inheritdoc />
-    public async IAsyncEnumerable<A2AEvent> SendMessageStreamAsync(MessageSendParams messageSendParams, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public async IAsyncEnumerable<A2AEvent> SendMessageStreamingAsync(MessageSendParams messageSendParams, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -351,7 +351,7 @@ public sealed class TaskManager : ITaskManager
     }
 
     /// <inheritdoc />
-    public async Task UpdateStatusAsync(string taskId, TaskState status, Message? message = null, bool final = false, CancellationToken cancellationToken = default)
+    public async Task UpdateStatusAsync(string taskId, TaskState status, AgentMessage? message = null, bool final = false, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
 

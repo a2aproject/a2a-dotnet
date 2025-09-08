@@ -6,7 +6,7 @@ namespace A2A;
 /// <summary>
 /// Represents a task that can be processed by an agent.
 /// </summary>
-public sealed class AgentTask : A2AResponse
+public sealed class AgentTask() : A2AResponse(A2AEventKind.Task)
 {
     /// <summary>
     /// Unique identifier for the task.
@@ -39,7 +39,7 @@ public sealed class AgentTask : A2AResponse
     /// Collection of messages in the task history.
     /// </summary>
     [JsonPropertyName("history")]
-    public List<Message>? History { get; set; } = [];
+    public List<AgentMessage>? History { get; set; } = [];
 
     /// <summary>
     /// Extension metadata.

@@ -1,49 +1,50 @@
 <Project>
-  <PropertyGroup>
-    <!-- Enable central package management, https://learn.microsoft.com/en-us/nuget/consume-packages/Central-Package-Management -->
-    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
-  </PropertyGroup>
-  <ItemGroup>
-    <!-- Product dependencies netstandard -->
-    <PackageVersion Include="Microsoft.Extensions.Caching.Abstractions" Version="9.0.6" />
-    <PackageVersion Include="Microsoft.VisualStudio.Threading.Analyzers" Version="17.14.15" />
-    <PackageVersion Include="Microsoft.Extensions.ExtraAnalyzers" Version="8.0.0-rc.2.23510.2" />
-    <PackageVersion Include="System.Text.Json" Version="8.0.5" />
-    <!-- Product dependencies shared -->
-    <PackageVersion Include="System.Net.ServerSentEvents" Version="10.0.0-preview.5.25277.114" />
-    <PackageVersion Include="System.Linq.AsyncEnumerable" Version="10.0.0-preview.5.25277.114" />
-    <!-- Testing / samples dependencies -->
-    <PackageVersion Include="JsonSchema.Net" Version="7.3.4" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.6" />
-    <PackageVersion Include="Microsoft.Extensions.Logging" Version="9.0.6" />
-    <PackageVersion Include="Microsoft.SemanticKernel.Agents.Core" Version="1.59.0" />
-    <PackageVersion Include="Microsoft.SemanticKernel.Agents.OpenAI" Version="1.59.0-preview" />
-    <PackageVersion Include="Moq" Version="4.20.70" />
-    <PackageVersion Include="OpenTelemetry" Version="1.12.0" />
-    <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.12.0" />
-    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.12.0" />
-    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.12.0" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.12.0" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.12.0" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.12.0" />
-    <PackageVersion Include="Polly" Version="8.4.2" />
-    <PackageVersion Include="System.CommandLine" Version="2.0.0-beta5.25306.1" />
-    <!-- Build / infrastructure dependencies -->
-    <PackageVersion Include="coverlet.collector" Version="6.0.4" />
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.0" />
-    <PackageVersion Include="System.Threading.Channels" Version="9.0.7" />
-    <PackageVersion Include="xunit" Version="2.9.3" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.0" />
-    <!-- Code analyzers -->
-    <PackageVersion Include="Roslynator.Analyzers" Version="4.13.1" />
-    <PackageReference Include="Roslynator.Analyzers">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-    <PackageVersion Include="Roslynator.CodeAnalysis.Analyzers" Version="4.13.1" />
-    <PackageReference Include="Roslynator.CodeAnalysis.Analyzers">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-  </ItemGroup>
+    <PropertyGroup>
+        <!-- Enable central package management, https://learn.microsoft.com/en-us/nuget/consume-packages/Central-Package-Management -->
+        <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    </PropertyGroup>
+    <ItemGroup>
+        <!-- Product dependencies netstandard -->
+        <PackageVersion Include="Microsoft.Extensions.Caching.Abstractions" Version="9.0.6" />
+        <PackageVersion Include="Microsoft.VisualStudio.Threading.Analyzers" Version="17.14.15" />
+        <PackageVersion Include="Microsoft.Extensions.ExtraAnalyzers" Version="8.0.0-rc.2.23510.2" />
+        <PackageVersion Include="System.Text.Json" Version="9.0.8" />
+        <!-- Product dependencies shared -->
+        <PackageVersion Include="System.Net.ServerSentEvents" Version="10.0.0-preview.5.25277.114" />
+        <PackageVersion Include="System.Linq.AsyncEnumerable" Version="10.0.0-preview.5.25277.114" />
+        <!-- Testing / samples dependencies -->
+        <PackageVersion Include="JsonSchema.Net" Version="7.3.4" />
+        <PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.6" />
+        <PackageVersion Include="Microsoft.Extensions.Logging" Version="9.0.6" />
+        <PackageVersion Include="Microsoft.SemanticKernel.Agents.Core" Version="1.59.0" />
+        <PackageVersion Include="Microsoft.SemanticKernel.Agents.OpenAI" Version="1.59.0-preview" />
+        <PackageVersion Include="Microsoft.SemanticKernel.Connectors.AzureOpenAI" Version="1.59.0" />
+        <PackageVersion Include="Moq" Version="4.20.70" />
+        <PackageVersion Include="OpenTelemetry" Version="1.12.0" />
+        <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.12.0" />
+        <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.12.0" />
+        <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.12.0" />
+        <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.12.0" />
+        <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.12.0" />
+        <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.12.0" />
+        <PackageVersion Include="Polly" Version="8.4.2" />
+        <PackageVersion Include="System.CommandLine" Version="2.0.0-beta5.25306.1" />
+        <!-- Build / infrastructure dependencies -->
+        <PackageVersion Include="coverlet.collector" Version="6.0.4" />
+        <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+        <PackageVersion Include="System.Threading.Channels" Version="9.0.7" />
+        <PackageVersion Include="xunit" Version="2.9.3" />
+        <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
+        <!-- Code analyzers -->
+        <PackageVersion Include="Roslynator.Analyzers" Version="4.13.1" />
+        <PackageReference Include="Roslynator.Analyzers">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageVersion Include="Roslynator.CodeAnalysis.Analyzers" Version="4.13.1" />
+        <PackageReference Include="Roslynator.CodeAnalysis.Analyzers">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
 </Project>

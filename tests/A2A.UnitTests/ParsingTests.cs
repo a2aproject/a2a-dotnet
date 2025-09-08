@@ -11,7 +11,7 @@ public class ParsingTests
         // Arrange
         var taskSendParams = new MessageSendParams
         {
-            Message = new Message()
+            Message = new AgentMessage()
             {
                 Parts =
                 [
@@ -40,7 +40,7 @@ public class ParsingTests
         // Arrange
         var taskSendParams = new MessageSendParams
         {
-            Message = new Message()
+            Message = new AgentMessage()
             {
                 Parts =
                 [
