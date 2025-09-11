@@ -20,11 +20,9 @@ public class FileContentSpecComplianceTests
         var fileContent = JsonSerializer.Deserialize<FileContent>(json, A2AJsonUtilities.DefaultOptions);
 
         Assert.NotNull(fileContent);
-        Assert.IsType<FileWithBytes>(fileContent);
-        var fileWithBytes = (FileWithBytes)fileContent;
-        Assert.Equal("example.txt", fileWithBytes.Name);
-        Assert.Equal("text/plain", fileWithBytes.MimeType);
-        Assert.Equal("SGVsbG8gV29ybGQ=", fileWithBytes.Bytes);
+        Assert.Equal("example.txt", fileContent.Name);
+        Assert.Equal("text/plain", fileContent.MimeType);
+        Assert.Equal("SGVsbG8gV29ybGQ=", fileContent.Bytes);
     }
 
     [Fact]
@@ -43,22 +41,20 @@ public class FileContentSpecComplianceTests
         var fileContent = JsonSerializer.Deserialize<FileContent>(json, A2AJsonUtilities.DefaultOptions);
 
         Assert.NotNull(fileContent);
-        Assert.IsType<FileWithUri>(fileContent);
-        var fileWithUri = (FileWithUri)fileContent;
-        Assert.Equal("example.txt", fileWithUri.Name);
-        Assert.Equal("text/plain", fileWithUri.MimeType);
-        Assert.Equal("https://example.com/file.txt", fileWithUri.Uri);
+        Assert.Equal("example.txt", fileContent.Name);
+        Assert.Equal("text/plain", fileContent.MimeType);
+        Assert.NotNull(fileContent.Uri);
+        Assert.Equal("https://example.com/file.txt", fileContent.Uri.ToString());
     }
 
     [Fact]
     public void FileContent_Serialize_ShouldNotIncludeKind()
     {
         // Arrange
-        var fileWithBytes = new FileWithBytes
+        var fileWithBytes = new FileContent("SGVsbG8=")
         {
             Name = "test.txt",
             MimeType = "text/plain",
-            Bytes = "SGVsbG8="
         };
 
         // Act
@@ -75,11 +71,10 @@ public class FileContentSpecComplianceTests
     public void FileContent_Serialize_UriContent_ShouldNotIncludeKind()
     {
         // Arrange
-        var fileWithUri = new FileWithUri
+        var fileWithUri = new FileContent(new Uri("https://example.com/test.txt"))
         {
             Name = "test.txt",
             MimeType = "text/plain",
-            Uri = "https://example.com/test.txt"
         };
 
         // Act
@@ -110,7 +105,7 @@ public class FileContentSpecComplianceTests
             JsonSerializer.Deserialize<FileContent>(json, A2AJsonUtilities.DefaultOptions));
 
         Assert.Equal(A2AErrorCode.InvalidRequest, ex.ErrorCode);
-        Assert.Contains("cannot have both 'bytes' and 'uri'", ex.Message);
+        Assert.Contains("Only one of 'bytes' or 'uri' must be specified", ex.Message);
     }
 
     [Fact]
@@ -136,15 +131,10 @@ public class FileContentSpecComplianceTests
     public void FileContent_RoundTrip_Bytes_ShouldWork()
     {
         // Arrange
-        var original = new FileWithBytes
+        var original = new FileContent("SGVsbG8gV29ybGQ=")
         {
             Name = "test.txt",
             MimeType = "text/plain",
-            Bytes = "SGVsbG8gV29ybGQ=",
-            Metadata = new Dictionary<string, JsonElement>
-            {
-                ["key"] = JsonDocument.Parse("\"value\"").RootElement
-            }
         };
 
         // Act: Serialize and deserialize
@@ -153,28 +143,19 @@ public class FileContentSpecComplianceTests
 
         // Assert
         Assert.NotNull(deserialized);
-        Assert.IsType<FileWithBytes>(deserialized);
-        var fileWithBytes = (FileWithBytes)deserialized;
-        Assert.Equal(original.Name, fileWithBytes.Name);
-        Assert.Equal(original.MimeType, fileWithBytes.MimeType);
-        Assert.Equal(original.Bytes, fileWithBytes.Bytes);
-        Assert.Single(fileWithBytes.Metadata);
-        Assert.Equal("value", fileWithBytes.Metadata["key"].GetString());
+        Assert.Equal(original.Name, deserialized.Name);
+        Assert.Equal(original.MimeType, deserialized.MimeType);
+        Assert.Equal(original.Bytes, deserialized.Bytes);
     }
 
     [Fact]
     public void FileContent_RoundTrip_Uri_ShouldWork()
     {
         // Arrange
-        var original = new FileWithUri
+        var original = new FileContent(new Uri("https://example.com/test.txt"))
         {
             Name = "test.txt",
             MimeType = "text/plain",
-            Uri = "https://example.com/test.txt",
-            Metadata = new Dictionary<string, JsonElement>
-            {
-                ["key"] = JsonDocument.Parse("42").RootElement
-            }
         };
 
         // Act: Serialize and deserialize
@@ -183,12 +164,8 @@ public class FileContentSpecComplianceTests
 
         // Assert
         Assert.NotNull(deserialized);
-        Assert.IsType<FileWithUri>(deserialized);
-        var fileWithUri = (FileWithUri)deserialized;
-        Assert.Equal(original.Name, fileWithUri.Name);
-        Assert.Equal(original.MimeType, fileWithUri.MimeType);
-        Assert.Equal(original.Uri, fileWithUri.Uri);
-        Assert.Single(fileWithUri.Metadata);
-        Assert.Equal(42, fileWithUri.Metadata["key"].GetInt32());
+        Assert.Equal(original.Name, deserialized.Name);
+        Assert.Equal(original.MimeType, deserialized.MimeType);
+        Assert.Equal(original.Uri, deserialized.Uri);
     }
 }
