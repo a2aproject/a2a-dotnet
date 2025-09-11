@@ -28,7 +28,7 @@ public static class A2AMethods
     /// <summary>
     /// Method for subscribing to task updates.
     /// </summary>
-    public const string TaskSubscribe = "tasks/subscribe";
+    public const string TaskSubscribe = "tasks/resubscribe";
 
     /// <summary>
     /// Method for setting push notification configuration.
