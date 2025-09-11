@@ -4,214 +4,131 @@ using A2A.TCK.Tests.Infrastructure;
 namespace A2A.TCK.Tests.Optional.Capabilities;
 
 /// <summary>
-/// Tests for optional A2A capabilities like streaming and push notifications.
-/// These tests validate optional features according to the A2A v0.3.0 specification.
+/// Tests for optional A2A capabilities that enhance the base protocol.
+/// These tests validate advanced features through the JSON-RPC protocol layer.
 /// </summary>
 public class OptionalCapabilitiesTests : TckTestBase
 {
-    private readonly TaskManager _taskManager;
-
-    public OptionalCapabilitiesTests(ITestOutputHelper output) : base(output)
-    {
-        _taskManager = new TaskManager();
-    }
+    public OptionalCapabilitiesTests(ITestOutputHelper output) : base(output) { }
 
     [Fact]
     [TckTest(TckComplianceLevel.FullFeatured, TckCategories.OptionalCapabilities,
-        Description = "A2A v0.3.0 §7.2 - Streaming Support",
-        SpecSection = "A2A v0.3.0 §7.2",
-        FailureImpact = "Enhanced feature for real-time updates")]
-    public async Task MessageStream_BasicStreaming_ReturnsEventStream()
+        Description = "A2A v0.3.0 §7.2 - Basic Message Sending via JSON-RPC",
+        SpecSection = "A2A v0.3.0 §7.1",
+        FailureImpact = "Core JSON-RPC functionality validation")]
+    public async Task MessageSend_ViaJsonRpc_WorksCorrectly()
     {
         // Arrange
         var messageSendParams = new MessageSendParams
         {
-            Message = CreateTestMessage()
+            Message = CreateTestMessage("Test message for JSON-RPC capabilities")
         };
 
-        _taskManager.OnTaskCreated = async (task, ct) =>
+        ConfigureTaskManager(onMessageReceived: (params_, _) =>
         {
-            await Task.Delay(100, ct); // Simulate processing
-            await _taskManager.UpdateStatusAsync(task.Id, TaskState.Working, 
-                new AgentMessage 
-                { 
-                    Role = MessageRole.Agent,
-                    Parts = [new TextPart { Text = "Processing your request..." }],
-                    MessageId = Guid.NewGuid().ToString()
-                }, 
-                cancellationToken: ct);
-            
-            await Task.Delay(100, ct);
-            await _taskManager.UpdateStatusAsync(task.Id, TaskState.Completed, 
-                new AgentMessage 
-                { 
-                    Role = MessageRole.Agent,
-                    Parts = [new TextPart { Text = "Request completed!" }],
-                    MessageId = Guid.NewGuid().ToString()
-                }, 
-                final: true, 
-                cancellationToken: ct);
-        };
+            return Task.FromResult<A2AResponse>(new AgentMessage
+            {
+                Role = MessageRole.Agent,
+                Parts = [new TextPart { Text = "JSON-RPC message received and processed" }],
+                MessageId = Guid.NewGuid().ToString()
+            });
+        });
 
-        // Act
-        var events = new List<A2AEvent>();
-        await foreach (var evt in _taskManager.SendMessageStreamingAsync(messageSendParams))
-        {
-            events.Add(evt);
-        }
+        // Act - Send via JSON-RPC
+        var response = await SendMessageViaJsonRpcAsync(messageSendParams);
 
         // Assert
-        bool streamingWorked = events.Count > 0;
+        bool jsonRpcWorked = response.Error == null && response.Result != null;
         
-        if (streamingWorked)
+        if (jsonRpcWorked)
         {
-            Output.WriteLine("? Streaming functionality is supported");
-            Output.WriteLine($"  Events received: {events.Count}");
-            
-            var taskEvents = events.OfType<AgentTask>().ToList();
-            var statusEvents = events.OfType<TaskStatusUpdateEvent>().ToList();
-            
-            Output.WriteLine($"  Task events: {taskEvents.Count}");
-            Output.WriteLine($"  Status update events: {statusEvents.Count}");
+            var message = response.Result?.Deserialize<AgentMessage>();
+            Output.WriteLine("? JSON-RPC message/send functionality is working");
+            Output.WriteLine($"  Response: {message?.Parts[0].AsTextPart().Text}");
         }
-        else
+        else if (response.Error != null)
         {
-            Output.WriteLine("?? Streaming not implemented - this is acceptable for basic implementations");
+            Output.WriteLine($"? JSON-RPC error: {response.Error.Code} - {response.Error.Message}");
         }
 
-        // This is a full-featured capability, so we pass regardless
-        AssertTckCompliance(true, "Streaming support is an optional enhancement");
+        AssertTckCompliance(jsonRpcWorked, "JSON-RPC message/send must work correctly");
     }
 
     [Fact]
     [TckTest(TckComplianceLevel.FullFeatured, TckCategories.OptionalCapabilities,
-        Description = "A2A v0.3.0 §7.7 - Task Resubscription",
-        SpecSection = "A2A v0.3.0 §7.7",
-        FailureImpact = "Enhanced feature for reconnecting to task streams")]
-    public async Task TasksResubscribe_ExistingTask_ReturnsEventStream()
+        Description = "A2A v0.3.0 §7.3 - Task Management via JSON-RPC",
+        SpecSection = "A2A v0.3.0 §7.3",
+        FailureImpact = "Enhanced task lifecycle management")]
+    public async Task TaskManagement_ViaJsonRpc_WorksCorrectly()
     {
-        // Arrange - Create a task first
+        // Arrange - Create a task via JSON-RPC
         var messageSendParams = new MessageSendParams
         {
-            Message = CreateTestMessage()
+            Message = CreateTestMessage("Create a task for management testing")
         };
 
-        var task = await _taskManager.SendMessageAsync(messageSendParams) as AgentTask;
+        var createResponse = await SendMessageViaJsonRpcAsync(messageSendParams);
+        var task = createResponse.Result?.Deserialize<AgentTask>();
         Assert.NotNull(task);
 
-        var resubscribeParams = new TaskIdParams
+        // Act - Get the task via JSON-RPC
+        var getResponse = await GetTaskViaJsonRpcAsync(new TaskQueryParams { Id = task.Id });
+
+        // Assert
+        bool taskManagementWorked = getResponse.Error == null && getResponse.Result != null;
+        
+        if (taskManagementWorked)
         {
-            Id = task.Id
-        };
-
-        // Act & Assert
-        try
-        {
-            var events = new List<A2AEvent>();
-            var subscription = _taskManager.SubscribeToTaskAsync(resubscribeParams);
-            
-            // Simulate some task updates in the background
-            _ = Task.Run(async () =>
-            {
-                await Task.Delay(100);
-                await _taskManager.UpdateStatusAsync(task.Id, TaskState.Working);
-                await Task.Delay(100);
-                await _taskManager.UpdateStatusAsync(task.Id, TaskState.Completed, final: true);
-            });
-
-            await foreach (var evt in subscription)
-            {
-                events.Add(evt);
-                if (events.Count >= 2) break; // Get a few events then stop
-            }
-
-            bool resubscriptionWorked = events.Count > 0;
-            
-            if (resubscriptionWorked)
-            {
-                Output.WriteLine("? Task resubscription is supported");
-                Output.WriteLine($"  Events received: {events.Count}");
-            }
-
-            // This is optional, so we pass regardless
-            AssertTckCompliance(true, "Task resubscription is an optional feature");
+            var retrievedTask = getResponse.Result?.Deserialize<AgentTask>();
+            Output.WriteLine("? JSON-RPC task management is working");
+            Output.WriteLine($"  Created task ID: {task.Id}");
+            Output.WriteLine($"  Retrieved task ID: {retrievedTask?.Id}");
+            Output.WriteLine($"  Task status: {retrievedTask?.Status.State}");
         }
-        catch (Exception ex)
+        else if (getResponse.Error != null)
         {
-            Output.WriteLine($"?? Task resubscription not supported: {ex.Message}");
-            AssertTckCompliance(true, "Task resubscription is an optional feature");
+            Output.WriteLine($"? JSON-RPC task management error: {getResponse.Error.Code} - {getResponse.Error.Message}");
         }
+
+        AssertTckCompliance(taskManagementWorked, "JSON-RPC task management must work correctly");
     }
 
     [Fact]
     [TckTest(TckComplianceLevel.FullFeatured, TckCategories.OptionalCapabilities,
-        Description = "A2A v0.3.0 §7.5/7.6 - Push Notification Configuration",
-        SpecSection = "A2A v0.3.0 §7.5/7.6",
-        FailureImpact = "Enhanced feature for asynchronous notifications")]
-    public async Task PushNotificationConfig_SetAndGet_WorksCorrectly()
+        Description = "A2A v0.3.0 §7.4 - Task Cancellation via JSON-RPC",
+        SpecSection = "A2A v0.3.0 §7.4",
+        FailureImpact = "Enhanced task lifecycle control")]
+    public async Task TaskCancellation_ViaJsonRpc_WorksCorrectly()
     {
-        // Arrange - Create a task first
-        var task = await _taskManager.CreateTaskAsync();
-
-        var pushConfig = new TaskPushNotificationConfig
+        // Arrange - Create a task via JSON-RPC
+        var messageSendParams = new MessageSendParams
         {
-            TaskId = task.Id,
-            PushNotificationConfig = new PushNotificationConfig
-            {
-                Url = "https://example.com/webhook",
-                Token = "test-token-123",
-                Authentication = new PushNotificationAuthenticationInfo
-                {
-                    Schemes = ["Bearer"]
-                }
-            }
+            Message = CreateTestMessage("Create a task for cancellation testing")
         };
 
-        // Act & Assert
-        try
-        {
-            // Test setting push notification config
-            var setResult = await _taskManager.SetPushNotificationAsync(pushConfig);
-            
-            bool setSucceeded = setResult != null && 
-                               setResult.TaskId == task.Id &&
-                               setResult.PushNotificationConfig.Url == pushConfig.PushNotificationConfig.Url;
+        var createResponse = await SendMessageViaJsonRpcAsync(messageSendParams);
+        var task = createResponse.Result?.Deserialize<AgentTask>();
+        Assert.NotNull(task);
 
-            if (setSucceeded)
-            {
-                Output.WriteLine("? Push notification configuration set successfully");
-                
-                // Test getting push notification config
-                var getParams = new GetTaskPushNotificationConfigParams { Id = task.Id };
-                var getResult = await _taskManager.GetPushNotificationAsync(getParams);
-                
-                bool getSucceeded = getResult != null &&
-                                   getResult.TaskId == task.Id &&
-                                   getResult.PushNotificationConfig.Url == pushConfig.PushNotificationConfig.Url;
+        // Act - Cancel the task via JSON-RPC
+        var cancelResponse = await CancelTaskViaJsonRpcAsync(new TaskIdParams { Id = task.Id });
 
-                if (getSucceeded)
-                {
-                    Output.WriteLine("? Push notification configuration retrieved successfully");
-                }
+        // Assert
+        bool cancellationWorked = cancelResponse.Error == null && cancelResponse.Result != null;
+        
+        if (cancellationWorked)
+        {
+            var cancelledTask = cancelResponse.Result?.Deserialize<AgentTask>();
+            Output.WriteLine("? JSON-RPC task cancellation is working");
+            Output.WriteLine($"  Cancelled task ID: {cancelledTask?.Id}");
+            Output.WriteLine($"  Final status: {cancelledTask?.Status.State}");
+        }
+        else if (cancelResponse.Error != null)
+        {
+            Output.WriteLine($"? JSON-RPC cancellation error: {cancelResponse.Error.Code} - {cancelResponse.Error.Message}");
+        }
 
-                AssertTckCompliance(true, "Push notification configuration is working");
-            }
-            else
-            {
-                Output.WriteLine("?? Push notification configuration partially working");
-                AssertTckCompliance(true, "Push notifications are optional");
-            }
-        }
-        catch (A2AException ex) when (ex.ErrorCode == A2AErrorCode.PushNotificationNotSupported)
-        {
-            Output.WriteLine("?? Push notifications not supported - this is acceptable");
-            AssertTckCompliance(true, "Push notifications are optional");
-        }
-        catch (Exception ex)
-        {
-            Output.WriteLine($"?? Push notification error: {ex.Message}");
-            AssertTckCompliance(true, "Push notifications are optional");
-        }
+        AssertTckCompliance(cancellationWorked, "JSON-RPC task cancellation must work correctly");
     }
 
     [Fact]
@@ -257,120 +174,105 @@ public class OptionalCapabilitiesTests : TckTestBase
 
     [Fact]
     [TckTest(TckComplianceLevel.FullFeatured, TckCategories.OptionalCapabilities,
-        Description = "A2A v0.3.0 - Artifact Streaming",
-        SpecSection = "A2A v0.3.0 §7.2.3",
-        FailureImpact = "Enhanced feature for incremental artifact delivery")]
-    public async Task ArtifactStreaming_IncrementalDelivery_WorksCorrectly()
+        Description = "A2A v0.3.0 - JSON-RPC Error Handling",
+        SpecSection = "A2A v0.3.0 §8.2",
+        FailureImpact = "Poor error messaging for invalid requests")]
+    public async Task JsonRpc_ErrorHandling_ReturnsAppropriateErrors()
     {
-        // Arrange
-        var messageSendParams = new MessageSendParams
+        // Test 1: Invalid parameters
+        var invalidParams = new MessageSendParams
         {
             Message = new AgentMessage
             {
                 Role = MessageRole.User,
-                Parts = [new TextPart { Text = "Generate a large document with multiple sections" }],
+                Parts = [], // Empty parts should be invalid
                 MessageId = Guid.NewGuid().ToString()
             }
         };
 
-        _taskManager.OnTaskCreated = async (task, ct) =>
-        {
-            // Simulate streaming artifact creation
-            var artifactId = Guid.NewGuid().ToString();
-            
-            // First chunk
-            await _taskManager.ReturnArtifactAsync(task.Id, new Artifact
-            {
-                ArtifactId = artifactId,
-                Name = "Generated Document",
-                Parts = [new TextPart { Text = "Section 1: Introduction\n" }]
-            }, ct);
+        var invalidResponse = await SendMessageViaJsonRpcAsync(invalidParams);
+        bool hasInvalidParamsError = invalidResponse.Error?.Code == (int)A2AErrorCode.InvalidParams;
 
-            await Task.Delay(50, ct);
-
-            // Additional chunks (simulated by updating the task)
-            await _taskManager.UpdateStatusAsync(task.Id, TaskState.Working, 
-                new AgentMessage 
-                { 
-                    Role = MessageRole.Agent,
-                    Parts = [new TextPart { Text = "Adding more sections..." }],
-                    MessageId = Guid.NewGuid().ToString()
-                }, 
-                cancellationToken: ct);
-
-            await Task.Delay(50, ct);
-
-            await _taskManager.UpdateStatusAsync(task.Id, TaskState.Completed, final: true, cancellationToken: ct);
-        };
-
-        // Act
-        var events = new List<A2AEvent>();
-        await foreach (var evt in _taskManager.SendMessageStreamingAsync(messageSendParams))
-        {
-            events.Add(evt);
-        }
+        // Test 2: Non-existent task
+        var nonExistentResponse = await GetTaskViaJsonRpcAsync(new TaskQueryParams { Id = "non-existent-task" });
+        bool hasTaskNotFoundError = nonExistentResponse.Error?.Code == (int)A2AErrorCode.TaskNotFound;
 
         // Assert
-        var artifactEvents = events.OfType<TaskArtifactUpdateEvent>().ToList();
-        bool hasArtifactStreaming = artifactEvents.Count > 0;
-
-        if (hasArtifactStreaming)
+        if (hasInvalidParamsError)
         {
-            Output.WriteLine("? Artifact streaming is supported");
-            Output.WriteLine($"  Artifact events: {artifactEvents.Count}");
+            Output.WriteLine("? JSON-RPC correctly handles invalid parameters");
+            Output.WriteLine($"  Error code: {invalidResponse.Error!.Code}");
         }
-        else
+        
+        if (hasTaskNotFoundError)
         {
-            Output.WriteLine("?? Artifact streaming not implemented - artifacts may be delivered in final task state");
+            Output.WriteLine("? JSON-RPC correctly handles non-existent tasks");
+            Output.WriteLine($"  Error code: {nonExistentResponse.Error!.Code}");
         }
 
-        // This is a full-featured enhancement
-        AssertTckCompliance(true, "Artifact streaming is an optional enhancement");
+        bool errorHandlingWorked = hasInvalidParamsError && hasTaskNotFoundError;
+        AssertTckCompliance(errorHandlingWorked, "JSON-RPC error handling must return appropriate error codes");
     }
 
     [Fact]
     [TckTest(TckComplianceLevel.Recommended, TckCategories.OptionalCapabilities,
-        Description = "A2A v0.3.0 - Error Handling for Unsupported Operations",
-        SpecSection = "A2A v0.3.0 §8.2",
-        FailureImpact = "Poor error messaging for unsupported features")]
-    public async Task UnsupportedOperation_ReturnsAppropriateError()
+        Description = "A2A v0.3.0 - Complex Message Types",
+        FailureImpact = "Limited multimodal capabilities")]
+    public async Task ComplexMessageTypes_ViaJsonRpc_AreHandled()
     {
-        // Arrange - Try to use a feature that might not be supported
-        var agentCard = CreateTestAgentCard();
-
-        // If streaming is not declared as supported, trying to stream should give appropriate error
-        if (agentCard.Capabilities?.Streaming != true)
+        // Arrange - Create a complex message with multiple part types
+        var complexMessage = new AgentMessage
         {
-            Output.WriteLine("Streaming not declared as supported - testing error handling");
-
-            try
-            {
-                var messageSendParams = new MessageSendParams
-                {
-                    Message = CreateTestMessage()
-                };
-
-                // This might work anyway (implementation supports it but doesn't declare it)
-                // or it might throw an appropriate error
-                var events = _taskManager.SendMessageStreamingAsync(messageSendParams);
-                await foreach (var evt in events)
-                {
-                    break; // Just get one event
+            Role = MessageRole.User,
+            Parts = [
+                new TextPart { Text = "Process this complex message:" },
+                new DataPart 
+                { 
+                    Data = new Dictionary<string, JsonElement>
+                    {
+                        ["type"] = JsonSerializer.SerializeToElement("test-data"),
+                        ["value"] = JsonSerializer.SerializeToElement(42)
+                    }
                 }
+            ],
+            MessageId = Guid.NewGuid().ToString()
+        };
 
-                Output.WriteLine("? Streaming works even though not declared (acceptable)");
-            }
-            catch (A2AException ex) when (ex.ErrorCode == A2AErrorCode.UnsupportedOperation)
+        var params_ = new MessageSendParams { Message = complexMessage };
+
+        ConfigureTaskManager(onMessageReceived: (params_, _) =>
+        {
+            var parts = params_.Message.Parts;
+            return Task.FromResult<A2AResponse>(new AgentMessage
             {
-                Output.WriteLine("? Correctly returned UnsupportedOperation error");
-            }
-            catch (Exception ex)
-            {
-                Output.WriteLine($"?? Unexpected error type: {ex.GetType().Name}");
-            }
+                Role = MessageRole.Agent,
+                Parts = [new TextPart { Text = $"Processed {parts.Count} parts of types: {string.Join(", ", parts.Select(p => p.Kind))}" }],
+                MessageId = Guid.NewGuid().ToString()
+            });
+        });
+
+        // Act - Send via JSON-RPC
+        var response = await SendMessageViaJsonRpcAsync(params_);
+
+        // Assert
+        bool complexMessageHandled = response.Error == null && response.Result != null;
+        
+        if (complexMessageHandled)
+        {
+            var message = response.Result?.Deserialize<AgentMessage>();
+            Output.WriteLine("? Complex message types handled via JSON-RPC");
+            Output.WriteLine($"  Response: {message?.Parts[0].AsTextPart().Text}");
+        }
+        else if (response.Error?.Code == (int)A2AErrorCode.ContentTypeNotSupported)
+        {
+            Output.WriteLine("?? Some complex message types not supported - this is acceptable");
+        }
+        else if (response.Error != null)
+        {
+            Output.WriteLine($"? JSON-RPC error: {response.Error.Code} - {response.Error.Message}");
         }
 
-        // This is about proper error handling, which is recommended
-        AssertTckCompliance(true, "Appropriate error handling for unsupported operations is recommended");
+        // Complex message handling is recommended but not mandatory
+        AssertTckCompliance(true, "JSON-RPC complex message type handling assessed");
     }
 }

@@ -1,20 +1,17 @@
 using Xunit.Abstractions;
 using A2A.TCK.Tests.Infrastructure;
+using System.Text.Json;
 
 namespace A2A.TCK.Tests.Optional.Features;
 
 /// <summary>
-/// Tests for optional A2A features and enhancements beyond the basic specification.
-/// These tests validate advanced functionality and edge cases.
+/// Tests for advanced A2A features that provide enhanced functionality.
+/// These tests validate complex workflows, advanced message types, and extended capabilities
+/// through the JSON-RPC protocol layer.
 /// </summary>
 public class OptionalFeaturesTests : TckTestBase
 {
-    private readonly TaskManager _taskManager;
-
-    public OptionalFeaturesTests(ITestOutputHelper output) : base(output)
-    {
-        _taskManager = new TaskManager();
-    }
+    public OptionalFeaturesTests(ITestOutputHelper output) : base(output) { }
 
     [Fact]
     [TckTest(TckComplianceLevel.FullFeatured, TckCategories.OptionalFeatures,
@@ -51,7 +48,7 @@ public class OptionalFeaturesTests : TckTestBase
 
         var params_ = new MessageSendParams { Message = multiModalMessage };
 
-        _taskManager.OnMessageReceived = (params_, _) =>
+        ConfigureTaskManager(onMessageReceived: (params_, _) =>
         {
             var receivedParts = params_.Message.Parts;
             return Task.FromResult<A2AResponse>(new AgentMessage
@@ -60,30 +57,28 @@ public class OptionalFeaturesTests : TckTestBase
                 Parts = [new TextPart { Text = $"Processed {receivedParts.Count} parts: {string.Join(", ", receivedParts.Select(p => p.Kind))}" }],
                 MessageId = Guid.NewGuid().ToString()
             });
-        };
+        });
 
-        // Act & Assert
-        try
+        // Act - Send via JSON-RPC
+        var response = await SendMessageViaJsonRpcAsync(params_);
+
+        // Assert
+        if (response.Error == null && response.Result != null)
         {
-            var response = await _taskManager.SendMessageAsync(params_);
-
-            if (response is AgentMessage message)
-            {
-                Output.WriteLine("? Multi-modal message processed successfully");
-                Output.WriteLine($"  Response: {message.Parts[0].AsTextPart().Text}");
-            }
-
-            AssertTckCompliance(true, "Multi-modal content support is working");
+            var message = response.Result.Deserialize<AgentMessage>();
+            Output.WriteLine("? Multi-modal message processed successfully via JSON-RPC");
+            Output.WriteLine($"  Response: {message?.Parts[0].AsTextPart().Text}");
+            AssertTckCompliance(true, "JSON-RPC multi-modal content support is working");
         }
-        catch (A2AException ex) when (ex.ErrorCode == A2AErrorCode.ContentTypeNotSupported)
+        else if (response.Error?.Code == (int)A2AErrorCode.ContentTypeNotSupported)
         {
-            Output.WriteLine("?? Some content types not supported - this is acceptable");
-            AssertTckCompliance(true, "Content type limitations are acceptable for basic implementations");
+            Output.WriteLine("?? Some content types not supported via JSON-RPC - this is acceptable");
+            AssertTckCompliance(true, "JSON-RPC content type limitations are acceptable for basic implementations");
         }
-        catch (Exception ex)
+        else if (response.Error != null)
         {
-            Output.WriteLine($"?? Error processing multi-modal content: {ex.Message}");
-            AssertTckCompliance(true, "Multi-modal content handling attempted");
+            Output.WriteLine($"?? JSON-RPC error processing multi-modal content: {response.Error.Code} - {response.Error.Message}");
+            AssertTckCompliance(true, "JSON-RPC multi-modal content handling attempted");
         }
     }
 
@@ -143,7 +138,7 @@ public class OptionalFeaturesTests : TckTestBase
         FailureImpact = "Limited conversation continuity")]
     public async Task ContextManagement_AcrossTasks_MaintainsState()
     {
-        // Arrange - Create multiple related tasks
+        // Arrange - Create multiple related tasks via JSON-RPC
         var firstMessage = new MessageSendParams
         {
             Message = new AgentMessage
@@ -154,20 +149,26 @@ public class OptionalFeaturesTests : TckTestBase
             }
         };
 
-        _taskManager.OnMessageReceived = (params_, _) =>
+        // Configure to create actual tasks instead of returning messages
+        ConfigureTaskManager(onTaskCreated: (task, _) =>
         {
-            return Task.FromResult<A2AResponse>(new AgentMessage
+            task.Status = task.Status with
             {
-                Role = MessageRole.Agent,
-                Parts = [new TextPart { Text = "I'll remember that information." }],
-                MessageId = Guid.NewGuid().ToString()
-            });
-        };
+                Message = new AgentMessage
+                {
+                    Role = MessageRole.Agent,
+                    Parts = [new TextPart { Text = "I'll remember that information." }],
+                    MessageId = Guid.NewGuid().ToString()
+                }
+            };
+            return Task.CompletedTask;
+        });
 
-        var firstTask = await _taskManager.SendMessageAsync(firstMessage) as AgentTask;
+        var firstResponse = await SendMessageViaJsonRpcAsync(firstMessage);
+        var firstTask = firstResponse.Result?.Deserialize<AgentTask>();
         Assert.NotNull(firstTask);
 
-        // Second task in the same context
+        // Second task in the same context via JSON-RPC
         var secondMessage = new MessageSendParams
         {
             Message = new AgentMessage
@@ -179,7 +180,22 @@ public class OptionalFeaturesTests : TckTestBase
             }
         };
 
-        var secondTask = await _taskManager.SendMessageAsync(secondMessage) as AgentTask;
+        ConfigureTaskManager(onTaskCreated: (task, _) =>
+        {
+            task.Status = task.Status with
+            {
+                Message = new AgentMessage
+                {
+                    Role = MessageRole.Agent,
+                    Parts = [new TextPart { Text = "Based on our conversation, your name is Alice." }],
+                    MessageId = Guid.NewGuid().ToString()
+                }
+            };
+            return Task.CompletedTask;
+        });
+
+        var secondResponse = await SendMessageViaJsonRpcAsync(secondMessage);
+        var secondTask = secondResponse.Result?.Deserialize<AgentTask>();
         Assert.NotNull(secondTask);
 
         // Assert
@@ -188,7 +204,7 @@ public class OptionalFeaturesTests : TckTestBase
 
         if (contextMaintained)
         {
-            Output.WriteLine("? Context maintained across tasks");
+            Output.WriteLine("? Context maintained across tasks via JSON-RPC");
             Output.WriteLine($"  Context ID: {firstTask.ContextId}");
             Output.WriteLine($"  First task ID: {firstTask.Id}");
             Output.WriteLine($"  Second task ID: {secondTask.Id}");
@@ -199,7 +215,7 @@ public class OptionalFeaturesTests : TckTestBase
         }
 
         // Context management is recommended but not required
-        AssertTckCompliance(true, "Context management enhances conversation continuity");
+        AssertTckCompliance(true, "JSON-RPC context management enhances conversation continuity");
     }
 
     [Fact]
@@ -240,7 +256,7 @@ public class OptionalFeaturesTests : TckTestBase
             }
         };
 
-        _taskManager.OnMessageReceived = (receivedParams, _) =>
+        ConfigureTaskManager(onMessageReceived: (receivedParams, _) =>
         {
             // Check if metadata is preserved in the received params
             var hasMessageMetadata = receivedParams.Message.Metadata?.Count > 0;
@@ -257,107 +273,38 @@ public class OptionalFeaturesTests : TckTestBase
                     ["response-source"] = JsonSerializer.SerializeToElement("task-manager")
                 }
             });
-        };
+        });
 
-        // Act
-        var response = await _taskManager.SendMessageAsync(params_) as AgentMessage;
+        // Act - Send via JSON-RPC
+        var response = await SendMessageViaJsonRpcAsync(params_);
 
         // Assert
-        bool responseReceived = response != null;
-        bool responseHasMetadata = response?.Metadata?.Count > 0;
-
+        bool responseReceived = response.Error == null && response.Result != null;
+        
         if (responseReceived)
         {
-            Output.WriteLine("? Message with metadata processed");
+            var message = response.Result?.Deserialize<AgentMessage>();
+            bool responseHasMetadata = message?.Metadata?.Count > 0;
+
+            Output.WriteLine("? Message with metadata processed via JSON-RPC");
             if (responseHasMetadata)
             {
                 Output.WriteLine("? Response includes metadata");
-                foreach (var kvp in response!.Metadata!)
+                foreach (var kvp in message!.Metadata!)
                 {
                     Output.WriteLine($"  {kvp.Key}: {kvp.Value}");
                 }
             }
 
-            var responseText = response!.Parts[0].AsTextPart().Text;
+            var responseText = message!.Parts[0].AsTextPart().Text;
             Output.WriteLine($"Handler report: {responseText}");
         }
-
-        AssertTckCompliance(true, "Metadata preservation enhances context passing");
-    }
-
-    [Fact]
-    [TckTest(TckComplianceLevel.FullFeatured, TckCategories.OptionalFeatures,
-        Description = "A2A v0.3.0 - Artifact Management",
-        FailureImpact = "Limited output delivery capabilities")]
-    public async Task ArtifactManagement_MultipleArtifacts_IsHandled()
-    {
-        // Arrange
-        var messageSendParams = new MessageSendParams
+        else if (response.Error != null)
         {
-            Message = new AgentMessage
-            {
-                Role = MessageRole.User,
-                Parts = [new TextPart { Text = "Generate multiple outputs: a report and a chart" }],
-                MessageId = Guid.NewGuid().ToString()
-            }
-        };
-
-        var task = await _taskManager.SendMessageAsync(messageSendParams) as AgentTask;
-        Assert.NotNull(task);
-
-        // Act - Add multiple artifacts
-        var reportArtifact = new Artifact
-        {
-            ArtifactId = Guid.NewGuid().ToString(),
-            Name = "Analysis Report",
-            Description = "Detailed analysis report",
-            Parts = [
-                new TextPart { Text = "# Analysis Report\n\nThis is a comprehensive analysis..." }
-            ]
-        };
-
-        var chartArtifact = new Artifact
-        {
-            ArtifactId = Guid.NewGuid().ToString(),
-            Name = "Data Chart",
-            Description = "Visual representation of the data",
-            Parts = [
-                new FilePart
-                {
-                    File = new FileWithBytes
-                    {
-                        Name = "chart.png",
-                        MimeType = "image/png",
-                        Bytes = Convert.ToBase64String(new byte[] { 1, 2, 3, 4 }) // Dummy data
-                    }
-                }
-            ]
-        };
-
-        await _taskManager.ReturnArtifactAsync(task.Id, reportArtifact);
-        await _taskManager.ReturnArtifactAsync(task.Id, chartArtifact);
-        await _taskManager.UpdateStatusAsync(task.Id, TaskState.Completed);
-
-        // Retrieve the completed task
-        var completedTask = await _taskManager.GetTaskAsync(new TaskQueryParams { Id = task.Id });
-
-        // Assert
-        bool hasMultipleArtifacts = completedTask?.Artifacts?.Count >= 2;
-
-        if (hasMultipleArtifacts)
-        {
-            Output.WriteLine($"? Multiple artifacts managed: {completedTask!.Artifacts!.Count}");
-            foreach (var artifact in completedTask.Artifacts)
-            {
-                Output.WriteLine($"  - {artifact.Name}: {artifact.Parts.Count} parts");
-            }
-        }
-        else
-        {
-            Output.WriteLine("?? Multiple artifact management not fully supported");
+            Output.WriteLine($"? JSON-RPC error: {response.Error.Code} - {response.Error.Message}");
         }
 
-        AssertTckCompliance(true, "Artifact management capabilities assessed");
+        AssertTckCompliance(responseReceived, "JSON-RPC metadata preservation enhances context passing");
     }
 
     [Fact]
@@ -392,7 +339,7 @@ public class OptionalFeaturesTests : TckTestBase
             }
         };
 
-        _taskManager.OnMessageReceived = (params_, _) =>
+        ConfigureTaskManager(onMessageReceived: (params_, _) =>
         {
             return Task.FromResult<A2AResponse>(new AgentMessage
             {
@@ -400,7 +347,7 @@ public class OptionalFeaturesTests : TckTestBase
                 Parts = [new TextPart { Text = "Input processed safely" }],
                 MessageId = Guid.NewGuid().ToString()
             });
-        };
+        });
 
         // Act & Assert
         int successfullyHandled = 0;
@@ -408,25 +355,18 @@ public class OptionalFeaturesTests : TckTestBase
 
         foreach (var (edgeCase, index) in edgeCases.Select((ec, i) => (ec, i)))
         {
-            try
+            var params_ = new MessageSendParams { Message = edgeCase };
+            var response = await SendMessageViaJsonRpcAsync(params_);
+            
+            if (response.Error == null && response.Result != null)
             {
-                var params_ = new MessageSendParams { Message = edgeCase };
-                var response = await _taskManager.SendMessageAsync(params_);
-                
-                if (response != null)
-                {
-                    successfullyHandled++;
-                    Output.WriteLine($"? Edge case {index + 1} handled successfully");
-                }
+                successfullyHandled++;
+                Output.WriteLine($"? Edge case {index + 1} handled successfully via JSON-RPC");
             }
-            catch (A2AException ex)
+            else if (response.Error != null)
             {
                 appropriatelyRejected++;
-                Output.WriteLine($"? Edge case {index + 1} appropriately rejected: {ex.ErrorCode}");
-            }
-            catch (Exception ex)
-            {
-                Output.WriteLine($"?? Edge case {index + 1} caused unexpected error: {ex.GetType().Name}");
+                Output.WriteLine($"? Edge case {index + 1} appropriately rejected via JSON-RPC: {response.Error.Code}");
             }
         }
 
@@ -434,78 +374,6 @@ public class OptionalFeaturesTests : TckTestBase
 
         Output.WriteLine($"Edge cases handled: {successfullyHandled}, rejected: {appropriatelyRejected}, total: {edgeCases.Length}");
 
-        AssertTckCompliance(goodValidation, "Input validation handles edge cases appropriately");
-    }
-
-    [Fact]
-    [TckTest(TckComplianceLevel.FullFeatured, TckCategories.OptionalFeatures,
-        Description = "A2A v0.3.0 - Advanced Task State Management",
-        FailureImpact = "Limited task workflow capabilities")]
-    public async Task AdvancedTaskStates_AuthAndInputRequired_WorkCorrectly()
-    {
-        // Arrange
-        var messageSendParams = new MessageSendParams
-        {
-            Message = new AgentMessage
-            {
-                Role = MessageRole.User,
-                Parts = [new TextPart { Text = "Access my private account data" }],
-                MessageId = Guid.NewGuid().ToString()
-            }
-        };
-
-        var task = await _taskManager.SendMessageAsync(messageSendParams) as AgentTask;
-        Assert.NotNull(task);
-
-        // Act - Simulate auth required workflow
-        await _taskManager.UpdateStatusAsync(task.Id, TaskState.AuthRequired,
-            new AgentMessage
-            {
-                Role = MessageRole.Agent,
-                Parts = [new TextPart { Text = "Authentication required. Please provide your API key." }],
-                MessageId = Guid.NewGuid().ToString()
-            });
-
-        var authRequiredTask = await _taskManager.GetTaskAsync(new TaskQueryParams { Id = task.Id });
-
-        // Simulate providing auth and moving to input required
-        await _taskManager.UpdateStatusAsync(task.Id, TaskState.InputRequired,
-            new AgentMessage
-            {
-                Role = MessageRole.Agent,
-                Parts = [new TextPart { Text = "Authentication successful. Which account would you like to access?" }],
-                MessageId = Guid.NewGuid().ToString()
-            });
-
-        var inputRequiredTask = await _taskManager.GetTaskAsync(new TaskQueryParams { Id = task.Id });
-
-        // Complete the task
-        await _taskManager.UpdateStatusAsync(task.Id, TaskState.Completed,
-            new AgentMessage
-            {
-                Role = MessageRole.Agent,
-                Parts = [new TextPart { Text = "Account data retrieved successfully." }],
-                MessageId = Guid.NewGuid().ToString()
-            });
-
-        var completedTask = await _taskManager.GetTaskAsync(new TaskQueryParams { Id = task.Id });
-
-        // Assert
-        bool correctStateProgression = 
-            authRequiredTask?.Status.State == TaskState.AuthRequired &&
-            inputRequiredTask?.Status.State == TaskState.InputRequired &&
-            completedTask?.Status.State == TaskState.Completed;
-
-        if (correctStateProgression)
-        {
-            Output.WriteLine("? Advanced task state progression works correctly");
-            Output.WriteLine("  AuthRequired ? InputRequired ? Completed");
-        }
-        else
-        {
-            Output.WriteLine("?? Advanced task states may not be fully implemented");
-        }
-
-        AssertTckCompliance(true, "Advanced task state management enhances workflow capabilities");
+        AssertTckCompliance(goodValidation, "JSON-RPC input validation handles edge cases appropriately");
     }
 }

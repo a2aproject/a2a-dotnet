@@ -1,21 +1,17 @@
 using Xunit.Abstractions;
 using A2A.TCK.Tests.Infrastructure;
+using System.Text.Json;
 
 namespace A2A.TCK.Tests.Mandatory.Protocol;
 
 /// <summary>
-/// Tests for the message/send method based on the TCK.
+/// Tests for the message/send JSON-RPC method based on the TCK.
 /// These tests validate the core message sending functionality
 /// according to the A2A v0.3.0 specification.
 /// </summary>
 public class MessageSendMethodTests : TckTestBase
 {
-    private readonly TaskManager _taskManager;
-
-    public MessageSendMethodTests(ITestOutputHelper output) : base(output)
-    {
-        _taskManager = new TaskManager();
-    }
+    public MessageSendMethodTests(ITestOutputHelper output) : base(output) { }
 
     [Fact]
     [TckTest(TckComplianceLevel.Mandatory, TckCategories.MandatoryProtocol,
@@ -31,7 +27,7 @@ public class MessageSendMethodTests : TckTestBase
         };
 
         // Set up a simple message handler
-        _taskManager.OnMessageReceived = (params_, _) =>
+        ConfigureTaskManager(onMessageReceived: (params_, _) =>
         {
             return Task.FromResult<A2AResponse>(new AgentMessage
             {
@@ -39,41 +35,50 @@ public class MessageSendMethodTests : TckTestBase
                 Parts = [new TextPart { Text = "Hello! I received your message." }],
                 MessageId = Guid.NewGuid().ToString()
             });
-        };
+        });
 
-        // Act
-        var response = await _taskManager.SendMessageAsync(messageSendParams);
+        // Act - Send via JSON-RPC
+        var response = await SendMessageViaJsonRpcAsync(messageSendParams);
 
         // Assert
-        bool isValidResponse = response != null &&
-                              (response is AgentMessage || response is AgentTask);
-
-        if (response is AgentMessage message)
+        bool hasValidResponse = response.Error == null && response.Result != null;
+        
+        if (hasValidResponse)
         {
-            Output.WriteLine("? Received Message response");
-            Output.WriteLine($"  Role: {message.Role}");
-            Output.WriteLine($"  Parts count: {message.Parts.Count}");
+            var a2aResponse = response.Result?.Deserialize<A2AResponse>();
             
-            bool messageValid = message.Role == MessageRole.Agent &&
-                               message.Parts.Count > 0 &&
-                               !string.IsNullOrEmpty(message.MessageId);
-            
-            AssertTckCompliance(messageValid, "Message response must have valid structure");
-        }
-        else if (response is AgentTask task)
-        {
-            Output.WriteLine("? Received Task response");
-            Output.WriteLine($"  Task ID: {task.Id}");
-            Output.WriteLine($"  State: {task.Status.State}");
-            
-            bool taskValid = !string.IsNullOrEmpty(task.Id) &&
-                            !string.IsNullOrEmpty(task.ContextId);
-            
-            AssertTckCompliance(taskValid, "Task response must have valid structure");
+            if (a2aResponse is AgentMessage message)
+            {
+                Output.WriteLine("? Received Message response via JSON-RPC");
+                Output.WriteLine($"  Role: {message.Role}");
+                Output.WriteLine($"  Parts count: {message.Parts.Count}");
+                
+                bool messageValid = message.Role == MessageRole.Agent &&
+                                   message.Parts.Count > 0 &&
+                                   !string.IsNullOrEmpty(message.MessageId);
+                
+                AssertTckCompliance(messageValid, "JSON-RPC message/send must return valid message structure");
+            }
+            else if (a2aResponse is AgentTask task)
+            {
+                Output.WriteLine("? Received Task response via JSON-RPC");
+                Output.WriteLine($"  Task ID: {task.Id}");
+                Output.WriteLine($"  State: {task.Status.State}");
+                
+                bool taskValid = !string.IsNullOrEmpty(task.Id) &&
+                                !string.IsNullOrEmpty(task.ContextId);
+                
+                AssertTckCompliance(taskValid, "JSON-RPC message/send must return valid task structure");
+            }
+            else
+            {
+                AssertTckCompliance(false, "JSON-RPC message/send must return either Message or Task");
+            }
         }
         else
         {
-            AssertTckCompliance(false, "Response must be either Message or Task");
+            Output.WriteLine($"? JSON-RPC error: {response.Error?.Code} - {response.Error?.Message}");
+            AssertTckCompliance(false, "JSON-RPC message/send must not return an error for valid input");
         }
     }
 
@@ -82,7 +87,7 @@ public class MessageSendMethodTests : TckTestBase
         Description = "A2A v0.3.0 §7.1 - Parameter Validation",
         SpecSection = "A2A v0.3.0 §8.1",
         FailureImpact = "Implementation is not A2A v0.3.0 compliant")]
-    public async Task MessageSend_InvalidParams_ThrowsInvalidParamsError()
+    public async Task MessageSend_InvalidParams_ReturnsInvalidParamsError()
     {
         // Arrange - Create invalid parameters (missing required fields)
         var invalidParams = new MessageSendParams
@@ -96,31 +101,30 @@ public class MessageSendMethodTests : TckTestBase
             }
         };
 
-        // Act & Assert
-        bool threwExpectedException = false;
-        try
+        // Act - Send via JSON-RPC
+        var response = await SendMessageViaJsonRpcAsync(invalidParams);
+
+        // Assert
+        bool hasExpectedError = response.Error != null &&
+                               response.Error.Code == (int)A2AErrorCode.InvalidParams;
+
+        if (hasExpectedError)
         {
-            await _taskManager.SendMessageAsync(invalidParams);
-            Output.WriteLine("No exception thrown - checking if implementation validates empty parts");
+            Output.WriteLine("? JSON-RPC correctly returned InvalidParams error for empty parts");
+            Output.WriteLine($"  Error code: {response.Error!.Code}");
+            Output.WriteLine($"  Error message: {response.Error.Message}");
         }
-        catch (A2AException ex) when (ex.ErrorCode == A2AErrorCode.InvalidParams)
+        else if (response.Error == null)
         {
-            threwExpectedException = true;
-            Output.WriteLine("? Correctly threw A2AException with InvalidParams error code");
+            Output.WriteLine("?? JSON-RPC accepted invalid parameters - implementation may be lenient");
         }
-        catch (ArgumentException)
+        else
         {
-            threwExpectedException = true;
-            Output.WriteLine("? Correctly threw ArgumentException for invalid parameters");
-        }
-        catch (Exception ex)
-        {
-            Output.WriteLine($"Unexpected exception type: {ex.GetType().Name}");
+            Output.WriteLine($"?? Unexpected error: {response.Error.Code} - {response.Error.Message}");
         }
 
         // For this test, we expect proper validation, but some implementations might be lenient
-        // The key is that they handle it appropriately, not necessarily that they throw
-        AssertTckCompliance(true, "Parameter validation behavior verified");
+        AssertTckCompliance(true, "JSON-RPC parameter validation behavior observed");
     }
 
     [Fact]
@@ -130,47 +134,45 @@ public class MessageSendMethodTests : TckTestBase
         FailureImpact = "Implementation is not A2A v0.3.0 compliant")]
     public async Task MessageSend_ContinueTask_UpdatesExistingTask()
     {
-        // Arrange - First create a task
+        // Arrange - First create a task via JSON-RPC
         var initialParams = new MessageSendParams
         {
             Message = CreateTestMessage()
         };
 
-        _taskManager.OnMessageReceived = (params_, _) =>
+        // Set up OnTaskCreated to set initial task state
+        ConfigureTaskManager(onTaskCreated: (task, _) =>
         {
-            return Task.FromResult<A2AResponse>(new AgentTask
-            {
-                Id = Guid.NewGuid().ToString(),
-                ContextId = Guid.NewGuid().ToString(),
-                Status = new AgentTaskStatus 
-                { 
-                    State = TaskState.InputRequired,
-                    Message = new AgentMessage
-                    {
-                        Role = MessageRole.Agent,
-                        Parts = [new TextPart { Text = "I need more information. What's your name?" }],
-                        MessageId = Guid.NewGuid().ToString()
-                    }
+            task.Status = task.Status with 
+            { 
+                State = TaskState.InputRequired,
+                Message = new AgentMessage
+                {
+                    Role = MessageRole.Agent,
+                    Parts = [new TextPart { Text = "I need more information. What's your name?" }],
+                    MessageId = Guid.NewGuid().ToString()
                 }
-            });
-        };
+            };
+            return Task.CompletedTask;
+        });
 
-        var initialResponse = await _taskManager.SendMessageAsync(initialParams) as AgentTask;
-        Assert.NotNull(initialResponse);
+        var initialResponse = await SendMessageViaJsonRpcAsync(initialParams);
+        var initialTask = initialResponse.Result?.Deserialize<AgentTask>();
+        Assert.NotNull(initialTask);
 
-        // Now continue the task
+        // Now continue the task via JSON-RPC
         var continuationParams = new MessageSendParams
         {
             Message = new AgentMessage
             {
                 Role = MessageRole.User,
-                TaskId = initialResponse.Id,
+                TaskId = initialTask.Id,
                 Parts = [new TextPart { Text = "My name is Alice." }],
                 MessageId = Guid.NewGuid().ToString()
             }
         };
 
-        _taskManager.OnTaskUpdated = (task, _) =>
+        ConfigureTaskManager(onTaskUpdated: (task, _) =>
         {
             task.Status = task.Status with 
             { 
@@ -183,24 +185,30 @@ public class MessageSendMethodTests : TckTestBase
                 }
             };
             return Task.CompletedTask;
-        };
+        });
 
-        // Act
-        var continuationResponse = await _taskManager.SendMessageAsync(continuationParams) as AgentTask;
+        // Act - Continue via JSON-RPC
+        var continuationResponse = await SendMessageViaJsonRpcAsync(continuationParams);
+        var continuationTask = continuationResponse.Result?.Deserialize<AgentTask>();
 
         // Assert
-        bool taskContinuationValid = continuationResponse != null &&
-                                    continuationResponse.Id == initialResponse.Id &&
-                                    continuationResponse.Status.State == TaskState.Completed;
+        bool taskContinuationValid = continuationResponse.Error == null &&
+                                    continuationTask != null &&
+                                    continuationTask.Id == initialTask.Id &&
+                                    continuationTask.Status.State == TaskState.Completed;
 
         if (taskContinuationValid)
         {
-            Output.WriteLine("? Task continuation successful");
-            Output.WriteLine($"  Task ID maintained: {continuationResponse!.Id}");
-            Output.WriteLine($"  Final state: {continuationResponse.Status.State}");
+            Output.WriteLine("? JSON-RPC task continuation successful");
+            Output.WriteLine($"  Task ID maintained: {continuationTask!.Id}");
+            Output.WriteLine($"  Final state: {continuationTask.Status.State}");
+        }
+        else if (continuationResponse.Error != null)
+        {
+            Output.WriteLine($"? JSON-RPC error: {continuationResponse.Error.Code} - {continuationResponse.Error.Message}");
         }
 
-        AssertTckCompliance(taskContinuationValid, "Task continuation must maintain task ID and update status");
+        AssertTckCompliance(taskContinuationValid, "JSON-RPC task continuation must maintain task ID and update status");
     }
 
     [Fact]
@@ -208,7 +216,7 @@ public class MessageSendMethodTests : TckTestBase
         Description = "A2A v0.3.0 §7.1 - Task Not Found Error",
         SpecSection = "A2A v0.3.0 §8.2",
         FailureImpact = "Critical - violates A2A error handling specification")]
-    public async Task MessageSend_NonExistentTask_ThrowsTaskNotFoundError()
+    public async Task MessageSend_NonExistentTask_ReturnsTaskNotFoundError()
     {
         // Arrange
         var nonExistentTaskParams = new MessageSendParams
@@ -222,25 +230,30 @@ public class MessageSendMethodTests : TckTestBase
             }
         };
 
-        // Act & Assert
-        bool threwCorrectException = false;
-        try
+        // Act - Send via JSON-RPC
+        var response = await SendMessageViaJsonRpcAsync(nonExistentTaskParams);
+
+        // Assert
+        bool hasCorrectError = response.Error != null &&
+                              response.Error.Code == (int)A2AErrorCode.TaskNotFound;
+
+        if (hasCorrectError)
         {
-            await _taskManager.SendMessageAsync(nonExistentTaskParams);
+            Output.WriteLine("? JSON-RPC correctly returned TaskNotFound error for non-existent task");
+            Output.WriteLine($"  Error code: {response.Error!.Code}");
+            Output.WriteLine($"  Error message: {response.Error.Message}");
         }
-        catch (A2AException ex) when (ex.ErrorCode == A2AErrorCode.TaskNotFound)
+        else if (response.Error != null)
         {
-            threwCorrectException = true;
-            Output.WriteLine("? Correctly threw TaskNotFound error for non-existent task");
+            Output.WriteLine($"? Unexpected error: {response.Error.Code} - {response.Error.Message}");
         }
-        catch (Exception ex)
+        else
         {
-            Output.WriteLine($"Unexpected exception: {ex.GetType().Name} - {ex.Message}");
+            Output.WriteLine("? Expected TaskNotFound error but got successful response");
         }
 
-        // This is marked as NonCompliant because not handling missing tasks properly is a serious violation
-        AssertTckCompliance(threwCorrectException, 
-            "Attempting to continue non-existent task must throw TaskNotFound error");
+        AssertTckCompliance(hasCorrectError, 
+            "JSON-RPC message/send for non-existent task must return TaskNotFound error (-32001)");
     }
 
     [Fact]
@@ -273,7 +286,7 @@ public class MessageSendMethodTests : TckTestBase
 
         var params_ = new MessageSendParams { Message = validMessage };
 
-        _taskManager.OnMessageReceived = (params_, _) =>
+        ConfigureTaskManager(onMessageReceived: (params_, _) =>
         {
             return Task.FromResult<A2AResponse>(new AgentMessage
             {
@@ -281,22 +294,26 @@ public class MessageSendMethodTests : TckTestBase
                 Parts = [new TextPart { Text = "Message received and processed." }],
                 MessageId = Guid.NewGuid().ToString()
             });
-        };
+        });
 
-        // Act
-        var response = await _taskManager.SendMessageAsync(params_);
+        // Act - Send via JSON-RPC
+        var response = await SendMessageViaJsonRpcAsync(params_);
 
         // Assert
-        bool messageProcessed = response != null;
+        bool messageProcessed = response.Error == null && response.Result != null;
         
         if (messageProcessed)
         {
-            Output.WriteLine("? Valid message structure accepted and processed");
+            Output.WriteLine("? Valid complex message structure accepted via JSON-RPC");
             Output.WriteLine($"  Original parts count: {validMessage.Parts.Count}");
-            Output.WriteLine($"  Response type: {response!.GetType().Name}");
+            Output.WriteLine("  Response received successfully");
+        }
+        else if (response.Error != null)
+        {
+            Output.WriteLine($"? JSON-RPC error: {response.Error.Code} - {response.Error.Message}");
         }
 
-        AssertTckCompliance(messageProcessed, "Valid message structure must be accepted");
+        AssertTckCompliance(messageProcessed, "JSON-RPC message/send must accept valid message structure");
     }
 
     [Fact]
@@ -327,7 +344,7 @@ public class MessageSendMethodTests : TckTestBase
 
         var params_ = new MessageSendParams { Message = messageWithFile };
 
-        _taskManager.OnMessageReceived = (params_, _) =>
+        ConfigureTaskManager(onMessageReceived: (params_, _) =>
         {
             return Task.FromResult<A2AResponse>(new AgentMessage
             {
@@ -335,31 +352,31 @@ public class MessageSendMethodTests : TckTestBase
                 Parts = [new TextPart { Text = "File received and analyzed." }],
                 MessageId = Guid.NewGuid().ToString()
             });
-        };
+        });
 
-        // Act & Assert
-        try
+        // Act - Send via JSON-RPC
+        var response = await SendMessageViaJsonRpcAsync(params_);
+
+        // Assert
+        if (response.Error == null && response.Result != null)
         {
-            var response = await _taskManager.SendMessageAsync(params_);
-            
-            bool fileSupported = response != null;
-            Output.WriteLine(fileSupported 
-                ? "? File parts are supported" 
-                : "?? File parts not supported (acceptable for basic implementation)");
-
-            // This is recommended, so we pass even if not supported
-            AssertTckCompliance(true, "File part support is recommended but not mandatory");
+            Output.WriteLine("? File parts are supported via JSON-RPC");
+            AssertTckCompliance(true, "File part support is recommended and working");
         }
-        catch (A2AException ex) when (ex.ErrorCode == A2AErrorCode.ContentTypeNotSupported)
+        else if (response.Error?.Code == (int)A2AErrorCode.ContentTypeNotSupported)
         {
-            Output.WriteLine("?? File parts not supported - returned ContentTypeNotSupported error");
+            Output.WriteLine("?? File parts not supported - returned ContentTypeNotSupported error via JSON-RPC");
             AssertTckCompliance(true, "Proper error handling for unsupported content types");
         }
-        catch (Exception ex)
+        else if (response.Error != null)
         {
-            Output.WriteLine($"Unexpected error handling file parts: {ex.Message}");
-            // Still pass as this is a recommendation
+            Output.WriteLine($"?? Unexpected error handling file parts: {response.Error.Code} - {response.Error.Message}");
             AssertTckCompliance(true, "File part handling attempted");
+        }
+        else
+        {
+            Output.WriteLine("?? File parts handling unclear - no error but no result");
+            AssertTckCompliance(true, "File part support is recommended but not mandatory");
         }
     }
 }

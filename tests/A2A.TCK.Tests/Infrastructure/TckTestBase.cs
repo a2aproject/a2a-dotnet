@@ -1,21 +1,14 @@
-﻿using System.Reflection;
+﻿using A2A.AspNetCore;
+using Microsoft.AspNetCore.Http;
+using System.Reflection;
 using Xunit.Abstractions;
 
 namespace A2A.TCK.Tests.Infrastructure;
 
-/// <summary>
-/// Base class for all TCK tests that handles compliance level evaluation.
-/// Tests will only fail if they hit "Non-compliant" status, otherwise they pass
-/// with appropriate output indicating the compliance level.
-/// </summary>
-public abstract class TckTestBase
+public abstract class TckTestBase(ITestOutputHelper output)
 {
-    protected readonly ITestOutputHelper Output;
-
-    protected TckTestBase(ITestOutputHelper output)
-    {
-        Output = output;
-    }
+    protected ITestOutputHelper Output { get; } = output;
+    protected readonly TaskManager _taskManager = new();
 
     /// <summary>
     /// Evaluates a test result based on TCK compliance levels.
@@ -27,7 +20,7 @@ public abstract class TckTestBase
     {
         var method = GetType().GetMethod(testMethod);
         var tckAttribute = method?.GetCustomAttribute<TckTestAttribute>();
-        
+
         if (tckAttribute == null)
         {
             // If no TCK attribute is found, treat as a regular test
@@ -52,7 +45,7 @@ public abstract class TckTestBase
         {
             // Test failed - only fail if it's marked as non-compliant
             var badge = GetComplianceBadge(complianceLevel);
-            
+
             if (complianceLevel == TckComplianceLevel.NonCompliant)
             {
                 Output.WriteLine($"❌ {badge} - {category}");
@@ -82,21 +75,27 @@ public abstract class TckTestBase
     /// <param name="message">Message to display</param>
     protected void AssertTckCompliance(bool condition, string message)
     {
-        if (!condition && !string.IsNullOrEmpty(message))
-        {
-            Output.WriteLine($"Test condition failed: {message}");
-        }
-        
+        Output.WriteLine(condition
+            ? $"✓ {message}"
+            : $"✗ Test condition failed: {message}");
+
+        // Let the TCK framework handle the compliance evaluation
         EvaluateTckCompliance(condition);
     }
 
-    private static string GetComplianceBadge(TckComplianceLevel level) => level switch
+    /// <summary>
+    /// Creates a test message for message/send tests.
+    /// </summary>
+    /// <param name="text">The text content for the message</param>
+    /// <returns>A test message with the specified text</returns>
+    protected static AgentMessage CreateTestMessage(string text = "Hello, this is a test message from the A2A TCK test suite.") => new()
     {
-        TckComplianceLevel.Mandatory => "🟢 Mandatory Compliant",
-        TckComplianceLevel.Recommended => "🟡 Recommended Feature",
-        TckComplianceLevel.FullFeatured => "🔵 Full Featured",
-        TckComplianceLevel.NonCompliant => "🔴 Non-Compliant",
-        _ => "⚫ Unknown Compliance Level"
+        Parts = new List<Part>
+        {
+            new TextPart { Text = text }
+        },
+        MessageId = Guid.NewGuid().ToString(),
+        Role = MessageRole.User
     };
 
     /// <summary>
@@ -123,17 +122,114 @@ public abstract class TckTestBase
     };
 
     /// <summary>
-    /// Helper method to create a test message for message/send tests.
+    /// Sends a JSON-RPC request through the A2A processor and returns the response.
     /// </summary>
-    /// <param name="text">The text content for the message</param>
-    /// <returns>A test message with the specified text</returns>
-    protected static AgentMessage CreateTestMessage(string text = "Hello, this is a test message from the A2A TCK test suite.") => new()
+    /// <param name="method">The JSON-RPC method name</param>
+    /// <param name="parameters">The parameters for the method</param>
+    /// <param name="requestId">Optional request ID (defaults to 1)</param>
+    /// <param name="cancellationToken">Optional cancellation token</param>
+    /// <returns>The JSON-RPC response</returns>
+    protected async Task<JsonRpcResponse> SendJsonRpcRequestAsync(string method, object parameters, int requestId = 1, CancellationToken cancellationToken = default)
     {
-        Parts = new List<Part>
+        // Create JSON-RPC request
+        var request = new JsonRpcRequest
         {
-            new TextPart { Text = text }
-        },
-        MessageId = Guid.NewGuid().ToString(),
-        Role = MessageRole.User
+            JsonRpc = "2.0",
+            Method = method,
+            Params = JsonSerializer.SerializeToElement(parameters),
+            Id = requestId
+        };
+
+        // Simulate HTTP request body
+        var requestBody = JsonSerializer.Serialize(request);
+        var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(requestBody));
+
+        var httpRequest = new DefaultHttpContext().Request;
+        httpRequest.Body = stream;
+        httpRequest.ContentType = "application/json";
+
+        // Process through JSON-RPC processor with cancellation token
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(_taskManager, httpRequest, cancellationToken);
+
+        // Execute the result to get the actual response
+        var context = new DefaultHttpContext();
+        var responseStream = new MemoryStream();
+        context.Response.Body = responseStream;
+
+        if (result is JsonRpcResponseResult responseResult)
+        {
+            await responseResult.ExecuteAsync(context);
+            responseStream.Position = 0;
+
+            var responseJson = await new StreamReader(responseStream).ReadToEndAsync();
+            var response = JsonSerializer.Deserialize<JsonRpcResponse>(responseJson);
+
+            return response ?? throw new InvalidOperationException("Failed to deserialize JSON-RPC response");
+        }
+
+        throw new InvalidOperationException($"Unexpected result type: {result.GetType().Name}");
+    }
+
+    /// <summary>
+    /// Sends a message/send JSON-RPC request and returns the response.
+    /// </summary>
+    /// <param name="messageSendParams">The message send parameters</param>
+    /// <param name="cancellationToken">Optional cancellation token</param>
+    /// <returns>The JSON-RPC response containing the A2A response</returns>
+    protected async Task<JsonRpcResponse> SendMessageViaJsonRpcAsync(MessageSendParams messageSendParams, CancellationToken cancellationToken = default)
+    {
+        return await SendJsonRpcRequestAsync(A2AMethods.MessageSend, messageSendParams, cancellationToken: cancellationToken);
+    }
+
+    /// <summary>
+    /// Sends a tasks/get JSON-RPC request and returns the response.
+    /// </summary>
+    /// <param name="taskQueryParams">The task query parameters</param>
+    /// <param name="cancellationToken">Optional cancellation token</param>
+    /// <returns>The JSON-RPC response containing the task or error</returns>
+    protected async Task<JsonRpcResponse> GetTaskViaJsonRpcAsync(TaskQueryParams taskQueryParams, CancellationToken cancellationToken = default)
+    {
+        return await SendJsonRpcRequestAsync(A2AMethods.TaskGet, taskQueryParams, cancellationToken: cancellationToken);
+    }
+
+    /// <summary>
+    /// Sends a tasks/cancel JSON-RPC request and returns the response.
+    /// </summary>
+    /// <param name="taskIdParams">The task ID parameters</param>
+    /// <param name="cancellationToken">Optional cancellation token</param>
+    /// <returns>The JSON-RPC response containing the cancelled task or error</returns>
+    protected async Task<JsonRpcResponse> CancelTaskViaJsonRpcAsync(TaskIdParams taskIdParams, CancellationToken cancellationToken = default)
+    {
+        return await SendJsonRpcRequestAsync(A2AMethods.TaskCancel, taskIdParams, cancellationToken: cancellationToken);
+    }
+
+    /// <summary>
+    /// Configures the task manager with message handlers for testing.
+    /// </summary>
+    /// <param name="onMessageReceived">Handler for received messages</param>
+    /// <param name="onTaskCreated">Handler for created tasks</param>
+    /// <param name="onTaskUpdated">Handler for updated tasks</param>
+    protected void ConfigureTaskManager(
+        Func<MessageSendParams, CancellationToken, Task<A2AResponse>>? onMessageReceived = null,
+        Func<AgentTask, CancellationToken, Task>? onTaskCreated = null,
+        Func<AgentTask, CancellationToken, Task>? onTaskUpdated = null)
+    {
+        if (onMessageReceived != null)
+            _taskManager.OnMessageReceived = onMessageReceived;
+
+        if (onTaskCreated != null)
+            _taskManager.OnTaskCreated = onTaskCreated;
+
+        if (onTaskUpdated != null)
+            _taskManager.OnTaskUpdated = onTaskUpdated;
+    }
+
+    private static string GetComplianceBadge(TckComplianceLevel level) => level switch
+    {
+        TckComplianceLevel.Mandatory => "🟢 Mandatory Compliant",
+        TckComplianceLevel.Recommended => "🟡 Recommended Feature",
+        TckComplianceLevel.FullFeatured => "🔵 Full Featured",
+        TckComplianceLevel.NonCompliant => "🔴 Non-Compliant",
+        _ => "⚫ Unknown Compliance Level"
     };
 }
