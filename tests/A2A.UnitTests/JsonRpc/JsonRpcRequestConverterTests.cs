@@ -21,16 +21,23 @@ public class JsonRpcRequestConverterTests
         // Arrange
         var json = """
         {
-            "jsonrpc": "2.0",
-            "id": "test-id",
-            "method": "message/send",
-            "params": {
-                "message": {
-                    "messageId": "msg-1",
-                    "role": "user",
-                    "parts": []
+        "jsonrpc": "2.0",
+        "id": "134e955d-5a01-4498-baca-949361e0c2ae",
+        "method": "message/send",
+        "params": {
+            "message": {
+            "kind": "message",
+            "role": "user",
+            "parts": [
+                {
+                "kind": "text",
+                "text": "Get job postings"
                 }
-            }
+            ],
+            "messageId": "134e955d-5a01-4498-baca-949361e0c2ae"
+            },
+            "metadata": {}
+        }
         }
         """;
 
@@ -41,10 +48,43 @@ public class JsonRpcRequestConverterTests
         Assert.NotNull(result);
         Assert.Equal("2.0", result.JsonRpc);
         Assert.True(result.Id.IsString);
-        Assert.Equal("test-id", result.Id.AsString());
+        Assert.Equal("134e955d-5a01-4498-baca-949361e0c2ae", result.Id.AsString());
         Assert.Equal("message/send", result.Method);
         Assert.True(result.Params.HasValue);
         Assert.True(result.Params.Value.TryGetProperty("message", out _));
+    }
+
+    [Fact]
+    public void Read_ValidJsonRpcResponse_WithAllFields_ReturnsRequest()
+    {
+        // Arrange
+        var json = """
+        {
+        "jsonrpc": "2.0",
+        "id": "134e955d-5a01-4498-baca-949361e0c2ae",
+        "result": {
+            "id": "08584439971807994421904196200_08584439971807986257040465574CU00",
+            "contextId": "08584439971807986257040465574CU00",
+            "status": {
+            "state": "submitted",
+            "timestamp": "9/11/2025 4:55:04 PM"
+            },
+            "kind": "task"
+        }
+        }
+        """;
+
+        // Act
+        var result = JsonSerializer.Deserialize<JsonRpcResponse>(json, _options);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("2.0", result.JsonRpc);
+        Assert.True(result.Id.IsString);
+        Assert.Equal("134e955d-5a01-4498-baca-949361e0c2ae", result.Id.AsString());
+        // Assert.Equal("message/send", result.Method);
+        // Assert.True(result.Params.HasValue);
+        // Assert.True(result.Params.Value.TryGetProperty("message", out _));
     }
 
     [Fact]

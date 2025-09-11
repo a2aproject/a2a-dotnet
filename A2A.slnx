@@ -30,6 +30,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/A2A.AspNetCore.UnitTests/A2A.AspNetCore.UnitTests.csproj" />
+    <Project Path="tests/A2A.TCK.Tests/A2A.TCK.Tests.csproj" />
     <Project Path="tests/A2A.UnitTests/A2A.UnitTests.csproj" />
   </Folder>
 </Solution>
