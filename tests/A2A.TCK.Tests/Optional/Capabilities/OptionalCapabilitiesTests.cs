@@ -1,4 +1,4 @@
-using Xunit.Abstractions;
+﻿using Xunit.Abstractions;
 using A2A.TCK.Tests.Infrastructure;
 
 namespace A2A.TCK.Tests.Optional.Capabilities;
@@ -13,8 +13,8 @@ public class OptionalCapabilitiesTests : TckTestBase
 
     [Fact]
     [TckTest(TckComplianceLevel.FullFeatured, TckCategories.OptionalCapabilities,
-        Description = "A2A v0.3.0 �7.2 - Basic Message Sending via JSON-RPC",
-        SpecSection = "A2A v0.3.0 �7.1",
+        Description = "A2A v0.3.0 §7.2 - Basic Message Sending via JSON-RPC",
+        SpecSection = "A2A v0.3.0 §7.1",
         FailureImpact = "Core JSON-RPC functionality validation")]
     public async Task MessageSend_ViaJsonRpc_WorksCorrectly()
     {
@@ -38,17 +38,17 @@ public class OptionalCapabilitiesTests : TckTestBase
         var response = await SendMessageViaJsonRpcAsync(messageSendParams);
 
         // Assert
-        bool jsonRpcWorked = response.Error == null && response.Result != null;
+        bool jsonRpcWorked = response.Error is null && response.Result != null;
         
         if (jsonRpcWorked)
         {
             var message = response.Result?.Deserialize<AgentMessage>();
-            Output.WriteLine("? JSON-RPC message/send functionality is working");
+            Output.WriteLine("✓ JSON-RPC message/send functionality is working");
             Output.WriteLine($"  Response: {message?.Parts[0].AsTextPart().Text}");
         }
         else if (response.Error != null)
         {
-            Output.WriteLine($"? JSON-RPC error: {response.Error.Code} - {response.Error.Message}");
+            Output.WriteLine($"✗ JSON-RPC error: {response.Error.Code} - {response.Error.Message}");
         }
 
         AssertTckCompliance(jsonRpcWorked, "JSON-RPC message/send must work correctly");
@@ -56,8 +56,8 @@ public class OptionalCapabilitiesTests : TckTestBase
 
     [Fact]
     [TckTest(TckComplianceLevel.FullFeatured, TckCategories.OptionalCapabilities,
-        Description = "A2A v0.3.0 �7.3 - Task Management via JSON-RPC",
-        SpecSection = "A2A v0.3.0 �7.3",
+        Description = "A2A v0.3.0 §7.3 - Task Management via JSON-RPC",
+        SpecSection = "A2A v0.3.0 §7.3",
         FailureImpact = "Enhanced task lifecycle management")]
     public async Task TaskManagement_ViaJsonRpc_WorksCorrectly()
     {
@@ -75,19 +75,19 @@ public class OptionalCapabilitiesTests : TckTestBase
         var getResponse = await GetTaskViaJsonRpcAsync(new TaskQueryParams { Id = task.Id });
 
         // Assert
-        bool taskManagementWorked = getResponse.Error == null && getResponse.Result != null;
+        bool taskManagementWorked = getResponse.Error is null && getResponse.Result != null;
         
         if (taskManagementWorked)
         {
             var retrievedTask = getResponse.Result?.Deserialize<AgentTask>();
-            Output.WriteLine("? JSON-RPC task management is working");
+            Output.WriteLine("✓ JSON-RPC task management is working");
             Output.WriteLine($"  Created task ID: {task.Id}");
             Output.WriteLine($"  Retrieved task ID: {retrievedTask?.Id}");
             Output.WriteLine($"  Task status: {retrievedTask?.Status.State}");
         }
         else if (getResponse.Error != null)
         {
-            Output.WriteLine($"? JSON-RPC task management error: {getResponse.Error.Code} - {getResponse.Error.Message}");
+            Output.WriteLine($"✗ JSON-RPC task management error: {getResponse.Error.Code} - {getResponse.Error.Message}");
         }
 
         AssertTckCompliance(taskManagementWorked, "JSON-RPC task management must work correctly");
@@ -95,8 +95,8 @@ public class OptionalCapabilitiesTests : TckTestBase
 
     [Fact]
     [TckTest(TckComplianceLevel.FullFeatured, TckCategories.OptionalCapabilities,
-        Description = "A2A v0.3.0 �7.4 - Task Cancellation via JSON-RPC",
-        SpecSection = "A2A v0.3.0 �7.4",
+        Description = "A2A v0.3.0 §7.4 - Task Cancellation via JSON-RPC",
+        SpecSection = "A2A v0.3.0 §7.4",
         FailureImpact = "Enhanced task lifecycle control")]
     public async Task TaskCancellation_ViaJsonRpc_WorksCorrectly()
     {
@@ -114,18 +114,18 @@ public class OptionalCapabilitiesTests : TckTestBase
         var cancelResponse = await CancelTaskViaJsonRpcAsync(new TaskIdParams { Id = task.Id });
 
         // Assert
-        bool cancellationWorked = cancelResponse.Error == null && cancelResponse.Result != null;
+        bool cancellationWorked = cancelResponse.Error is null && cancelResponse.Result != null;
         
         if (cancellationWorked)
         {
             var cancelledTask = cancelResponse.Result?.Deserialize<AgentTask>();
-            Output.WriteLine("? JSON-RPC task cancellation is working");
+            Output.WriteLine("✓ JSON-RPC task cancellation is working");
             Output.WriteLine($"  Cancelled task ID: {cancelledTask?.Id}");
             Output.WriteLine($"  Final status: {cancelledTask?.Status.State}");
         }
         else if (cancelResponse.Error != null)
         {
-            Output.WriteLine($"? JSON-RPC cancellation error: {cancelResponse.Error.Code} - {cancelResponse.Error.Message}");
+            Output.WriteLine($"✗ JSON-RPC cancellation error: {cancelResponse.Error.Code} - {cancelResponse.Error.Message}");
         }
 
         AssertTckCompliance(cancellationWorked, "JSON-RPC task cancellation must work correctly");
@@ -133,8 +133,8 @@ public class OptionalCapabilitiesTests : TckTestBase
 
     [Fact]
     [TckTest(TckComplianceLevel.Recommended, TckCategories.OptionalCapabilities,
-        Description = "A2A v0.3.0 �5.5.2 - Agent Capabilities Declaration",
-        SpecSection = "A2A v0.3.0 �5.5.2",
+        Description = "A2A v0.3.0 §5.5.2 - Agent Capabilities Declaration",
+        SpecSection = "A2A v0.3.0 §5.5.2",
         FailureImpact = "Clients cannot discover advanced features")]
     public void AgentCard_Capabilities_AreCorrectlyDeclared()
     {
@@ -146,7 +146,7 @@ public class OptionalCapabilitiesTests : TckTestBase
 
         if (hasCapabilities)
         {
-            Output.WriteLine("? Agent capabilities are declared");
+            Output.WriteLine("✓ Agent capabilities are declared");
             Output.WriteLine($"  Streaming: {agentCard.Capabilities!.Streaming}");
             Output.WriteLine($"  Push notifications: {agentCard.Capabilities.PushNotifications}");
             Output.WriteLine($"  State transition history: {agentCard.Capabilities.StateTransitionHistory}");
@@ -160,12 +160,12 @@ public class OptionalCapabilitiesTests : TckTestBase
             
             if (capabilitiesConsistent)
             {
-                Output.WriteLine("? Declared capabilities appear consistent");
+                Output.WriteLine("✓ Declared capabilities appear consistent");
             }
         }
         else
         {
-            Output.WriteLine("?? No capabilities declared - defaults will be assumed");
+            Output.WriteLine("⚠️ No capabilities declared - defaults will be assumed");
         }
 
         // This is recommended for discoverability
@@ -175,7 +175,7 @@ public class OptionalCapabilitiesTests : TckTestBase
     [Fact]
     [TckTest(TckComplianceLevel.FullFeatured, TckCategories.OptionalCapabilities,
         Description = "A2A v0.3.0 - JSON-RPC Error Handling",
-        SpecSection = "A2A v0.3.0 �8.2",
+        SpecSection = "A2A v0.3.0 §8.2",
         FailureImpact = "Poor error messaging for invalid requests")]
     public async Task JsonRpc_ErrorHandling_ReturnsAppropriateErrors()
     {
@@ -200,13 +200,13 @@ public class OptionalCapabilitiesTests : TckTestBase
         // Assert
         if (hasInvalidParamsError)
         {
-            Output.WriteLine("? JSON-RPC correctly handles invalid parameters");
+            Output.WriteLine("✓ JSON-RPC correctly handles invalid parameters");
             Output.WriteLine($"  Error code: {invalidResponse.Error!.Code}");
         }
         
         if (hasTaskNotFoundError)
         {
-            Output.WriteLine("? JSON-RPC correctly handles non-existent tasks");
+            Output.WriteLine("✓ JSON-RPC correctly handles non-existent tasks");
             Output.WriteLine($"  Error code: {nonExistentResponse.Error!.Code}");
         }
 
@@ -255,21 +255,21 @@ public class OptionalCapabilitiesTests : TckTestBase
         var response = await SendMessageViaJsonRpcAsync(params_);
 
         // Assert
-        bool complexMessageHandled = response.Error == null && response.Result != null;
+        bool complexMessageHandled = response.Error is null && response.Result != null;
         
         if (complexMessageHandled)
         {
             var message = response.Result?.Deserialize<AgentMessage>();
-            Output.WriteLine("? Complex message types handled via JSON-RPC");
+            Output.WriteLine("✓ Complex message types handled via JSON-RPC");
             Output.WriteLine($"  Response: {message?.Parts[0].AsTextPart().Text}");
         }
         else if (response.Error?.Code == (int)A2AErrorCode.ContentTypeNotSupported)
         {
-            Output.WriteLine("?? Some complex message types not supported - this is acceptable");
+            Output.WriteLine("⚠️ Some complex message types not supported - this is acceptable");
         }
         else if (response.Error != null)
         {
-            Output.WriteLine($"? JSON-RPC error: {response.Error.Code} - {response.Error.Message}");
+            Output.WriteLine($"✗ JSON-RPC error: {response.Error.Code} - {response.Error.Message}");
         }
 
         // Complex message handling is recommended but not mandatory

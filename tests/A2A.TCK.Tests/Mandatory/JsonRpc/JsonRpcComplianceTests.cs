@@ -232,12 +232,12 @@ public class JsonRpcComplianceTests : TckTestBase
         bool successResponseValid = successResponse.JsonRpc == "2.0" &&
                                    successResponse.Id.Equals(new JsonRpcId(1)) &&
                                    successResponse.Result != null &&
-                                   successResponse.Error == null;
+                                   successResponse.Error is null;
 
         bool errorResponseValid = errorResponse.JsonRpc == "2.0" &&
                                  errorResponse.Id.Equals(new JsonRpcId(1)) &&
                                  errorResponse.Error != null &&
-                                 errorResponse.Result == null;
+                                 errorResponse.Result is null;
 
         var bothValid = successResponseValid && errorResponseValid;
 

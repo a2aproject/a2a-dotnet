@@ -1,4 +1,4 @@
-using Xunit.Abstractions;
+﻿using Xunit.Abstractions;
 using A2A.TCK.Tests.Infrastructure;
 using System.Diagnostics;
 
@@ -43,21 +43,21 @@ public class QualityTests : TckTestBase
         // Assert
         var latencyMs = stopwatch.ElapsedMilliseconds;
         bool reasonableLatency = latencyMs < 5000; // 5 second threshold for simple message
-        bool validResponse = response.Error == null && response.Result != null;
+        bool validResponse = response.Error is null && response.Result != null;
 
         Output.WriteLine($"JSON-RPC message processing latency: {latencyMs}ms");
         
         if (validResponse && reasonableLatency)
         {
-            Output.WriteLine("? JSON-RPC message processing latency is acceptable");
+            Output.WriteLine("✓ JSON-RPC message processing latency is acceptable");
         }
         else if (!validResponse)
         {
-            Output.WriteLine($"? JSON-RPC error: {response.Error?.Code} - {response.Error?.Message}");
+            Output.WriteLine($"✗ JSON-RPC error: {response.Error?.Code} - {response.Error?.Message}");
         }
         else
         {
-            Output.WriteLine("?? JSON-RPC message processing latency is high - may impact user experience");
+            Output.WriteLine("⚠️ JSON-RPC message processing latency is high - may impact user experience");
         }
 
         // This is a quality recommendation
@@ -109,7 +109,7 @@ public class QualityTests : TckTestBase
 
         // Assert
         bool allCompleted = responses.Length == concurrentRequests && 
-                           responses.All(r => r.Error == null && r.Result != null);
+                           responses.All(r => r.Error is null && r.Result != null);
         
         var totalTimeMs = stopwatch.ElapsedMilliseconds;
         bool reasonableConcurrency = totalTimeMs < (concurrentRequests * 150); // Allow some overhead
@@ -119,16 +119,16 @@ public class QualityTests : TckTestBase
         
         if (allCompleted && reasonableConcurrency)
         {
-            Output.WriteLine("? Concurrent JSON-RPC request handling is efficient");
+            Output.WriteLine("✓ Concurrent JSON-RPC request handling is efficient");
         }
         else if (!allCompleted)
         {
             var failedCount = responses.Count(r => r.Error != null);
-            Output.WriteLine($"?? {failedCount} JSON-RPC requests failed out of {concurrentRequests}");
+            Output.WriteLine($"⚠️ {failedCount} JSON-RPC requests failed out of {concurrentRequests}");
         }
         else
         {
-            Output.WriteLine("?? Concurrent JSON-RPC request handling may need optimization");
+            Output.WriteLine("⚠️ Concurrent JSON-RPC request handling may need optimization");
         }
 
         AssertTckCompliance(allCompleted, $"JSON-RPC concurrency test: {concurrentRequests} requests in {totalTimeMs}ms");
@@ -162,17 +162,17 @@ public class QualityTests : TckTestBase
         {
             if (response.Error!.Code == (int)A2AErrorCode.InternalError)
             {
-                Output.WriteLine("? Exception properly converted to JSON-RPC InternalError");
+                Output.WriteLine("✓ Exception properly converted to JSON-RPC InternalError");
             }
             else
             {
-                Output.WriteLine($"? Exception handled via JSON-RPC error: {response.Error.Code}");
+                Output.WriteLine($"✓ Exception handled via JSON-RPC error: {response.Error.Code}");
             }
             Output.WriteLine($"  Error message: {response.Error.Message}");
         }
         else
         {
-            Output.WriteLine("?? Exception did not result in JSON-RPC error response");
+            Output.WriteLine("⚠️ Exception did not result in JSON-RPC error response");
         }
 
         AssertTckCompliance(handledGracefully, "JSON-RPC error handling must return proper error responses");
@@ -216,7 +216,7 @@ public class QualityTests : TckTestBase
             // Verify response is valid
             if (response.Error != null)
             {
-                Output.WriteLine($"?? JSON-RPC error in iteration {i}: {response.Error.Code}");
+                Output.WriteLine($"⚠️ JSON-RPC error in iteration {i}: {response.Error.Code}");
                 break;
             }
             
@@ -247,11 +247,11 @@ public class QualityTests : TckTestBase
         
         if (reasonableMemoryUsage)
         {
-            Output.WriteLine("? JSON-RPC memory usage appears reasonable");
+            Output.WriteLine("✓ JSON-RPC memory usage appears reasonable");
         }
         else
         {
-            Output.WriteLine("?? Significant memory increase observed - may indicate memory leak");
+            Output.WriteLine("⚠️ Significant memory increase observed - may indicate memory leak");
         }
 
         // This is a quality test, so we pass regardless
@@ -292,14 +292,14 @@ public class QualityTests : TckTestBase
         stopwatch.Stop();
 
         // Assert
-        if (response.Error == null && response.Result != null)
+        if (response.Error is null && response.Result != null)
         {
-            Output.WriteLine($"? Large message processed successfully via JSON-RPC in {stopwatch.ElapsedMilliseconds}ms");
+            Output.WriteLine($"✓ Large message processed successfully via JSON-RPC in {stopwatch.ElapsedMilliseconds}ms");
             Output.WriteLine($"Message size: {largeText.Length:N0} characters");
         }
         else if (response.Error != null)
         {
-            Output.WriteLine($"?? Large message rejected via JSON-RPC: {response.Error.Code} - this may be appropriate");
+            Output.WriteLine($"⚠️ Large message rejected via JSON-RPC: {response.Error.Code} - this may be appropriate");
             Output.WriteLine($"  Error message: {response.Error.Message}");
         }
 
@@ -348,26 +348,26 @@ public class QualityTests : TckTestBase
             response = await SendMessageViaJsonRpcAsync(messageSendParams, cts.Token);
             stopwatch.Stop();
             
-            if (response.Error == null)
+            if (response.Error is null)
             {
-                Output.WriteLine($"? Long operation completed via JSON-RPC in {stopwatch.ElapsedMilliseconds}ms");
+                Output.WriteLine($"✓ Long operation completed via JSON-RPC in {stopwatch.ElapsedMilliseconds}ms");
             }
             else
             {
-                Output.WriteLine($"? Long operation returned JSON-RPC error: {response.Error.Code}");
+                Output.WriteLine($"✓ Long operation returned JSON-RPC error: {response.Error.Code}");
             }
             completedOrTimedOut = true;
         }
         catch (OperationCanceledException)
         {
             stopwatch.Stop();
-            Output.WriteLine($"? Long operation correctly timed out after {stopwatch.ElapsedMilliseconds}ms");
+            Output.WriteLine($"✓ Long operation correctly timed out after {stopwatch.ElapsedMilliseconds}ms");
             completedOrTimedOut = true;
         }
         catch (Exception ex)
         {
             stopwatch.Stop();
-            Output.WriteLine($"?? Unexpected error during timeout test: {ex.GetType().Name}");
+            Output.WriteLine($"⚠️ Unexpected error during timeout test: {ex.GetType().Name}");
         }
 
         // Assert

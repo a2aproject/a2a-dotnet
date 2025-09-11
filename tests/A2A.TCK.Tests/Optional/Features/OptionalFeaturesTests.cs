@@ -1,4 +1,4 @@
-using Xunit.Abstractions;
+﻿using Xunit.Abstractions;
 using A2A.TCK.Tests.Infrastructure;
 using System.Text.Json;
 
@@ -63,21 +63,21 @@ public class OptionalFeaturesTests : TckTestBase
         var response = await SendMessageViaJsonRpcAsync(params_);
 
         // Assert
-        if (response.Error == null && response.Result != null)
+        if (response.Error is null && response.Result != null)
         {
             var message = response.Result.Deserialize<AgentMessage>();
-            Output.WriteLine("? Multi-modal message processed successfully via JSON-RPC");
+            Output.WriteLine("✓ Multi-modal message processed successfully via JSON-RPC");
             Output.WriteLine($"  Response: {message?.Parts[0].AsTextPart().Text}");
             AssertTckCompliance(true, "JSON-RPC multi-modal content support is working");
         }
         else if (response.Error?.Code == (int)A2AErrorCode.ContentTypeNotSupported)
         {
-            Output.WriteLine("?? Some content types not supported via JSON-RPC - this is acceptable");
+            Output.WriteLine("⚠️ Some content types not supported via JSON-RPC - this is acceptable");
             AssertTckCompliance(true, "JSON-RPC content type limitations are acceptable for basic implementations");
         }
         else if (response.Error != null)
         {
-            Output.WriteLine($"?? JSON-RPC error processing multi-modal content: {response.Error.Code} - {response.Error.Message}");
+            Output.WriteLine($"⚠️ JSON-RPC error processing multi-modal content: {response.Error.Code} - {response.Error.Message}");
             AssertTckCompliance(true, "JSON-RPC multi-modal content handling attempted");
         }
     }
@@ -204,14 +204,14 @@ public class OptionalFeaturesTests : TckTestBase
 
         if (contextMaintained)
         {
-            Output.WriteLine("? Context maintained across tasks via JSON-RPC");
+            Output.WriteLine("✓ Context maintained across tasks via JSON-RPC");
             Output.WriteLine($"  Context ID: {firstTask.ContextId}");
             Output.WriteLine($"  First task ID: {firstTask.Id}");
             Output.WriteLine($"  Second task ID: {secondTask.Id}");
         }
         else
         {
-            Output.WriteLine("?? Context management not implemented - tasks are independent");
+            Output.WriteLine("⚠️ Context management not implemented - tasks are independent");
         }
 
         // Context management is recommended but not required
@@ -279,17 +279,17 @@ public class OptionalFeaturesTests : TckTestBase
         var response = await SendMessageViaJsonRpcAsync(params_);
 
         // Assert
-        bool responseReceived = response.Error == null && response.Result != null;
+        bool responseReceived = response.Error is null && response.Result != null;
         
         if (responseReceived)
         {
             var message = response.Result?.Deserialize<AgentMessage>();
             bool responseHasMetadata = message?.Metadata?.Count > 0;
 
-            Output.WriteLine("? Message with metadata processed via JSON-RPC");
+            Output.WriteLine("✓ Message with metadata processed via JSON-RPC");
             if (responseHasMetadata)
             {
-                Output.WriteLine("? Response includes metadata");
+                Output.WriteLine("✓ Response includes metadata");
                 foreach (var kvp in message!.Metadata!)
                 {
                     Output.WriteLine($"  {kvp.Key}: {kvp.Value}");
@@ -301,7 +301,7 @@ public class OptionalFeaturesTests : TckTestBase
         }
         else if (response.Error != null)
         {
-            Output.WriteLine($"? JSON-RPC error: {response.Error.Code} - {response.Error.Message}");
+            Output.WriteLine($"✗ JSON-RPC error: {response.Error.Code} - {response.Error.Message}");
         }
 
         AssertTckCompliance(responseReceived, "JSON-RPC metadata preservation enhances context passing");
@@ -334,7 +334,7 @@ public class OptionalFeaturesTests : TckTestBase
             new AgentMessage
             {
                 Role = MessageRole.User,
-                Parts = [new TextPart { Text = "Special chars: <script>alert('test')</script> & �?��" }],
+                Parts = [new TextPart { Text = "Special chars: <script>alert('test')</script> & €?†®" }],
                 MessageId = Guid.NewGuid().ToString()
             }
         };
@@ -358,15 +358,15 @@ public class OptionalFeaturesTests : TckTestBase
             var params_ = new MessageSendParams { Message = edgeCase };
             var response = await SendMessageViaJsonRpcAsync(params_);
             
-            if (response.Error == null && response.Result != null)
+            if (response.Error is null && response.Result != null)
             {
                 successfullyHandled++;
-                Output.WriteLine($"? Edge case {index + 1} handled successfully via JSON-RPC");
+                Output.WriteLine($"✓ Edge case {index + 1} handled successfully via JSON-RPC");
             }
             else if (response.Error != null)
             {
                 appropriatelyRejected++;
-                Output.WriteLine($"? Edge case {index + 1} appropriately rejected via JSON-RPC: {response.Error.Code}");
+                Output.WriteLine($"✓ Edge case {index + 1} appropriately rejected via JSON-RPC: {response.Error.Code}");
             }
         }
 

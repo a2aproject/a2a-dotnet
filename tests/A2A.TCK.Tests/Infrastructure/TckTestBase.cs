@@ -21,7 +21,7 @@ public abstract class TckTestBase(ITestOutputHelper output)
         var method = GetType().GetMethod(testMethod);
         var tckAttribute = method?.GetCustomAttribute<TckTestAttribute>();
 
-        if (tckAttribute == null)
+        if (tckAttribute is null)
         {
             // If no TCK attribute is found, treat as a regular test
             Assert.True(testPassed, $"Test {testMethod} failed");

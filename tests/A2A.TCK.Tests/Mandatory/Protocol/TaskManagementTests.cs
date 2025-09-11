@@ -1,4 +1,4 @@
-using Xunit.Abstractions;
+﻿using Xunit.Abstractions;
 using A2A.TCK.Tests.Infrastructure;
 using A2A.AspNetCore;
 using Microsoft.AspNetCore.Http;
@@ -17,8 +17,8 @@ public class TaskManagementTests : TckTestBase
 
     [Fact]
     [TckTest(TckComplianceLevel.Mandatory, TckCategories.MandatoryProtocol,
-        Description = "A2A v0.3.0 �7.3 - Task Retrieval",
-        SpecSection = "A2A v0.3.0 �7.3",
+        Description = "A2A v0.3.0 §7.3 - Task Retrieval",
+        SpecSection = "A2A v0.3.0 §7.3",
         FailureImpact = "Implementation is not A2A v0.3.0 compliant")]
     public async Task TasksGet_ExistingTask_ReturnsValidTask()
     {
@@ -98,11 +98,11 @@ public class TaskManagementTests : TckTestBase
         bool taskRetrievalValid = retrievedTask != null &&
                                  retrievedTask.Id == initialTask.Id &&
                                  retrievedTask.ContextId == initialTask.ContextId &&
-                                 getResponse?.Error == null;
+                                 getResponse?.Error is null;
 
         if (taskRetrievalValid)
         {
-            Output.WriteLine("? JSON-RPC task retrieval successful");
+            Output.WriteLine("✓ JSON-RPC task retrieval successful");
             Output.WriteLine($"  Task ID: {retrievedTask!.Id}");
             Output.WriteLine($"  Context ID: {retrievedTask.ContextId}");
             Output.WriteLine($"  Status: {retrievedTask.Status.State}");
@@ -110,7 +110,7 @@ public class TaskManagementTests : TckTestBase
         }
         else
         {
-            Output.WriteLine($"? Task retrieval failed. Response: {getResponseJson}");
+            Output.WriteLine($"✗ Task retrieval failed. Response: {getResponseJson}");
         }
 
         AssertTckCompliance(taskRetrievalValid, "JSON-RPC tasks/get must return valid task structure");
@@ -118,8 +118,8 @@ public class TaskManagementTests : TckTestBase
 
     [Fact]
     [TckTest(TckComplianceLevel.NonCompliant, TckCategories.MandatoryProtocol,
-        Description = "A2A v0.3.0 �7.3 - Task Not Found Error",
-        SpecSection = "A2A v0.3.0 �8.2",
+        Description = "A2A v0.3.0 §7.3 - Task Not Found Error",
+        SpecSection = "A2A v0.3.0 §8.2",
         FailureImpact = "Critical - violates A2A error handling specification")]
     public async Task TasksGet_NonExistentTask_ThrowsTaskNotFoundError()
     {
@@ -167,13 +167,13 @@ public class TaskManagementTests : TckTestBase
 
         if (hasCorrectError)
         {
-            Output.WriteLine("? JSON-RPC returned correct TaskNotFound error");
+            Output.WriteLine("✓ JSON-RPC returned correct TaskNotFound error");
             Output.WriteLine($"  Error code: {response!.Error!.Code}");
             Output.WriteLine($"  Error message: {response.Error.Message}");
         }
         else
         {
-            Output.WriteLine($"? Unexpected response: {responseJson}");
+            Output.WriteLine($"✗ Unexpected response: {responseJson}");
         }
 
         AssertTckCompliance(hasCorrectError, 
@@ -182,8 +182,8 @@ public class TaskManagementTests : TckTestBase
 
     [Fact]
     [TckTest(TckComplianceLevel.Mandatory, TckCategories.MandatoryProtocol,
-        Description = "A2A v0.3.0 �7.4 - Task Cancellation",
-        SpecSection = "A2A v0.3.0 �7.4",
+        Description = "A2A v0.3.0 §7.4 - Task Cancellation",
+        SpecSection = "A2A v0.3.0 §7.4",
         FailureImpact = "Implementation is not A2A v0.3.0 compliant")]
     public async Task TasksCancel_CancelableTask_ReturnsCanceledTask()
     {
@@ -206,7 +206,7 @@ public class TaskManagementTests : TckTestBase
         var cancelResponse = await CancelTaskViaJsonRpcAsync(cancelParams);
 
         // Assert
-        bool cancellationValid = cancelResponse.Error == null && 
+        bool cancellationValid = cancelResponse.Error is null && 
                                 cancelResponse.Result != null;
 
         if (cancellationValid)
@@ -217,7 +217,7 @@ public class TaskManagementTests : TckTestBase
 
             if (taskProperlyCanceled)
             {
-                Output.WriteLine("? JSON-RPC task cancellation successful");
+                Output.WriteLine("✓ JSON-RPC task cancellation successful");
                 Output.WriteLine($"  Task ID: {canceledTask!.Id}");
                 Output.WriteLine($"  Final state: {canceledTask.Status.State}");
             }
@@ -226,15 +226,15 @@ public class TaskManagementTests : TckTestBase
         }
         else if (cancelResponse.Error != null)
         {
-            Output.WriteLine($"? JSON-RPC cancellation error: {cancelResponse.Error.Code} - {cancelResponse.Error.Message}");
+            Output.WriteLine($"✗ JSON-RPC cancellation error: {cancelResponse.Error.Code} - {cancelResponse.Error.Message}");
             AssertTckCompliance(false, "JSON-RPC tasks/cancel must not return error for valid task");
         }
     }
 
     [Fact]
     [TckTest(TckComplianceLevel.NonCompliant, TckCategories.MandatoryProtocol,
-        Description = "A2A v0.3.0 �7.4 - Cancel Non-Existent Task Error",
-        SpecSection = "A2A v0.3.0 �8.2",
+        Description = "A2A v0.3.0 §7.4 - Cancel Non-Existent Task Error",
+        SpecSection = "A2A v0.3.0 §8.2",
         FailureImpact = "Critical - violates A2A error handling specification")]
     public async Task TasksCancel_NonExistentTask_ThrowsTaskNotFoundError()
     {
@@ -282,13 +282,13 @@ public class TaskManagementTests : TckTestBase
 
         if (hasCorrectError)
         {
-            Output.WriteLine("? JSON-RPC returned correct TaskNotFound error for task cancellation");
+            Output.WriteLine("✓ JSON-RPC returned correct TaskNotFound error for task cancellation");
             Output.WriteLine($"  Error code: {response!.Error!.Code}");
             Output.WriteLine($"  Error message: {response.Error.Message}");
         }
         else
         {
-            Output.WriteLine($"? Unexpected response: {responseJson}");
+            Output.WriteLine($"✗ Unexpected response: {responseJson}");
         }
 
         AssertTckCompliance(hasCorrectError, 
@@ -297,8 +297,8 @@ public class TaskManagementTests : TckTestBase
 
     [Fact]
     [TckTest(TckComplianceLevel.Mandatory, TckCategories.MandatoryProtocol,
-        Description = "A2A v0.3.0 �7.4 - Cancel Already Canceled Task",
-        SpecSection = "A2A v0.3.0 �8.2",
+        Description = "A2A v0.3.0 §7.4 - Cancel Already Canceled Task",
+        SpecSection = "A2A v0.3.0 §8.2",
         FailureImpact = "Implementation is not A2A v0.3.0 compliant")]
     public async Task TasksCancel_AlreadyCanceledTask_ReturnsTaskNotCancelableError()
     {
@@ -316,7 +316,7 @@ public class TaskManagementTests : TckTestBase
         
         // First cancellation should succeed
         var firstCancelResponse = await CancelTaskViaJsonRpcAsync(cancelParams);
-        Assert.True(firstCancelResponse.Error == null);
+        Assert.True(firstCancelResponse.Error is null);
 
         // Act & Assert - Second cancellation should fail via JSON-RPC
         var secondCancelResponse = await CancelTaskViaJsonRpcAsync(cancelParams);
@@ -326,17 +326,17 @@ public class TaskManagementTests : TckTestBase
 
         if (hasCorrectError)
         {
-            Output.WriteLine("? JSON-RPC correctly returned TaskNotCancelable error for already canceled task");
+            Output.WriteLine("✓ JSON-RPC correctly returned TaskNotCancelable error for already canceled task");
             Output.WriteLine($"  Error code: {secondCancelResponse.Error!.Code}");
             Output.WriteLine($"  Error message: {secondCancelResponse.Error.Message}");
         }
         else if (secondCancelResponse.Error != null)
         {
-            Output.WriteLine($"? Unexpected error: {secondCancelResponse.Error.Code} - {secondCancelResponse.Error.Message}");
+            Output.WriteLine($"✗ Unexpected error: {secondCancelResponse.Error.Code} - {secondCancelResponse.Error.Message}");
         }
         else
         {
-            Output.WriteLine("? Expected TaskNotCancelable error but got successful response");
+            Output.WriteLine("✗ Expected TaskNotCancelable error but got successful response");
         }
 
         AssertTckCompliance(hasCorrectError, 
@@ -345,8 +345,8 @@ public class TaskManagementTests : TckTestBase
 
     [Fact]
     [TckTest(TckComplianceLevel.Mandatory, TckCategories.MandatoryProtocol,
-        Description = "A2A v0.3.0 �6.1 - Task Structure Validation",
-        SpecSection = "A2A v0.3.0 �6.1",
+        Description = "A2A v0.3.0 §6.1 - Task Structure Validation",
+        SpecSection = "A2A v0.3.0 §6.1",
         FailureImpact = "Implementation is not A2A v0.3.0 compliant")]
     public async Task Task_Structure_IsValid()
     {
@@ -360,7 +360,7 @@ public class TaskManagementTests : TckTestBase
         var response = await SendMessageViaJsonRpcAsync(messageSendParams);
 
         // Assert
-        bool taskStructureValid = response.Error == null && response.Result != null;
+        bool taskStructureValid = response.Error is null && response.Result != null;
         
         if (taskStructureValid)
         {
@@ -372,7 +372,7 @@ public class TaskManagementTests : TckTestBase
 
             if (hasValidStructure)
             {
-                Output.WriteLine("? JSON-RPC task structure is valid");
+                Output.WriteLine("✓ JSON-RPC task structure is valid");
                 Output.WriteLine($"  ID: {task!.Id}");
                 Output.WriteLine($"  Context ID: {task.ContextId}");
                 Output.WriteLine($"  Status state: {task.Status.State}");
@@ -385,15 +385,15 @@ public class TaskManagementTests : TckTestBase
         }
         else if (response.Error != null)
         {
-            Output.WriteLine($"? JSON-RPC error: {response.Error.Code} - {response.Error.Message}");
+            Output.WriteLine($"✗ JSON-RPC error: {response.Error.Code} - {response.Error.Message}");
             AssertTckCompliance(false, "JSON-RPC task creation must succeed for valid input");
         }
     }
 
     [Fact]
     [TckTest(TckComplianceLevel.Mandatory, TckCategories.MandatoryProtocol,
-        Description = "A2A v0.3.0 �6.3 - Task State Transitions",
-        SpecSection = "A2A v0.3.0 �6.3",
+        Description = "A2A v0.3.0 §6.3 - Task State Transitions",
+        SpecSection = "A2A v0.3.0 §6.3",
         FailureImpact = "Implementation is not A2A v0.3.0 compliant")]
     public async Task Task_StateTransitions_AreValid()
     {
@@ -407,7 +407,7 @@ public class TaskManagementTests : TckTestBase
         var response = await SendMessageViaJsonRpcAsync(messageSendParams);
 
         // Assert
-        bool validResponse = response.Error == null && response.Result != null;
+        bool validResponse = response.Error is null && response.Result != null;
         
         if (validResponse)
         {
@@ -439,7 +439,7 @@ public class TaskManagementTests : TckTestBase
 
             if (validTransitions)
             {
-                Output.WriteLine("? JSON-RPC task state system is valid");
+                Output.WriteLine("✓ JSON-RPC task state system is valid");
                 Output.WriteLine($"  Initial state: {task!.Status.State}");
                 Output.WriteLine($"  All defined states: {string.Join(", ", validStates)}");
             }
@@ -448,15 +448,15 @@ public class TaskManagementTests : TckTestBase
         }
         else if (response.Error != null)
         {
-            Output.WriteLine($"? JSON-RPC error: {response.Error.Code} - {response.Error.Message}");
+            Output.WriteLine($"✗ JSON-RPC error: {response.Error.Code} - {response.Error.Message}");
             AssertTckCompliance(false, "JSON-RPC task creation must succeed for state validation");
         }
     }
 
     [Fact]
     [TckTest(TckComplianceLevel.Recommended, TckCategories.MandatoryProtocol,
-        Description = "A2A v0.3.0 �7.3 - History Length Parameter",
-        SpecSection = "A2A v0.3.0 �7.3.1",
+        Description = "A2A v0.3.0 §7.3 - History Length Parameter",
+        SpecSection = "A2A v0.3.0 §7.3.1",
         FailureImpact = "Limited functionality - history truncation not supported")]
     public async Task TasksGet_HistoryLength_IsRespected()
     {
@@ -496,7 +496,7 @@ public class TaskManagementTests : TckTestBase
         var getResponse = await GetTaskViaJsonRpcAsync(taskQueryParams);
 
         // Assert
-        bool validResponse = getResponse.Error == null && getResponse.Result != null;
+        bool validResponse = getResponse.Error is null && getResponse.Result != null;
         
         if (validResponse)
         {
@@ -505,12 +505,12 @@ public class TaskManagementTests : TckTestBase
 
             if (historyLimited)
             {
-                Output.WriteLine("? JSON-RPC history length parameter respected");
+                Output.WriteLine("✓ JSON-RPC history length parameter respected");
                 Output.WriteLine($"  Requested: 2, Received: {retrievedTask!.History?.Count ?? 0}");
             }
             else if (retrievedTask?.History?.Count > 2)
             {
-                Output.WriteLine("?? JSON-RPC history length parameter not implemented (acceptable)");
+                Output.WriteLine("⚠️ JSON-RPC history length parameter not implemented (acceptable)");
                 Output.WriteLine($"  Requested: 2, Received: {retrievedTask.History.Count}");
             }
 
@@ -519,7 +519,7 @@ public class TaskManagementTests : TckTestBase
         }
         else if (getResponse.Error != null)
         {
-            Output.WriteLine($"? JSON-RPC get task error: {getResponse.Error.Code} - {getResponse.Error.Message}");
+            Output.WriteLine($"✗ JSON-RPC get task error: {getResponse.Error.Code} - {getResponse.Error.Message}");
             AssertTckCompliance(false, "JSON-RPC tasks/get must work for valid task ID");
         }
     }
