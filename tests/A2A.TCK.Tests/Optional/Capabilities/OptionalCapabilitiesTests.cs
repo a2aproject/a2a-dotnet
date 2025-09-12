@@ -38,7 +38,7 @@ public class OptionalCapabilitiesTests : TckTestBase
         var response = await SendMessageViaJsonRpcAsync(messageSendParams);
 
         // Assert
-        bool jsonRpcWorked = response.Error is null && response.Result != null;
+        bool jsonRpcWorked = response.Error is null && response.Result is not null;
         
         if (jsonRpcWorked)
         {
@@ -46,7 +46,7 @@ public class OptionalCapabilitiesTests : TckTestBase
             Output.WriteLine("✓ JSON-RPC message/send functionality is working");
             Output.WriteLine($"  Response: {message?.Parts[0].AsTextPart().Text}");
         }
-        else if (response.Error != null)
+        else if (response.Error is not null)
         {
             Output.WriteLine($"✗ JSON-RPC error: {response.Error.Code} - {response.Error.Message}");
         }
@@ -75,7 +75,7 @@ public class OptionalCapabilitiesTests : TckTestBase
         var getResponse = await GetTaskViaJsonRpcAsync(new TaskQueryParams { Id = task.Id });
 
         // Assert
-        bool taskManagementWorked = getResponse.Error is null && getResponse.Result != null;
+        bool taskManagementWorked = getResponse.Error is null && getResponse.Result is not null;
         
         if (taskManagementWorked)
         {
@@ -85,7 +85,7 @@ public class OptionalCapabilitiesTests : TckTestBase
             Output.WriteLine($"  Retrieved task ID: {retrievedTask?.Id}");
             Output.WriteLine($"  Task status: {retrievedTask?.Status.State}");
         }
-        else if (getResponse.Error != null)
+        else if (getResponse.Error is not null)
         {
             Output.WriteLine($"✗ JSON-RPC task management error: {getResponse.Error.Code} - {getResponse.Error.Message}");
         }
@@ -114,7 +114,7 @@ public class OptionalCapabilitiesTests : TckTestBase
         var cancelResponse = await CancelTaskViaJsonRpcAsync(new TaskIdParams { Id = task.Id });
 
         // Assert
-        bool cancellationWorked = cancelResponse.Error is null && cancelResponse.Result != null;
+        bool cancellationWorked = cancelResponse.Error is null && cancelResponse.Result is not null;
         
         if (cancellationWorked)
         {
@@ -123,7 +123,7 @@ public class OptionalCapabilitiesTests : TckTestBase
             Output.WriteLine($"  Cancelled task ID: {cancelledTask?.Id}");
             Output.WriteLine($"  Final status: {cancelledTask?.Status.State}");
         }
-        else if (cancelResponse.Error != null)
+        else if (cancelResponse.Error is not null)
         {
             Output.WriteLine($"✗ JSON-RPC cancellation error: {cancelResponse.Error.Code} - {cancelResponse.Error.Message}");
         }
@@ -142,7 +142,7 @@ public class OptionalCapabilitiesTests : TckTestBase
         var agentCard = CreateTestAgentCard();
 
         // Act & Assert
-        bool hasCapabilities = agentCard.Capabilities != null;
+        bool hasCapabilities = agentCard.Capabilities is not null;
 
         if (hasCapabilities)
         {
@@ -255,7 +255,7 @@ public class OptionalCapabilitiesTests : TckTestBase
         var response = await SendMessageViaJsonRpcAsync(params_);
 
         // Assert
-        bool complexMessageHandled = response.Error is null && response.Result != null;
+        bool complexMessageHandled = response.Error is null && response.Result is not null;
         
         if (complexMessageHandled)
         {
@@ -267,7 +267,7 @@ public class OptionalCapabilitiesTests : TckTestBase
         {
             Output.WriteLine("⚠️ Some complex message types not supported - this is acceptable");
         }
-        else if (response.Error != null)
+        else if (response.Error is not null)
         {
             Output.WriteLine($"✗ JSON-RPC error: {response.Error.Code} - {response.Error.Message}");
         }

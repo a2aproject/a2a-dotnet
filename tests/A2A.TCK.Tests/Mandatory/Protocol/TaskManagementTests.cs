@@ -95,7 +95,7 @@ public class TaskManagementTests : TckTestBase
         var getResponse = JsonSerializer.Deserialize<JsonRpcResponse>(getResponseJson);
         var retrievedTask = getResponse?.Result?.Deserialize<AgentTask>();
 
-        bool taskRetrievalValid = retrievedTask != null &&
+        bool taskRetrievalValid = retrievedTask is not null &&
                                  retrievedTask.Id == initialTask.Id &&
                                  retrievedTask.ContextId == initialTask.ContextId &&
                                  getResponse?.Error is null;
@@ -161,7 +161,7 @@ public class TaskManagementTests : TckTestBase
         var responseJson = await new StreamReader(responseStream).ReadToEndAsync();
         var response = JsonSerializer.Deserialize<JsonRpcResponse>(responseJson);
 
-        bool hasCorrectError = response?.Error != null &&
+        bool hasCorrectError = response?.Error is not null &&
                               response.Error.Code == (int)A2AErrorCode.TaskNotFound &&
                               !string.IsNullOrEmpty(response.Error.Message);
 
@@ -207,7 +207,7 @@ public class TaskManagementTests : TckTestBase
 
         // Assert
         bool cancellationValid = cancelResponse.Error is null && 
-                                cancelResponse.Result != null;
+                                cancelResponse.Result is not null;
 
         if (cancellationValid)
         {
@@ -224,7 +224,7 @@ public class TaskManagementTests : TckTestBase
             
             AssertTckCompliance(taskProperlyCanceled, "JSON-RPC tasks/cancel must return task in canceled state");
         }
-        else if (cancelResponse.Error != null)
+        else if (cancelResponse.Error is not null)
         {
             Output.WriteLine($"✗ JSON-RPC cancellation error: {cancelResponse.Error.Code} - {cancelResponse.Error.Message}");
             AssertTckCompliance(false, "JSON-RPC tasks/cancel must not return error for valid task");
@@ -276,7 +276,7 @@ public class TaskManagementTests : TckTestBase
         var responseJson = await new StreamReader(responseStream).ReadToEndAsync();
         var response = JsonSerializer.Deserialize<JsonRpcResponse>(responseJson);
 
-        bool hasCorrectError = response?.Error != null &&
+        bool hasCorrectError = response?.Error is not null &&
                               response.Error.Code == (int)A2AErrorCode.TaskNotFound &&
                               !string.IsNullOrEmpty(response.Error.Message);
 
@@ -321,7 +321,7 @@ public class TaskManagementTests : TckTestBase
         // Act & Assert - Second cancellation should fail via JSON-RPC
         var secondCancelResponse = await CancelTaskViaJsonRpcAsync(cancelParams);
         
-        bool hasCorrectError = secondCancelResponse.Error != null &&
+        bool hasCorrectError = secondCancelResponse.Error is not null &&
                               secondCancelResponse.Error.Code == (int)A2AErrorCode.TaskNotCancelable;
 
         if (hasCorrectError)
@@ -330,7 +330,7 @@ public class TaskManagementTests : TckTestBase
             Output.WriteLine($"  Error code: {secondCancelResponse.Error!.Code}");
             Output.WriteLine($"  Error message: {secondCancelResponse.Error.Message}");
         }
-        else if (secondCancelResponse.Error != null)
+        else if (secondCancelResponse.Error is not null)
         {
             Output.WriteLine($"✗ Unexpected error: {secondCancelResponse.Error.Code} - {secondCancelResponse.Error.Message}");
         }
@@ -360,13 +360,13 @@ public class TaskManagementTests : TckTestBase
         var response = await SendMessageViaJsonRpcAsync(messageSendParams);
 
         // Assert
-        bool taskStructureValid = response.Error is null && response.Result != null;
+        bool taskStructureValid = response.Error is null && response.Result is not null;
         
         if (taskStructureValid)
         {
             var task = response.Result?.Deserialize<AgentTask>();
             
-            bool hasValidStructure = task != null &&
+            bool hasValidStructure = task is not null &&
                                    !string.IsNullOrEmpty(task.Id) &&
                                    !string.IsNullOrEmpty(task.ContextId);
 
@@ -376,14 +376,14 @@ public class TaskManagementTests : TckTestBase
                 Output.WriteLine($"  ID: {task!.Id}");
                 Output.WriteLine($"  Context ID: {task.ContextId}");
                 Output.WriteLine($"  Status state: {task.Status.State}");
-                Output.WriteLine($"  Has timestamp: {task.Status.Timestamp != null}");
+                Output.WriteLine($"  Has timestamp: {task.Status.Timestamp != default}");
                 Output.WriteLine($"  Artifacts count: {task.Artifacts?.Count ?? 0}");
                 Output.WriteLine($"  History count: {task.History?.Count ?? 0}");
             }
             
             AssertTckCompliance(hasValidStructure, "JSON-RPC task must have valid structure with required fields");
         }
-        else if (response.Error != null)
+        else if (response.Error is not null)
         {
             Output.WriteLine($"✗ JSON-RPC error: {response.Error.Code} - {response.Error.Message}");
             AssertTckCompliance(false, "JSON-RPC task creation must succeed for valid input");
@@ -407,7 +407,7 @@ public class TaskManagementTests : TckTestBase
         var response = await SendMessageViaJsonRpcAsync(messageSendParams);
 
         // Assert
-        bool validResponse = response.Error is null && response.Result != null;
+        bool validResponse = response.Error is null && response.Result is not null;
         
         if (validResponse)
         {
@@ -431,9 +431,9 @@ public class TaskManagementTests : TckTestBase
             bool allStatesValid = validStates.All(state => Enum.IsDefined(typeof(TaskState), state));
 
             // Check initial state is valid
-            bool initialStateValid = task?.Status.State == TaskState.Submitted ||
-                                    task?.Status.State == TaskState.Working ||
-                                    task?.Status.State == TaskState.Completed;
+            bool initialStateValid = task?.Status.State is TaskState.Submitted ||
+                                    task?.Status.State is TaskState.Working ||
+                                    task?.Status.State is TaskState.Completed;
 
             var validTransitions = allStatesValid && initialStateValid;
 
@@ -446,7 +446,7 @@ public class TaskManagementTests : TckTestBase
 
             AssertTckCompliance(validTransitions, "JSON-RPC task state system must include all required states");
         }
-        else if (response.Error != null)
+        else if (response.Error is not null)
         {
             Output.WriteLine($"✗ JSON-RPC error: {response.Error.Code} - {response.Error.Message}");
             AssertTckCompliance(false, "JSON-RPC task creation must succeed for state validation");
@@ -496,7 +496,7 @@ public class TaskManagementTests : TckTestBase
         var getResponse = await GetTaskViaJsonRpcAsync(taskQueryParams);
 
         // Assert
-        bool validResponse = getResponse.Error is null && getResponse.Result != null;
+        bool validResponse = getResponse.Error is null && getResponse.Result is not null;
         
         if (validResponse)
         {
@@ -517,7 +517,7 @@ public class TaskManagementTests : TckTestBase
             // This is recommended, so we pass even if not implemented
             AssertTckCompliance(true, "JSON-RPC advanced task state management enhances workflow capabilities");
         }
-        else if (getResponse.Error != null)
+        else if (getResponse.Error is not null)
         {
             Output.WriteLine($"✗ JSON-RPC get task error: {getResponse.Error.Code} - {getResponse.Error.Message}");
             AssertTckCompliance(false, "JSON-RPC tasks/get must work for valid task ID");

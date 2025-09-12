@@ -63,7 +63,7 @@ public class OptionalFeaturesTests : TckTestBase
         var response = await SendMessageViaJsonRpcAsync(params_);
 
         // Assert
-        if (response.Error is null && response.Result != null)
+        if (response.Error is null && response.Result is not null)
         {
             var message = response.Result.Deserialize<AgentMessage>();
             Output.WriteLine("✓ Multi-modal message processed successfully via JSON-RPC");
@@ -75,7 +75,7 @@ public class OptionalFeaturesTests : TckTestBase
             Output.WriteLine("⚠️ Some content types not supported via JSON-RPC - this is acceptable");
             AssertTckCompliance(true, "JSON-RPC content type limitations are acceptable for basic implementations");
         }
-        else if (response.Error != null)
+        else if (response.Error is not null)
         {
             Output.WriteLine($"⚠️ JSON-RPC error processing multi-modal content: {response.Error.Code} - {response.Error.Message}");
             AssertTckCompliance(true, "JSON-RPC multi-modal content handling attempted");
@@ -117,7 +117,7 @@ public class OptionalFeaturesTests : TckTestBase
         });
 
         // Act & Assert
-        bool hasProvider = agentCard.Provider != null;
+        bool hasProvider = agentCard.Provider is not null;
         bool hasDocumentation = !string.IsNullOrEmpty(agentCard.DocumentationUrl);
         bool hasIcon = !string.IsNullOrEmpty(agentCard.IconUrl);
         bool hasDetailedSkills = agentCard.Skills.Any(s => s.Examples?.Count > 0);
@@ -279,7 +279,7 @@ public class OptionalFeaturesTests : TckTestBase
         var response = await SendMessageViaJsonRpcAsync(params_);
 
         // Assert
-        bool responseReceived = response.Error is null && response.Result != null;
+        bool responseReceived = response.Error is null && response.Result is not null;
         
         if (responseReceived)
         {
@@ -299,7 +299,7 @@ public class OptionalFeaturesTests : TckTestBase
             var responseText = message!.Parts[0].AsTextPart().Text;
             Output.WriteLine($"Handler report: {responseText}");
         }
-        else if (response.Error != null)
+        else if (response.Error is not null)
         {
             Output.WriteLine($"✗ JSON-RPC error: {response.Error.Code} - {response.Error.Message}");
         }
@@ -358,12 +358,12 @@ public class OptionalFeaturesTests : TckTestBase
             var params_ = new MessageSendParams { Message = edgeCase };
             var response = await SendMessageViaJsonRpcAsync(params_);
             
-            if (response.Error is null && response.Result != null)
+            if (response.Error is null && response.Result is not null)
             {
                 successfullyHandled++;
                 Output.WriteLine($"✓ Edge case {index + 1} handled successfully via JSON-RPC");
             }
-            else if (response.Error != null)
+            else if (response.Error is not null)
             {
                 appropriatelyRejected++;
                 Output.WriteLine($"✓ Edge case {index + 1} appropriately rejected via JSON-RPC: {response.Error.Code}");

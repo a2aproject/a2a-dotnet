@@ -41,7 +41,7 @@ public class MessageSendMethodTests : TckTestBase
         var response = await SendMessageViaJsonRpcAsync(messageSendParams);
 
         // Assert
-        bool hasValidResponse = response.Error is null && response.Result != null;
+        bool hasValidResponse = response.Error is null && response.Result is not null;
         
         if (hasValidResponse)
         {
@@ -105,7 +105,7 @@ public class MessageSendMethodTests : TckTestBase
         var response = await SendMessageViaJsonRpcAsync(invalidParams);
 
         // Assert
-        bool hasExpectedError = response.Error != null &&
+        bool hasExpectedError = response.Error is not null &&
                                response.Error.Code == (int)A2AErrorCode.InvalidParams;
 
         if (hasExpectedError)
@@ -193,7 +193,7 @@ public class MessageSendMethodTests : TckTestBase
 
         // Assert
         bool taskContinuationValid = continuationResponse.Error is null &&
-                                    continuationTask != null &&
+                                    continuationTask is not null &&
                                     continuationTask.Id == initialTask.Id &&
                                     continuationTask.Status.State == TaskState.Completed;
 
@@ -203,7 +203,7 @@ public class MessageSendMethodTests : TckTestBase
             Output.WriteLine($"  Task ID maintained: {continuationTask!.Id}");
             Output.WriteLine($"  Final state: {continuationTask.Status.State}");
         }
-        else if (continuationResponse.Error != null)
+        else if (continuationResponse.Error is not null)
         {
             Output.WriteLine($"✗ JSON-RPC error: {continuationResponse.Error.Code} - {continuationResponse.Error.Message}");
         }
@@ -234,7 +234,7 @@ public class MessageSendMethodTests : TckTestBase
         var response = await SendMessageViaJsonRpcAsync(nonExistentTaskParams);
 
         // Assert
-        bool hasCorrectError = response.Error != null &&
+        bool hasCorrectError = response.Error is not null &&
                               response.Error.Code == (int)A2AErrorCode.TaskNotFound;
 
         if (hasCorrectError)
@@ -243,7 +243,7 @@ public class MessageSendMethodTests : TckTestBase
             Output.WriteLine($"  Error code: {response.Error!.Code}");
             Output.WriteLine($"  Error message: {response.Error.Message}");
         }
-        else if (response.Error != null)
+        else if (response.Error is not null)
         {
             Output.WriteLine($"✗ Unexpected error: {response.Error.Code} - {response.Error.Message}");
         }
@@ -300,7 +300,7 @@ public class MessageSendMethodTests : TckTestBase
         var response = await SendMessageViaJsonRpcAsync(params_);
 
         // Assert
-        bool messageProcessed = response.Error is null && response.Result != null;
+        bool messageProcessed = response.Error is null && response.Result is not null;
         
         if (messageProcessed)
         {
@@ -308,7 +308,7 @@ public class MessageSendMethodTests : TckTestBase
             Output.WriteLine($"  Original parts count: {validMessage.Parts.Count}");
             Output.WriteLine("  Response received successfully");
         }
-        else if (response.Error != null)
+        else if (response.Error is not null)
         {
             Output.WriteLine($"✗ JSON-RPC error: {response.Error.Code} - {response.Error.Message}");
         }
@@ -358,7 +358,7 @@ public class MessageSendMethodTests : TckTestBase
         var response = await SendMessageViaJsonRpcAsync(params_);
 
         // Assert
-        if (response.Error is null && response.Result != null)
+        if (response.Error is null && response.Result is not null)
         {
             Output.WriteLine("✓ File parts are supported via JSON-RPC");
             AssertTckCompliance(true, "File part support is recommended and working");
@@ -368,7 +368,7 @@ public class MessageSendMethodTests : TckTestBase
             Output.WriteLine("⚠️ File parts not supported - returned ContentTypeNotSupported error via JSON-RPC");
             AssertTckCompliance(true, "Proper error handling for unsupported content types");
         }
-        else if (response.Error != null)
+        else if (response.Error is not null)
         {
             Output.WriteLine($"⚠️ Unexpected error handling file parts: {response.Error.Code} - {response.Error.Message}");
             AssertTckCompliance(true, "File part handling attempted");

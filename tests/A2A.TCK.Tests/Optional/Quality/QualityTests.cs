@@ -43,7 +43,7 @@ public class QualityTests : TckTestBase
         // Assert
         var latencyMs = stopwatch.ElapsedMilliseconds;
         bool reasonableLatency = latencyMs < 5000; // 5 second threshold for simple message
-        bool validResponse = response.Error is null && response.Result != null;
+        bool validResponse = response.Error is null && response.Result is not null;
 
         Output.WriteLine($"JSON-RPC message processing latency: {latencyMs}ms");
         
@@ -109,7 +109,7 @@ public class QualityTests : TckTestBase
 
         // Assert
         bool allCompleted = responses.Length == concurrentRequests && 
-                           responses.All(r => r.Error is null && r.Result != null);
+                           responses.All(r => r.Error is null && r.Result is not null);
         
         var totalTimeMs = stopwatch.ElapsedMilliseconds;
         bool reasonableConcurrency = totalTimeMs < (concurrentRequests * 150); // Allow some overhead
@@ -123,7 +123,7 @@ public class QualityTests : TckTestBase
         }
         else if (!allCompleted)
         {
-            var failedCount = responses.Count(r => r.Error != null);
+            var failedCount = responses.Count(r => r.Error is not null);
             Output.WriteLine($"⚠️ {failedCount} JSON-RPC requests failed out of {concurrentRequests}");
         }
         else
@@ -156,7 +156,7 @@ public class QualityTests : TckTestBase
         var response = await SendMessageViaJsonRpcAsync(messageSendParams);
 
         // Assert
-        bool handledGracefully = response.Error != null;
+        bool handledGracefully = response.Error is not null;
         
         if (handledGracefully)
         {
@@ -214,7 +214,7 @@ public class QualityTests : TckTestBase
             var response = await SendMessageViaJsonRpcAsync(messageSendParams);
             
             // Verify response is valid
-            if (response.Error != null)
+            if (response.Error is not null)
             {
                 Output.WriteLine($"⚠️ JSON-RPC error in iteration {i}: {response.Error.Code}");
                 break;
@@ -292,12 +292,12 @@ public class QualityTests : TckTestBase
         stopwatch.Stop();
 
         // Assert
-        if (response.Error is null && response.Result != null)
+        if (response.Error is null && response.Result is not null)
         {
             Output.WriteLine($"✓ Large message processed successfully via JSON-RPC in {stopwatch.ElapsedMilliseconds}ms");
             Output.WriteLine($"Message size: {largeText.Length:N0} characters");
         }
-        else if (response.Error != null)
+        else if (response.Error is not null)
         {
             Output.WriteLine($"⚠️ Large message rejected via JSON-RPC: {response.Error.Code} - this may be appropriate");
             Output.WriteLine($"  Error message: {response.Error.Message}");
@@ -410,8 +410,8 @@ public class QualityTests : TckTestBase
 
         // Assert
         var validTransition = stateChanges.Count >= 2 &&
-                             stateChanges[0].state == TaskState.Submitted &&
-                             stateChanges.Last().state == TaskState.Completed;
+                             stateChanges[0].state is TaskState.Submitted &&
+                             stateChanges.Last().state is TaskState.Completed;
 
         Output.WriteLine("Task state transitions:");
         foreach (var (timestamp, state) in stateChanges)

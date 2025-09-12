@@ -46,7 +46,7 @@ public abstract class TckTestBase(ITestOutputHelper output)
             // Test failed - only fail if it's marked as non-compliant
             var badge = GetComplianceBadge(complianceLevel);
 
-            if (complianceLevel == TckComplianceLevel.NonCompliant)
+            if (complianceLevel is TckComplianceLevel.NonCompliant)
             {
                 Output.WriteLine($"❌ {badge} - {category}");
                 if (!string.IsNullOrEmpty(tckAttribute.FailureImpact))
@@ -214,13 +214,13 @@ public abstract class TckTestBase(ITestOutputHelper output)
         Func<AgentTask, CancellationToken, Task>? onTaskCreated = null,
         Func<AgentTask, CancellationToken, Task>? onTaskUpdated = null)
     {
-        if (onMessageReceived != null)
+        if (onMessageReceived is not null)
             _taskManager.OnMessageReceived = onMessageReceived;
 
-        if (onTaskCreated != null)
+        if (onTaskCreated is not null)
             _taskManager.OnTaskCreated = onTaskCreated;
 
-        if (onTaskUpdated != null)
+        if (onTaskUpdated is not null)
             _taskManager.OnTaskUpdated = onTaskUpdated;
     }
 
