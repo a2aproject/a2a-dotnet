@@ -2,6 +2,14 @@
 
 This file contains coding guidelines and requirements for maintaining the A2A .NET SDK. These instructions help ensure consistency and correctness when implementing features, especially discriminator-based serialization.
 
+## Code Style Requirements
+
+Follow all code style preferences defined in the `.editorconfig` of the repository at all times. Your code should not differ from the style elsewhere in the project.
+
+If editor config doesn't specify a style or preference, assume the style as defined in the `.editorconfig` of the .NET runtime project here: https://github.com/dotnet/runtime/blob/main/.editorconfig
+
+In event of a conflict between the two, local (this repo) `.editorconfig` wins.
+
 ## Discriminator Converter Implementation Requirements
 
 ### Overview
