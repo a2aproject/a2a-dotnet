@@ -1,6 +1,6 @@
-using Xunit.Abstractions;
 using A2A.Integration.Tests.Infrastructure;
 using System.Diagnostics;
+using Xunit.Abstractions;
 
 namespace A2A.Integration.Tests.OptionalTests.Quality;
 
@@ -46,7 +46,7 @@ public class QualityTests : TckTestBase
         bool validResponse = response.Error is null && response.Result is not null;
 
         Output.WriteLine($"JSON-RPC message processing latency: {latencyMs}ms");
-        
+
         if (validResponse && reasonableLatency)
         {
             Output.WriteLine("✓ JSON-RPC message processing latency is acceptable");
@@ -108,15 +108,15 @@ public class QualityTests : TckTestBase
         stopwatch.Stop();
 
         // Assert
-        bool allCompleted = responses.Length == concurrentRequests && 
+        bool allCompleted = responses.Length == concurrentRequests &&
                            responses.All(r => r.Error is null && r.Result is not null);
-        
+
         var totalTimeMs = stopwatch.ElapsedMilliseconds;
         bool reasonableConcurrency = totalTimeMs < (concurrentRequests * 150); // Allow some overhead
 
         Output.WriteLine($"Processed {concurrentRequests} concurrent JSON-RPC requests in {totalTimeMs}ms");
         Output.WriteLine($"Average time per request: {totalTimeMs / (double)concurrentRequests:F2}ms");
-        
+
         if (allCompleted && reasonableConcurrency)
         {
             Output.WriteLine("✓ Concurrent JSON-RPC request handling is efficient");
@@ -157,7 +157,7 @@ public class QualityTests : TckTestBase
 
         // Assert
         bool handledGracefully = response.Error is not null;
-        
+
         if (handledGracefully)
         {
             if (response.Error!.Code == (int)A2AErrorCode.InternalError)
@@ -212,14 +212,14 @@ public class QualityTests : TckTestBase
             };
 
             var response = await SendMessageViaJsonRpcAsync(messageSendParams);
-            
+
             // Verify response is valid
             if (response.Error is not null)
             {
                 Output.WriteLine($"⚠️ JSON-RPC error in iteration {i}: {response.Error.Code}");
                 break;
             }
-            
+
             // Periodic cleanup
             if (i % 10 == 0)
             {
@@ -232,7 +232,7 @@ public class QualityTests : TckTestBase
         GC.Collect();
         GC.WaitForPendingFinalizers();
         GC.Collect();
-        
+
         var finalMemory = GC.GetTotalMemory(false);
         var memoryIncrease = finalMemory - initialMemory;
 
@@ -244,7 +244,7 @@ public class QualityTests : TckTestBase
 
         // This is a basic smoke test - significant memory growth might indicate leaks
         bool reasonableMemoryUsage = memoryIncrease < (1024 * 1024); // Less than 1MB increase
-        
+
         if (reasonableMemoryUsage)
         {
             Output.WriteLine("✓ JSON-RPC memory usage appears reasonable");
@@ -339,7 +339,7 @@ public class QualityTests : TckTestBase
         // Act - Test with a reasonable timeout via JSON-RPC
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var stopwatch = Stopwatch.StartNew();
-        
+
         JsonRpcResponse? response = null;
         bool completedOrTimedOut = false;
         try
@@ -347,7 +347,7 @@ public class QualityTests : TckTestBase
             // Pass the cancellation token to the JSON-RPC request
             response = await SendMessageViaJsonRpcAsync(messageSendParams, cts.Token);
             stopwatch.Stop();
-            
+
             if (response.Error is null)
             {
                 Output.WriteLine($"✓ Long operation completed via JSON-RPC in {stopwatch.ElapsedMilliseconds}ms");
@@ -391,11 +391,11 @@ public class QualityTests : TckTestBase
         ConfigureTaskManager(onTaskCreated: async (task, ct) =>
         {
             stateChanges.Add((DateTime.UtcNow, task.Status.State));
-            
+
             await Task.Delay(50, ct);
             await _taskManager.UpdateStatusAsync(task.Id, TaskState.Working, cancellationToken: ct);
             stateChanges.Add((DateTime.UtcNow, TaskState.Working));
-            
+
             await Task.Delay(50, ct);
             await _taskManager.UpdateStatusAsync(task.Id, TaskState.Completed, final: true, cancellationToken: ct);
             stateChanges.Add((DateTime.UtcNow, TaskState.Completed));

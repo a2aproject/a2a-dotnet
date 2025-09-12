@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "A2A.Integration.Tests": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:60087;http://localhost:60088"
+    }
+  }
+}

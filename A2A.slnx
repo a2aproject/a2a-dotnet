@@ -29,6 +29,7 @@
      <File Path="logo.png" />
   </Folder>
   <Folder Name="/tests/">
+    <File Path="tests/.editorconfig" />
     <Project Path="tests/A2A.AspNetCore.UnitTests/A2A.AspNetCore.UnitTests.csproj" />
     <Project Path="tests/A2A.Integration.Tests/A2A.Integration.Tests.csproj" />
     <Project Path="tests/A2A.UnitTests/A2A.UnitTests.csproj" />

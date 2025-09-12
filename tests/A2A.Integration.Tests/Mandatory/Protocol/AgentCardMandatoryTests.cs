@@ -1,5 +1,5 @@
-using Xunit.Abstractions;
 using A2A.Integration.Tests.Infrastructure;
+using Xunit.Abstractions;
 
 namespace A2A.Integration.Tests.Mandatory.Protocol;
 
@@ -25,8 +25,8 @@ public class AgentCardMandatoryTests : TckTestBase
         // Act & Assert
         var hasName = !string.IsNullOrWhiteSpace(agentCard.Name);
         var hasDescription = !string.IsNullOrWhiteSpace(agentCard.Description);
-        var hasUrl = !string.IsNullOrWhiteSpace(agentCard.Url) && 
-                    (agentCard.Url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
+        var hasUrl = !string.IsNullOrWhiteSpace(agentCard.Url) &&
+                    (agentCard.Url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
                      agentCard.Url.StartsWith("https://", StringComparison.OrdinalIgnoreCase));
         var hasVersion = !string.IsNullOrWhiteSpace(agentCard.Version);
 
@@ -54,9 +54,9 @@ public class AgentCardMandatoryTests : TckTestBase
         var hasDefaultInputModes = agentCard.DefaultInputModes?.Count > 0;
         var hasDefaultOutputModes = agentCard.DefaultOutputModes?.Count > 0;
 
-        var hasValidInputModes = hasDefaultInputModes && 
+        var hasValidInputModes = hasDefaultInputModes &&
                                 agentCard.DefaultInputModes!.All(mode => !string.IsNullOrWhiteSpace(mode));
-        var hasValidOutputModes = hasDefaultOutputModes && 
+        var hasValidOutputModes = hasDefaultOutputModes &&
                                  agentCard.DefaultOutputModes!.All(mode => !string.IsNullOrWhiteSpace(mode));
 
         var allModesValid = hasValidInputModes && hasValidOutputModes;
@@ -81,16 +81,16 @@ public class AgentCardMandatoryTests : TckTestBase
 
         // Act & Assert
         var hasSkills = agentCard.Skills?.Count > 0;
-        
+
         bool allSkillsValid = true;
         if (hasSkills)
         {
             var requiredSkillFields = new[] { "id", "name", "description", "tags" };
-            
+
             for (int i = 0; i < agentCard.Skills!.Count; i++)
             {
                 var skill = agentCard.Skills[i];
-                
+
                 var hasId = !string.IsNullOrWhiteSpace(skill.Id);
                 var hasName = !string.IsNullOrWhiteSpace(skill.Name);
                 var hasDescription = !string.IsNullOrWhiteSpace(skill.Description);
@@ -175,7 +175,7 @@ public class AgentCardMandatoryTests : TckTestBase
 
         // This is a recommendation, so we pass even if not present
         AssertTckCompliance(true, "Security schemes are recommended but not mandatory for basic compliance");
-        
+
         if (hasSecuritySchemes || hasSecurity)
         {
             Output.WriteLine("? Security configuration is present - good for production readiness");

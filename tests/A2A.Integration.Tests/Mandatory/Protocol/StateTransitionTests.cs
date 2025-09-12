@@ -1,5 +1,5 @@
-using Xunit.Abstractions;
 using A2A.Integration.Tests.Infrastructure;
+using Xunit.Abstractions;
 
 namespace A2A.Integration.Tests.Mandatory.Protocol;
 
@@ -29,13 +29,13 @@ public class StateTransitionTests : TckTestBase
         ConfigureTaskManager(onTaskCreated: async (task, ct) =>
         {
             stateHistory.Add(task.Status.State);
-            
+
             // Simulate valid state transitions
             await _taskManager.UpdateStatusAsync(task.Id, TaskState.Working, cancellationToken: ct);
             stateHistory.Add(TaskState.Working);
-            
+
             await Task.Delay(50, ct); // Simulate work
-            
+
             await _taskManager.UpdateStatusAsync(task.Id, TaskState.Completed, final: true, cancellationToken: ct);
             stateHistory.Add(TaskState.Completed);
         });
@@ -136,7 +136,7 @@ public class StateTransitionTests : TckTestBase
         };
 
         // Act & Assert - Verify all states are properly defined
-        bool allStatesDefined = requiredStates.All(state => Enum.IsDefined(typeof(TaskState), state));
+        bool allStatesDefined = requiredStates.All(state => Enum.IsDefined(state));
 
         if (allStatesDefined)
         {
@@ -167,7 +167,7 @@ public class StateTransitionTests : TckTestBase
         ConfigureTaskManager(onTaskCreated: async (task, ct) =>
         {
             // Set task to input-required state
-            await _taskManager.UpdateStatusAsync(task.Id, TaskState.InputRequired, 
+            await _taskManager.UpdateStatusAsync(task.Id, TaskState.InputRequired,
                 new AgentMessage
                 {
                     Role = MessageRole.Agent,
@@ -181,7 +181,7 @@ public class StateTransitionTests : TckTestBase
 
         // Assert
         var task = response.Result?.Deserialize<AgentTask>();
-        bool inputRequiredHandled = task is not null && 
+        bool inputRequiredHandled = task is not null &&
                                    task.Status.State is TaskState.InputRequired &&
                                    task.Status.Message is not null;
 

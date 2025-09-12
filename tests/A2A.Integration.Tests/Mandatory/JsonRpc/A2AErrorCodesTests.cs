@@ -1,5 +1,5 @@
-using Xunit.Abstractions;
 using A2A.Integration.Tests.Infrastructure;
+using Xunit.Abstractions;
 
 namespace A2A.Integration.Tests.Mandatory.JsonRpc;
 
@@ -97,8 +97,8 @@ public class A2AErrorCodesTests : TckTestBase
         {
             Role = MessageRole.User,
             Parts = [
-                new FilePart 
-                { 
+                new FilePart
+                {
                     File = new FileWithBytes
                     {
                         Name = "test.exe",

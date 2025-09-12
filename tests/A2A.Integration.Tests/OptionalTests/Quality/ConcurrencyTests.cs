@@ -1,9 +1,9 @@
-using Xunit.Abstractions;
 using A2A.Integration.Tests.Infrastructure;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using Xunit.Abstractions;
 
-namespace A2A.Integration.Tests.OptionalTestsTests.Quality;
+namespace A2A.Integration.Tests.OptionalTests.Quality;
 
 /// <summary>
 /// Tests for concurrency handling based on the upstream TCK.
@@ -38,7 +38,7 @@ public class ConcurrencyTests : TckTestBase
 
         // Act - Send multiple concurrent requests
         var stopwatch = Stopwatch.StartNew();
-        
+
         for (int i = 0; i < numberOfRequests; i++)
         {
             int requestId = i;
@@ -52,10 +52,10 @@ public class ConcurrencyTests : TckTestBase
                     };
 
                     var response = await SendMessageViaJsonRpcAsync(messageSendParams);
-                    
+
                     bool success = response.Error is null && response.Result is not null;
                     results.Add((requestId, success, response.Error?.Message));
-                    
+
                     return response;
                 }
                 catch (Exception ex)
@@ -64,7 +64,7 @@ public class ConcurrencyTests : TckTestBase
                     throw;
                 }
             });
-            
+
             tasks.Add(task);
         }
 
@@ -74,7 +74,7 @@ public class ConcurrencyTests : TckTestBase
         // Assert
         var successCount = results.Count(r => r.success);
         var failureCount = results.Count(r => !r.success);
-        
+
         Output.WriteLine($"Concurrent requests processed: {numberOfRequests}");
         Output.WriteLine($"Successful: {successCount}");
         Output.WriteLine($"Failed: {failureCount}");
@@ -122,25 +122,25 @@ public class ConcurrencyTests : TckTestBase
 
         // Act - Send rapid sequential requests
         var overallStopwatch = Stopwatch.StartNew();
-        
+
         for (int i = 0; i < numberOfRequests; i++)
         {
             var requestStopwatch = Stopwatch.StartNew();
-            
+
             var messageSendParams = new MessageSendParams
             {
                 Message = CreateTestMessage($"Sequential request {i}")
             };
 
             var response = await SendMessageViaJsonRpcAsync(messageSendParams);
-            
+
             requestStopwatch.Stop();
             requestTimes.Add(requestStopwatch.ElapsedMilliseconds);
-            
+
             // Assert each request succeeds
             Assert.True(response.Error is null, $"Request {i} failed: {response.Error?.Message}");
         }
-        
+
         overallStopwatch.Stop();
 
         // Assert
@@ -211,7 +211,7 @@ public class ConcurrencyTests : TckTestBase
                     var response = await SendMessageViaJsonRpcAsync(updateParams);
                     bool success = response.Error is null || response.Result is not null;
                     updateResults.Add(success);
-                    
+
                     return response;
                 }
                 catch (Exception)
@@ -220,7 +220,7 @@ public class ConcurrencyTests : TckTestBase
                     throw;
                 }
             });
-            
+
             concurrentUpdates.Add(updateTask);
         }
 
@@ -270,7 +270,7 @@ public class ConcurrencyTests : TckTestBase
 
         // Act - Create and process many concurrent requests
         var batchTasks = new List<Task>();
-        
+
         for (int batch = 0; batch < 5; batch++)
         {
             var batchTask = Task.Run(async () =>
@@ -283,7 +283,7 @@ public class ConcurrencyTests : TckTestBase
                     };
 
                     var response = await SendMessageViaJsonRpcAsync(messageSendParams);
-                    
+
                     // Verify response is valid
                     if (response.Error is not null)
                     {
@@ -291,7 +291,7 @@ public class ConcurrencyTests : TckTestBase
                     }
                 }
             });
-            
+
             batchTasks.Add(batchTask);
         }
 
@@ -301,7 +301,7 @@ public class ConcurrencyTests : TckTestBase
         GC.Collect();
         GC.WaitForPendingFinalizers();
         GC.Collect();
-        
+
         var finalMemory = GC.GetTotalMemory(false);
         var memoryIncrease = finalMemory - initialMemory;
 
@@ -313,7 +313,7 @@ public class ConcurrencyTests : TckTestBase
 
         // This is a basic smoke test - significant memory growth might indicate leaks
         bool reasonableMemoryUsage = memoryIncrease < (2 * 1024 * 1024); // Less than 2MB increase
-        
+
         if (reasonableMemoryUsage)
         {
             Output.WriteLine("? Reasonable memory usage observed");

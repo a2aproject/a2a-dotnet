@@ -1,14 +1,13 @@
-using A2A.Integration.Tests.Infrastructure;
+using A2A.AspNetCore;
 using System.Reflection;
 using Xunit.Abstractions;
-using Microsoft.AspNetCore.Http;
 
 namespace A2A.Integration.Tests.Infrastructure;
 
 public abstract class TckTestBase(ITestOutputHelper output)
 {
     protected ITestOutputHelper Output { get; } = output;
-    private readonly TaskManager _taskManager = new();
+    protected readonly TaskManager _taskManager = new();
 
     /// <summary>
     /// Evaluates a test result based on TCK compliance levels.

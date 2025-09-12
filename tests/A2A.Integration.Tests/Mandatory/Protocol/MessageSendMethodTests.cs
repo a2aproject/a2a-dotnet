@@ -1,6 +1,5 @@
-using Xunit.Abstractions;
 using A2A.Integration.Tests.Infrastructure;
-using System.Text.Json;
+using Xunit.Abstractions;
 
 namespace A2A.Integration.Tests.Mandatory.Protocol;
 
@@ -42,21 +41,21 @@ public class MessageSendMethodTests : TckTestBase
 
         // Assert
         bool hasValidResponse = response.Error is null && response.Result is not null;
-        
+
         if (hasValidResponse)
         {
             var a2aResponse = response.Result?.Deserialize<A2AResponse>();
-            
+
             if (a2aResponse is AgentMessage message)
             {
                 Output.WriteLine("✓ Received Message response via JSON-RPC");
                 Output.WriteLine($"  Role: {message.Role}");
                 Output.WriteLine($"  Parts count: {message.Parts.Count}");
-                
+
                 bool messageValid = message.Role == MessageRole.Agent &&
                                    message.Parts.Count > 0 &&
                                    !string.IsNullOrEmpty(message.MessageId);
-                
+
                 AssertTckCompliance(messageValid, "JSON-RPC message/send must return valid message structure");
             }
             else if (a2aResponse is AgentTask task)
@@ -64,10 +63,10 @@ public class MessageSendMethodTests : TckTestBase
                 Output.WriteLine("✓ Received Task response via JSON-RPC");
                 Output.WriteLine($"  Task ID: {task.Id}");
                 Output.WriteLine($"  State: {task.Status.State}");
-                
+
                 bool taskValid = !string.IsNullOrEmpty(task.Id) &&
                                 !string.IsNullOrEmpty(task.ContextId);
-                
+
                 AssertTckCompliance(taskValid, "JSON-RPC message/send must return valid task structure");
             }
             else
@@ -143,8 +142,8 @@ public class MessageSendMethodTests : TckTestBase
         // Set up OnTaskCreated to set initial task state
         ConfigureTaskManager(onTaskCreated: (task, _) =>
         {
-            task.Status = task.Status with 
-            { 
+            task.Status = task.Status with
+            {
                 State = TaskState.InputRequired,
                 Message = new AgentMessage
                 {
@@ -174,8 +173,8 @@ public class MessageSendMethodTests : TckTestBase
 
         ConfigureTaskManager(onTaskUpdated: (task, _) =>
         {
-            task.Status = task.Status with 
-            { 
+            task.Status = task.Status with
+            {
                 State = TaskState.Completed,
                 Message = new AgentMessage
                 {
@@ -252,7 +251,7 @@ public class MessageSendMethodTests : TckTestBase
             Output.WriteLine("✗ Expected TaskNotFound error but got successful response");
         }
 
-        AssertTckCompliance(hasCorrectError, 
+        AssertTckCompliance(hasCorrectError,
             "JSON-RPC message/send for non-existent task must return TaskNotFound error (-32001)");
     }
 
@@ -269,8 +268,8 @@ public class MessageSendMethodTests : TckTestBase
             Role = MessageRole.User,
             Parts = [
                 new TextPart { Text = "Hello, this is a test message." },
-                new DataPart 
-                { 
+                new DataPart
+                {
                     Data = new Dictionary<string, JsonElement>
                     {
                         ["test"] = JsonSerializer.SerializeToElement("data")
@@ -301,7 +300,7 @@ public class MessageSendMethodTests : TckTestBase
 
         // Assert
         bool messageProcessed = response.Error is null && response.Result is not null;
-        
+
         if (messageProcessed)
         {
             Output.WriteLine("✓ Valid complex message structure accepted via JSON-RPC");
@@ -329,8 +328,8 @@ public class MessageSendMethodTests : TckTestBase
             Role = MessageRole.User,
             Parts = [
                 new TextPart { Text = "Please analyze this file." },
-                new FilePart 
-                { 
+                new FilePart
+                {
                     File = new FileWithBytes
                     {
                         Name = "test.txt",

@@ -1,6 +1,5 @@
-using Xunit.Abstractions;
 using A2A.Integration.Tests.Infrastructure;
-using System.Text.Json;
+using Xunit.Abstractions;
 
 namespace A2A.Integration.Tests.OptionalTests.Features;
 
@@ -12,6 +11,7 @@ namespace A2A.Integration.Tests.OptionalTests.Features;
 public class OptionalFeaturesTests : TckTestBase
 {
     public OptionalFeaturesTests(ITestOutputHelper output) : base(output) { }
+    private static readonly int[] numArray = [1, 2, 3, 4, 5];
 
     [Fact]
     [TckTest(TckComplianceLevel.FullFeatured, TckCategories.OptionalFeatures,
@@ -25,11 +25,11 @@ public class OptionalFeaturesTests : TckTestBase
             Role = MessageRole.User,
             Parts = [
                 new TextPart { Text = "Analyze this data and file:" },
-                new DataPart 
-                { 
+                new DataPart
+                {
                     Data = new Dictionary<string, JsonElement>
                     {
-                        ["numbers"] = JsonSerializer.SerializeToElement(new[] { 1, 2, 3, 4, 5 }),
+                        ["numbers"] = JsonSerializer.SerializeToElement(numArray),
                         ["type"] = JsonSerializer.SerializeToElement("analysis-data")
                     }
                 },
@@ -90,17 +90,17 @@ public class OptionalFeaturesTests : TckTestBase
     {
         // Arrange
         var agentCard = CreateTestAgentCard();
-        
+
         // Enhance the agent card with optional features
         agentCard.Provider = new AgentProvider
         {
             Organization = "Test Organization",
             Url = "https://test.example.com"
         };
-        
+
         agentCard.DocumentationUrl = "https://docs.test.example.com";
         agentCard.IconUrl = "https://test.example.com/icon.png";
-        
+
         // Add more detailed skills
         agentCard.Skills.Add(new AgentSkill
         {
@@ -229,8 +229,8 @@ public class OptionalFeaturesTests : TckTestBase
         {
             Role = MessageRole.User,
             Parts = [
-                new TextPart 
-                { 
+                new TextPart
+                {
                     Text = "Test message",
                     Metadata = new Dictionary<string, JsonElement>
                     {
@@ -247,8 +247,8 @@ public class OptionalFeaturesTests : TckTestBase
             }
         };
 
-        var params_ = new MessageSendParams 
-        { 
+        var params_ = new MessageSendParams
+        {
             Message = messageWithMetadata,
             Metadata = new Dictionary<string, JsonElement>
             {
@@ -280,7 +280,7 @@ public class OptionalFeaturesTests : TckTestBase
 
         // Assert
         bool responseReceived = response.Error is null && response.Result is not null;
-        
+
         if (responseReceived)
         {
             var message = response.Result?.Deserialize<AgentMessage>();
@@ -357,7 +357,7 @@ public class OptionalFeaturesTests : TckTestBase
         {
             var params_ = new MessageSendParams { Message = edgeCase };
             var response = await SendMessageViaJsonRpcAsync(params_);
-            
+
             if (response.Error is null && response.Result is not null)
             {
                 successfullyHandled++;

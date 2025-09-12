@@ -1,5 +1,5 @@
-using Xunit.Abstractions;
 using A2A.Integration.Tests.Infrastructure;
+using Xunit.Abstractions;
 
 namespace A2A.Integration.Tests.Mandatory.JsonRpc;
 

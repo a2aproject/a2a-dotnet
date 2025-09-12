@@ -1,8 +1,6 @@
-using Xunit.Abstractions;
-using A2A.Integration.Tests.Infrastructure;
 using A2A.AspNetCore;
-using Microsoft.AspNetCore.Http;
-using System.Text.Json;
+using A2A.Integration.Tests.Infrastructure;
+using Xunit.Abstractions;
 
 namespace A2A.Integration.Tests.Mandatory.Protocol;
 
@@ -36,25 +34,25 @@ public class TaskManagementTests : TckTestBase
 
         var createRequestBody = JsonSerializer.Serialize(createRequest);
         var createStream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(createRequestBody));
-        
+
         var createHttpRequest = new DefaultHttpContext().Request;
         createHttpRequest.Body = createStream;
         createHttpRequest.ContentType = "application/json";
 
         var createResult = await A2AJsonRpcProcessor.ProcessRequestAsync(_taskManager, createHttpRequest, CancellationToken.None);
-        
+
         // Extract task ID from the create response
         var createContext = new DefaultHttpContext();
         var createResponseStream = new MemoryStream();
         createContext.Response.Body = createResponseStream;
-        
+
         await ((JsonRpcResponseResult)createResult).ExecuteAsync(createContext);
         createResponseStream.Position = 0;
-        
+
         var createResponseJson = await new StreamReader(createResponseStream).ReadToEndAsync();
         var createResponse = JsonSerializer.Deserialize<JsonRpcResponse>(createResponseJson);
         var initialTask = createResponse?.Result?.Deserialize<AgentTask>();
-        
+
         Assert.NotNull(initialTask);
 
         // Now retrieve the task via JSON-RPC
@@ -72,7 +70,7 @@ public class TaskManagementTests : TckTestBase
 
         var getRequestBody = JsonSerializer.Serialize(getRequest);
         var getStream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(getRequestBody));
-        
+
         var getHttpRequest = new DefaultHttpContext().Request;
         getHttpRequest.Body = getStream;
         getHttpRequest.ContentType = "application/json";
@@ -83,14 +81,14 @@ public class TaskManagementTests : TckTestBase
         // Assert
         Assert.IsType<JsonRpcResponseResult>(getResult);
         var getResponseResult = (JsonRpcResponseResult)getResult;
-        
+
         var getContext = new DefaultHttpContext();
         var getResponseStream = new MemoryStream();
         getContext.Response.Body = getResponseStream;
-        
+
         await getResponseResult.ExecuteAsync(getContext);
         getResponseStream.Position = 0;
-        
+
         var getResponseJson = await new StreamReader(getResponseStream).ReadToEndAsync();
         var getResponse = JsonSerializer.Deserialize<JsonRpcResponse>(getResponseJson);
         var retrievedTask = getResponse?.Result?.Deserialize<AgentTask>();
@@ -138,7 +136,7 @@ public class TaskManagementTests : TckTestBase
         // Simulate HTTP request body
         var requestBody = JsonSerializer.Serialize(request);
         var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(requestBody));
-        
+
         var httpRequest = new DefaultHttpContext().Request;
         httpRequest.Body = stream;
         httpRequest.ContentType = "application/json";
@@ -149,15 +147,15 @@ public class TaskManagementTests : TckTestBase
         // Assert - Should get JSON-RPC error response
         Assert.IsType<JsonRpcResponseResult>(result);
         var responseResult = (JsonRpcResponseResult)result;
-        
+
         // Execute the result to get the actual response
         var context = new DefaultHttpContext();
         var responseStream = new MemoryStream();
         context.Response.Body = responseStream;
-        
+
         await responseResult.ExecuteAsync(context);
         responseStream.Position = 0;
-        
+
         var responseJson = await new StreamReader(responseStream).ReadToEndAsync();
         var response = JsonSerializer.Deserialize<JsonRpcResponse>(responseJson);
 
@@ -176,7 +174,7 @@ public class TaskManagementTests : TckTestBase
             Output.WriteLine($"✗ Unexpected response: {responseJson}");
         }
 
-        AssertTckCompliance(hasCorrectError, 
+        AssertTckCompliance(hasCorrectError,
             "JSON-RPC tasks/get for non-existent task must return TaskNotFound error (-32001)");
     }
 
@@ -206,7 +204,7 @@ public class TaskManagementTests : TckTestBase
         var cancelResponse = await CancelTaskViaJsonRpcAsync(cancelParams);
 
         // Assert
-        bool cancellationValid = cancelResponse.Error is null && 
+        bool cancellationValid = cancelResponse.Error is null &&
                                 cancelResponse.Result is not null;
 
         if (cancellationValid)
@@ -221,7 +219,7 @@ public class TaskManagementTests : TckTestBase
                 Output.WriteLine($"  Task ID: {canceledTask!.Id}");
                 Output.WriteLine($"  Final state: {canceledTask.Status.State}");
             }
-            
+
             AssertTckCompliance(taskProperlyCanceled, "JSON-RPC tasks/cancel must return task in canceled state");
         }
         else if (cancelResponse.Error is not null)
@@ -253,7 +251,7 @@ public class TaskManagementTests : TckTestBase
         // Simulate HTTP request body
         var requestBody = JsonSerializer.Serialize(request);
         var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(requestBody));
-        
+
         var httpRequest = new DefaultHttpContext().Request;
         httpRequest.Body = stream;
         httpRequest.ContentType = "application/json";
@@ -264,15 +262,15 @@ public class TaskManagementTests : TckTestBase
         // Assert - Should get JSON-RPC error response
         Assert.IsType<JsonRpcResponseResult>(result);
         var responseResult = (JsonRpcResponseResult)result;
-        
+
         // Execute the result to get the actual response
         var context = new DefaultHttpContext();
         var responseStream = new MemoryStream();
         context.Response.Body = responseStream;
-        
+
         await responseResult.ExecuteAsync(context);
         responseStream.Position = 0;
-        
+
         var responseJson = await new StreamReader(responseStream).ReadToEndAsync();
         var response = JsonSerializer.Deserialize<JsonRpcResponse>(responseJson);
 
@@ -291,7 +289,7 @@ public class TaskManagementTests : TckTestBase
             Output.WriteLine($"✗ Unexpected response: {responseJson}");
         }
 
-        AssertTckCompliance(hasCorrectError, 
+        AssertTckCompliance(hasCorrectError,
             "JSON-RPC tasks/cancel for non-existent task must return TaskNotFound error (-32001)");
     }
 
@@ -313,14 +311,14 @@ public class TaskManagementTests : TckTestBase
         Assert.NotNull(task);
 
         var cancelParams = new TaskIdParams { Id = task.Id };
-        
+
         // First cancellation should succeed
         var firstCancelResponse = await CancelTaskViaJsonRpcAsync(cancelParams);
         Assert.True(firstCancelResponse.Error is null);
 
         // Act & Assert - Second cancellation should fail via JSON-RPC
         var secondCancelResponse = await CancelTaskViaJsonRpcAsync(cancelParams);
-        
+
         bool hasCorrectError = secondCancelResponse.Error is not null &&
                               secondCancelResponse.Error.Code == (int)A2AErrorCode.TaskNotCancelable;
 
@@ -339,7 +337,7 @@ public class TaskManagementTests : TckTestBase
             Output.WriteLine("✗ Expected TaskNotCancelable error but got successful response");
         }
 
-        AssertTckCompliance(hasCorrectError, 
+        AssertTckCompliance(hasCorrectError,
             "JSON-RPC tasks/cancel for already canceled task must return TaskNotCancelable error");
     }
 
@@ -361,11 +359,11 @@ public class TaskManagementTests : TckTestBase
 
         // Assert
         bool taskStructureValid = response.Error is null && response.Result is not null;
-        
+
         if (taskStructureValid)
         {
             var task = response.Result?.Deserialize<AgentTask>();
-            
+
             bool hasValidStructure = task is not null &&
                                    !string.IsNullOrEmpty(task.Id) &&
                                    !string.IsNullOrEmpty(task.ContextId);
@@ -380,7 +378,7 @@ public class TaskManagementTests : TckTestBase
                 Output.WriteLine($"  Artifacts count: {task.Artifacts?.Count ?? 0}");
                 Output.WriteLine($"  History count: {task.History?.Count ?? 0}");
             }
-            
+
             AssertTckCompliance(hasValidStructure, "JSON-RPC task must have valid structure with required fields");
         }
         else if (response.Error is not null)
@@ -408,11 +406,11 @@ public class TaskManagementTests : TckTestBase
 
         // Assert
         bool validResponse = response.Error is null && response.Result is not null;
-        
+
         if (validResponse)
         {
             var task = response.Result?.Deserialize<AgentTask>();
-            
+
             // Test valid state transitions
             var validStates = new[]
             {
@@ -428,7 +426,7 @@ public class TaskManagementTests : TckTestBase
             };
 
             // Check all states are properly defined
-            bool allStatesValid = validStates.All(state => Enum.IsDefined(typeof(TaskState), state));
+            bool allStatesValid = validStates.All(state => Enum.IsDefined(state));
 
             // Check initial state is valid
             bool initialStateValid = task?.Status.State is TaskState.Submitted ||
@@ -497,7 +495,7 @@ public class TaskManagementTests : TckTestBase
 
         // Assert
         bool validResponse = getResponse.Error is null && getResponse.Result is not null;
-        
+
         if (validResponse)
         {
             var retrievedTask = getResponse.Result?.Deserialize<AgentTask>();

@@ -1,5 +1,5 @@
-using Xunit.Abstractions;
 using A2A.Integration.Tests.Infrastructure;
+using Xunit.Abstractions;
 
 namespace A2A.Integration.Tests.OptionalTests.Capabilities;
 
@@ -54,12 +54,12 @@ public class StreamingMethodsTests : TckTestBase
 
         // Assert
         bool streamingWorked = events.Count > 0;
-        
+
         if (streamingWorked)
         {
             Output.WriteLine("? Streaming functionality working");
             Output.WriteLine($"  Events received: {events.Count}");
-            
+
             foreach (var evt in events)
             {
                 Output.WriteLine($"  Event type: {evt.GetType().Name}");
@@ -90,17 +90,17 @@ public class StreamingMethodsTests : TckTestBase
         try
         {
             var resubscribeEvents = _taskManager.SubscribeToTaskAsync(new TaskIdParams { Id = task.Id });
-            
+
             // Try to get at least one event
-            var eventReceived = false;
             await foreach (var evt in resubscribeEvents)
             {
-                eventReceived = true;
-                break;
+                Output.WriteLine("✓ Task resubscription working");
+                AssertTckCompliance(true, "Resubscription capability is working");
+                return;
             }
 
-            Output.WriteLine("? Task resubscription working");
-            AssertTckCompliance(true, "Resubscription capability is working");
+            Output.WriteLine("⚠️ No events received from task resubscription");
+            AssertTckCompliance(true, "Resubscription may not be supported for this task");
         }
         catch (A2AException ex) when (ex.ErrorCode is A2AErrorCode.TaskNotFound)
         {
@@ -127,7 +127,7 @@ public class StreamingMethodsTests : TckTestBase
         ConfigureTaskManager(onTaskCreated: async (task, ct) =>
         {
             await _taskManager.UpdateStatusAsync(task.Id, TaskState.Working, cancellationToken: ct);
-            
+
             // Return an artifact
             await _taskManager.ReturnArtifactAsync(task.Id, new Artifact
             {
@@ -135,7 +135,7 @@ public class StreamingMethodsTests : TckTestBase
                 Name = "Test Artifact",
                 Parts = [new TextPart { Text = "Test content" }]
             }, ct);
-            
+
             await _taskManager.UpdateStatusAsync(task.Id, TaskState.Completed, final: true, cancellationToken: ct);
         });
 

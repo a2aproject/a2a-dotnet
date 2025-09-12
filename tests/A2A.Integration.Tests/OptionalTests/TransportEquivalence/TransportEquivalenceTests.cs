@@ -1,5 +1,5 @@
-using Xunit.Abstractions;
 using A2A.Integration.Tests.Infrastructure;
+using Xunit.Abstractions;
 
 namespace A2A.Integration.Tests.OptionalTests.TransportEquivalence;
 
@@ -22,7 +22,7 @@ public class TransportEquivalenceTests : TckTestBase
         // NOTE: This test demonstrates the limitation of our current approach
         // The upstream TCK tests the same functionality across JSON-RPC, gRPC, and REST
         // Our current implementation only tests the JSON-RPC SDK layer
-        
+
         // Arrange
         var messageSendParams = new MessageSendParams
         {
@@ -50,7 +50,7 @@ public class TransportEquivalenceTests : TckTestBase
 
         // Assert
         bool jsonRpcWorked = jsonRpcResponse.Error is null && jsonRpcResponse.Result is not null;
-        
+
         if (jsonRpcWorked)
         {
             Output.WriteLine("? JSON-RPC SDK layer working");
@@ -70,7 +70,7 @@ public class TransportEquivalenceTests : TckTestBase
     {
         // This would test that task creation, retrieval, and cancellation
         // work identically across JSON-RPC, gRPC, and REST
-        
+
         // Current limitation: only SDK-level testing
         var messageSendParams = new MessageSendParams
         {
@@ -79,19 +79,19 @@ public class TransportEquivalenceTests : TckTestBase
 
         var createResponse = await SendMessageViaJsonRpcAsync(messageSendParams);
         var task = createResponse.Result?.Deserialize<AgentTask>();
-        
+
         bool taskCreated = task is not null;
-        
+
         if (taskCreated)
         {
             // Test task retrieval
             var getResponse = await GetTaskViaJsonRpcAsync(new TaskQueryParams { Id = task!.Id });
             bool taskRetrieved = getResponse.Error is null;
-            
+
             // Test task cancellation
             var cancelResponse = await CancelTaskViaJsonRpcAsync(new TaskIdParams { Id = task.Id });
             bool taskCanceled = cancelResponse.Error is null;
-            
+
             Output.WriteLine($"? Task lifecycle via JSON-RPC SDK: Create={taskCreated}, Get={taskRetrieved}, Cancel={taskCanceled}");
         }
 
@@ -106,11 +106,11 @@ public class TransportEquivalenceTests : TckTestBase
     public async Task TransportEquivalence_ErrorHandling_ProducesSameErrors()
     {
         // Test that error scenarios produce equivalent errors across transports
-        
+
         // Test 1: Non-existent task
         var getResponse = await GetTaskViaJsonRpcAsync(new TaskQueryParams { Id = "non-existent" });
         bool correctError = getResponse.Error?.Code == (int)A2AErrorCode.TaskNotFound;
-        
+
         // Test 2: Invalid parameters
         var invalidParams = new MessageSendParams
         {
@@ -121,13 +121,13 @@ public class TransportEquivalenceTests : TckTestBase
                 // Missing Parts - invalid
             }
         };
-        
+
         var invalidResponse = await SendMessageViaJsonRpcAsync(invalidParams);
         bool errorHandled = invalidResponse.Error is not null || invalidResponse.Result is not null;
-        
+
         Output.WriteLine($"? Error handling via JSON-RPC SDK: TaskNotFound={correctError}, InvalidParams={errorHandled}");
         Output.WriteLine("?? Cross-transport error equivalence requires HTTP endpoint comparison");
-        
+
         AssertTckCompliance(true, "Error handling equivalence testing demonstrates SDK limitations");
     }
 }

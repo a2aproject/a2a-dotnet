@@ -1,5 +1,5 @@
-using Xunit.Abstractions;
 using A2A.Integration.Tests.Infrastructure;
+using Xunit.Abstractions;
 
 namespace A2A.Integration.Tests.Mandatory.Authentication;
 
@@ -20,10 +20,10 @@ public class AuthenticationComplianceTests : TckTestBase
     {
         // This test validates that the SUT properly enforces authentication
         // when required by the Agent Card security schemes
-        
+
         // TODO: Implement transport-agnostic authentication testing
         // This should test actual HTTP endpoints, not SDK components
-        
+
         AssertTckCompliance(true, "Authentication enforcement test requires HTTP endpoint testing");
     }
 
@@ -35,10 +35,10 @@ public class AuthenticationComplianceTests : TckTestBase
     public void Authentication_InvalidCredentials_ReturnsUnauthorized()
     {
         // This test validates that invalid credentials are properly rejected
-        
+
         // TODO: Implement HTTP-based authentication testing
         // Should return 401 Unauthorized for invalid credentials
-        
+
         AssertTckCompliance(true, "Invalid credentials test requires HTTP endpoint testing");
     }
 }

@@ -1,7 +1,7 @@
-using Xunit.Abstractions;
 using A2A.Integration.Tests.Infrastructure;
+using Xunit.Abstractions;
 
-namespace A2A.Integration.Tests.OptionalTestsTests.Capabilities;
+namespace A2A.Integration.Tests.OptionalTests.Capabilities;
 
 /// <summary>
 /// Tests for optional A2A capabilities that enhance the base protocol.
@@ -39,7 +39,7 @@ public class OptionalCapabilitiesTests : TckTestBase
 
         // Assert
         bool jsonRpcWorked = response.Error is null && response.Result is not null;
-        
+
         if (jsonRpcWorked)
         {
             var message = response.Result?.Deserialize<AgentMessage>();
@@ -76,7 +76,7 @@ public class OptionalCapabilitiesTests : TckTestBase
 
         // Assert
         bool taskManagementWorked = getResponse.Error is null && getResponse.Result is not null;
-        
+
         if (taskManagementWorked)
         {
             var retrievedTask = getResponse.Result?.Deserialize<AgentTask>();
@@ -115,7 +115,7 @@ public class OptionalCapabilitiesTests : TckTestBase
 
         // Assert
         bool cancellationWorked = cancelResponse.Error is null && cancelResponse.Result is not null;
-        
+
         if (cancellationWorked)
         {
             var cancelledTask = cancelResponse.Result?.Deserialize<AgentTask>();
@@ -157,7 +157,7 @@ public class OptionalCapabilitiesTests : TckTestBase
 
             // Note: In a real implementation, we would test that declared capabilities
             // actually work. For this test suite, we just validate the structure.
-            
+
             if (capabilitiesConsistent)
             {
                 Output.WriteLine("✓ Declared capabilities appear consistent");
@@ -203,7 +203,7 @@ public class OptionalCapabilitiesTests : TckTestBase
             Output.WriteLine("✓ JSON-RPC correctly handles invalid parameters");
             Output.WriteLine($"  Error code: {invalidResponse.Error!.Code}");
         }
-        
+
         if (hasTaskNotFoundError)
         {
             Output.WriteLine("✓ JSON-RPC correctly handles non-existent tasks");
@@ -226,8 +226,8 @@ public class OptionalCapabilitiesTests : TckTestBase
             Role = MessageRole.User,
             Parts = [
                 new TextPart { Text = "Process this complex message:" },
-                new DataPart 
-                { 
+                new DataPart
+                {
                     Data = new Dictionary<string, JsonElement>
                     {
                         ["type"] = JsonSerializer.SerializeToElement("test-data"),
@@ -256,7 +256,7 @@ public class OptionalCapabilitiesTests : TckTestBase
 
         // Assert
         bool complexMessageHandled = response.Error is null && response.Result is not null;
-        
+
         if (complexMessageHandled)
         {
             var message = response.Result?.Deserialize<AgentMessage>();

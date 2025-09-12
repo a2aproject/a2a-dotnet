@@ -1,5 +1,5 @@
-using Xunit.Abstractions;
 using A2A.Integration.Tests.Infrastructure;
+using Xunit.Abstractions;
 
 namespace A2A.Integration.Tests.Mandatory.JsonRpc;
 
@@ -21,9 +21,9 @@ public class ProtocolViolationTests : TckTestBase
         // This test should validate malformed JSON handling
         // In the current SDK-focused approach, we can't easily test malformed JSON
         // because we're testing the SDK components directly, not HTTP endpoints
-        
+
         // TODO: Convert to HTTP endpoint testing for true protocol violation testing
-        
+
         Output.WriteLine("?? Protocol violation testing requires HTTP endpoint access");
         AssertTckCompliance(true, "Protocol violation testing needs HTTP transport layer");
     }
@@ -36,10 +36,10 @@ public class ProtocolViolationTests : TckTestBase
     public void ProtocolViolation_MissingRequiredFields_ReturnsInvalidRequest()
     {
         // Test missing required JSON-RPC fields like 'method'
-        
+
         // TODO: This requires testing at the HTTP transport level
         // Current SDK testing approach cannot properly validate this
-        
+
         Output.WriteLine("?? Missing field validation requires HTTP endpoint access");
         AssertTckCompliance(true, "Protocol field validation needs transport layer testing");
     }

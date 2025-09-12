@@ -1,5 +1,5 @@
-using Xunit.Abstractions;
 using A2A.Integration.Tests.Infrastructure;
+using Xunit.Abstractions;
 
 namespace A2A.Integration.Tests.OptionalTests.Capabilities;
 
@@ -155,7 +155,7 @@ public class PushNotificationConfigTests : TckTestBase
         try
         {
             var result = await _taskManager.SetPushNotificationAsync(invalidPushConfig);
-            
+
             // If it succeeds, the implementation may be lenient
             Output.WriteLine("?? Invalid URL was accepted - implementation may be lenient");
             AssertTckCompliance(true, "URL validation behavior varies by implementation");
