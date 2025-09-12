@@ -1,5 +1,6 @@
-using Microsoft.AspNetCore.Mvc.Testing;
+using A2A.Integration.Tests.tck;
 using A2A.Integration.Tests.Tck.Utils;
+using Microsoft.AspNetCore.Mvc.Testing;
 using System.Text;
 using System.Text.Json;
 namespace A2A.Integration.Tests.Tck.Mandatory.Protocol;
@@ -7,23 +8,8 @@ namespace A2A.Integration.Tests.Tck.Mandatory.Protocol;
 /// EXACT implementation of test_tasks_get_method.py from upstream TCK.
 /// Tests the tasks/get JSON-RPC method according to A2A v0.3.0 specification.
 /// </summary>
-public class TestTasksGetMethod : IClassFixture<WebApplicationFactory<AgentServer.SpecComplianceAgent>>, IDisposable
+public class TestTasksGetMethod : TckClientTest
 {
-    private readonly WebApplicationFactory<AgentServer.SpecComplianceAgent> _factory;
-    private readonly HttpClient _client;
-    public TestTasksGetMethod()
-    {
-        _factory = TransportHelpers.CreateTestApplication(
-            configureTaskManager: taskManager =>
-            {
-                // Configure task creation for get tests
-                taskManager.OnTaskCreated = (task, cancellationToken) =>
-                {
-                    return Task.CompletedTask;
-                };
-            });
-        _client = _factory.CreateClient();
-    }
     /// <summary>
     /// Helper method to create a task and return its ID.
     /// Matches the created_task_id fixture from upstream TCK.
@@ -45,7 +31,7 @@ public class TestTasksGetMethod : IClassFixture<WebApplicationFactory<AgentServe
             }}
         }}";
 
-        var response = await TransportHelpers.TransportSendMessage(_client, messageSendParamsJson);
+        var response = await TransportHelpers.TransportSendMessage(this.HttpClient, messageSendParamsJson);
         Assert.True(TransportHelpers.IsJsonRpcSuccessResponse(response),
             $"Task creation failed: {response.RootElement}");
 
@@ -70,7 +56,7 @@ public class TestTasksGetMethod : IClassFixture<WebApplicationFactory<AgentServe
         // Arrange - Create a task first
         var taskId = await CreateTaskAsync();
         // Act - Use transport-agnostic task retrieval
-        var response = await TransportHelpers.TransportGetTask(_client, taskId);
+        var response = await TransportHelpers.TransportGetTask(this.HttpClient, taskId);
         // Assert
         Assert.True(TransportHelpers.IsJsonRpcSuccessResponse(response),
             $"Task retrieval failed: {response.RootElement}");
@@ -97,7 +83,7 @@ public class TestTasksGetMethod : IClassFixture<WebApplicationFactory<AgentServe
         // Arrange - Create a task first
         var taskId = await CreateTaskAsync();
         // Act - Use transport-agnostic task retrieval with history length
-        var response = await TransportHelpers.TransportGetTask(_client, taskId, historyLength: 1);
+        var response = await TransportHelpers.TransportGetTask(this.HttpClient, taskId, historyLength: 1);
         // Assert
         Assert.True(TransportHelpers.IsJsonRpcSuccessResponse(response),
             $"Task retrieval with history failed: {response.RootElement}");
@@ -125,7 +111,7 @@ public class TestTasksGetMethod : IClassFixture<WebApplicationFactory<AgentServe
         // Arrange - Use a non-existent task ID
         var nonExistentTaskId = "nonexistent-task-id";
         // Act - Use transport-agnostic task retrieval
-        var response = await TransportHelpers.TransportGetTask(_client, nonExistentTaskId);
+        var response = await TransportHelpers.TransportGetTask(this.HttpClient, nonExistentTaskId);
         // Assert - Should receive an error response
         Assert.True(TransportHelpers.IsJsonRpcErrorResponse(response),
             $"Expected error for non-existent task, got: {response.RootElement}");
@@ -155,7 +141,7 @@ public class TestTasksGetMethod : IClassFixture<WebApplicationFactory<AgentServe
         }}.";
         var content = new StringContent(jsonRpcRequest, Encoding.UTF8, "application/json");
         // Act
-        var httpResponse = await _client.PostAsync("/speccompliance", content);
+        var httpResponse = await this.HttpClient.PostAsync(string.Empty, content);
         var responseText = await httpResponse.Content.ReadAsStringAsync();
         var response = JsonDocument.Parse(responseText);
         // Assert - Should receive InvalidParams error
@@ -184,7 +170,7 @@ public class TestTasksGetMethod : IClassFixture<WebApplicationFactory<AgentServe
         // Arrange - Create a task first
         var taskId = await CreateTaskAsync();
         // Act - Use transport-agnostic task retrieval with various history lengths
-        var response = await TransportHelpers.TransportGetTask(_client, taskId, historyLength: historyLength);
+        var response = await TransportHelpers.TransportGetTask(this.HttpClient, taskId, historyLength: historyLength);
         // Assert - Should succeed regardless of history length value
         Assert.True(TransportHelpers.IsJsonRpcSuccessResponse(response),
             $"Task retrieval with historyLength={historyLength} failed: {response.RootElement}");
@@ -198,11 +184,5 @@ public class TestTasksGetMethod : IClassFixture<WebApplicationFactory<AgentServe
             // History should be an array
             Assert.Equal(JsonValueKind.Array, historyProperty.ValueKind);
         }
-    }
-    public void Dispose()
-    {
-        _client?.Dispose();
-        _factory?.Dispose();
-        GC.SuppressFinalize(this);
     }
 }

@@ -1,20 +1,16 @@
+using A2A.Integration.Tests.tck;
 using A2A.Integration.Tests.Tck.Utils;
+
 using Microsoft.AspNetCore.Mvc.Testing;
+
 using System.Text;
 namespace A2A.Integration.Tests.Tck.Mandatory.JsonRpc;
 /// <summary>
 /// EXACT implementation of test_json_rpc_compliance.py from upstream TCK.
 /// Tests JSON-RPC 2.0 protocol compliance according to the specification.
 /// </summary>
-public class TestJsonRpcCompliance : IClassFixture<WebApplicationFactory<AgentServer.SpecComplianceAgent>>, IDisposable
+public class TestJsonRpcCompliance : TckClientTest
 {
-    private readonly WebApplicationFactory<AgentServer.SpecComplianceAgent> _factory;
-    private readonly HttpClient _client;
-    public TestJsonRpcCompliance()
-    {
-        _factory = TransportHelpers.CreateTestApplication();
-        _client = _factory.CreateClient();
-    }
     /// <summary>
     /// MANDATORY: JSON-RPC 2.0 Specification §4.2 - Parse Error
     ///
@@ -30,7 +26,7 @@ public class TestJsonRpcCompliance : IClassFixture<WebApplicationFactory<AgentSe
         var malformedJson = """{"jsonrpc": "2.0", "method": "message/send", "params": {"foo": "bar"}""";
         var content = new StringContent(malformedJson, Encoding.UTF8, "application/json");
         // Act
-        var response = await _client.PostAsync("/speccompliance", content);
+        var response = await this.HttpClient.PostAsync(string.Empty, content);
         // Assert - Should return JSON-RPC Parse Error
         Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode); // JSON-RPC errors use 200 OK
         var responseText = await response.Content.ReadAsStringAsync();
@@ -59,7 +55,7 @@ public class TestJsonRpcCompliance : IClassFixture<WebApplicationFactory<AgentSe
         // Arrange
         var content = new StringContent(invalidRequest, Encoding.UTF8, "application/json");
         // Act
-        var response = await _client.PostAsync("/speccompliance", content);
+        var response = await this.HttpClient.PostAsync(string.Empty, content);
         // Assert
         Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode); // JSON-RPC errors use 200 OK
         var responseText = await response.Content.ReadAsStringAsync();
@@ -90,7 +86,7 @@ public class TestJsonRpcCompliance : IClassFixture<WebApplicationFactory<AgentSe
         """;
         var content = new StringContent(jsonRpcRequest, Encoding.UTF8, "application/json");
         // Act
-        var response = await _client.PostAsync("/speccompliance", content);
+        var response = await this.HttpClient.PostAsync(string.Empty, content);
         // Assert
         Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
         var responseText = await response.Content.ReadAsStringAsync();
@@ -121,7 +117,7 @@ public class TestJsonRpcCompliance : IClassFixture<WebApplicationFactory<AgentSe
         }}";
         var content = new StringContent(jsonRpcRequest, Encoding.UTF8, "application/json");
         // Act
-        var response = await _client.PostAsync("/speccompliance", content);
+        var response = await this.HttpClient.PostAsync(string.Empty, content);
         // Assert
         Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
         var responseText = await response.Content.ReadAsStringAsync();
@@ -167,14 +163,14 @@ public class TestJsonRpcCompliance : IClassFixture<WebApplicationFactory<AgentSe
             ""id"": {intId}
         }}",
             string stringId => baseRequest + $@",
-            ""id"": ""{stringId}"",
+            ""id"": ""{stringId}""
         }}",
             null => baseRequest + "\n}",
             _ => throw new ArgumentException($"Unsupported request ID type: {requestId?.GetType()}")
         };
         var content = new StringContent(jsonRpcRequest, Encoding.UTF8, "application/json");
         // Act
-        var response = await _client.PostAsync("/speccompliance", content);
+        var response = await this.HttpClient.PostAsync(string.Empty, content);
         // Assert
         Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
         var responseText = await response.Content.ReadAsStringAsync();
@@ -234,7 +230,7 @@ public class TestJsonRpcCompliance : IClassFixture<WebApplicationFactory<AgentSe
         }}";
         var content = new StringContent(jsonRpcRequest, Encoding.UTF8, "application/json");
         // Act
-        var response = await _client.PostAsync("/speccompliance", content);
+        var response = await this.HttpClient.PostAsync(string.Empty, content);
         // Assert
         Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
         var responseText = await response.Content.ReadAsStringAsync();
@@ -275,7 +271,7 @@ public class TestJsonRpcCompliance : IClassFixture<WebApplicationFactory<AgentSe
         }}";
         var content = new StringContent(jsonRpcRequest, Encoding.UTF8, "application/json");
         // Act
-        var response = await _client.PostAsync("/speccompliance", content);
+        var response = await this.HttpClient.PostAsync(string.Empty, content);
         // Assert
         Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
         var responseText = await response.Content.ReadAsStringAsync();
@@ -287,11 +283,5 @@ public class TestJsonRpcCompliance : IClassFixture<WebApplicationFactory<AgentSe
         var hasResult = responseJson.RootElement.TryGetProperty("result", out _);
         var hasError = responseJson.RootElement.TryGetProperty("error", out _);
         Assert.True(hasResult ^ hasError, "Response should have either 'result' or 'error', but not both");
-    }
-    public void Dispose()
-    {
-        _client?.Dispose();
-        _factory?.Dispose();
-        GC.SuppressFinalize(this);
     }
 }

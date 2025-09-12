@@ -50,7 +50,7 @@ internal static class TransportHelpers
 
         var content = new StringContent(jsonRpcRequest, Encoding.UTF8, "application/json");
 
-        var response = await client.PostAsync("/speccompliance", content);
+        var response = await client.PostAsync(string.Empty, content);
         var responseText = await response.Content.ReadAsStringAsync();
 
         return JsonDocument.Parse(responseText);
@@ -75,7 +75,7 @@ internal static class TransportHelpers
 
         var content = new StringContent(jsonRpcRequest, Encoding.UTF8, "application/json");
 
-        var response = await client.PostAsync("/speccompliance", content);
+        var response = await client.PostAsync(string.Empty, content);
         var responseText = await response.Content.ReadAsStringAsync();
 
         return JsonDocument.Parse(responseText);
@@ -95,7 +95,7 @@ internal static class TransportHelpers
 
         var content = new StringContent(jsonRpcRequest, Encoding.UTF8, "application/json");
 
-        var response = await client.PostAsync("/speccompliance", content);
+        var response = await client.PostAsync(string.Empty, content);
         var responseText = await response.Content.ReadAsStringAsync();
 
         return JsonDocument.Parse(responseText);

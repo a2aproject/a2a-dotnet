@@ -1,5 +1,7 @@
 using A2A.Integration.Tests.Tck.Utils;
+
 using Microsoft.AspNetCore.Mvc.Testing;
+
 using System.Text;
 using System.Text.Json;
 namespace A2A.Integration.Tests.Tck.Mandatory.Protocol;
@@ -7,13 +9,12 @@ namespace A2A.Integration.Tests.Tck.Mandatory.Protocol;
 /// EXACT implementation of test_tasks_cancel_method.py from upstream TCK.
 /// Tests the tasks/cancel JSON-RPC method according to A2A v0.3.0 specification.
 /// </summary>
-public class TestTasksCancelMethod : IClassFixture<WebApplicationFactory<AgentServer.SpecComplianceAgent>>, IDisposable
+public class TestTasksCancelMethod
 {
-    private readonly WebApplicationFactory<AgentServer.SpecComplianceAgent> _factory;
     private readonly HttpClient _client;
     public TestTasksCancelMethod()
     {
-        _factory = TransportHelpers.CreateTestApplication(
+        var _factory = TransportHelpers.CreateTestApplication(
             configureTaskManager: taskManager =>
             {
                 // Configure task creation for cancel tests
@@ -22,8 +23,14 @@ public class TestTasksCancelMethod : IClassFixture<WebApplicationFactory<AgentSe
                     return Task.CompletedTask;
                 };
             });
+
         _client = _factory.CreateClient();
+
+        var targetUri = new UriBuilder(_client.BaseAddress!);
+        targetUri.Path = "/speccompliance";
+        _client.BaseAddress = targetUri.Uri;
     }
+
     /// <summary>
     /// Helper method to create a task and return its ID.
     /// Matches the created_task_id fixture from upstream TCK.
@@ -164,7 +171,7 @@ public class TestTasksCancelMethod : IClassFixture<WebApplicationFactory<AgentSe
         }}";
         var content = new StringContent(jsonRpcRequest, Encoding.UTF8, "application/json");
         // Act
-        var httpResponse = await _client.PostAsync("/speccompliance", content);
+        var httpResponse = await _client.PostAsync(string.Empty, content);
         var responseText = await httpResponse.Content.ReadAsStringAsync();
         var response = JsonDocument.Parse(responseText);
         // Assert - Should receive InvalidParams error
@@ -222,7 +229,7 @@ public class TestTasksCancelMethod : IClassFixture<WebApplicationFactory<AgentSe
         }}";
         var content = new StringContent(jsonRpcRequest, Encoding.UTF8, "application/json");
         // Act
-        var httpResponse = await _client.PostAsync("/speccompliance", content);
+        var httpResponse = await _client.PostAsync(string.Empty, content);
         var responseText = await httpResponse.Content.ReadAsStringAsync();
         var response = JsonDocument.Parse(responseText);
         // Assert - Should receive an error response
@@ -232,11 +239,5 @@ public class TestTasksCancelMethod : IClassFixture<WebApplicationFactory<AgentSe
         // Could be TaskNotFound (-32001) or InvalidParams (-32602)
         Assert.True(errorCode == -32001 || errorCode == -32602,
             $"Expected TaskNotFound (-32001) or InvalidParams (-32602), got {errorCode}");
-    }
-    public void Dispose()
-    {
-        _client?.Dispose();
-        _factory?.Dispose();
-        GC.SuppressFinalize(this);
     }
 }

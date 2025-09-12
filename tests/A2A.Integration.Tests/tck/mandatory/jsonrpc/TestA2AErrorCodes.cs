@@ -1,12 +1,9 @@
+using A2A.Integration.Tests.tck;
 using A2A.Integration.Tests.Tck.Utils;
-
-using Microsoft.AspNetCore.Mvc.Testing;
 namespace A2A.Integration.Tests.Tck.Mandatory.JsonRpc;
 
-public class TestA2AErrorCodes
+public class TestA2AErrorCodes : TckClientTest
 {
-    private readonly HttpClient _client = TransportHelpers.CreateTestApplication().CreateClient();
-
     /// <summary>
     /// Helper method to create a task and return its ID.
     /// </summary>
@@ -27,7 +24,7 @@ public class TestA2AErrorCodes
             }}
         }}";
 
-        var response = await TransportHelpers.TransportSendMessage(_client, messageSendParamsJson);
+        var response = await TransportHelpers.TransportSendMessage(this.HttpClient, messageSendParamsJson);
         Assert.True(TransportHelpers.IsJsonRpcSuccessResponse(response),
             $"Task creation failed: {response.RootElement}");
 
@@ -51,7 +48,7 @@ public class TestA2AErrorCodes
         // Arrange - Try to get a non-existent task
         var nonExistentTaskId = "non-existent-task-id";
         // Act
-        var response = await TransportHelpers.TransportGetTask(_client, nonExistentTaskId);
+        var response = await TransportHelpers.TransportGetTask(this.HttpClient, nonExistentTaskId);
         // Assert
         Assert.True(TransportHelpers.IsJsonRpcErrorResponse(response),
             $"Expected error response, got: {response.RootElement}");
@@ -78,11 +75,11 @@ public class TestA2AErrorCodes
         // Arrange - Create and cancel a task
         var taskId = await CreateTaskAsync();
         // Cancel the task first time (should succeed)
-        var firstCancelResponse = await TransportHelpers.TransportCancelTask(_client, taskId);
+        var firstCancelResponse = await TransportHelpers.TransportCancelTask(this.HttpClient, taskId);
         Assert.True(TransportHelpers.IsJsonRpcSuccessResponse(firstCancelResponse),
             "First cancellation should succeed");
         // Act - Try to cancel the already canceled task
-        var secondCancelResponse = await TransportHelpers.TransportCancelTask(_client, taskId);
+        var secondCancelResponse = await TransportHelpers.TransportCancelTask(this.HttpClient, taskId);
         // Assert
         Assert.True(TransportHelpers.IsJsonRpcErrorResponse(secondCancelResponse),
             $"Expected error response, got: {secondCancelResponse.RootElement}");
@@ -177,7 +174,7 @@ public class TestA2AErrorCodes
         }}";
 
         // Act
-        var response = await TransportHelpers.TransportSendMessage(_client, unsupportedContentParamsJson);
+        var response = await TransportHelpers.TransportSendMessage(this.HttpClient, unsupportedContentParamsJson);
 
         // Assert - Either succeeds (content type supported) or returns appropriate error
         if (TransportHelpers.IsJsonRpcErrorResponse(response))
@@ -233,14 +230,14 @@ public class TestA2AErrorCodes
                 ""parts"": [
                     {{
                         ""kind"": ""text"",
-                        ""text"": ""{largeText}"",
+                        ""text"": ""{largeText}""
                     }}
                 ]
             }}
         }}";
 
         // Act
-        var response = await TransportHelpers.TransportSendMessage(_client, largeMessageParamsJson);
+        var response = await TransportHelpers.TransportSendMessage(this.HttpClient, largeMessageParamsJson);
 
         // Assert - Either succeeds (no size limit) or returns appropriate error
         if (TransportHelpers.IsJsonRpcErrorResponse(response))
@@ -307,7 +304,7 @@ public class TestA2AErrorCodes
         }}";
 
         // Act
-        var response = await TransportHelpers.TransportSendMessage(_client, unsupportedContentParamsJson);
+        var response = await TransportHelpers.TransportSendMessage(this.HttpClient, unsupportedContentParamsJson);
 
         // Assert - Should receive ContentTypeNotSupportedError or handle gracefully
         if (TransportHelpers.IsJsonRpcErrorResponse(response))
@@ -356,7 +353,7 @@ public class TestA2AErrorCodes
         }}";
 
         // Act
-        var response = await TransportHelpers.TransportSendMessage(_client, largeMessageParamsJson);
+        var response = await TransportHelpers.TransportSendMessage(this.HttpClient, largeMessageParamsJson);
 
         // Assert - Should either succeed or return appropriate error
         if (TransportHelpers.IsJsonRpcErrorResponse(response))

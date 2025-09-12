@@ -1,18 +1,19 @@
 using A2A.Integration.Tests.Tck.Utils;
+
 using Microsoft.AspNetCore.Mvc.Testing;
 namespace A2A.Integration.Tests.Tck.Mandatory.Protocol;
 /// <summary>
 /// EXACT implementation of test_message_send_method.py from upstream TCK.
 /// Tests the message/send JSON-RPC method according to A2A v0.3.0 specification.
 /// </summary>
-public class TestMessageSendMethod : IClassFixture<WebApplicationFactory<AgentServer.SpecComplianceAgent>>, IDisposable
+public class TestMessageSendMethod
 {
-    private readonly WebApplicationFactory<AgentServer.SpecComplianceAgent> _factory;
     private readonly HttpClient _client;
     private static readonly string[] ValidTaskStates = ["submitted", "working", "input-required", "completed"];
+
     public TestMessageSendMethod()
     {
-        _factory = TransportHelpers.CreateTestApplication(
+        var _factory = TransportHelpers.CreateTestApplication(
             configureTaskManager: taskManager =>
             {
                 // Configure default message handler for tests
@@ -26,7 +27,12 @@ public class TestMessageSendMethod : IClassFixture<WebApplicationFactory<AgentSe
                     });
                 };
             });
+
         _client = _factory.CreateClient();
+
+        var targetUri = new UriBuilder(_client.BaseAddress!);
+        targetUri.Path = "/speccompliance";
+        _client.BaseAddress = targetUri.Uri;
     }
     /// <summary>
     /// MANDATORY: A2A v0.3.0 §7.1 - Core Message Protocol
@@ -355,12 +361,5 @@ public class TestMessageSendMethod : IClassFixture<WebApplicationFactory<AgentSe
             Assert.True(errorCode == -32005 || errorCode == -32602 || errorCode == -32603,
                 $"Expected valid error code for unsupported data parts, got {errorCode}");
         }
-    }
-
-    public void Dispose()
-    {
-        _client?.Dispose();
-        _factory?.Dispose();
-        GC.SuppressFinalize(this);
     }
 }
