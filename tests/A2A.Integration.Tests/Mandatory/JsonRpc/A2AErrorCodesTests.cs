@@ -1,4 +1,5 @@
 using A2A.Integration.Tests.Infrastructure;
+
 using Xunit.Abstractions;
 
 namespace A2A.Integration.Tests.Mandatory.JsonRpc;
@@ -99,11 +100,10 @@ public class A2AErrorCodesTests : TckTestBase
             Parts = [
                 new FilePart
                 {
-                    File = new FileWithBytes
+                    File = new(System.Text.Encoding.UTF8.GetBytes("fake exe content"))
                     {
                         Name = "test.exe",
                         MimeType = "application/x-msdownload", // Likely unsupported
-                        Bytes = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("fake exe content"))
                     }
                 }
             ],

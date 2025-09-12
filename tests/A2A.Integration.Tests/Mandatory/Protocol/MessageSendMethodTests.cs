@@ -330,11 +330,10 @@ public class MessageSendMethodTests : TckTestBase
                 new TextPart { Text = "Please analyze this file." },
                 new FilePart
                 {
-                    File = new FileWithBytes
+                    File = new (System.Text.Encoding.UTF8.GetBytes("test content"))
                     {
                         Name = "test.txt",
                         MimeType = "text/plain",
-                        Bytes = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("test content"))
                     }
                 }
             ],

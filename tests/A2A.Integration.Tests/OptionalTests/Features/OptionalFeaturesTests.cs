@@ -1,4 +1,5 @@
 using A2A.Integration.Tests.Infrastructure;
+
 using Xunit.Abstractions;
 
 namespace A2A.Integration.Tests.OptionalTests.Features;
@@ -35,11 +36,10 @@ public class OptionalFeaturesTests : TckTestBase
                 },
                 new FilePart
                 {
-                    File = new FileWithBytes
+                    File = new (System.Text.Encoding.UTF8.GetBytes("""{"sample": true}"""))
                     {
                         Name = "sample.json",
                         MimeType = "application/json",
-                        Bytes = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("""{"sample": true}"""))
                     }
                 }
             ],
