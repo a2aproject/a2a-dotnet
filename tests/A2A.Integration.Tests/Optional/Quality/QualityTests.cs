@@ -1,8 +1,8 @@
-﻿using Xunit.Abstractions;
-using A2A.TCK.Tests.Infrastructure;
+using Xunit.Abstractions;
+using A2A.Integration.Tests.Infrastructure;
 using System.Diagnostics;
 
-namespace A2A.TCK.Tests.Optional.Quality;
+namespace A2A.Integration.Tests.OptionalTests.Quality;
 
 /// <summary>
 /// Tests for production quality aspects of the A2A implementation.

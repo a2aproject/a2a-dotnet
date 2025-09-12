@@ -1,4 +1,4 @@
-namespace A2A.TCK.Tests.Infrastructure;
+namespace A2A.Integration.Tests.Infrastructure;
 
 /// <summary>
 /// Defines compliance levels for A2A TCK tests based on the TCK specification.
@@ -47,26 +47,25 @@ public class TckTestAttribute : Attribute
 }
 
 /// <summary>
-/// Categories for TCK tests matching the TCK project structure.
+/// Categories for TCK test classification
 /// </summary>
 public static class TckCategories
 {
-    public const string Mandatory = "Mandatory";
-    public const string Capabilities = "Capabilities";
-    public const string TransportEquivalence = "TransportEquivalence";
-    public const string Quality = "Quality";
-    public const string Features = "Features";
+    // Mandatory categories - MUST requirements
+    public const string MandatoryProtocol = "MandatoryProtocol";
+    public const string MandatoryJsonRpc = "MandatoryJsonRpc";
+    public const string MandatoryAuthentication = "MandatoryAuthentication";
+    public const string MandatorySecurity = "MandatorySecurity";
+    public const string MandatoryTransport = "MandatoryTransport";
+    public const string MandatoryQuality = "MandatoryQuality";
 
-    // Sub-categories
-    public const string MandatoryProtocol = "Mandatory.Protocol";
-    public const string MandatoryJsonRpc = "Mandatory.JsonRpc";
-    public const string MandatoryAuthentication = "Mandatory.Authentication";
-    public const string MandatorySecurity = "Mandatory.Security";
-    public const string MandatoryTransport = "Mandatory.Transport";
-    public const string MandatoryQuality = "Mandatory.Quality";
-    
-    public const string OptionalCapabilities = "Optional.Capabilities";
-    public const string OptionalFeatures = "Optional.Features";
-    public const string OptionalQuality = "Optional.Quality";
-    public const string OptionalMultiTransport = "Optional.MultiTransport";
+    // Optional categories - SHOULD/MAY requirements
+    public const string OptionalCapabilities = "OptionalCapabilities";
+    public const string OptionalFeatures = "OptionalFeatures";
+    public const string OptionalQuality = "OptionalQuality";
+    public const string OptionalMultiTransport = "OptionalMultiTransport";
+
+    // Unit test categories
+    public const string UnitAdapters = "UnitAdapters";
+    public const string UnitTransport = "UnitTransport";
 }

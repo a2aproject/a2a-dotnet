@@ -1,7 +1,7 @@
 using Xunit.Abstractions;
-using A2A.TCK.Tests.Infrastructure;
+using A2A.Integration.Tests.Infrastructure;
 
-namespace A2A.TCK.Tests.Mandatory.Protocol;
+namespace A2A.Integration.Tests.Mandatory.Protocol;
 
 /// <summary>
 /// Tests for A2A Agent Card mandatory requirements based on the TCK.
@@ -14,8 +14,8 @@ public class AgentCardMandatoryTests : TckTestBase
 
     [Fact]
     [TckTest(TckComplianceLevel.Mandatory, TckCategories.MandatoryProtocol,
-        Description = "A2A Specification §5.5.1 - Basic Agent Information Required",
-        SpecSection = "§5.5.1",
+        Description = "A2A Specification ï¿½5.5.1 - Basic Agent Information Required",
+        SpecSection = "ï¿½5.5.1",
         FailureImpact = "Critical - violates A2A specification compliance")]
     public void AgentCard_BasicInfo_IsPresent()
     {
@@ -26,7 +26,8 @@ public class AgentCardMandatoryTests : TckTestBase
         var hasName = !string.IsNullOrWhiteSpace(agentCard.Name);
         var hasDescription = !string.IsNullOrWhiteSpace(agentCard.Description);
         var hasUrl = !string.IsNullOrWhiteSpace(agentCard.Url) && 
-                    (agentCard.Url.StartsWith("http://") || agentCard.Url.StartsWith("https://"));
+                    (agentCard.Url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
+                     agentCard.Url.StartsWith("https://", StringComparison.OrdinalIgnoreCase));
         var hasVersion = !string.IsNullOrWhiteSpace(agentCard.Version);
 
         var allBasicInfoPresent = hasName && hasDescription && hasUrl && hasVersion;
@@ -41,8 +42,8 @@ public class AgentCardMandatoryTests : TckTestBase
 
     [Fact]
     [TckTest(TckComplianceLevel.Mandatory, TckCategories.MandatoryProtocol,
-        Description = "A2A Specification §5.5.3/5.5.4 - Input/Output Modes Required",
-        SpecSection = "§5.5.3/5.5.4",
+        Description = "A2A Specification ï¿½5.5.3/5.5.4 - Input/Output Modes Required",
+        SpecSection = "ï¿½5.5.3/5.5.4",
         FailureImpact = "Critical - violates A2A specification compliance")]
     public void AgentCard_InputOutputModes_ArePresent()
     {
@@ -70,8 +71,8 @@ public class AgentCardMandatoryTests : TckTestBase
 
     [Fact]
     [TckTest(TckComplianceLevel.Mandatory, TckCategories.MandatoryProtocol,
-        Description = "A2A Specification §5.5.4 - Skills Required and Valid",
-        SpecSection = "§5.5.4",
+        Description = "A2A Specification ï¿½5.5.4 - Skills Required and Valid",
+        SpecSection = "ï¿½5.5.4",
         FailureImpact = "Critical - violates A2A specification compliance")]
     public void AgentCard_Skills_AreValidAndPresent()
     {

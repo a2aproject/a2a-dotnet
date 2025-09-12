@@ -1,7 +1,7 @@
-﻿using Xunit.Abstractions;
-using A2A.TCK.Tests.Infrastructure;
+using Xunit.Abstractions;
+using A2A.Integration.Tests.Infrastructure;
 
-namespace A2A.TCK.Tests.Optional.Capabilities;
+namespace A2A.Integration.Tests.OptionalTestsTests.Capabilities;
 
 /// <summary>
 /// Tests for optional A2A capabilities that enhance the base protocol.

@@ -1,14 +1,14 @@
-﻿using A2A.AspNetCore;
-using Microsoft.AspNetCore.Http;
+using A2A.Integration.Tests.Infrastructure;
 using System.Reflection;
 using Xunit.Abstractions;
+using Microsoft.AspNetCore.Http;
 
-namespace A2A.TCK.Tests.Infrastructure;
+namespace A2A.Integration.Tests.Infrastructure;
 
 public abstract class TckTestBase(ITestOutputHelper output)
 {
     protected ITestOutputHelper Output { get; } = output;
-    protected readonly TaskManager _taskManager = new();
+    private readonly TaskManager _taskManager = new();
 
     /// <summary>
     /// Evaluates a test result based on TCK compliance levels.
@@ -24,7 +24,7 @@ public abstract class TckTestBase(ITestOutputHelper output)
         if (tckAttribute is null)
         {
             // If no TCK attribute is found, treat as a regular test
-            Assert.True(testPassed, $"Test {testMethod} failed");
+            Xunit.Assert.True(testPassed, $"Test {testMethod} failed");
             return;
         }
 
@@ -53,7 +53,7 @@ public abstract class TckTestBase(ITestOutputHelper output)
                 {
                     Output.WriteLine($"   Impact: {tckAttribute.FailureImpact}");
                 }
-                Assert.Fail($"Non-compliant behavior detected in {category}: {tckAttribute.Description ?? testMethod}");
+                Xunit.Assert.Fail($"Non-compliant behavior detected in {category}: {tckAttribute.Description ?? testMethod}");
             }
             else
             {
@@ -99,7 +99,8 @@ public abstract class TckTestBase(ITestOutputHelper output)
     };
 
     /// <summary>
-    /// Creates a test agent card for testing purposes.
+    /// Creates a test agent card with optional capabilities for testing purposes.
+    /// Matches the structure expected by upstream TCK tests.
     /// </summary>
     protected static AgentCard CreateTestAgentCard() => new()
     {
@@ -107,8 +108,15 @@ public abstract class TckTestBase(ITestOutputHelper output)
         Description = "A test agent for A2A TCK compliance testing",
         Url = "https://example.com/agent",
         Version = "1.0.0-test",
-        DefaultInputModes = ["text/plain"],
-        DefaultOutputModes = ["text/plain"],
+        ProtocolVersion = "0.3.0",
+        DefaultInputModes = ["text/plain", "application/json"],
+        DefaultOutputModes = ["text/plain", "application/json"],
+        Capabilities = new AgentCapabilities
+        {
+            Streaming = true,
+            PushNotifications = true,
+            StateTransitionHistory = false
+        },
         Skills = new List<AgentSkill>
         {
             new()
@@ -116,7 +124,10 @@ public abstract class TckTestBase(ITestOutputHelper output)
                 Id = "test-skill",
                 Name = "Test Skill",
                 Description = "A test skill for TCK testing",
-                Tags = ["test", "tck"]
+                Tags = ["test", "tck"],
+                Examples = ["Test example 1", "Test example 2"],
+                InputModes = ["text/plain"],
+                OutputModes = ["text/plain"]
             }
         }
     };
@@ -161,7 +172,7 @@ public abstract class TckTestBase(ITestOutputHelper output)
             await responseResult.ExecuteAsync(context);
             responseStream.Position = 0;
 
-            var responseJson = await new StreamReader(responseStream).ReadToEndAsync();
+            var responseJson = await new StreamReader(responseStream).ReadToEndAsync(cancellationToken);
             var response = JsonSerializer.Deserialize<JsonRpcResponse>(responseJson);
 
             return response ?? throw new InvalidOperationException("Failed to deserialize JSON-RPC response");

@@ -1,10 +1,10 @@
-﻿using Xunit.Abstractions;
-using A2A.TCK.Tests.Infrastructure;
+using Xunit.Abstractions;
+using A2A.Integration.Tests.Infrastructure;
 using A2A.AspNetCore;
 using Microsoft.AspNetCore.Http;
 using System.Text.Json;
 
-namespace A2A.TCK.Tests.Mandatory.Protocol;
+namespace A2A.Integration.Tests.Mandatory.Protocol;
 
 /// <summary>
 /// Tests for task management methods (tasks/get, tasks/cancel) based on the TCK.

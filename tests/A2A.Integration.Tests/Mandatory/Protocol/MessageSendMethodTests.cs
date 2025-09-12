@@ -1,8 +1,8 @@
-﻿using Xunit.Abstractions;
-using A2A.TCK.Tests.Infrastructure;
+using Xunit.Abstractions;
+using A2A.Integration.Tests.Infrastructure;
 using System.Text.Json;
 
-namespace A2A.TCK.Tests.Mandatory.Protocol;
+namespace A2A.Integration.Tests.Mandatory.Protocol;
 
 /// <summary>
 /// Tests for the message/send JSON-RPC method based on the TCK.

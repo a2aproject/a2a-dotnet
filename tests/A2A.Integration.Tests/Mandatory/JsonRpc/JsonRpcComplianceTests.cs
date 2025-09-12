@@ -1,7 +1,7 @@
-﻿using Xunit.Abstractions;
-using A2A.TCK.Tests.Infrastructure;
+using Xunit.Abstractions;
+using A2A.Integration.Tests.Infrastructure;
 
-namespace A2A.TCK.Tests.Mandatory.JsonRpc;
+namespace A2A.Integration.Tests.Mandatory.JsonRpc;
 
 /// <summary>
 /// Tests for JSON-RPC 2.0 compliance based on the TCK.
