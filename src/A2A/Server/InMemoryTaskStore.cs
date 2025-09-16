@@ -21,7 +21,7 @@ public sealed class InMemoryTaskStore : ITaskStore
         }
 
         return string.IsNullOrEmpty(taskId)
-            ? Task.FromException<AgentTask?>(new ArgumentNullException(nameof(taskId)))
+            ? Task.FromException<AgentTask?>(new A2AException(nameof(taskId), A2AErrorCode.InvalidParams))
             : Task.FromResult(_taskCache.TryGetValue(taskId, out var task) ? task : null);
     }
 

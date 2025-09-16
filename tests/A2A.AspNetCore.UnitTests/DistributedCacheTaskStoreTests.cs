@@ -38,7 +38,7 @@ public class DistributedCacheTaskStoreTests
     }
 
     [Fact]
-    public async Task GetTaskAsync_ShouldThrowArgumentException_WhenTaskIdIsNullOrEmpty()
+    public async Task GetTaskAsync_ShouldThrowA2AException_WhenTaskIdIsNullOrEmpty()
     {
         // Arrange
         var sut = BuildDistributedCacheTaskStore();
@@ -47,7 +47,8 @@ public class DistributedCacheTaskStoreTests
         var task = sut.GetTaskAsync(string.Empty);
 
         // Assert
-        await Assert.ThrowsAsync<ArgumentNullException>(() => task);
+        var ex = await Assert.ThrowsAsync<A2AException>(() => task);
+        Assert.Equal(A2AErrorCode.InvalidParams, ex.ErrorCode);
     }
 
     [Fact]

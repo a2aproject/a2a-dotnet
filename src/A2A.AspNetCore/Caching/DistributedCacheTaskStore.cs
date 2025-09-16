@@ -16,13 +16,15 @@ public class DistributedCacheTaskStore(IDistributedCache cache)
         cancellationToken.ThrowIfCancellationRequested();
         if (string.IsNullOrEmpty(taskId))
         {
-            throw new ArgumentNullException(nameof(taskId));
+            throw new A2AException(nameof(taskId), A2AErrorCode.InvalidParams);
         }
+
         var bytes = await cache.GetAsync(BuildTaskCacheKey(taskId), cancellationToken).ConfigureAwait(false);
         if (bytes == null || bytes.Length < 1)
         {
             return null;
         }
+
         return JsonSerializer.Deserialize(bytes, A2AJsonUtilities.JsonContext.Default.AgentTask);
     }
 

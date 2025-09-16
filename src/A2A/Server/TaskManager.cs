@@ -87,7 +87,7 @@ public sealed class TaskManager : ITaskManager
 
         if (taskIdParams is null)
         {
-            throw new ArgumentNullException(nameof(taskIdParams));
+            throw new A2AException(nameof(taskIdParams), A2AErrorCode.InvalidParams);
         }
 
         using var activity = ActivitySource.StartActivity("CancelTask", ActivityKind.Server);
