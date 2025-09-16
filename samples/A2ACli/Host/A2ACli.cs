@@ -204,10 +204,9 @@ public static class A2ACli
 
                 message.Parts.Add(new FilePart
                 {
-                    File = new FileWithBytes
+                    File = new FileContent(fileContent)
                     {
                         Name = fileName,
-                        Bytes = fileContent
                     }
                 });
             }
