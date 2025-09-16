@@ -21,7 +21,7 @@ public class JsonRpcComplianceTests : TckTestBase
     {
         // Arrange
 #pragma warning disable JSON001 // Invalid JSON pattern
-        var malformedJson = @"{""jsonrpc"": ""2.0"", ""method"": ""message/send"", ""params"": {""foo"": ""bar""}"; // missing closing brace
+        const string malformedJson = @"{""jsonrpc"": ""2.0"", ""method"": ""message/send"", ""params"": {""foo"": ""bar""}"; // missing closing brace
 #pragma warning restore JSON001 // Invalid JSON pattern
 
         // Act & Assert - Test the JSON parsing behavior

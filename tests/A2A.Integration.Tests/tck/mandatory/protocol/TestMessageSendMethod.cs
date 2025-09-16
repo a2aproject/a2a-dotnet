@@ -100,7 +100,7 @@ public class TestMessageSendMethod
     public async Task TestMessageSendInvalidParamsAsync()
     {
         // Arrange - Invalid params (missing required fields)
-        var invalidParamsJson = @"{
+        const string invalidParamsJson = @"{
             ""message"": {
                 ""kind"": ""message""
             }
@@ -117,8 +117,8 @@ public class TestMessageSendMethod
         // For JSON-RPC, verify specific error code
         var errorCode = TransportHelpers.GetErrorCode(response);
         Assert.NotNull(errorCode);
-            Assert.Equal(-32602, errorCode.Value); // InvalidParamsError
-        }
+        Assert.Equal(-32602, errorCode.Value); // InvalidParamsError
+    }
 
     /// <summary>
     /// MANDATORY: A2A v0.3.0 §7.1 - Task Continuation

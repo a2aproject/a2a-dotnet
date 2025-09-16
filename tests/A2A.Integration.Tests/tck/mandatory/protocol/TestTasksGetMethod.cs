@@ -109,7 +109,7 @@ public class TestTasksGetMethod : TckClientTest
     public async Task TestTasksGetNonexistentAsync()
     {
         // Arrange - Use a non-existent task ID
-        var nonExistentTaskId = "nonexistent-task-id";
+        const string nonExistentTaskId = "nonexistent-task-id";
         // Act - Use transport-agnostic task retrieval
         var response = await TransportHelpers.TransportGetTask(this.HttpClient, nonExistentTaskId);
         // Assert - Should receive an error response

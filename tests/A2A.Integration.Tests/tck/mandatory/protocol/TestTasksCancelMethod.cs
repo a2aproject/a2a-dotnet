@@ -111,7 +111,7 @@ public class TestTasksCancelMethod
     public async Task TestTasksCancelNonexistentAsync()
     {
         // Arrange - Use non-existent task ID
-        var nonExistentTaskId = "nonexistent-task-id";
+        const string nonExistentTaskId = "nonexistent-task-id";
         // Act - Use transport-agnostic task cancellation for non-existent task
         var response = await TransportHelpers.TransportCancelTask(_client, nonExistentTaskId);
         // Assert - Should receive an error response
@@ -194,7 +194,7 @@ public class TestTasksCancelMethod
     public async Task TestTasksCancelEmptyTaskIdAsync()
     {
         // Arrange - Use empty task ID
-        var emptyTaskId = "";
+        const string emptyTaskId = "";
         // Act - Use transport-agnostic task cancellation with empty ID
         var response = await TransportHelpers.TransportCancelTask(_client, emptyTaskId);
         // Assert - Should receive an error response

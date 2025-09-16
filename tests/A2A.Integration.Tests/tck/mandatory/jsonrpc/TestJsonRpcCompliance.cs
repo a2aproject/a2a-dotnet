@@ -23,7 +23,7 @@ public class TestJsonRpcCompliance : TckClientTest
     public async Task TestRejectsMalformedJsonAsync()
     {
         // Arrange - Malformed JSON (missing closing brace)
-        var malformedJson = """{"jsonrpc": "2.0", "method": "message/send", "params": {"foo": "bar"}""";
+        const string malformedJson = """{"jsonrpc": "2.0", "method": "message/send", "params": {"foo": "bar"}""";
         var content = new StringContent(malformedJson, Encoding.UTF8, "application/json");
         // Act
         var response = await this.HttpClient.PostAsync(string.Empty, content);
@@ -76,7 +76,7 @@ public class TestJsonRpcCompliance : TckClientTest
     public async Task TestRejectsUnknownMethodAsync()
     {
         // Arrange - Valid JSON-RPC request with unknown method
-        var jsonRpcRequest = """
+        const string jsonRpcRequest = """
         {
             "jsonrpc": "2.0",
             "method": "nonexistent/method",
@@ -95,6 +95,7 @@ public class TestJsonRpcCompliance : TckClientTest
         var errorCode = TransportHelpers.GetErrorCode(responseJson);
         Assert.Equal(-32601, errorCode); // MethodNotFoundError
     }
+
     /// <summary>
     /// MANDATORY: JSON-RPC 2.0 Specification §4.3 - Invalid Parameters
     ///
@@ -126,6 +127,7 @@ public class TestJsonRpcCompliance : TckClientTest
         var errorCode = TransportHelpers.GetErrorCode(responseJson);
         Assert.Equal(-32602, errorCode); // InvalidParamsError
     }
+
     /// <summary>
     /// MANDATORY: JSON-RPC 2.0 Specification §4.1 - Request ID Handling
     ///

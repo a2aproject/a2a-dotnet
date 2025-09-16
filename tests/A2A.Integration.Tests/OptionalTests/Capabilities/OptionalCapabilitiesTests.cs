@@ -153,7 +153,7 @@ public class OptionalCapabilitiesTests : TckTestBase
 
             // Validate that capabilities match actual implementation
             // This is a consistency check - if an agent declares a capability, it should support it
-            bool capabilitiesConsistent = true;
+            const bool capabilitiesConsistent = true;
 
             // Note: In a real implementation, we would test that declared capabilities
             // actually work. For this test suite, we just validate the structure.

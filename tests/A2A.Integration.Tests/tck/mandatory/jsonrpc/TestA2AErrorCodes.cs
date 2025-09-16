@@ -46,7 +46,7 @@ public class TestA2AErrorCodes : TckClientTest
     public async Task TestTaskNotFoundError()
     {
         // Arrange - Try to get a non-existent task
-        var nonExistentTaskId = "non-existent-task-id";
+        const string nonExistentTaskId = "non-existent-task-id";
         // Act
         var response = await TransportHelpers.TransportGetTask(this.HttpClient, nonExistentTaskId);
         // Assert
