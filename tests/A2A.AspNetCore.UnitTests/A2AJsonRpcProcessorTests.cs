@@ -6,6 +6,26 @@ namespace A2A.AspNetCore.Tests;
 
 public class A2AJsonRpcProcessorTests
 {
+    private static AgentCardProvider CreateAgentCardProvider()
+    {
+        var provider = new AgentCardProvider();
+        provider.OnAgentCardQuery = (url, ct) => Task.FromResult(new AgentCard
+        {
+            Name = "Test Agent",
+            Url = url,
+            Description = "Test agent description"
+        });
+        provider.OnAuthenticatedAgentCardQuery = (url, authContext, ct) => Task.FromResult(new AgentCard
+        {
+            Name = "Authenticated Test Agent",
+            Url = url,
+            Description = "Authenticated test agent description",
+            Skills = [
+                new AgentSkill { Id = "auth-skill", Name = "Authenticated Skill" }
+            ]
+        });
+        return provider;
+    }
     [Theory]
     [InlineData("\"test-id\"", true)]   // String ID - valid
     [InlineData(42, true)]              // Number ID - valid: Uncomment when numeric IDs are supported
@@ -16,6 +36,7 @@ public class A2AJsonRpcProcessorTests
     {
         // Arrange
         var taskManager = new TaskManager();
+        var agentCardProvider = CreateAgentCardProvider();
         var jsonRequest = $$"""
         {
             "jsonrpc": "2.0",
@@ -35,7 +56,7 @@ public class A2AJsonRpcProcessorTests
         var httpRequest = CreateHttpRequestFromJson(jsonRequest);
 
         // Act
-        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, agentCardProvider, httpRequest, CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -61,6 +82,7 @@ public class A2AJsonRpcProcessorTests
     {
         // Arrange
         var taskManager = new TaskManager();
+        var agentCardProvider = CreateAgentCardProvider();
         var jsonRequest = $$"""
         {
             "jsonrpc": "2.0",
@@ -79,7 +101,7 @@ public class A2AJsonRpcProcessorTests
 
         var httpRequest = CreateHttpRequestFromJson(jsonRequest);
 
-        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, agentCardProvider, httpRequest, CancellationToken.None);
 
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
         var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
@@ -100,6 +122,7 @@ public class A2AJsonRpcProcessorTests
     {
         // Arrange
         var taskManager = new TaskManager();
+        var agentCardProvider = CreateAgentCardProvider();
 
         // Build JSON with conditional method property inclusion
         var hasMethodProperty = !string.IsNullOrEmpty(methodPropertySnippet);
@@ -122,7 +145,7 @@ public class A2AJsonRpcProcessorTests
         var httpRequest = CreateHttpRequestFromJson(jsonRequest);
 
         // Act
-        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, agentCardProvider, httpRequest, CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -155,6 +178,7 @@ public class A2AJsonRpcProcessorTests
     {
         // Arrange
         var taskManager = new TaskManager();
+        var agentCardProvider = CreateAgentCardProvider();
         var jsonRequest = $$"""
         {
             "jsonrpc": "2.0",
@@ -167,7 +191,7 @@ public class A2AJsonRpcProcessorTests
         var httpRequest = CreateHttpRequestFromJson(jsonRequest);
 
         // Act
-        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, agentCardProvider, httpRequest, CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -195,6 +219,7 @@ public class A2AJsonRpcProcessorTests
     public async Task ProcessRequest_SingleResponse_MessageSend_Works()
     {
         TaskManager taskManager = new();
+        var agentCardProvider = CreateAgentCardProvider();
         MessageSendParams sendParams = new()
         {
             Message = new AgentMessage { MessageId = "test-message-id", Parts = [new TextPart { Text = "hi" }] }
@@ -209,7 +234,7 @@ public class A2AJsonRpcProcessorTests
         var httpRequest = CreateHttpRequest(req);
 
         // Act
-        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, agentCardProvider, httpRequest, CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -235,6 +260,7 @@ public class A2AJsonRpcProcessorTests
     {
         // Arrange
         var taskManager = new TaskManager();
+        var agentCardProvider = CreateAgentCardProvider();
         var req = new JsonRpcRequest
         {
             Id = "2",
@@ -245,7 +271,7 @@ public class A2AJsonRpcProcessorTests
         var httpRequest = CreateHttpRequest(req);
 
         // Act
-        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, agentCardProvider, httpRequest, CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -268,12 +294,14 @@ public class A2AJsonRpcProcessorTests
     {
         // Arrange
         var taskManager = new TaskManager();
+        var agentCardProvider = CreateAgentCardProvider();
         var task = await taskManager.CreateTaskAsync();
 
         var queryParams = new TaskQueryParams { Id = task.Id };
 
         // Act
-        var result = await A2AJsonRpcProcessor.SingleResponseAsync(taskManager, "4", A2AMethods.TaskGet, ToJsonElement(queryParams), CancellationToken.None);
+        var mockHttpRequest = new DefaultHttpContext().Request;
+        var result = await A2AJsonRpcProcessor.SingleResponseAsync(taskManager, agentCardProvider, mockHttpRequest, "4", A2AMethods.TaskGet, ToJsonElement(queryParams), CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -294,10 +322,12 @@ public class A2AJsonRpcProcessorTests
     public async Task NegativeHistoryLengthThrows()
     {
         TaskManager taskManager = new();
+        var agentCardProvider = CreateAgentCardProvider();
         TaskQueryParams queryParams = new() { Id = "doesNotMatter", HistoryLength = -1 };
 
+        var mockHttpRequest = new DefaultHttpContext().Request;
         A2AException result = await Assert.ThrowsAsync<A2AException>(
-            () => A2AJsonRpcProcessor.SingleResponseAsync(taskManager, "4", A2AMethods.TaskGet, ToJsonElement(queryParams), CancellationToken.None));
+            () => A2AJsonRpcProcessor.SingleResponseAsync(taskManager, agentCardProvider, mockHttpRequest, "4", A2AMethods.TaskGet, ToJsonElement(queryParams), CancellationToken.None));
 
         Assert.Equal(A2AErrorCode.InvalidParams, result.ErrorCode);
         Assert.Equal("History length cannot be negative", result.Message);
@@ -308,11 +338,13 @@ public class A2AJsonRpcProcessorTests
     {
         // Arrange
         var taskManager = new TaskManager();
+        var agentCardProvider = CreateAgentCardProvider();
         var newTask = await taskManager.CreateTaskAsync();
         var cancelParams = new TaskIdParams { Id = newTask.Id };
 
         // Act
-        var result = await A2AJsonRpcProcessor.SingleResponseAsync(taskManager, "5", A2AMethods.TaskCancel, ToJsonElement(cancelParams), CancellationToken.None);
+        var mockHttpRequest = new DefaultHttpContext().Request;
+        var result = await A2AJsonRpcProcessor.SingleResponseAsync(taskManager, agentCardProvider, mockHttpRequest, "5", A2AMethods.TaskCancel, ToJsonElement(cancelParams), CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -334,6 +366,7 @@ public class A2AJsonRpcProcessorTests
     {
         // Arrange
         var taskManager = new TaskManager();
+        var agentCardProvider = CreateAgentCardProvider();
         var config = new TaskPushNotificationConfig
         {
             TaskId = "test-task",
@@ -344,7 +377,8 @@ public class A2AJsonRpcProcessorTests
         };
 
         // Act
-        var result = await A2AJsonRpcProcessor.SingleResponseAsync(taskManager, "6", A2AMethods.TaskPushNotificationConfigSet, ToJsonElement(config), CancellationToken.None);
+        var mockHttpRequest = new DefaultHttpContext().Request;
+        var result = await A2AJsonRpcProcessor.SingleResponseAsync(taskManager, agentCardProvider, mockHttpRequest, "6", A2AMethods.TaskPushNotificationConfigSet, ToJsonElement(config), CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -367,6 +401,7 @@ public class A2AJsonRpcProcessorTests
     {
         // Arrange
         var taskManager = new TaskManager();
+        var agentCardProvider = CreateAgentCardProvider();
 
         var task = await taskManager.CreateTaskAsync();
 
@@ -382,7 +417,8 @@ public class A2AJsonRpcProcessorTests
         var getParams = new GetTaskPushNotificationConfigParams { Id = task.Id };
 
         // Act
-        var result = await A2AJsonRpcProcessor.SingleResponseAsync(taskManager, "7", A2AMethods.TaskPushNotificationConfigGet, ToJsonElement(getParams), CancellationToken.None);
+        var mockHttpRequest = new DefaultHttpContext().Request;
+        var result = await A2AJsonRpcProcessor.SingleResponseAsync(taskManager, agentCardProvider, mockHttpRequest, "7", A2AMethods.TaskPushNotificationConfigGet, ToJsonElement(getParams), CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -405,6 +441,7 @@ public class A2AJsonRpcProcessorTests
     {
         // Arrange
         var taskManager = new TaskManager();
+        var agentCardProvider = CreateAgentCardProvider();
 
         var task = await taskManager.CreateTaskAsync();
 
@@ -425,7 +462,8 @@ public class A2AJsonRpcProcessorTests
         };
 
         // Act
-        var result = await A2AJsonRpcProcessor.SingleResponseAsync(taskManager, "8", A2AMethods.TaskPushNotificationConfigGet, ToJsonElement(getParams), CancellationToken.None);
+        var mockHttpRequest = new DefaultHttpContext().Request;
+        var result = await A2AJsonRpcProcessor.SingleResponseAsync(taskManager, agentCardProvider, mockHttpRequest, "8", A2AMethods.TaskPushNotificationConfigGet, ToJsonElement(getParams), CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -449,6 +487,7 @@ public class A2AJsonRpcProcessorTests
     {
         // Arrange
         var taskManager = new TaskManager();
+        var agentCardProvider = CreateAgentCardProvider();
 
         // Act
         var result = A2AJsonRpcProcessor.StreamResponse(taskManager, "10", A2AMethods.MessageStream, null, CancellationToken.None);
@@ -502,5 +541,107 @@ public class A2AJsonRpcProcessorTests
         context.Response.Body.Position = 0;
         var bodyContent = await JsonSerializer.DeserializeAsync<TBody>(context.Response.Body, A2AJsonUtilities.DefaultOptions);
         return (context.Response.StatusCode, context.Response.ContentType, bodyContent!);
+    }
+
+    [Fact]
+    public async Task AgentGetAuthenticatedExtendedCard_WithAuthenticatedUser_ReturnsExtendedCard()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+        var agentCardProvider = CreateAgentCardProvider();
+        agentCardProvider.OnAgentCardQuery = (url, ct) => Task.FromResult(new AgentCard
+        {
+            Name = "Test Agent",
+            Description = "Basic agent",
+            Url = url,
+            Skills = [new AgentSkill { Id = "basic", Name = "Basic Skill" }],
+            SupportsAuthenticatedExtendedCard = true
+        });
+
+        agentCardProvider.OnAuthenticatedAgentCardQuery = (url, authContext, ct) => Task.FromResult(new AgentCard
+        {
+            Name = "Test Agent (Extended)",
+            Description = $"Extended agent for user: {authContext?.UserName}",
+            Url = url,
+            Skills = [
+                new AgentSkill { Id = "basic", Name = "Basic Skill" },
+                new AgentSkill { Id = "enhanced", Name = "Enhanced Skill" }
+            ],
+            SupportsAuthenticatedExtendedCard = true
+        });
+
+        // Create authenticated request
+        var httpRequest = new DefaultHttpContext().Request;
+        httpRequest.Scheme = "https";
+        httpRequest.Host = new HostString("example.com");
+        httpRequest.PathBase = "/agent";
+        httpRequest.HttpContext.User = new System.Security.Claims.ClaimsPrincipal(
+            new System.Security.Claims.ClaimsIdentity(
+                [new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Name, "testuser")], "Bearer"));
+
+        // Act
+        var result = await A2AJsonRpcProcessor.SingleResponseAsync(taskManager, agentCardProvider, httpRequest, "9", A2AMethods.AgentGetAuthenticatedExtendedCard, null, CancellationToken.None);
+
+        // Assert
+        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
+        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+
+        Assert.Equal(StatusCodes.Status200OK, StatusCode);
+        Assert.Equal("application/json", ContentType);
+        Assert.NotNull(BodyContent.Result);
+
+        var agentCard = JsonSerializer.Deserialize<AgentCard>(BodyContent.Result, A2AJsonUtilities.DefaultOptions);
+        Assert.NotNull(agentCard);
+        Assert.Equal("Test Agent (Extended)", agentCard.Name);
+        Assert.Contains("Extended agent for user: testuser", agentCard.Description);
+        Assert.Equal(2, agentCard.Skills.Count);
+        Assert.Contains(agentCard.Skills, s => s.Id == "enhanced");
+    }
+
+    [Fact]
+    public async Task AgentGetAuthenticatedExtendedCard_WithoutAuthentication_ReturnsAuthenticationRequiredError()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+        var agentCardProvider = CreateAgentCardProvider();
+        agentCardProvider.OnAgentCardQuery = (url, cancellationToken) => Task.FromResult(new AgentCard
+        {
+            Name = "Test Agent",
+            Description = "Basic agent",
+            Url = url,
+            Skills = [new AgentSkill { Id = "basic", Name = "Basic Skill" }],
+            SupportsAuthenticatedExtendedCard = true
+        });
+
+        agentCardProvider.OnAuthenticatedAgentCardQuery = (url, authContext, cancellationToken) => Task.FromResult(new AgentCard
+        {
+            Name = "Test Agent (Extended)",
+            Description = "Should not be returned for unauthenticated requests",
+            Url = url,
+            Skills = [
+                new AgentSkill { Id = "basic", Name = "Basic Skill" },
+                new AgentSkill { Id = "enhanced", Name = "Enhanced Skill" }
+            ],
+            SupportsAuthenticatedExtendedCard = true
+        });
+
+        // Create unauthenticated request
+        var httpRequest = new DefaultHttpContext().Request;
+        httpRequest.Scheme = "https";
+        httpRequest.Host = new HostString("example.com");
+        httpRequest.PathBase = "/agent";
+
+        // Act
+        var result = await A2AJsonRpcProcessor.SingleResponseAsync(taskManager, agentCardProvider, httpRequest, "10", A2AMethods.AgentGetAuthenticatedExtendedCard, null, CancellationToken.None);
+
+        // Assert
+        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
+        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+
+        Assert.Equal(StatusCodes.Status200OK, StatusCode);
+        Assert.Equal("application/json", ContentType);
+        Assert.NotNull(BodyContent.Error);
+        Assert.Equal(-32007, BodyContent.Error.Code); // Authentication required error
+        Assert.Equal("Authentication required to access extended agent card", BodyContent.Error.Message);
     }
 }
