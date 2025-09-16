@@ -138,7 +138,7 @@ public class TestTasksGetMethod : TckClientTest
             ""method"": ""{A2AMethods.TaskGet}"",
             ""params"": {{}},
             ""id"": 1
-        }}.";
+        }}";
         var content = new StringContent(jsonRpcRequest, Encoding.UTF8, "application/json");
         // Act
         var httpResponse = await this.HttpClient.PostAsync(string.Empty, content);
