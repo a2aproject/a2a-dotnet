@@ -139,10 +139,11 @@ public sealed class AgentCard
     /// The transport of the preferred endpoint.
     /// </summary>
     /// <remarks>
-    /// If empty, defaults to JSONRPC.
+    /// Defaults to JSONRPC transport when not explicitly specified.
     /// </remarks>
     [JsonPropertyName("preferredTransport")]
-    public AgentTransport? PreferredTransport { get; set; }
+    [JsonRequired]
+    public AgentTransport PreferredTransport { get; set; } = AgentTransport.JsonRpc;
 
     /// <summary>
     /// JSON Web Signatures computed for this AgentCard.

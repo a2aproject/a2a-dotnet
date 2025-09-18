@@ -138,8 +138,7 @@ public class AgentCardTests
         Assert.Equal(["read"], skillSecurityRequirement["oauth"]);
 
         // Transport properties
-        Assert.NotNull(deserializedCard.PreferredTransport);
-        Assert.Equal("GRPC", deserializedCard.PreferredTransport.Value.Label);
+        Assert.Equal("GRPC", deserializedCard.PreferredTransport.Label);
         Assert.NotNull(deserializedCard.AdditionalInterfaces);
         Assert.Single(deserializedCard.AdditionalInterfaces);
         Assert.Equal("JSONRPC", deserializedCard.AdditionalInterfaces[0].Transport.Label);
@@ -287,7 +286,7 @@ public class AgentCardTests
         }
 
         // Transport properties
-        Assert.Equal(expectedCard.PreferredTransport?.Label, actualCard.PreferredTransport?.Label);
+        Assert.Equal(expectedCard.PreferredTransport.Label, actualCard.PreferredTransport.Label);
         Assert.Equal(expectedCard.AdditionalInterfaces?.Count, actualCard.AdditionalInterfaces?.Count);
         if (expectedCard.AdditionalInterfaces?.Count > 0 && actualCard.AdditionalInterfaces?.Count > 0)
         {
