@@ -30,7 +30,6 @@ public static class A2ARouteBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(taskManager);
-        ArgumentException.ThrowIfNullOrEmpty(path);
 
         var loggerFactory = endpoints.ServiceProvider.GetRequiredService<ILoggerFactory>();
         var logger = loggerFactory.CreateLogger<IEndpointRouteBuilder>();
@@ -53,7 +52,6 @@ public static class A2ARouteBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(taskManager);
-        ArgumentException.ThrowIfNullOrEmpty(agentPath);
 
         var routeGroup = endpoints.MapGroup("");
 
@@ -78,7 +76,6 @@ public static class A2ARouteBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(taskManager);
-        ArgumentException.ThrowIfNullOrEmpty(path);
 
         var loggerFactory = endpoints.ServiceProvider.GetRequiredService<ILoggerFactory>();
         var logger = loggerFactory.CreateLogger<IEndpointRouteBuilder>();
