@@ -26,7 +26,7 @@ public static class A2ARouteBuilderExtensions
     /// <param name="taskManager">The task manager for handling A2A operations.</param>
     /// <param name="path">The base path for the A2A endpoints.</param>
     /// <returns>An endpoint convention builder for further configuration.</returns>
-    public static IEndpointConventionBuilder MapA2A(this IEndpointRouteBuilder endpoints, ITaskManager taskManager, [StringSyntax("Route")] string path)
+    public static IEndpointConventionBuilder MapA2A(this IEndpointRouteBuilder endpoints, ITaskManager taskManager, [StringSyntax("Route")] string path = "/")
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(taskManager);
@@ -49,7 +49,7 @@ public static class A2ARouteBuilderExtensions
     /// <param name="taskManager">The task manager for handling A2A operations.</param>
     /// <param name="agentPath">The base path where the A2A agent is hosted.</param>
     /// <returns>An endpoint convention builder for further configuration.</returns>
-    public static IEndpointConventionBuilder MapWellKnownAgentCard(this IEndpointRouteBuilder endpoints, ITaskManager taskManager, [StringSyntax("Route")] string agentPath)
+    public static IEndpointConventionBuilder MapWellKnownAgentCard(this IEndpointRouteBuilder endpoints, ITaskManager taskManager, [StringSyntax("Route")] string agentPath = "/")
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(taskManager);
@@ -74,7 +74,7 @@ public static class A2ARouteBuilderExtensions
     /// <param name="taskManager">The task manager for handling A2A operations.</param>
     /// <param name="path">The base path for the HTTP A2A endpoints.</param>
     /// <returns>An endpoint convention builder for further configuration.</returns>
-    public static IEndpointConventionBuilder MapHttpA2A(this IEndpointRouteBuilder endpoints, ITaskManager taskManager, [StringSyntax("Route")] string path)
+    public static IEndpointConventionBuilder MapHttpA2A(this IEndpointRouteBuilder endpoints, ITaskManager taskManager, [StringSyntax("Route")] string path = "/")
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(taskManager);
