@@ -49,15 +49,8 @@ namespace A2A
         public override T? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             using var d = JsonDocument.ParseValue(ref reader);
-            try
-            {
-                var baseOptions = GetSafeOptions(options);
-                return d.Deserialize((JsonTypeInfo<T>)baseOptions.GetTypeInfo(typeToConvert));
-            }
-            catch (Exception e)
-            {
-                throw new A2AException($"Failed to deserialize {typeof(T).Name}: {e.Message}", e, A2AErrorCode.InvalidRequest);
-            }
+            var baseOptions = GetSafeOptions(options);
+            return d.Deserialize((JsonTypeInfo<T>)baseOptions.GetTypeInfo(typeToConvert));
         }
 
         public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options)
