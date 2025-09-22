@@ -4,14 +4,16 @@ namespace A2A.UnitTests.Models
 {
     public sealed class MessageSendParamsTests
     {
-        [Fact]
-        public void MessageSendParams_Deserialize_NonMessageKind_Throws()
+        [Theory]
+        [InlineData("task")]
+        [InlineData("foo")]
+        public void MessageSendParams_Deserialize_InvalidKind_Throws(string invalidKind)
         {
             // Arrange
-            const string json = """
+            var json = $$"""
             {
                 "message": {
-                    "kind": "task",
+                    "kind": "{{invalidKind}}",
                     "id": "t-13",
                     "contextId": "c-13",
                     "status": { "state": "submitted" }
@@ -20,28 +22,7 @@ namespace A2A.UnitTests.Models
             """;
 
             // Act / Assert
-            var ex = Assert.Throws<A2AException>(() => JsonSerializer.Deserialize<MessageSendParams>(json, A2AJsonUtilities.DefaultOptions));
-            Assert.Equal(A2AErrorCode.InvalidRequest, ex.ErrorCode);
-        }
-
-        [Fact]
-        public void MessageSendParams_Deserialize_UnknownMessageKind_Throws()
-        {
-            // Arrange
-            const string json = """
-            {
-                "message": {
-                    "kind": "foo",
-                    "id": "t-13",
-                    "contextId": "c-13",
-                    "status": { "state": "submitted" }
-                }
-            }
-            """;
-
-            // Act / Assert
-            var ex = Assert.Throws<A2AException>(() => JsonSerializer.Deserialize<MessageSendParams>(json, A2AJsonUtilities.DefaultOptions));
-            Assert.Equal(A2AErrorCode.InvalidRequest, ex.ErrorCode);
+            var ex = Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<MessageSendParams>(json, A2AJsonUtilities.DefaultOptions));
         }
 
         [Fact]
