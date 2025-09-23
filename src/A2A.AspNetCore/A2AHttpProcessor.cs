@@ -108,7 +108,7 @@ internal static class A2AHttpProcessor
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>An HTTP result that streams events as Server-Sent Events or an error response.</returns>
     internal static IResult SendMessageStream(ITaskManager taskManager, ILogger logger, MessageSendParams sendParams, CancellationToken cancellationToken)
-        => WithExceptionHandling(logger, "SendMessageStream", () =>
+        => WithExceptionHandling(logger, nameof(SendMessageStream), () =>
         {
             var taskEvents = taskManager.SendMessageStreamingAsync(sendParams, cancellationToken);
 
@@ -127,8 +127,8 @@ internal static class A2AHttpProcessor
     /// <param name="id">The unique identifier of the task to resubscribe to.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>An HTTP result that streams existing task events or an error response.</returns>
-    internal static IResult SubscribeTask(ITaskManager taskManager, ILogger logger, string id, CancellationToken cancellationToken)
-        => WithExceptionHandling(logger, "SubscribeTask", () =>
+    internal static IResult SubscribeToTask(ITaskManager taskManager, ILogger logger, string id, CancellationToken cancellationToken)
+        => WithExceptionHandling(logger, nameof(SubscribeToTask), () =>
         {
             var taskEvents = taskManager.SubscribeToTaskAsync(new TaskIdParams { Id = id }, cancellationToken);
 
@@ -148,7 +148,7 @@ internal static class A2AHttpProcessor
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>An HTTP result containing the configured settings or an error response.</returns>
     internal static Task<IResult> SetPushNotificationAsync(ITaskManager taskManager, ILogger logger, string id, PushNotificationConfig pushNotificationConfig, CancellationToken cancellationToken)
-        => WithExceptionHandlingAsync(logger, "ConfigurePushNotification", async ct =>
+        => WithExceptionHandlingAsync(logger, "SetPushNotification", async ct =>
         {
             var taskIdParams = new TaskIdParams { Id = id };
             var result = await taskManager.SetPushNotificationAsync(new TaskPushNotificationConfig

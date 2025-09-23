@@ -525,7 +525,7 @@ public class A2AClientTests
         Assert.NotNull(capturedRequest);
 
         var requestJson = JsonDocument.Parse(await capturedRequest.Content!.ReadAsStringAsync());
-        Assert.Equal("tasks/subscribe", requestJson.RootElement.GetProperty("method").GetString());
+        Assert.Equal("tasks/resubscribe", requestJson.RootElement.GetProperty("method").GetString());
         Assert.True(Guid.TryParse(requestJson.RootElement.GetProperty("id").GetString(), out _));
 
         var parameters = requestJson.RootElement.GetProperty("params").Deserialize<TaskIdParams>();

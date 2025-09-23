@@ -122,7 +122,7 @@ public static class A2ARouteBuilderExtensions
         routeGroup.MapPost("/v1/tasks/{id}:cancel", (string id, CancellationToken cancellationToken) => A2AHttpProcessor.CancelTaskAsync(taskManager, logger, id, cancellationToken));
 
         // /v1/tasks/{id}:subscribe endpoint
-        routeGroup.MapGet("/v1/tasks/{id}:subscribe", (string id, CancellationToken cancellationToken) => A2AHttpProcessor.SubscribeTask(taskManager, logger, id, cancellationToken));
+        routeGroup.MapGet("/v1/tasks/{id}:subscribe", (string id, CancellationToken cancellationToken) => A2AHttpProcessor.SubscribeToTask(taskManager, logger, id, cancellationToken));
 
         // /v1/tasks/{id}/pushNotificationConfigs endpoint - POST
         routeGroup.MapPost("/v1/tasks/{id}/pushNotificationConfigs", (string id, [FromBody] PushNotificationConfig pushNotificationConfig, CancellationToken cancellationToken) =>
