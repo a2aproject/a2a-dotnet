@@ -41,6 +41,8 @@ public static partial class A2AJsonUtilities
         // Register custom converters at options-level (not attributes)
         opts.Converters.Add(new A2AJsonConverter<MessageSendParams>());
         opts.Converters.Add(new FileContent.Converter());
+
+        opts.MakeReadOnly();
         return opts;
     });
 

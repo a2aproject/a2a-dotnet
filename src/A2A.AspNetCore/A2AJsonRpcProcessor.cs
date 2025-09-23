@@ -136,15 +136,16 @@ public static class A2AJsonRpcProcessor
         {
             parms = jsonParamValue.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(T))) as T;
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
-            parms = null;
+            // Provide more specific error information about why parameter deserialization failed
+            throw new A2AException($"Invalid parameters for {typeof(T).Name}: {ex.Message}", ex, A2AErrorCode.InvalidParams);
         }
 
         switch (parms)
         {
             case null:
-                throw new A2AException("Invalid parameters", A2AErrorCode.InvalidParams);
+                throw new A2AException($"Failed to deserialize parameters as {typeof(T).Name}", A2AErrorCode.InvalidParams);
             case MessageSendParams messageSendParams when messageSendParams.Message.Parts.Count == 0:
                 throw new A2AException("Message parts cannot be empty", A2AErrorCode.InvalidParams);
             case TaskQueryParams taskQueryParams when taskQueryParams.HistoryLength < 0:

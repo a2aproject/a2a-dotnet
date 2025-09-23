@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Diagnostics;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 
@@ -13,6 +14,9 @@ namespace A2A
     /// <typeparam name="T">The type to convert.</typeparam>
     internal class A2AJsonConverter<T> : JsonConverter<T>, IA2AJsonConverter where T : notnull
     {
+        private static JsonSerializerOptions? _serializerOptionsWithoutThisConverter;
+        private static JsonSerializerOptions? _outsideSerializerOptions;
+
         /// <summary>
         /// Reads and converts the JSON to type <typeparamref name="T"/>.
         /// </summary>
@@ -26,14 +30,7 @@ namespace A2A
         public override T? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             using var d = JsonDocument.ParseValue(ref reader);
-            try
-            {
-                return DeserializeImpl(typeToConvert, GetSafeOptions(options), d);
-            }
-            catch (Exception e)
-            {
-                throw new A2AException($"Failed to deserialize {typeof(T).Name}: {e.Message}", e, A2AErrorCode.InvalidRequest);
-            }
+        	return DeserializeImpl(typeToConvert, GetSafeOptions(options), d);
         }
 
         /// <summary>
@@ -97,19 +94,36 @@ namespace A2A
         /// <returns>A copy of the options that can safely resolve the underlying converter for <typeparamref name="T"/>.</returns>
         private static JsonSerializerOptions GetSafeOptions(JsonSerializerOptions options)
         {
-            // Clone options so we can modify the converters chain safely
-            var baseOptions = new JsonSerializerOptions(options);
-
-            // Remove all A2A converters so base/source-generated converter handles T, otherwise stack overflow
-            for (int i = baseOptions.Converters.Count - 1; i >= 0; i--)
+            if (_serializerOptionsWithoutThisConverter is null)
             {
-                if (baseOptions.Converters[i] is IA2AJsonConverter)
+                // keep reeference to original options for cache validation 
+                _outsideSerializerOptions = options;
+
+                // Clone options so we can modify the converters chain safely
+                var baseOptions = new JsonSerializerOptions(options);
+
+                // Remove this converter so base/source-generated converter handles T, otherwise stack overflow
+                for (int i = baseOptions.Converters.Count - 1; i >= 0; i--)
                 {
-                    baseOptions.Converters.RemoveAt(i);
+                    if (baseOptions.Converters[i] is A2AJsonConverter<T>)
+                    {
+                        baseOptions.Converters.RemoveAt(i);
+                        break;
+                    }
                 }
+
+                _serializerOptionsWithoutThisConverter = baseOptions;
+            }
+            else if (_outsideSerializerOptions != options && options != _serializerOptionsWithoutThisConverter)
+            {
+                // Unexpected!!! This caching is based on promise that A2A will use only ONE instance of SerializerOptions
+                // and we can therefore cache modified SerializerOptions without dealing with invalidation and pairing.
+                // Since this is possible only by internal code, some recent code changes must have had broke this promise
+                Debug.Fail("This should never happen");
+                throw new InvalidOperationException();
             }
 
-            return baseOptions;
+            return _serializerOptionsWithoutThisConverter;
         }
     }
 }
