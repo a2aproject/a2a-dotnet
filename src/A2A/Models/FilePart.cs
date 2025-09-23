@@ -12,5 +12,5 @@ public sealed class FilePart() : Part(PartKind.File)
     /// </summary>
     [JsonPropertyName("file")]
     [JsonRequired]
-    public FileContent File { get; set; } = new FileWithBytes();
+    required public FileContent File { get; set; }
 }

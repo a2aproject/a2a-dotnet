@@ -1,12 +1,81 @@
-﻿using System.Text.Json;
+﻿using System.Diagnostics;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 
 namespace A2A
 {
-    internal class A2AJsonConverter<T> : JsonConverter<T>
+    internal interface IA2AJsonConverter;
+
+    /// <summary>
+    /// Provides a base JSON converter for types in the A2A protocol, enabling custom error handling and
+    /// safe delegation to source-generated or built-in converters for the target type.
+    /// </summary>
+    /// <typeparam name="T">The type to convert.</typeparam>
+    internal class A2AJsonConverter<T> : JsonConverter<T>, IA2AJsonConverter where T : notnull
     {
         private static JsonSerializerOptions? _serializerOptionsWithoutThisConverter;
+        private static JsonSerializerOptions? _outsideSerializerOptions;
+
+        /// <summary>
+        /// Reads and converts the JSON to type <typeparamref name="T"/>.
+        /// </summary>
+        /// <param name="reader">The reader to read from.</param>
+        /// <param name="typeToConvert">The type to convert.</param>
+        /// <param name="options">The serializer options to use.</param>
+        /// <returns>The deserialized value of type <typeparamref name="T"/>.</returns>
+        /// <exception cref="A2AException">
+        /// Thrown when deserialization fails, wrapping the original exception and providing an <see cref="A2AErrorCode.InvalidRequest"/> error code.
+        /// </exception>
+        public override T? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            using var d = JsonDocument.ParseValue(ref reader);
+        	return DeserializeImpl(typeToConvert, GetSafeOptions(options), d);
+        }
+
+        /// <summary>
+        /// Deserializes the specified <see cref="JsonDocument"/> to type <typeparamref name="T"/> using the provided options.
+        /// </summary>
+        /// <param name="typeToConvert">The type to convert.</param>
+        /// <param name="options">The serializer options to use.</param>
+        /// <param name="document">The JSON document to deserialize.</param>
+        /// <returns>The deserialized value of type <typeparamref name="T"/>.</returns>
+        protected virtual T? DeserializeImpl(Type typeToConvert, JsonSerializerOptions options, JsonDocument document) => document.Deserialize((JsonTypeInfo<T>)options.GetTypeInfo(typeToConvert));
+
+        /// <summary>
+        /// Writes the specified value as JSON.
+        /// </summary>
+        /// <param name="writer">The writer to write to.</param>
+        /// <param name="value">The value to write.</param>
+        /// <param name="options">The serializer options to use.</param>
+        /// <exception cref="A2AException">
+        /// Thrown when serialization fails, wrapping the original exception and providing an <see cref="A2AErrorCode.InternalError"/> error code.
+        /// </exception>
+        public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options)
+        {
+            try
+            {
+                if (value is null)
+                {
+                    writer.WriteNullValue();
+                    return;
+                }
+
+                SerializeImpl(writer, value, GetSafeOptions(options));
+            }
+            catch (Exception e)
+            {
+                throw new A2AException($"Failed to serialize {typeof(T).Name}: {e.Message}", e, A2AErrorCode.InternalError);
+            }
+        }
+
+        /// <summary>
+        /// Serializes the specified value to JSON using the provided options.
+        /// </summary>
+        /// <param name="writer">The writer to write to.</param>
+        /// <param name="value">The value to serialize.</param>
+        /// <param name="options">The serializer options to use.</param>
+        protected virtual void SerializeImpl(Utf8JsonWriter writer, T value, JsonSerializerOptions options) => JsonSerializer.Serialize(writer, value, (JsonTypeInfo<T>)options.GetTypeInfo(value.GetType()));
 
         /// <summary>
         /// Returns a copy of the provided <see cref="JsonSerializerOptions"/> with this
@@ -27,6 +96,9 @@ namespace A2A
         {
             if (_serializerOptionsWithoutThisConverter is null)
             {
+                // keep reeference to original options for cache validation 
+                _outsideSerializerOptions = options;
+
                 // Clone options so we can modify the converters chain safely
                 var baseOptions = new JsonSerializerOptions(options);
 
@@ -42,34 +114,16 @@ namespace A2A
 
                 _serializerOptionsWithoutThisConverter = baseOptions;
             }
+            else if (_outsideSerializerOptions != options && options != _serializerOptionsWithoutThisConverter)
+            {
+                // Unexpected!!! This caching is based on promise that A2A will use only ONE instance of SerializerOptions
+                // and we can therefore cache modified SerializerOptions without dealing with invalidation and pairing.
+                // Since this is possible only by internal code, some recent code changes must have had broke this promise
+                Debug.Fail("This should never happen");
+                throw new InvalidOperationException();
+            }
 
             return _serializerOptionsWithoutThisConverter;
-        }
-
-        public override T? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            using var d = JsonDocument.ParseValue(ref reader);
-            var baseOptions = GetSafeOptions(options);
-            return d.Deserialize((JsonTypeInfo<T>)baseOptions.GetTypeInfo(typeToConvert));
-        }
-
-        public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options)
-        {
-            try
-            {
-                if (value is null)
-                {
-                    writer.WriteNullValue();
-                    return;
-                }
-
-                var baseOptions = GetSafeOptions(options);
-                JsonSerializer.Serialize(writer, value, (JsonTypeInfo<T>)baseOptions.GetTypeInfo(value.GetType()));
-            }
-            catch (Exception e)
-            {
-                throw new A2AException($"Failed to serialize {typeof(T).Name}: {e.Message}", e, A2AErrorCode.InternalError);
-            }
         }
     }
 }
