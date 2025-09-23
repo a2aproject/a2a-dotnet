@@ -26,14 +26,7 @@ namespace A2A
         public override T? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             using var d = JsonDocument.ParseValue(ref reader);
-            try
-            {
-                return DeserializeImpl(typeToConvert, GetSafeOptions(options), d);
-            }
-            catch (Exception e)
-            {
-                throw new A2AException($"Failed to deserialize {typeof(T).Name}: {e.Message}", e, A2AErrorCode.InvalidRequest);
-            }
+        	return DeserializeImpl(typeToConvert, GetSafeOptions(options), d);
         }
 
         /// <summary>

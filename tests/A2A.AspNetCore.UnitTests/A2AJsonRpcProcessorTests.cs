@@ -191,6 +191,42 @@ public class A2AJsonRpcProcessorTests
         }
     }
 
+    [Theory]
+    [InlineData("{\"invalidField\": \"not_message\"}", "Invalid parameters for MessageSendParams")]  // Wrong field structure
+    [InlineData("{\"message\": \"not_object\"}", "Invalid parameters for MessageSendParams")]        // Wrong field type
+    [InlineData("{\"message\": {\"kind\": \"invalid\"}}", "Invalid parameters for MessageSendParams")] // Invalid discriminator
+    [InlineData("{\"\":\"not_a_dict\"}", "Invalid parameters for MessageSendParams")] // Invalid discriminator
+    public async Task ValidateParamsContent_HandlesInvalidParamsStructure(string paramsValue, string expectedErrorPrefix)
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+        var jsonRequest = $$"""
+        {
+            "jsonrpc": "2.0",
+            "method": "{{A2AMethods.MessageSend}}",
+            "id": "test-content-validation",
+            "params": {{paramsValue}}
+        }
+        """;
+
+        var httpRequest = CreateHttpRequestFromJson(jsonRequest);
+
+        // Act
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+
+        // Assert
+        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
+        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+
+        Assert.Equal(StatusCodes.Status200OK, StatusCode);
+        Assert.Equal("application/json", ContentType);
+
+        Assert.Null(BodyContent.Result);
+        Assert.NotNull(BodyContent.Error);
+        Assert.Equal(-32602, BodyContent.Error.Code); // InvalidParams
+        Assert.Contains(expectedErrorPrefix, BodyContent.Error.Message);
+    }
+
     [Fact]
     public async Task ProcessRequest_SingleResponse_MessageSend_Works()
     {
