@@ -110,7 +110,7 @@ public class FileContent
 
             if (!hasBytes && !hasUri)
             {
-                throw new JsonException("FileContent must have either 'bytes' or 'uri' property");
+                throw new A2AException("FileContent must have either 'bytes' or 'uri' property", A2AErrorCode.InvalidRequest);
             }
 
             return base.DeserializeImpl(typeof(FileContent), options, document);
