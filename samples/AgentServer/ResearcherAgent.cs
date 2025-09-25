@@ -32,7 +32,6 @@ public class ResearcherAgent
             var message = ((TextPart?)task.History?.Last()?.Parts?.FirstOrDefault())?.Text ?? string.Empty;
             await InvokeAsync(task.Id, message, cancellationToken);
         };
-        _taskManager.OnAgentCardQuery = GetAgentCardAsync;
     }
 
     // This is the main entry point for the agent. It is called when a task is created or updated.
@@ -143,29 +142,26 @@ public class ResearcherAgent
         _agentStates[taskId] = AgentState.WaitingForFeedbackOnPlan;
     }
 
-    private Task<AgentCard> GetAgentCardAsync(string agentUrl, CancellationToken cancellationToken)
+    public AgentCard Card
     {
-        if (cancellationToken.IsCancellationRequested)
+        get
         {
-            return Task.FromCanceled<AgentCard>(cancellationToken);
+            var capabilities = new AgentCapabilities()
+            {
+                Streaming = true,
+                PushNotifications = false,
+            };
+
+            return new AgentCard()
+            {
+                Name = "Researcher Agent",
+                Description = "Agent which conducts research.",
+                Version = "1.0.0",
+                DefaultInputModes = ["text"],
+                DefaultOutputModes = ["text"],
+                Capabilities = capabilities,
+                Skills = [],
+            };
         }
-
-        var capabilities = new AgentCapabilities()
-        {
-            Streaming = true,
-            PushNotifications = false,
-        };
-
-        return Task.FromResult(new AgentCard()
-        {
-            Name = "Researcher Agent",
-            Description = "Agent which conducts research.",
-            Url = agentUrl,
-            Version = "1.0.0",
-            DefaultInputModes = ["text"],
-            DefaultOutputModes = ["text"],
-            Capabilities = capabilities,
-            Skills = [],
-        });
     }
 }
