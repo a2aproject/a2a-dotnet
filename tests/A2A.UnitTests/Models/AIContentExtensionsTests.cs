@@ -194,6 +194,7 @@ namespace A2A.UnitTests.Models
             var part = content.ToPart();
             var fp = Assert.IsType<FilePart>(part);
             Assert.NotNull(fp.File.Bytes);
+            Assert.Equal(new byte[] { 1, 2, 3, 4 }, Convert.FromBase64String(fp.File.Bytes));
             Assert.Equal("application/custom", fp.File.MimeType);
         }
 
