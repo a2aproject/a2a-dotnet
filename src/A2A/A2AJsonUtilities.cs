@@ -1,4 +1,6 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Options;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -37,6 +39,9 @@ public static partial class A2AJsonUtilities
         {
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping // optional: keep '+' unescaped
         };
+
+        // Chain with all supported types from MEAI.
+        opts.TypeInfoResolverChain.Add(AIJsonUtilities.DefaultOptions.TypeInfoResolver!);
 
         // Register custom converters at options-level (not attributes)
         opts.Converters.Add(new A2AJsonConverter<MessageSendParams>());
