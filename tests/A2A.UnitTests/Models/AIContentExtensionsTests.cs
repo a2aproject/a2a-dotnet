@@ -50,6 +50,33 @@ namespace A2A.UnitTests.Models
         }
 
         [Fact]
+        public void ToChatMessage_CopiesMetadataToAdditionalProperties()
+        {
+            var metadata = new Dictionary<string, JsonElement>
+            {
+                ["num"] = JsonSerializer.SerializeToElement(42),
+                ["str"] = JsonSerializer.SerializeToElement("value")
+            };
+            var agent = new AgentMessage
+            {
+                Role = MessageRole.User,
+                MessageId = "m-meta",
+                Parts = new List<Part>(),
+                Metadata = metadata
+            };
+
+            var chat = agent.ToChatMessage();
+            Assert.NotNull(chat.AdditionalProperties);
+            Assert.Equal(2, chat.AdditionalProperties!.Count);
+            Assert.True(chat.AdditionalProperties.TryGetValue("num", out var numObj));
+            Assert.True(chat.AdditionalProperties.TryGetValue("str", out var strObj));
+            var numJe = Assert.IsType<JsonElement>(numObj);
+            var strJe = Assert.IsType<JsonElement>(strObj);
+            Assert.Equal(42, numJe.GetInt32());
+            Assert.Equal("value", strJe.GetString());
+        }
+
+        [Fact]
         public void ToAgentMessage_ThrowsOnNullChatMessage()
         {
             Assert.Throws<ArgumentNullException>("chatMessage", () => ((ChatMessage)null!).ToAgentMessage());
@@ -202,7 +229,6 @@ namespace A2A.UnitTests.Models
         public void ToPart_TransfersAdditionalPropertiesToMetadata()
         {
             var content = new TextContent("hello");
-            // Ensure AdditionalProperties collection exists before using it
             content.AdditionalProperties ??= new();
             content.AdditionalProperties["s"] = "str";
             content.AdditionalProperties["i"] = 42;

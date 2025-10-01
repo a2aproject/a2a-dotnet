@@ -1,4 +1,5 @@
 using A2A;
+using System;
 using System.Text.Json;
 
 #pragma warning disable EA0011 // Consider removing unnecessary conditional access operator
@@ -24,6 +25,7 @@ internal static class AIContentExtensions
 
         return new()
         {
+            AdditionalProperties = ToAdditionalProperties(agentMessage.Metadata),
             Contents = agentMessage.Parts.ConvertAll(p => p.ToAIContent()),
             MessageId = agentMessage.MessageId,
             RawRepresentation = agentMessage,
@@ -104,15 +106,8 @@ internal static class AIContentExtensions
 
         content ??= new AIContent();
 
+        content.AdditionalProperties = ToAdditionalProperties(part.Metadata);
         content.RawRepresentation = part;
-        if (part.Metadata is { Count: > 0 } metadata)
-        {
-            content.AdditionalProperties = [];
-            foreach (var kvp in metadata)
-            {
-                content.AdditionalProperties[kvp.Key] = kvp.Value;
-            }
-        }
 
         return content;
     }
@@ -175,5 +170,21 @@ internal static class AIContentExtensions
         }
 
         return part;
+    }
+
+    private static AdditionalPropertiesDictionary? ToAdditionalProperties(Dictionary<string, JsonElement>? metadata)
+    {
+        if (metadata is not { Count: > 0 })
+        {
+            return null;
+        }
+
+        AdditionalPropertiesDictionary props = [];
+        foreach (var kvp in metadata)
+        {
+            props[kvp.Key] = kvp.Value;
+        }
+
+        return props;
     }
 }
