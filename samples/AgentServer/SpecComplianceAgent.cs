@@ -8,7 +8,6 @@ public class SpecComplianceAgent
 
     public void Attach(ITaskManager taskManager)
     {
-        taskManager.OnAgentCardQuery = GetAgentCard;
         taskManager.OnTaskCreated = OnTaskCreatedAsync;
         taskManager.OnTaskUpdated = OnTaskUpdatedAsync;
         _taskManager = taskManager;
@@ -39,29 +38,26 @@ public class SpecComplianceAgent
         }
     }
 
-    private Task<AgentCard> GetAgentCard(string agentUrl, CancellationToken cancellationToken)
+    public AgentCard Card
     {
-        if (cancellationToken.IsCancellationRequested)
+        get
         {
-            return Task.FromCanceled<AgentCard>(cancellationToken);
+            var capabilities = new AgentCapabilities()
+            {
+                Streaming = true,
+                PushNotifications = false,
+            };
+
+            return new AgentCard()
+            {
+                Name = "A2A Specification Compliance Agent",
+                Description = "Agent to run A2A specification compliance tests.",
+                Version = "1.0.0",
+                DefaultInputModes = ["text"],
+                DefaultOutputModes = ["text"],
+                Capabilities = capabilities,
+                Skills = [],
+            };
         }
-
-        var capabilities = new AgentCapabilities()
-        {
-            Streaming = true,
-            PushNotifications = false,
-        };
-
-        return Task.FromResult(new AgentCard()
-        {
-            Name = "A2A Specification Compliance Agent",
-            Description = "Agent to run A2A specification compliance tests.",
-            Url = agentUrl,
-            Version = "1.0.0",
-            DefaultInputModes = ["text"],
-            DefaultOutputModes = ["text"],
-            Capabilities = capabilities,
-            Skills = [],
-        });
     }
 }

@@ -45,14 +45,6 @@ public interface ITaskManager
     Func<AgentTask, CancellationToken, Task> OnTaskUpdated { get; set; }
 
     /// <summary>
-    /// Gets or sets the handler for when an agent card is queried.
-    /// </summary>
-    /// <remarks>
-    /// Returns agent capability information for a given agent URL.
-    /// </remarks>
-    Func<string, CancellationToken, Task<AgentCard>> OnAgentCardQuery { get; set; }
-
-    /// <summary>
     /// Creates a new agent task with a unique ID and initial status.
     /// </summary>
     /// <remarks>
