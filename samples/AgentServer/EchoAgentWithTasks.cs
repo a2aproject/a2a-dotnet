@@ -26,13 +26,49 @@ public class EchoAgentWithTasks
         // Check for target-state metadata to determine task behavior
         TaskState targetState = GetTargetStateFromMetadata(lastMessage.Metadata) ?? TaskState.Completed;
 
-        // This is a short-lived task - complete it immediately
-        await _taskManager!.ReturnArtifactAsync(task.Id, new Artifact()
+        // Demonstrate different artifact update patterns based on message content
+        if (messageText.StartsWith("stream:", StringComparison.OrdinalIgnoreCase))
         {
-            Parts = [new TextPart() {
-                Text = $"Echo: {messageText}"
-            }]
-        }, cancellationToken);
+            // Demonstrate streaming with UpdateArtifactAsync by sending chunks
+            var content = messageText.Substring(7).Trim(); // Remove "stream:" prefix
+            var chunks = content.Split(' ');
+
+            for (int i = 0; i < chunks.Length; i++)
+            {
+                bool isLastChunk = i == chunks.Length - 1;
+                await _taskManager!.UpdateArtifactAsync(task.Id, new Artifact()
+                {
+                    Parts = [new TextPart() { Text = $"Echo chunk {i + 1}: {chunks[i]}" }]
+                }, append: i > 0, lastChunk: isLastChunk, cancellationToken);
+            }
+        }
+        else if (messageText.StartsWith("append:", StringComparison.OrdinalIgnoreCase))
+        {
+            // Demonstrate appending to existing artifacts
+            var content = messageText.Substring(7).Trim(); // Remove "append:" prefix
+
+            // First, create an initial artifact (append=false for new artifact)
+            await _taskManager!.UpdateArtifactAsync(task.Id, new Artifact()
+            {
+                Parts = [new TextPart() { Text = $"Initial echo: {content}" }]
+            }, append: false, cancellationToken: cancellationToken);
+
+            // Then append additional content (append=true to add to existing)
+            await _taskManager!.UpdateArtifactAsync(task.Id, new Artifact()
+            {
+                Parts = [new TextPart() { Text = $" | Appended: {content.ToUpper(System.Globalization.CultureInfo.InvariantCulture)}" }]
+            }, append: true, lastChunk: true, cancellationToken);
+        }
+        else
+        {
+            // Default behavior: use ReturnArtifactAsync for simple, complete responses
+            await _taskManager!.ReturnArtifactAsync(task.Id, new Artifact()
+            {
+                Parts = [new TextPart() {
+                    Text = $"Echo: {messageText}"
+                }]
+            }, cancellationToken);
+        }
 
         await _taskManager!.UpdateStatusAsync(
             task.Id,
@@ -57,7 +93,7 @@ public class EchoAgentWithTasks
         return Task.FromResult(new AgentCard()
         {
             Name = "Echo Agent",
-            Description = "Agent which will echo every message it receives.",
+            Description = "Agent which will echo every message it receives. Supports special commands: 'stream: <text>' for chunked responses, 'append: <text>' for appending to artifacts, or regular text for simple echo.",
             Url = agentUrl,
             Version = "1.0.0",
             DefaultInputModes = ["text"],
