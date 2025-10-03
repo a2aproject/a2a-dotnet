@@ -22,9 +22,9 @@
         <PackageVersion Include="Microsoft.SemanticKernel.Connectors.AzureOpenAI" Version="1.59.0" />
         <PackageVersion Include="Moq" Version="4.20.70" />
         <PackageVersion Include="OpenTelemetry" Version="1.12.0" />
-        <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.12.0" />
-        <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.12.0" />
-        <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.12.0" />
+        <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.13.0" />
+        <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.13.0" />
+        <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.13.0" />
         <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.12.0" />
         <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.12.0" />
         <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.12.0" />
