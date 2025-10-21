@@ -10,7 +10,7 @@ namespace Microsoft.Extensions.AI;
 /// <summary>
 /// Provides extension methods for integrating with <see cref="AIContent"/> and other types from Microsoft.Extensions.AI.
 /// </summary>
-internal static class AIContentExtensions
+public static class AIContentExtensions
 {
     /// <summary>Creates a <see cref="ChatMessage"/> from the A2A <see cref="AgentMessage"/>.</summary>
     /// <param name="agentMessage">The agent message to convert to an <see cref="ChatMessage"/>.</param>
