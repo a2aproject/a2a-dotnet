@@ -11,7 +11,7 @@
         <PackageVersion Include="System.Text.Json" Version="9.0.9" />
         <!-- Product dependencies shared -->
         <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.10" />
-        <PackageVersion Include="System.Linq.AsyncEnumerable" Version="10.0.0-rc.1.25451.107" />
+        <PackageVersion Include="System.Linq.AsyncEnumerable" Version="10.0.0-rc.2.25502.107" />
         <PackageVersion Include="System.Net.ServerSentEvents" Version="10.0.0-rc.1.25451.107" />
         <!-- Testing / samples dependencies -->
         <PackageVersion Include="JsonSchema.Net" Version="7.4.0" />
