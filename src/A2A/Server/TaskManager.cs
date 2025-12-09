@@ -182,6 +182,17 @@ public sealed class TaskManager : ITaskManager
                 task = await CreateTaskAsync(messageSendParams.Message.ContextId, messageSendParams.Message.TaskId, cancellationToken).ConfigureAwait(false);
                 task.History ??= [];
                 task.History.Add(messageSendParams.Message);
+
+                // Save PushNotification for further use
+                if (messageSendParams.Configuration != null && messageSendParams.Configuration.PushNotification != null)
+                {
+                    await SetPushNotificationAsync(new TaskPushNotificationConfig
+                    {
+                        TaskId = task.Id,
+                        PushNotificationConfig = messageSendParams.Configuration.PushNotification
+                    }, cancellationToken);
+                }
+
                 using var createActivity = ActivitySource.StartActivity("OnTaskCreated", ActivityKind.Server);
                 await OnTaskCreated(task, cancellationToken).ConfigureAwait(false);
             }
