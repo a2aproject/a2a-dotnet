@@ -127,7 +127,7 @@ var client = new A2AClient(new Uri(agentCard.Url));
 // Send message
 var response = await client.SendMessageAsync(new MessageSendParams
 {
-    Message = new Message
+    Message = new AgentMessage
     {
         Role = MessageRole.User,
         Parts = [new TextPart { Text = "Hello!" }]
