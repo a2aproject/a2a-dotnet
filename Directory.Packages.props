@@ -17,7 +17,7 @@
         <PackageVersion Include="JsonSchema.Net" Version="8.0.3" />
         <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.0.1" />
         <PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.9" />
-        <PackageVersion Include="Microsoft.SemanticKernel.Agents.Core" Version="1.67.1" />
+        <PackageVersion Include="Microsoft.SemanticKernel.Agents.Core" Version="1.68.0" />
         <PackageVersion Include="Microsoft.SemanticKernel.Agents.OpenAI" Version="1.59.0-preview" />
         <PackageVersion Include="Microsoft.SemanticKernel.Connectors.AzureOpenAI" Version="1.59.0" />
         <PackageVersion Include="Moq" Version="4.20.72" />
