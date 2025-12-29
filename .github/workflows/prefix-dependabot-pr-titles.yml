@@ -1,0 +1,24 @@
+name: Prefix Dependabot PR Titles
+
+on:
+  pull_request:
+    types: [opened, edited]
+
+jobs:
+  prefix-title:
+    runs-on: ubuntu-latest
+    if: ${{ github.actor == 'dependabot[bot]' }}
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const prefix = "chore: ";
+            const title = github.context.payload.pull_request.title;
+            if (!title.startsWith("chore")) {
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.payload.pull_request.number,
+                title: prefix + title
+              });
+            }
