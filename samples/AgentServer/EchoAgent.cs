@@ -7,7 +7,6 @@ public class EchoAgent
     public void Attach(ITaskManager taskManager)
     {
         taskManager.OnMessageReceived = ProcessMessageAsync;
-        taskManager.OnAgentCardQuery = GetAgentCardAsync;
     }
 
     private Task<A2AResponse> ProcessMessageAsync(MessageSendParams messageSendParams, CancellationToken cancellationToken)
@@ -34,29 +33,26 @@ public class EchoAgent
         return Task.FromResult<A2AResponse>(message);
     }
 
-    private Task<AgentCard> GetAgentCardAsync(string agentUrl, CancellationToken cancellationToken)
+    public AgentCard Card
     {
-        if (cancellationToken.IsCancellationRequested)
+        get
         {
-            return Task.FromCanceled<AgentCard>(cancellationToken);
+            var capabilities = new AgentCapabilities()
+            {
+                Streaming = true,
+                PushNotifications = false,
+            };
+
+            return new AgentCard()
+            {
+                Name = "Echo Agent",
+                Description = "Agent which will echo every message it receives.",
+                Version = "1.0.0",
+                DefaultInputModes = ["text"],
+                DefaultOutputModes = ["text"],
+                Capabilities = capabilities,
+                Skills = [],
+            };
         }
-
-        var capabilities = new AgentCapabilities()
-        {
-            Streaming = true,
-            PushNotifications = false,
-        };
-
-        return Task.FromResult(new AgentCard()
-        {
-            Name = "Echo Agent",
-            Description = "Agent which will echo every message it receives.",
-            Url = agentUrl,
-            Version = "1.0.0",
-            DefaultInputModes = ["text"],
-            DefaultOutputModes = ["text"],
-            Capabilities = capabilities,
-            Skills = [],
-        });
     }
 }

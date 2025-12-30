@@ -12,7 +12,6 @@ public class EchoAgentWithTasks
         _taskManager = taskManager;
         taskManager.OnTaskCreated = ProcessMessageAsync;
         taskManager.OnTaskUpdated = ProcessMessageAsync;
-        taskManager.OnAgentCardQuery = GetAgentCardAsync;
     }
 
     private async Task ProcessMessageAsync(AgentTask task, CancellationToken cancellationToken)
@@ -41,30 +40,27 @@ public class EchoAgentWithTasks
             cancellationToken: cancellationToken);
     }
 
-    private Task<AgentCard> GetAgentCardAsync(string agentUrl, CancellationToken cancellationToken)
+    public AgentCard Card
     {
-        if (cancellationToken.IsCancellationRequested)
+        get
         {
-            return Task.FromCanceled<AgentCard>(cancellationToken);
+            var capabilities = new AgentCapabilities()
+            {
+                Streaming = true,
+                PushNotifications = false,
+            };
+
+            return new AgentCard()
+            {
+                Name = "Echo Agent",
+                Description = "Agent which will echo every message it receives.",
+                Version = "1.0.0",
+                DefaultInputModes = ["text"],
+                DefaultOutputModes = ["text"],
+                Capabilities = capabilities,
+                Skills = [],
+            };
         }
-
-        var capabilities = new AgentCapabilities()
-        {
-            Streaming = true,
-            PushNotifications = false,
-        };
-
-        return Task.FromResult(new AgentCard()
-        {
-            Name = "Echo Agent",
-            Description = "Agent which will echo every message it receives.",
-            Url = agentUrl,
-            Version = "1.0.0",
-            DefaultInputModes = ["text"],
-            DefaultOutputModes = ["text"],
-            Capabilities = capabilities,
-            Skills = [],
-        });
     }
 
     private static TaskState? GetTargetStateFromMetadata(Dictionary<string, JsonElement>? metadata)
