@@ -1,7 +1,7 @@
-using Microsoft.Extensions.AI;
+using A2A;
 using System.Text.Json;
 
-namespace A2A;
+namespace Microsoft.Extensions.AI;
 
 /// <summary>
 /// Provides extension methods for converting between <see cref="AdditionalPropertiesDictionary"/> and A2A metadata dictionaries.
