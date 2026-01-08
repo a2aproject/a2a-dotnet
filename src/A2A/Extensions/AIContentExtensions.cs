@@ -25,7 +25,7 @@ public static class AIContentExtensions
 
         return new()
         {
-            AdditionalProperties = ToAdditionalProperties(agentMessage.Metadata),
+            AdditionalProperties = agentMessage.Metadata.ToAdditionalProperties(),
             Contents = agentMessage.Parts.ConvertAll(p => p.ToAIContent()),
             MessageId = agentMessage.MessageId,
             RawRepresentation = agentMessage,
@@ -106,7 +106,7 @@ public static class AIContentExtensions
 
         content ??= new AIContent();
 
-        content.AdditionalProperties = ToAdditionalProperties(part.Metadata);
+        content.AdditionalProperties = part.Metadata.ToAdditionalProperties();
         content.RawRepresentation = part;
 
         return content;
@@ -170,21 +170,5 @@ public static class AIContentExtensions
         }
 
         return part;
-    }
-
-    private static AdditionalPropertiesDictionary? ToAdditionalProperties(Dictionary<string, JsonElement>? metadata)
-    {
-        if (metadata is not { Count: > 0 })
-        {
-            return null;
-        }
-
-        AdditionalPropertiesDictionary props = [];
-        foreach (var kvp in metadata)
-        {
-            props[kvp.Key] = kvp.Value;
-        }
-
-        return props;
     }
 }
