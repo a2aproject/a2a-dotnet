@@ -8,6 +8,21 @@ namespace A2A;
 public sealed class AgentCapabilities
 {
     /// <summary>
+    /// Creates a new instance of the <see cref="AgentCapabilities"/> class.
+    /// </summary>
+    public AgentCapabilities()
+    {
+    }
+
+    internal AgentCapabilities(AgentCapabilities source)
+    {
+        Streaming = source.Streaming;
+        PushNotifications = source.PushNotifications;
+        StateTransitionHistory = source.StateTransitionHistory;
+        Extensions = [.. source.Extensions];
+    }
+
+    /// <summary>
     /// Gets or sets a value indicating whether the agent supports SSE.
     /// </summary>
     [JsonPropertyName("streaming")]
