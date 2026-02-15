@@ -11,7 +11,8 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.AllowAnyOrigin()
+        // Common local dev server ports: React (3000), ASP.NET (5000), Vite (5173)
+        policy.WithOrigins("http://localhost:3000", "http://localhost:5000", "http://localhost:5173")
               .AllowAnyMethod()
               .AllowAnyHeader();
     });
