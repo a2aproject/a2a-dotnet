@@ -26,6 +26,9 @@ public sealed class TaskManager : ITaskManager
     // Track sealed artifacts per task (taskId -> set of sealed artifactIds)
     private readonly ConcurrentDictionary<string, HashSet<string>> _sealedArtifacts = [];
 
+    private static bool IsTerminalState(TaskState state) =>
+        state is TaskState.Completed or TaskState.Canceled or TaskState.Failed or TaskState.Rejected;
+
     /// <inheritdoc />
     public Func<MessageSendParams, CancellationToken, Task<A2AResponse>>? OnMessageReceived { get; set; }
 
@@ -101,7 +104,7 @@ public sealed class TaskManager : ITaskManager
         {
             activity?.SetTag("task.found", true);
 
-            if (task.Status.State is TaskState.Completed or TaskState.Canceled or TaskState.Failed or TaskState.Rejected)
+            if (IsTerminalState(task.Status.State))
             {
                 // The spec does not specify what to do if the task is already canceled (or other terminal state):
                 // https://a2a-protocol.org/latest/specification/#74-taskscancel
@@ -191,8 +194,7 @@ public sealed class TaskManager : ITaskManager
         }
         else
         {
-            // Fail if Task is in terminal states
-            if (task.Status.State is TaskState.Completed or TaskState.Canceled or TaskState.Failed or TaskState.Rejected)
+            if (IsTerminalState(task.Status.State))
             {
                 activity?.SetTag("task.terminalState", true);
                 throw new InvalidOperationException("Cannot send message to a task in terminal state.");
@@ -376,7 +378,25 @@ public sealed class TaskManager : ITaskManager
 
         try
         {
+            var task = await _taskStore.GetTaskAsync(taskId, cancellationToken).ConfigureAwait(false);
+            if (task is null)
+            {
+                throw new A2AException("Task not found.", A2AErrorCode.TaskNotFound);
+            }
+
+            if (IsTerminalState(task.Status.State))
+            {
+                throw new A2AException("Task is in a terminal state and cannot be updated.", A2AErrorCode.InvalidRequest);
+            }
+
             var agentStatus = await _taskStore.UpdateStatusAsync(taskId, status, message, cancellationToken).ConfigureAwait(false);
+
+            // Clean up sealed artifact tracking when task reaches a terminal state
+            if (IsTerminalState(status))
+            {
+                _sealedArtifacts.TryRemove(taskId, out _);
+            }
+
             //TODO: Make callback notification if set by the client
             _taskUpdateEventEnumerators.TryGetValue(taskId, out var enumerator);
             if (enumerator != null)
@@ -430,6 +450,11 @@ public sealed class TaskManager : ITaskManager
             if (task != null)
             {
                 activity?.SetTag("task.found", true);
+
+                if (IsTerminalState(task.Status.State))
+                {
+                    throw new A2AException("Task is in a terminal state and cannot accept artifacts.", A2AErrorCode.InvalidRequest);
+                }
 
                 task.Artifacts ??= [];
                 task.Artifacts.Add(artifact);
@@ -498,6 +523,11 @@ public sealed class TaskManager : ITaskManager
             if (task != null)
             {
                 activity?.SetTag("task.found", true);
+
+                if (IsTerminalState(task.Status.State))
+                {
+                    throw new A2AException("Task is in a terminal state and cannot accept artifacts.", A2AErrorCode.InvalidRequest);
+                }
 
                 bool append = artifactEvent.Append ?? false;
                 bool lastChunk = artifactEvent.LastChunk ?? true;

@@ -1157,6 +1157,115 @@ public class TaskManagerTests
     }
 
     [Fact]
+    public async Task UpdateStatusAsync_TerminalState_ClearsSealedArtifactTracking()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+        var taskSendParams = CreateMessageSendParams("Test terminal cleanup");
+        var task = await taskManager.SendMessageAsync(taskSendParams) as AgentTask;
+        Assert.NotNull(task);
+
+        var artifactId = "sealed-artifact";
+
+        // Seal an artifact
+        await taskManager.ReturnArtifactStreamAsync(new TaskArtifactUpdateEvent
+        {
+            TaskId = task.Id,
+            Artifact = new Artifact
+            {
+                ArtifactId = artifactId,
+                Parts = [new TextPart { Text = "Content" }]
+            },
+            LastChunk = true
+        });
+
+        // Verify it's sealed
+        var sealedEx = await Assert.ThrowsAsync<A2AException>(() => taskManager.ReturnArtifactStreamAsync(new TaskArtifactUpdateEvent
+        {
+            TaskId = task.Id,
+            Artifact = new Artifact
+            {
+                ArtifactId = artifactId,
+                Parts = [new TextPart { Text = "Should fail" }]
+            },
+            Append = true
+        }));
+        Assert.Contains("sealed", sealedEx.Message);
+
+        // Transition to terminal state — sealed tracking should be cleaned up
+        await taskManager.UpdateStatusAsync(task.Id, TaskState.Completed, final: true);
+
+        // Create a new task to reuse the same taskId scenario is not possible,
+        // but we can verify the internal dictionary was cleaned by checking that
+        // no memory is held for completed tasks. The observable behavior is that
+        // the task is in terminal state and can no longer be updated anyway.
+        // This test primarily ensures no exception is thrown during cleanup.
+        var completedTask = await taskManager.GetTaskAsync(new TaskQueryParams { Id = task.Id });
+        Assert.NotNull(completedTask);
+        Assert.Equal(TaskState.Completed, completedTask.Status.State);
+    }
+
+    [Fact]
+    public async Task UpdateStatusAsync_ThrowsWhenTaskInTerminalState()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+        var task = await taskManager.SendMessageAsync(CreateMessageSendParams("Test")) as AgentTask;
+        Assert.NotNull(task);
+        await taskManager.UpdateStatusAsync(task.Id, TaskState.Completed, final: true);
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<A2AException>(() =>
+            taskManager.UpdateStatusAsync(task.Id, TaskState.Working));
+        Assert.Equal(A2AErrorCode.InvalidRequest, ex.ErrorCode);
+        Assert.Contains("terminal", ex.Message);
+    }
+
+    [Fact]
+    public async Task ReturnArtifactAsync_ThrowsWhenTaskInTerminalState()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+        var task = await taskManager.SendMessageAsync(CreateMessageSendParams("Test")) as AgentTask;
+        Assert.NotNull(task);
+        await taskManager.UpdateStatusAsync(task.Id, TaskState.Completed, final: true);
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<A2AException>(() =>
+            taskManager.ReturnArtifactAsync(task.Id, new Artifact
+            {
+                ArtifactId = "a1",
+                Parts = [new TextPart { Text = "Content" }]
+            }));
+        Assert.Equal(A2AErrorCode.InvalidRequest, ex.ErrorCode);
+        Assert.Contains("terminal", ex.Message);
+    }
+
+    [Fact]
+    public async Task ReturnArtifactStreamAsync_ThrowsWhenTaskInTerminalState()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+        var task = await taskManager.SendMessageAsync(CreateMessageSendParams("Test")) as AgentTask;
+        Assert.NotNull(task);
+        await taskManager.UpdateStatusAsync(task.Id, TaskState.Failed, final: true);
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<A2AException>(() =>
+            taskManager.ReturnArtifactStreamAsync(new TaskArtifactUpdateEvent
+            {
+                TaskId = task.Id,
+                Artifact = new Artifact
+                {
+                    ArtifactId = "a1",
+                    Parts = [new TextPart { Text = "Content" }]
+                }
+            }));
+        Assert.Equal(A2AErrorCode.InvalidRequest, ex.ErrorCode);
+        Assert.Contains("terminal", ex.Message);
+    }
+
+    [Fact]
     public async Task SendMessageAsync_ShouldThrowA2AException_WhenTaskIdSpecifiedButTaskDoesNotExist()
     {
         // Arrange
