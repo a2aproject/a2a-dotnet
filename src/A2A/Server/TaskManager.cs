@@ -458,5 +458,71 @@ public sealed class TaskManager : ITaskManager
             throw;
         }
     }
+
+    /// <inheritdoc />
+    public async Task ReturnArtifactStreamAsync(TaskArtifactUpdateEvent artifactEvent, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (artifactEvent is null)
+        {
+            throw new A2AException(nameof(artifactEvent), A2AErrorCode.InvalidParams);
+        }
+
+        if (string.IsNullOrEmpty(artifactEvent.TaskId))
+        {
+            throw new A2AException("TaskId is required in artifact event.", A2AErrorCode.InvalidParams);
+        }
+
+        if (artifactEvent.Artifact is null)
+        {
+            throw new A2AException("Artifact is required in artifact event.", A2AErrorCode.InvalidParams);
+        }
+
+        if (string.IsNullOrEmpty(artifactEvent.Artifact.ArtifactId))
+        {
+            throw new A2AException("Artifact must have an artifactId for streaming.", A2AErrorCode.InvalidParams);
+        }
+
+        using var activity = ActivitySource.StartActivity("ReturnArtifactStream", ActivityKind.Server);
+        activity?.SetTag("task.id", artifactEvent.TaskId);
+        activity?.SetTag("artifact.append", artifactEvent.Append);
+        activity?.SetTag("artifact.lastChunk", artifactEvent.LastChunk);
+
+        try
+        {
+            var task = await _taskStore.GetTaskAsync(artifactEvent.TaskId, cancellationToken).ConfigureAwait(false);
+            if (task != null)
+            {
+                activity?.SetTag("task.found", true);
+
+                //TODO: Make callback notification if set by the client
+                _taskUpdateEventEnumerators.TryGetValue(task.Id, out var enumerator);
+                if (enumerator != null)
+                {
+                    activity?.SetTag("event.type", "artifact-stream");
+                    enumerator.NotifyEvent(artifactEvent);
+                }
+
+                await _taskStore.UpdateArtifactAsync(
+                    artifactEvent.TaskId,
+                    artifactEvent.Artifact,
+                    artifactEvent.Append ?? false,
+                    artifactEvent.LastChunk ?? true,
+                    cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                activity?.SetTag("task.found", false);
+                activity?.SetStatus(ActivityStatusCode.Error, "Task not found");
+                throw new A2AException("Task not found.", A2AErrorCode.TaskNotFound);
+            }
+        }
+        catch (Exception ex)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            throw;
+        }
+    }
     // TODO: Implement UpdateArtifact method
 }

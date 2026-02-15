@@ -280,4 +280,285 @@ public class InMemoryTaskStoreTests
         Assert.True(task.IsCanceled);
         await Assert.ThrowsAsync<TaskCanceledException>(() => task);
     }
+
+    [Fact]
+    public async Task UpdateArtifactAsync_WithAppendFalse_AddsNewArtifact()
+    {
+        // Arrange
+        var sut = new InMemoryTaskStore();
+        var task = new AgentTask { Id = "task1", Status = new AgentTaskStatus { State = TaskState.Submitted } };
+        await sut.SetTaskAsync(task);
+
+        var artifact = new Artifact
+        {
+            ArtifactId = "artifact1",
+            Name = "Test Artifact",
+            Parts = [new TextPart { Text = "Content" }]
+        };
+
+        // Act
+        await sut.UpdateArtifactAsync("task1", artifact, append: false, lastChunk: true);
+        var result = await sut.GetTaskAsync("task1");
+
+        // Assert
+        Assert.NotNull(result?.Artifacts);
+        Assert.Single(result!.Artifacts);
+        Assert.Equal("artifact1", result.Artifacts[0].ArtifactId);
+        Assert.Equal("Test Artifact", result.Artifacts[0].Name);
+    }
+
+    [Fact]
+    public async Task UpdateArtifactAsync_WithAppendTrue_AppendsToExistingArtifact()
+    {
+        // Arrange
+        var sut = new InMemoryTaskStore();
+        var task = new AgentTask { Id = "task1", Status = new AgentTaskStatus { State = TaskState.Submitted } };
+        await sut.SetTaskAsync(task);
+
+        var artifact1 = new Artifact
+        {
+            ArtifactId = "artifact1",
+            Name = "Story",
+            Parts = [new TextPart { Text = "Part 1. " }]
+        };
+
+        var artifact2 = new Artifact
+        {
+            ArtifactId = "artifact1",
+            Parts = [new TextPart { Text = "Part 2." }]
+        };
+
+        // Act
+        await sut.UpdateArtifactAsync("task1", artifact1, append: false, lastChunk: false);
+        await sut.UpdateArtifactAsync("task1", artifact2, append: true, lastChunk: true);
+        var result = await sut.GetTaskAsync("task1");
+
+        // Assert
+        Assert.NotNull(result?.Artifacts);
+        Assert.Single(result!.Artifacts);
+        Assert.Equal("artifact1", result.Artifacts[0].ArtifactId);
+        Assert.Equal(2, result.Artifacts[0].Parts.Count);
+        Assert.Equal("Part 1. ", result.Artifacts[0].Parts[0].AsTextPart().Text);
+        Assert.Equal("Part 2.", result.Artifacts[0].Parts[1].AsTextPart().Text);
+    }
+
+    [Fact]
+    public async Task UpdateArtifactAsync_WithAppendTrue_CreatesNewArtifactIfNotExists()
+    {
+        // Arrange
+        var sut = new InMemoryTaskStore();
+        var task = new AgentTask { Id = "task1", Status = new AgentTaskStatus { State = TaskState.Submitted } };
+        await sut.SetTaskAsync(task);
+
+        var artifact = new Artifact
+        {
+            ArtifactId = "artifact1",
+            Parts = [new TextPart { Text = "Content" }]
+        };
+
+        // Act - append to non-existent artifact should create it
+        await sut.UpdateArtifactAsync("task1", artifact, append: true, lastChunk: true);
+        var result = await sut.GetTaskAsync("task1");
+
+        // Assert
+        Assert.NotNull(result?.Artifacts);
+        Assert.Single(result!.Artifacts);
+        Assert.Equal("artifact1", result.Artifacts[0].ArtifactId);
+    }
+
+    [Fact]
+    public async Task UpdateArtifactAsync_WithAppendFalse_ReplacesExistingArtifact()
+    {
+        // Arrange
+        var sut = new InMemoryTaskStore();
+        var task = new AgentTask { Id = "task1", Status = new AgentTaskStatus { State = TaskState.Submitted } };
+        await sut.SetTaskAsync(task);
+
+        var artifact1 = new Artifact
+        {
+            ArtifactId = "artifact1",
+            Name = "Original",
+            Parts = [new TextPart { Text = "Old Content" }]
+        };
+
+        var artifact2 = new Artifact
+        {
+            ArtifactId = "artifact1",
+            Name = "Updated",
+            Parts = [new TextPart { Text = "New Content" }]
+        };
+
+        // Act
+        await sut.UpdateArtifactAsync("task1", artifact1, append: false, lastChunk: false);
+        await sut.UpdateArtifactAsync("task1", artifact2, append: false, lastChunk: true);
+        var result = await sut.GetTaskAsync("task1");
+
+        // Assert
+        Assert.NotNull(result?.Artifacts);
+        Assert.Single(result!.Artifacts);
+        Assert.Equal("Updated", result.Artifacts[0].Name);
+        Assert.Single(result.Artifacts[0].Parts);
+        Assert.Equal("New Content", result.Artifacts[0].Parts[0].AsTextPart().Text);
+    }
+
+    [Fact]
+    public async Task UpdateArtifactAsync_MergesMetadataAndExtensions()
+    {
+        // Arrange
+        var sut = new InMemoryTaskStore();
+        var task = new AgentTask { Id = "task1", Status = new AgentTaskStatus { State = TaskState.Submitted } };
+        await sut.SetTaskAsync(task);
+
+        var artifact1 = new Artifact
+        {
+            ArtifactId = "artifact1",
+            Parts = [new TextPart { Text = "Content" }],
+            Metadata = new() { ["key1"] = System.Text.Json.JsonDocument.Parse("\"value1\"").RootElement },
+            Extensions = ["ext1"]
+        };
+
+        var artifact2 = new Artifact
+        {
+            ArtifactId = "artifact1",
+            Parts = [new TextPart { Text = " More" }],
+            Metadata = new() { ["key2"] = System.Text.Json.JsonDocument.Parse("\"value2\"").RootElement },
+            Extensions = ["ext2"]
+        };
+
+        // Act
+        await sut.UpdateArtifactAsync("task1", artifact1, append: false, lastChunk: false);
+        await sut.UpdateArtifactAsync("task1", artifact2, append: true, lastChunk: true);
+        var result = await sut.GetTaskAsync("task1");
+
+        // Assert
+        Assert.NotNull(result?.Artifacts);
+        Assert.Single(result!.Artifacts);
+        Assert.NotNull(result.Artifacts[0].Metadata);
+        Assert.Equal(2, result.Artifacts[0].Metadata!.Count);
+        Assert.NotNull(result.Artifacts[0].Extensions);
+        Assert.Equal(2, result.Artifacts[0].Extensions!.Count);
+    }
+
+    [Fact]
+    public async Task UpdateArtifactAsync_ThrowsWhenTaskNotFound()
+    {
+        // Arrange
+        var sut = new InMemoryTaskStore();
+        var artifact = new Artifact
+        {
+            ArtifactId = "artifact1",
+            Parts = [new TextPart { Text = "Content" }]
+        };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<A2AException>(() => sut.UpdateArtifactAsync("nonexistent", artifact, append: false, lastChunk: true));
+        Assert.Equal(A2AErrorCode.TaskNotFound, ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task UpdateArtifactAsync_ThrowsWhenArtifactIdIsEmpty()
+    {
+        // Arrange
+        var sut = new InMemoryTaskStore();
+        var task = new AgentTask { Id = "task1", Status = new AgentTaskStatus { State = TaskState.Submitted } };
+        await sut.SetTaskAsync(task);
+
+        var artifact = new Artifact
+        {
+            ArtifactId = string.Empty,
+            Parts = [new TextPart { Text = "Content" }]
+        };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<A2AException>(() => sut.UpdateArtifactAsync("task1", artifact, append: false, lastChunk: true));
+        Assert.Equal(A2AErrorCode.InvalidParams, ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task UpdateArtifactAsync_ShouldReturnCanceledTask_WhenCancellationTokenIsCanceled()
+    {
+        // Arrange
+        var sut = new InMemoryTaskStore();
+        var artifact = new Artifact { ArtifactId = "test" };
+
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        // Act
+        var task = sut.UpdateArtifactAsync("test-id", artifact, append: false, lastChunk: true, cts.Token);
+
+        // Assert
+        Assert.True(task.IsCanceled);
+        await Assert.ThrowsAsync<TaskCanceledException>(() => task);
+    }
+
+    [Fact]
+    public async Task UpdateArtifactAsync_SealedArtifact_ThrowsOnUpdate()
+    {
+        // Arrange
+        var sut = new InMemoryTaskStore();
+        var task = new AgentTask { Id = "task1", Status = new AgentTaskStatus { State = TaskState.Submitted } };
+        await sut.SetTaskAsync(task);
+
+        var artifactId = "sealed-artifact";
+
+        // Create and seal artifact
+        await sut.UpdateArtifactAsync("task1", new Artifact
+        {
+            ArtifactId = artifactId,
+            Name = "Original",
+            Parts = [new TextPart { Text = "Original content" }]
+        }, append: false, lastChunk: true);
+
+        // Try to update sealed artifact - should throw
+        var ex = await Assert.ThrowsAsync<A2AException>(() => sut.UpdateArtifactAsync("task1", new Artifact
+        {
+            ArtifactId = artifactId,
+            Name = "Replacement",
+            Parts = [new TextPart { Text = "New content" }]
+        }, append: true, lastChunk: true));
+
+        Assert.Equal(A2AErrorCode.InvalidRequest, ex.ErrorCode);
+        Assert.Contains("sealed", ex.Message);
+
+        // Verify original artifact is unchanged
+        var result = await sut.GetTaskAsync("task1");
+        Assert.NotNull(result?.Artifacts);
+        Assert.Single(result!.Artifacts);
+        Assert.Equal("Original", result.Artifacts[0].Name);
+    }
+
+    [Fact]
+    public async Task UpdateArtifactAsync_UnsealedArtifact_AllowsAppend()
+    {
+        // Arrange
+        var sut = new InMemoryTaskStore();
+        var task = new AgentTask { Id = "task1", Status = new AgentTaskStatus { State = TaskState.Submitted } };
+        await sut.SetTaskAsync(task);
+
+        var artifactId = "unsealed-artifact";
+
+        // Create artifact without sealing
+        await sut.UpdateArtifactAsync("task1", new Artifact
+        {
+            ArtifactId = artifactId,
+            Parts = [new TextPart { Text = "Part 1. " }]
+        }, append: false, lastChunk: false);
+
+        // Append to unsealed artifact - should actually append
+        await sut.UpdateArtifactAsync("task1", new Artifact
+        {
+            ArtifactId = artifactId,
+            Parts = [new TextPart { Text = "Part 2." }]
+        }, append: true, lastChunk: true);
+
+        var result = await sut.GetTaskAsync("task1");
+
+        // Assert
+        Assert.NotNull(result?.Artifacts);
+        Assert.Single(result!.Artifacts);
+        Assert.Equal(2, result.Artifacts[0].Parts.Count);
+        Assert.Equal("Part 1. ", result.Artifacts[0].Parts[0].AsTextPart().Text);
+        Assert.Equal("Part 2.", result.Artifacts[0].Parts[1].AsTextPart().Text);
+    }
 }

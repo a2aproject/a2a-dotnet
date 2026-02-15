@@ -83,6 +83,30 @@ public interface ITaskManager
     Task ReturnArtifactAsync(string taskId, Artifact artifact, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Streams a partial or complete artifact to a task with append and chunking semantics.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This method allows streaming artifacts in chunks using TaskArtifactUpdateEvent objects with
+    /// append and lastChunk flags. When append is true, the artifact parts are appended to an existing
+    /// artifact with the same artifactId, or creates a new one if it doesn't exist.
+    /// When append is false, it replaces any existing artifact with the same artifactId.
+    /// </para>
+    /// <para>
+    /// Once lastChunk is true, the artifact is sealed. Any subsequent attempt to update a sealed artifact
+    /// will throw an <see cref="A2AException"/> with <see cref="A2AErrorCode.InvalidRequest"/>.
+    /// This is considered a bug in the agent implementation.
+    /// </para>
+    /// <para>
+    /// For complete artifacts sent in one call, use <see cref="ReturnArtifactAsync"/> instead.
+    /// </para>
+    /// </remarks>
+    /// <param name="artifactEvent">The artifact update event containing the artifact, taskId, append flag, and lastChunk flag.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    Task ReturnArtifactStreamAsync(TaskArtifactUpdateEvent artifactEvent, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Updates the status of a task and optionally adds a message to its history.
     /// </summary>
     /// <remarks>

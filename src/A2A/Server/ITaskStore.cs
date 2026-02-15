@@ -55,4 +55,27 @@ public interface ITaskStore
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
     /// <returns>A list of push notification configurations for the task.</returns>
     Task<IEnumerable<TaskPushNotificationConfig>> GetPushNotificationsAsync(string taskId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates an artifact in the task, either appending parts or replacing it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When append is true, appends parts to an existing artifact with the same artifactId, or creates a new one
+    /// if no artifact with that ID exists. When append is false, replaces any existing artifact with the same ID.
+    /// </para>
+    /// <para>
+    /// Once lastChunk is true, the artifact is sealed. Any subsequent attempt to update a sealed artifact
+    /// will throw an <see cref="A2AException"/> with <see cref="A2AErrorCode.InvalidRequest"/>.
+    /// This is considered a bug in the agent implementation.
+    /// </para>
+    /// </remarks>
+    /// <param name="taskId">The ID of the task.</param>
+    /// <param name="artifact">The artifact or artifact chunk to update.</param>
+    /// <param name="append">If true, append parts to existing artifact or create new. If false, replace existing.</param>
+    /// <param name="lastChunk">If true, seals the artifact after this update, preventing further updates.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
+    /// <returns>A task representing the operation.</returns>
+    /// <exception cref="A2AException">Thrown when the artifact has been sealed by a previous update with lastChunk=true.</exception>
+    Task UpdateArtifactAsync(string taskId, Artifact artifact, bool append, bool lastChunk, CancellationToken cancellationToken = default);
 }

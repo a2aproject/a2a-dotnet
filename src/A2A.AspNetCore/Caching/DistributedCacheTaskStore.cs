@@ -114,7 +114,139 @@ public class DistributedCacheTaskStore(IDistributedCache cache)
         await cache.SetAsync(BuildPushNotificationsCacheKey(pushNotificationConfig.TaskId), bytes, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc/>
+    public async Task UpdateArtifactAsync(string taskId, Artifact artifact, bool append, bool lastChunk, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (string.IsNullOrEmpty(taskId))
+        {
+            throw new A2AException("Invalid task ID", new ArgumentNullException(nameof(taskId)), A2AErrorCode.InvalidParams);
+        }
+
+        if (artifact is null)
+        {
+            throw new ArgumentNullException(nameof(artifact));
+        }
+
+        if (string.IsNullOrEmpty(artifact.ArtifactId))
+        {
+            throw new A2AException("Artifact must have an artifactId for streaming.", A2AErrorCode.InvalidParams);
+        }
+
+        var cacheKey = BuildTaskCacheKey(taskId);
+        var bytes = await cache.GetAsync(cacheKey, cancellationToken).ConfigureAwait(false);
+        if (bytes == null || bytes.Length < 1)
+        {
+            throw new A2AException("Task not found.", A2AErrorCode.TaskNotFound);
+        }
+
+        var task = JsonSerializer.Deserialize(bytes, A2AJsonUtilities.JsonContext.Default.AgentTask) ?? throw new InvalidDataException("Task data from cache is corrupt.");
+        task.Artifacts ??= [];
+
+        // Load sealed artifacts from cache
+        var sealedKey = BuildSealedArtifactsCacheKey(taskId);
+        var sealedBytes = await cache.GetAsync(sealedKey, cancellationToken).ConfigureAwait(false);
+        var sealedArtifacts = sealedBytes != null && sealedBytes.Length > 0
+            ? JsonSerializer.Deserialize(sealedBytes, A2AJsonUtilities.JsonContext.Default.HashSetString) ?? []
+            : [];
+
+        // Reject updates to sealed artifacts
+        if (sealedArtifacts.Contains(artifact.ArtifactId))
+        {
+            throw new A2AException(
+                $"Artifact '{artifact.ArtifactId}' has been sealed (lastChunk=true was set). " +
+                "Once an artifact is sealed, it cannot be updated further.",
+                A2AErrorCode.InvalidRequest);
+        }
+
+        if (append)
+        {
+            var existingArtifact = task.Artifacts.FirstOrDefault(a => a.ArtifactId == artifact.ArtifactId);
+            if (existingArtifact != null)
+            {
+                existingArtifact.Parts.AddRange(artifact.Parts);
+                if (!string.IsNullOrEmpty(artifact.Name))
+                {
+                    existingArtifact.Name = artifact.Name;
+                }
+                if (!string.IsNullOrEmpty(artifact.Description))
+                {
+                    existingArtifact.Description = artifact.Description;
+                }
+                if (artifact.Metadata != null && artifact.Metadata.Count > 0)
+                {
+                    existingArtifact.Metadata ??= [];
+                    foreach (var kvp in artifact.Metadata)
+                    {
+                        existingArtifact.Metadata[kvp.Key] = kvp.Value;
+                    }
+                }
+                if (artifact.Extensions != null && artifact.Extensions.Count > 0)
+                {
+                    existingArtifact.Extensions ??= [];
+                    foreach (var ext in artifact.Extensions)
+                    {
+                        if (!existingArtifact.Extensions.Contains(ext))
+                        {
+                            existingArtifact.Extensions.Add(ext);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                task.Artifacts.Add(new Artifact
+                {
+                    ArtifactId = artifact.ArtifactId,
+                    Name = artifact.Name,
+                    Description = artifact.Description,
+                    Parts = [.. artifact.Parts],
+                    Metadata = artifact.Metadata != null ? new(artifact.Metadata) : null,
+                    Extensions = artifact.Extensions != null ? [.. artifact.Extensions] : null
+                });
+            }
+        }
+        else
+        {
+            var artifactCopy = new Artifact
+            {
+                ArtifactId = artifact.ArtifactId,
+                Name = artifact.Name,
+                Description = artifact.Description,
+                Parts = [.. artifact.Parts],
+                Metadata = artifact.Metadata != null ? new(artifact.Metadata) : null,
+                Extensions = artifact.Extensions != null ? [.. artifact.Extensions] : null
+            };
+
+            var existingIndex = task.Artifacts.FindIndex(a => a.ArtifactId == artifact.ArtifactId);
+            if (existingIndex >= 0)
+            {
+                task.Artifacts[existingIndex] = artifactCopy;
+            }
+            else
+            {
+                task.Artifacts.Add(artifactCopy);
+            }
+        }
+
+        // Seal if lastChunk
+        if (lastChunk)
+        {
+            sealedArtifacts.Add(artifact.ArtifactId);
+        }
+
+        // Save task and sealed artifacts
+        bytes = JsonSerializer.SerializeToUtf8Bytes(task, A2AJsonUtilities.JsonContext.Default.AgentTask);
+        await cache.SetAsync(cacheKey, bytes, cancellationToken).ConfigureAwait(false);
+
+        var sealedBytesOut = JsonSerializer.SerializeToUtf8Bytes(sealedArtifacts, A2AJsonUtilities.JsonContext.Default.HashSetString);
+        await cache.SetAsync(sealedKey, sealedBytesOut, cancellationToken).ConfigureAwait(false);
+    }
+
     static string BuildTaskCacheKey(string taskId) => $"task:{taskId}";
 
     static string BuildPushNotificationsCacheKey(string taskId) => $"task-push-notification:{taskId}";
+
+    static string BuildSealedArtifactsCacheKey(string taskId) => $"task-sealed-artifacts:{taskId}";
 }

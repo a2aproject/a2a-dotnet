@@ -723,6 +723,440 @@ public class TaskManagerTests
     }
 
     [Fact]
+    public async Task ReturnArtifactStreamAsync_StreamsArtifactWithAppendAndLastChunkFlags()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+        var taskSendParams = CreateMessageSendParams("Write a story");
+        var task = await taskManager.SendMessageAsync(taskSendParams) as AgentTask;
+        Assert.NotNull(task);
+
+        var artifactId = "story-1";
+
+        // Act
+        await taskManager.ReturnArtifactStreamAsync(new TaskArtifactUpdateEvent
+        {
+            TaskId = task.Id,
+            Artifact = new Artifact
+            {
+                ArtifactId = artifactId,
+                Name = "Story",
+                Parts = [new TextPart { Text = "Once upon a time, " }]
+            },
+            Append = false,
+            LastChunk = false
+        });
+
+        await taskManager.ReturnArtifactStreamAsync(new TaskArtifactUpdateEvent
+        {
+            TaskId = task.Id,
+            Artifact = new Artifact
+            {
+                ArtifactId = artifactId,
+                Parts = [new TextPart { Text = "there was a great adventure." }]
+            },
+            Append = true,
+            LastChunk = true
+        });
+
+        // Assert
+        var completedTask = await taskManager.GetTaskAsync(new TaskQueryParams { Id = task.Id });
+        Assert.NotNull(completedTask);
+        Assert.NotNull(completedTask.Artifacts);
+        Assert.Single(completedTask.Artifacts);
+        Assert.Equal(artifactId, completedTask.Artifacts[0].ArtifactId);
+        Assert.Equal("Story", completedTask.Artifacts[0].Name);
+        Assert.Equal(2, completedTask.Artifacts[0].Parts.Count);
+        Assert.Equal("Once upon a time, ", completedTask.Artifacts[0].Parts[0].AsTextPart().Text);
+        Assert.Equal("there was a great adventure.", completedTask.Artifacts[0].Parts[1].AsTextPart().Text);
+    }
+
+    [Fact]
+    public async Task ReturnArtifactStreamAsync_ThrowsWhenArtifactIdIsMissing()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+        var taskSendParams = CreateMessageSendParams("Test");
+        var task = await taskManager.SendMessageAsync(taskSendParams) as AgentTask;
+        Assert.NotNull(task);
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<A2AException>(() => taskManager.ReturnArtifactStreamAsync(new TaskArtifactUpdateEvent
+        {
+            TaskId = task.Id,
+            Artifact = new Artifact
+            {
+                ArtifactId = string.Empty, // Missing artifactId
+                Parts = [new TextPart { Text = "Test" }]
+            }
+        }));
+        Assert.Equal(A2AErrorCode.InvalidParams, ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task ReturnArtifactStreamAsync_ThrowsWhenTaskNotFound()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<A2AException>(() => taskManager.ReturnArtifactStreamAsync(new TaskArtifactUpdateEvent
+        {
+            TaskId = "nonexistent-task",
+            Artifact = new Artifact
+            {
+                ArtifactId = "test-artifact",
+                Parts = [new TextPart { Text = "Test" }]
+            }
+        }));
+        Assert.Equal(A2AErrorCode.TaskNotFound, ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task ReturnArtifactStreamAsync_StreamingGeneratesCorrectEvents()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+        var events = new List<A2AEvent>();
+        var processorStarted = new TaskCompletionSource();
+
+        taskManager.OnTaskCreated = async (task, ct) =>
+        {
+            var artifactId = "poem-1";
+
+            // Stream artifact in 3 chunks
+            await taskManager.ReturnArtifactStreamAsync(new TaskArtifactUpdateEvent
+            {
+                TaskId = task.Id,
+                Artifact = new Artifact
+                {
+                    ArtifactId = artifactId,
+                    Name = "Poem",
+                    Parts = [new TextPart { Text = "Roses are red,\n" }]
+                },
+                Append = false,
+                LastChunk = false
+            }, cancellationToken: ct);
+
+            await taskManager.ReturnArtifactStreamAsync(new TaskArtifactUpdateEvent
+            {
+                TaskId = task.Id,
+                Artifact = new Artifact
+                {
+                    ArtifactId = artifactId,
+                    Parts = [new TextPart { Text = "Violets are blue,\n" }]
+                },
+                Append = true,
+                LastChunk = false
+            }, cancellationToken: ct);
+
+            await taskManager.ReturnArtifactStreamAsync(new TaskArtifactUpdateEvent
+            {
+                TaskId = task.Id,
+                Artifact = new Artifact
+                {
+                    ArtifactId = artifactId,
+                    Parts = [new TextPart { Text = "Sugar is sweet,\nAnd so are you." }]
+                },
+                Append = true,
+                LastChunk = true
+            }, cancellationToken: ct);
+
+            await taskManager.UpdateStatusAsync(task.Id, TaskState.Completed, final: true, cancellationToken: ct);
+        };
+
+        var taskSendParams = CreateMessageSendParams("Write a poem");
+
+        var processor = Task.Run(async () =>
+        {
+            await foreach (var evt in taskManager.SendMessageStreamingAsync(taskSendParams))
+            {
+                events.Add(evt);
+                if (events.Count == 1)
+                {
+                    processorStarted.SetResult();
+                }
+                if (events.Count == 5) break; // Task + 3 artifacts + status update
+            }
+        });
+
+        await processorStarted.Task;
+        await processor;
+
+        // Assert
+        Assert.Equal(5, events.Count);
+
+        // Event 0: AgentTask
+        var taskEvent = Assert.IsType<AgentTask>(events[0]);
+        Assert.NotNull(taskEvent);
+
+        // Event 1: First chunk (append=false, lastChunk=false)
+        var artifact1 = Assert.IsType<TaskArtifactUpdateEvent>(events[1]);
+        Assert.Equal("poem-1", artifact1.Artifact.ArtifactId);
+        Assert.Equal("Poem", artifact1.Artifact.Name);
+        Assert.False(artifact1.Append);
+        Assert.False(artifact1.LastChunk);
+        Assert.Single(artifact1.Artifact.Parts);
+
+        // Event 2: Second chunk (append=true, lastChunk=false)
+        var artifact2 = Assert.IsType<TaskArtifactUpdateEvent>(events[2]);
+        Assert.Equal("poem-1", artifact2.Artifact.ArtifactId);
+        Assert.True(artifact2.Append);
+        Assert.False(artifact2.LastChunk);
+
+        // Event 3: Third chunk (append=true, lastChunk=true)
+        var artifact3 = Assert.IsType<TaskArtifactUpdateEvent>(events[3]);
+        Assert.Equal("poem-1", artifact3.Artifact.ArtifactId);
+        Assert.True(artifact3.Append);
+        Assert.True(artifact3.LastChunk);
+
+        // Event 4: Status update
+        var statusEvent = Assert.IsType<TaskStatusUpdateEvent>(events[4]);
+        Assert.Equal(TaskState.Completed, statusEvent.Status.State);
+    }
+
+    [Fact]
+    public async Task ReturnArtifactStreamAsync_WithAppendFalse_ReplacesExistingArtifact()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+        var taskSendParams = CreateMessageSendParams("Test");
+        var task = await taskManager.SendMessageAsync(taskSendParams) as AgentTask;
+        Assert.NotNull(task);
+
+        var artifactId = "doc-1";
+
+        // Add initial artifact (not sealed, so it can be replaced)
+        await taskManager.ReturnArtifactStreamAsync(new TaskArtifactUpdateEvent
+        {
+            TaskId = task.Id,
+            Artifact = new Artifact
+            {
+                ArtifactId = artifactId,
+                Name = "Document",
+                Parts = [new TextPart { Text = "Original content" }]
+            },
+            Append = false,
+            LastChunk = false
+        });
+
+        // Replace with new artifact (append=false)
+        await taskManager.ReturnArtifactStreamAsync(new TaskArtifactUpdateEvent
+        {
+            TaskId = task.Id,
+            Artifact = new Artifact
+            {
+                ArtifactId = artifactId,
+                Name = "Updated Document",
+                Parts = [new TextPart { Text = "New content" }]
+            },
+            Append = false,
+            LastChunk = true
+        });
+
+        // Assert
+        var completedTask = await taskManager.GetTaskAsync(new TaskQueryParams { Id = task.Id });
+        Assert.NotNull(completedTask?.Artifacts);
+        Assert.Single(completedTask.Artifacts);
+        Assert.Equal("Updated Document", completedTask.Artifacts[0].Name);
+        Assert.Single(completedTask.Artifacts[0].Parts);
+        Assert.Equal("New content", completedTask.Artifacts[0].Parts[0].AsTextPart().Text);
+    }
+
+    [Fact]
+    public async Task ReturnArtifactStreamAsync_SupportsMultipleArtifactsSimultaneously()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+        var taskSendParams = CreateMessageSendParams("Generate multiple files");
+        var task = await taskManager.SendMessageAsync(taskSendParams) as AgentTask;
+        Assert.NotNull(task);
+
+        // Stream two different artifacts
+        await taskManager.ReturnArtifactStreamAsync(new TaskArtifactUpdateEvent
+        {
+            TaskId = task.Id,
+            Artifact = new Artifact
+            {
+                ArtifactId = "file-1",
+                Name = "ReadMe.md",
+                Parts = [new TextPart { Text = "# Project\n" }]
+            },
+            Append = false,
+            LastChunk = false
+        });
+
+        await taskManager.ReturnArtifactStreamAsync(new TaskArtifactUpdateEvent
+        {
+            TaskId = task.Id,
+            Artifact = new Artifact
+            {
+                ArtifactId = "file-2",
+                Name = "License.txt",
+                Parts = [new TextPart { Text = "MIT License\n" }]
+            },
+            Append = false,
+            LastChunk = false
+        });
+
+        await taskManager.ReturnArtifactStreamAsync(new TaskArtifactUpdateEvent
+        {
+            TaskId = task.Id,
+            Artifact = new Artifact
+            {
+                ArtifactId = "file-1",
+                Parts = [new TextPart { Text = "## Description" }]
+            },
+            Append = true,
+            LastChunk = true
+        });
+
+        await taskManager.ReturnArtifactStreamAsync(new TaskArtifactUpdateEvent
+        {
+            TaskId = task.Id,
+            Artifact = new Artifact
+            {
+                ArtifactId = "file-2",
+                Parts = [new TextPart { Text = "Copyright 2026" }]
+            },
+            Append = true,
+            LastChunk = true
+        });
+
+        // Assert
+        var completedTask = await taskManager.GetTaskAsync(new TaskQueryParams { Id = task.Id });
+        Assert.NotNull(completedTask?.Artifacts);
+        Assert.Equal(2, completedTask.Artifacts.Count);
+
+        var readme = completedTask.Artifacts.First(a => a.ArtifactId == "file-1");
+        Assert.Equal("ReadMe.md", readme.Name);
+        Assert.Equal(2, readme.Parts.Count);
+
+        var license = completedTask.Artifacts.First(a => a.ArtifactId == "file-2");
+        Assert.Equal("License.txt", license.Name);
+        Assert.Equal(2, license.Parts.Count);
+    }
+
+    [Fact]
+    public async Task ReturnArtifactStreamAsync_ShouldThrowOperationCanceledException_WhenCancellationTokenIsCanceled()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<OperationCanceledException>(() => taskManager.ReturnArtifactStreamAsync(
+            new TaskArtifactUpdateEvent
+            {
+                TaskId = "test-id",
+                Artifact = new Artifact { ArtifactId = "test" }
+            }, cts.Token));
+    }
+
+    [Fact]
+    public async Task ReturnArtifactStreamAsync_UpdatesMetadataAndExtensions()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+        var taskSendParams = CreateMessageSendParams("Test");
+        var task = await taskManager.SendMessageAsync(taskSendParams) as AgentTask;
+        Assert.NotNull(task);
+
+        var artifactId = "doc-1";
+
+        // Add initial chunk with metadata
+        await taskManager.ReturnArtifactStreamAsync(new TaskArtifactUpdateEvent
+        {
+            TaskId = task.Id,
+            Artifact = new Artifact
+            {
+                ArtifactId = artifactId,
+                Parts = [new TextPart { Text = "Content" }],
+                Metadata = new() { ["version"] = System.Text.Json.JsonDocument.Parse("\"1.0\"").RootElement },
+                Extensions = ["ext1"]
+            },
+            Append = false,
+            LastChunk = false
+        });
+
+        // Append chunk with more metadata
+        await taskManager.ReturnArtifactStreamAsync(new TaskArtifactUpdateEvent
+        {
+            TaskId = task.Id,
+            Artifact = new Artifact
+            {
+                ArtifactId = artifactId,
+                Parts = [new TextPart { Text = " More" }],
+                Metadata = new() { ["author"] = System.Text.Json.JsonDocument.Parse("\"John\"").RootElement },
+                Extensions = ["ext2"]
+            },
+            Append = true,
+            LastChunk = true
+        });
+
+        // Assert
+        var completedTask = await taskManager.GetTaskAsync(new TaskQueryParams { Id = task.Id });
+        Assert.NotNull(completedTask?.Artifacts);
+        Assert.Single(completedTask.Artifacts);
+        Assert.NotNull(completedTask.Artifacts[0].Metadata);
+        Assert.Equal(2, completedTask.Artifacts[0].Metadata!.Count);
+        Assert.NotNull(completedTask.Artifacts[0].Extensions);
+        Assert.Equal(2, completedTask.Artifacts[0].Extensions!.Count);
+    }
+
+    [Fact]
+    public async Task ReturnArtifactStreamAsync_SealedArtifact_ThrowsOnUpdate()
+    {
+        // Arrange
+        var taskManager = new TaskManager();
+        var taskSendParams = CreateMessageSendParams("Test sealing");
+        var task = await taskManager.SendMessageAsync(taskSendParams) as AgentTask;
+        Assert.NotNull(task);
+
+        var artifactId = "sealed-doc";
+
+        // Create artifact and seal it
+        await taskManager.ReturnArtifactStreamAsync(new TaskArtifactUpdateEvent
+        {
+            TaskId = task.Id,
+            Artifact = new Artifact
+            {
+                ArtifactId = artifactId,
+                Name = "Sealed",
+                Parts = [new TextPart { Text = "Part 1" }]
+            },
+            Append = false,
+            LastChunk = true  // This seals the artifact
+        });
+
+        // Try to update sealed artifact - should throw
+        var ex = await Assert.ThrowsAsync<A2AException>(() => taskManager.ReturnArtifactStreamAsync(new TaskArtifactUpdateEvent
+        {
+            TaskId = task.Id,
+            Artifact = new Artifact
+            {
+                ArtifactId = artifactId,
+                Name = "Should Fail",
+                Parts = [new TextPart { Text = "Part 2" }]
+            },
+            Append = true,
+            LastChunk = true
+        }));
+
+        Assert.Equal(A2AErrorCode.InvalidRequest, ex.ErrorCode);
+        Assert.Contains("sealed", ex.Message);
+
+        // Verify original artifact is unchanged
+        var completedTask = await taskManager.GetTaskAsync(new TaskQueryParams { Id = task.Id });
+        Assert.NotNull(completedTask?.Artifacts);
+        Assert.Single(completedTask.Artifacts);
+        Assert.Equal("Sealed", completedTask.Artifacts[0].Name);
+        Assert.Single(completedTask.Artifacts[0].Parts);
+    }
+
+    [Fact]
     public async Task SendMessageAsync_ShouldThrowA2AException_WhenTaskIdSpecifiedButTaskDoesNotExist()
     {
         // Arrange
