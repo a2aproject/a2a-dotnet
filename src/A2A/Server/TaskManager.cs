@@ -23,6 +23,9 @@ public sealed class TaskManager : ITaskManager
 
     private readonly ConcurrentDictionary<string, TaskUpdateEventEnumerator> _taskUpdateEventEnumerators = [];
 
+    // Track sealed artifacts per task (taskId -> set of sealed artifactIds)
+    private readonly ConcurrentDictionary<string, HashSet<string>> _sealedArtifacts = [];
+
     /// <inheritdoc />
     public Func<MessageSendParams, CancellationToken, Task<A2AResponse>>? OnMessageReceived { get; set; }
 
@@ -496,6 +499,22 @@ public sealed class TaskManager : ITaskManager
             {
                 activity?.SetTag("task.found", true);
 
+                bool append = artifactEvent.Append ?? false;
+                bool lastChunk = artifactEvent.LastChunk ?? true;
+
+                // Check sealing before sending the event
+                var sealedArtifacts = _sealedArtifacts.GetOrAdd(artifactEvent.TaskId, _ => []);
+                lock (sealedArtifacts)
+                {
+                    if (sealedArtifacts.Contains(artifactEvent.Artifact.ArtifactId))
+                    {
+                        throw new A2AException(
+                            $"Artifact '{artifactEvent.Artifact.ArtifactId}' has been sealed (lastChunk=true was set). " +
+                            "Once an artifact is sealed, it cannot be updated further.",
+                            A2AErrorCode.InvalidRequest);
+                    }
+                }
+
                 //TODO: Make callback notification if set by the client
                 _taskUpdateEventEnumerators.TryGetValue(task.Id, out var enumerator);
                 if (enumerator != null)
@@ -504,12 +523,18 @@ public sealed class TaskManager : ITaskManager
                     enumerator.NotifyEvent(artifactEvent);
                 }
 
-                await _taskStore.UpdateArtifactAsync(
-                    artifactEvent.TaskId,
-                    artifactEvent.Artifact,
-                    artifactEvent.Append ?? false,
-                    artifactEvent.LastChunk ?? true,
-                    cancellationToken).ConfigureAwait(false);
+                // Apply the artifact update using the shared helper
+                ArtifactHelper.ApplyArtifactUpdate(task, artifactEvent.Artifact, append);
+                await _taskStore.SetTaskAsync(task, cancellationToken).ConfigureAwait(false);
+
+                // Seal after successful persistence
+                if (lastChunk)
+                {
+                    lock (sealedArtifacts)
+                    {
+                        sealedArtifacts.Add(artifactEvent.Artifact.ArtifactId);
+                    }
+                }
             }
             else
             {
