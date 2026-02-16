@@ -1,0 +1,133 @@
+using System.Collections.Concurrent;
+
+namespace A2A.V0_3;
+
+/// <summary>
+/// In-memory implementation of task store for development and testing.
+/// </summary>
+public sealed class InMemoryTaskStore : ITaskStore
+{
+    private readonly ConcurrentDictionary<string, AgentTask> _taskCache = [];
+    // PushNotificationConfig.Id is optional, so there can be multiple configs with no Id.
+    // Since we want to maintain order of insertion and thread safety, we use a ConcurrentQueue.
+    private readonly ConcurrentDictionary<string, ConcurrentQueue<TaskPushNotificationConfig>> _pushNotificationCache = [];
+
+    /// <inheritdoc />
+    public Task<AgentTask?> GetTaskAsync(string taskId, CancellationToken cancellationToken = default)
+    {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return Task.FromCanceled<AgentTask?>(cancellationToken);
+        }
+
+        return string.IsNullOrEmpty(taskId)
+            ? Task.FromException<AgentTask?>(new ArgumentNullException(nameof(taskId)))
+            : Task.FromResult(_taskCache.TryGetValue(taskId, out var task) ? task : null);
+    }
+
+    /// <inheritdoc />
+    public Task<TaskPushNotificationConfig?> GetPushNotificationAsync(string taskId, string notificationConfigId, CancellationToken cancellationToken = default)
+    {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return Task.FromCanceled<TaskPushNotificationConfig?>(cancellationToken);
+        }
+
+        if (string.IsNullOrEmpty(taskId))
+        {
+            return Task.FromException<TaskPushNotificationConfig?>(new ArgumentNullException(nameof(taskId)));
+        }
+
+        if (!_pushNotificationCache.TryGetValue(taskId, out var pushNotificationConfigs))
+        {
+            return Task.FromResult<TaskPushNotificationConfig?>(null);
+        }
+
+        var pushNotificationConfig = pushNotificationConfigs.FirstOrDefault(config => config.PushNotificationConfig.Id == notificationConfigId);
+
+        return Task.FromResult<TaskPushNotificationConfig?>(pushNotificationConfig);
+    }
+
+    /// <inheritdoc />
+    public Task<AgentTaskStatus> UpdateStatusAsync(string taskId, TaskState status, AgentMessage? message = null, CancellationToken cancellationToken = default)
+    {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return Task.FromCanceled<AgentTaskStatus>(cancellationToken);
+        }
+
+        if (string.IsNullOrEmpty(taskId))
+        {
+            return Task.FromException<AgentTaskStatus>(new A2AException("Invalid task ID", new ArgumentNullException(nameof(taskId)), A2AErrorCode.InvalidParams));
+        }
+
+        if (!_taskCache.TryGetValue(taskId, out var task))
+        {
+            return Task.FromException<AgentTaskStatus>(new A2AException("Task not found.", A2AErrorCode.TaskNotFound));
+        }
+
+        return Task.FromResult(task.Status = task.Status with
+        {
+            Message = message,
+            State = status,
+            Timestamp = DateTimeOffset.UtcNow
+        });
+    }
+
+    /// <inheritdoc />
+    public Task SetTaskAsync(AgentTask task, CancellationToken cancellationToken = default)
+    {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return Task.FromCanceled(cancellationToken);
+        }
+
+        if (task is null)
+        {
+            return Task.FromException(new ArgumentNullException(nameof(task)));
+        }
+
+        if (string.IsNullOrEmpty(task.Id))
+        {
+            return Task.FromException(new A2AException("Invalid task ID", A2AErrorCode.InvalidParams));
+        }
+
+        _taskCache[task.Id] = task;
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task SetPushNotificationConfigAsync(TaskPushNotificationConfig pushNotificationConfig, CancellationToken cancellationToken = default)
+    {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return Task.FromCanceled(cancellationToken);
+        }
+
+        if (pushNotificationConfig is null)
+        {
+            return Task.FromException(new ArgumentNullException(nameof(pushNotificationConfig)));
+        }
+
+        var pushNotificationConfigs = _pushNotificationCache.GetOrAdd(pushNotificationConfig.TaskId, _ => []);
+        pushNotificationConfigs.Enqueue(pushNotificationConfig);
+
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task<IEnumerable<TaskPushNotificationConfig>> GetPushNotificationsAsync(string taskId, CancellationToken cancellationToken = default)
+    {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return Task.FromCanceled<IEnumerable<TaskPushNotificationConfig>>(cancellationToken);
+        }
+
+        if (!_pushNotificationCache.TryGetValue(taskId, out var pushNotificationConfigs))
+        {
+            return Task.FromResult<IEnumerable<TaskPushNotificationConfig>>([]);
+        }
+
+        return Task.FromResult<IEnumerable<TaskPushNotificationConfig>>(pushNotificationConfigs);
+    }
+}

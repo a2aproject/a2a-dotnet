@@ -10,7 +10,7 @@ namespace A2A.AspNetCore;
 /// Implements IResult to provide custom serialization of JSON-RPC response objects
 /// with appropriate HTTP status codes based on success or error conditions.
 /// </remarks>
-public class JsonRpcResponseResult : IResult
+public sealed class JsonRpcResponseResult : IResult
 {
     private readonly JsonRpcResponse jsonRpcResponse;
 

@@ -58,7 +58,7 @@ internal sealed class TaskBasedCommunicationSample
         AgentCard echoAgentCard = await cardResolver.GetAgentCardAsync();
 
         // 3. Create an A2A client to communicate with the echotasks agent using the URL from the agent card
-        A2AClient agentClient = new(new Uri(echoAgentCard.Url));
+        A2AClient agentClient = new(new Uri(echoAgentCard.SupportedInterfaces[0].Url));
 
         // 4. Demo a short-lived task
         await DemoShortLivedTaskAsync(agentClient);
@@ -74,15 +74,16 @@ internal sealed class TaskBasedCommunicationSample
     {
         Console.WriteLine("\nShort-lived Task");
 
-        AgentMessage userMessage = new()
+        Message userMessage = new()
         {
-            Parts = [new TextPart { Text = "Hello from a short-lived task sample!" }],
-            Role = MessageRole.User
+            Parts = [Part.FromText("Hello from a short-lived task sample!")],
+            Role = Role.User,
+            MessageId = Guid.NewGuid().ToString("N")
         };
 
-        Console.WriteLine($" Sending message to the agent: {((TextPart)userMessage.Parts[0]).Text}");
-        AgentTask agentResponse = (AgentTask)await agentClient.SendMessageAsync(new MessageSendParams { Message = userMessage });
-        DisplayTaskDetails(agentResponse);
+        Console.WriteLine($" Sending message to the agent: {userMessage.Parts[0].Text}");
+        SendMessageResponse response = await agentClient.SendMessageAsync(new SendMessageRequest { Message = userMessage });
+        DisplayTaskDetails(response.Task!);
     }
 
     /// <summary>
@@ -92,10 +93,11 @@ internal sealed class TaskBasedCommunicationSample
     {
         Console.WriteLine("\nLong-running Task");
 
-        AgentMessage userMessage = new()
+        Message userMessage = new()
         {
-            Parts = [new TextPart { Text = "Hello from a long-running task sample!" }],
-            Role = MessageRole.User,
+            Parts = [Part.FromText("Hello from a long-running task sample!")],
+            Role = Role.User,
+            MessageId = Guid.NewGuid().ToString("N"),
             Metadata = new Dictionary<string, JsonElement>
             {
                 // Tweaking the agent behavior to simulate a long-running task;
@@ -105,18 +107,19 @@ internal sealed class TaskBasedCommunicationSample
         };
 
         // 1. Create a new task by sending the message to the agent
-        Console.WriteLine($" Sending message to the agent: {((TextPart)userMessage.Parts[0]).Text}");
-        AgentTask agentResponse = (AgentTask)await agentClient.SendMessageAsync(new MessageSendParams { Message = userMessage });
+        Console.WriteLine($" Sending message to the agent: {userMessage.Parts[0].Text}");
+        SendMessageResponse response = await agentClient.SendMessageAsync(new SendMessageRequest { Message = userMessage });
+        AgentTask agentResponse = response.Task!;
         DisplayTaskDetails(agentResponse);
 
         // 2. Retrieve the task
         Console.WriteLine($"\n Retrieving the task by ID: {agentResponse.Id}");
-        agentResponse = await agentClient.GetTaskAsync(agentResponse.Id);
+        agentResponse = await agentClient.GetTaskAsync(new GetTaskRequest { Id = agentResponse.Id });
         DisplayTaskDetails(agentResponse);
 
         // 3. Cancel the task
         Console.WriteLine($"\n Cancel the task with ID: {agentResponse.Id}");
-        AgentTask cancelledTask = await agentClient.CancelTaskAsync(new TaskIdParams { Id = agentResponse.Id });
+        AgentTask cancelledTask = await agentClient.CancelTaskAsync(new CancelTaskRequest { Id = agentResponse.Id });
         DisplayTaskDetails(cancelledTask);
     }
 
@@ -125,6 +128,6 @@ internal sealed class TaskBasedCommunicationSample
         Console.WriteLine(" Received task details:");
         Console.WriteLine($"  ID: {agentResponse.Id}");
         Console.WriteLine($"  Status: {agentResponse.Status.State}");
-        Console.WriteLine($"  Artifact: {(agentResponse.Artifacts?[0].Parts?[0] as TextPart)?.Text}");
+        Console.WriteLine($"  Artifact: {agentResponse.Artifacts?[0].Parts?[0].Text}");
     }
 }

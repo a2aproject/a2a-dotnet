@@ -1,22 +1,27 @@
+namespace A2A;
+
+using System.Diagnostics.CodeAnalysis;
 using System.Net.ServerSentEvents;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using System.Text.Json.Serialization.Metadata;
 
-namespace A2A;
-
-/// <summary>
-/// Implementation of A2A client for communicating with agents.
-/// </summary>
-public sealed class A2AClient : IA2AClient
+/// <summary>Client for communicating with an A2A agent via JSON-RPC over HTTP.</summary>
+public sealed class A2AClient : IA2AClient, IDisposable
 {
     internal static readonly HttpClient s_sharedClient = new();
     private readonly HttpClient _httpClient;
-    private readonly Uri _baseUri;
+    private readonly string _url;
 
-    /// <summary>
-    /// Initializes a new instance of <see cref="A2AClient"/>.
-    /// </summary>
+    /// <summary>Initializes a new instance of the <see cref="A2AClient"/> class.</summary>
+    /// <param name="httpClient">The HTTP client to use for communication.</param>
+    /// <param name="url">The URL of the A2A agent endpoint.</param>
+    public A2AClient(HttpClient httpClient, string url)
+    {
+        _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        _url = url ?? throw new ArgumentNullException(nameof(url));
+    }
+
+    /// <summary>Initializes a new instance of the <see cref="A2AClient"/> class.</summary>
     /// <param name="baseUrl">The base url of the agent's hosting service.</param>
     /// <param name="httpClient">The HTTP client to use for requests.</param>
     public A2AClient(Uri baseUrl, HttpClient? httpClient = null)
@@ -26,177 +31,164 @@ public sealed class A2AClient : IA2AClient
             throw new ArgumentNullException(nameof(baseUrl), "Base URL cannot be null.");
         }
 
-        _baseUri = baseUrl;
-
+        _url = baseUrl.ToString();
         _httpClient = httpClient ?? s_sharedClient;
     }
 
     /// <inheritdoc />
-    public Task<A2AResponse> SendMessageAsync(MessageSendParams taskSendParams, CancellationToken cancellationToken = default) =>
-        SendRpcRequestAsync(
-            taskSendParams ?? throw new ArgumentNullException(nameof(taskSendParams)),
-            A2AMethods.MessageSend,
-            A2AJsonUtilities.JsonContext.Default.MessageSendParams,
-            A2AJsonUtilities.JsonContext.Default.A2AResponse,
-            cancellationToken);
-
-    /// <inheritdoc />
-    public Task<AgentTask> GetTaskAsync(string taskId, CancellationToken cancellationToken = default) =>
-        SendRpcRequestAsync(
-            new() { Id = string.IsNullOrEmpty(taskId) ? throw new ArgumentNullException(nameof(taskId)) : taskId },
-            A2AMethods.TaskGet,
-            A2AJsonUtilities.JsonContext.Default.TaskIdParams,
-            A2AJsonUtilities.JsonContext.Default.AgentTask,
-            cancellationToken);
-
-    /// <inheritdoc />
-    public Task<AgentTask> CancelTaskAsync(TaskIdParams taskIdParams, CancellationToken cancellationToken = default) =>
-        SendRpcRequestAsync(
-            taskIdParams ?? throw new ArgumentNullException(nameof(taskIdParams)),
-            A2AMethods.TaskCancel,
-            A2AJsonUtilities.JsonContext.Default.TaskIdParams,
-            A2AJsonUtilities.JsonContext.Default.AgentTask,
-            cancellationToken);
-
-    /// <inheritdoc />
-    public Task<TaskPushNotificationConfig> SetPushNotificationAsync(TaskPushNotificationConfig pushNotificationConfig, CancellationToken cancellationToken = default) =>
-        SendRpcRequestAsync(
-            pushNotificationConfig ?? throw new ArgumentNullException(nameof(pushNotificationConfig)),
-            A2AMethods.TaskPushNotificationConfigSet,
-            A2AJsonUtilities.JsonContext.Default.TaskPushNotificationConfig,
-            A2AJsonUtilities.JsonContext.Default.TaskPushNotificationConfig,
-            cancellationToken);
-
-    /// <inheritdoc />
-    public Task<TaskPushNotificationConfig> GetPushNotificationAsync(GetTaskPushNotificationConfigParams notificationConfigParams, CancellationToken cancellationToken = default) =>
-        SendRpcRequestAsync(
-            notificationConfigParams ?? throw new ArgumentNullException(nameof(notificationConfigParams)),
-            A2AMethods.TaskPushNotificationConfigGet,
-            A2AJsonUtilities.JsonContext.Default.GetTaskPushNotificationConfigParams,
-            A2AJsonUtilities.JsonContext.Default.TaskPushNotificationConfig,
-            cancellationToken);
-
-    /// <inheritdoc />
-    public IAsyncEnumerable<SseItem<A2AEvent>> SendMessageStreamingAsync(MessageSendParams taskSendParams, CancellationToken cancellationToken = default) =>
-        SendRpcSseRequestAsync(
-            taskSendParams ?? throw new ArgumentNullException(nameof(taskSendParams)),
-            A2AMethods.MessageStream,
-            A2AJsonUtilities.JsonContext.Default.MessageSendParams,
-            A2AJsonUtilities.JsonContext.Default.A2AEvent,
-            cancellationToken);
-
-    /// <inheritdoc />
-    public IAsyncEnumerable<SseItem<A2AEvent>> SubscribeToTaskAsync(string taskId, CancellationToken cancellationToken = default) =>
-        SendRpcSseRequestAsync(
-            new() { Id = string.IsNullOrEmpty(taskId) ? throw new ArgumentNullException(nameof(taskId)) : taskId },
-            A2AMethods.TaskSubscribe,
-            A2AJsonUtilities.JsonContext.Default.TaskIdParams,
-            A2AJsonUtilities.JsonContext.Default.A2AEvent,
-            cancellationToken);
-
-    private async Task<TOutput> SendRpcRequestAsync<TInput, TOutput>(
-        TInput jsonRpcParams,
-        string method,
-        JsonTypeInfo<TInput> inputTypeInfo,
-        JsonTypeInfo<TOutput> outputTypeInfo,
-        CancellationToken cancellationToken) where TOutput : class
+    public async Task<SendMessageResponse> SendMessageAsync(SendMessageRequest request, CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        using var responseStream = await SendAndReadResponseStreamAsync(
-            jsonRpcParams,
-            method,
-            inputTypeInfo,
-            "application/json",
-            cancellationToken).ConfigureAwait(false);
-
-        var responseObject = await JsonSerializer.DeserializeAsync(responseStream, A2AJsonUtilities.JsonContext.Default.JsonRpcResponse, cancellationToken).ConfigureAwait(false);
-
-        if (responseObject?.Error is { } error)
-        {
-            throw new A2AException(error.Message, (A2AErrorCode)error.Code);
-        }
-
-        return responseObject?.Result?.Deserialize(outputTypeInfo) ??
-            throw new InvalidOperationException("Response does not contain a result.");
+        var rpcResponse = await SendJsonRpcRequestAsync<SendMessageResponse>(A2AMethods.SendMessage, request, cancellationToken).ConfigureAwait(false);
+        return rpcResponse;
     }
 
-    private async IAsyncEnumerable<SseItem<TOutput>> SendRpcSseRequestAsync<TInput, TOutput>(
-        TInput jsonRpcParams,
-        string method,
-        JsonTypeInfo<TInput> inputTypeInfo,
-        JsonTypeInfo<TOutput> outputTypeInfo,
-        [EnumeratorCancellation] CancellationToken cancellationToken)
+    /// <inheritdoc />
+    public async IAsyncEnumerable<StreamResponse> SendStreamingMessageAsync(SendMessageRequest request, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        using var responseStream = await SendAndReadResponseStreamAsync(
-            jsonRpcParams,
-            method,
-            inputTypeInfo,
-            "text/event-stream",
-            cancellationToken).ConfigureAwait(false);
-
-        var sseParser = SseParser.Create(responseStream, (_, data) =>
-        {
-            var reader = new Utf8JsonReader(data);
-
-            var responseObject = JsonSerializer.Deserialize(ref reader, A2AJsonUtilities.JsonContext.Default.JsonRpcResponse);
-
-            if (responseObject?.Error is { } error)
-            {
-                throw new A2AException(error.Message, (A2AErrorCode)error.Code);
-            }
-
-            if (responseObject?.Result is null)
-            {
-                throw new InvalidOperationException("Failed to deserialize the event: Result is null.");
-            }
-
-            return responseObject.Result.Deserialize(outputTypeInfo) ??
-                throw new InvalidOperationException("Failed to deserialize the event.");
-        });
-
-        await foreach (var item in sseParser.EnumerateAsync(cancellationToken))
+        await foreach (var item in SendStreamingJsonRpcRequestAsync<StreamResponse>(A2AMethods.SendStreamingMessage, request, cancellationToken).ConfigureAwait(false))
         {
             yield return item;
         }
     }
 
-    private async ValueTask<Stream> SendAndReadResponseStreamAsync<TInput>(
-        TInput jsonRpcParams,
-        string method,
-        JsonTypeInfo<TInput> inputTypeInfo,
-        string expectedContentType,
-        CancellationToken cancellationToken)
+    /// <inheritdoc />
+    public async Task<AgentTask> GetTaskAsync(GetTaskRequest request, CancellationToken cancellationToken = default)
     {
-        var response = await _httpClient.SendAsync(new(HttpMethod.Post, _baseUri)
-        {
-            Content = new JsonRpcContent(new JsonRpcRequest()
-            {
-                Id = Guid.NewGuid().ToString(),
-                Method = method,
-                Params = JsonSerializer.SerializeToElement(jsonRpcParams, inputTypeInfo),
-            })
-        }, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+        return await SendJsonRpcRequestAsync<AgentTask>(A2AMethods.GetTask, request, cancellationToken).ConfigureAwait(false);
+    }
 
-        try
-        {
-            response.EnsureSuccessStatusCode();
+    /// <inheritdoc />
+    public async Task<ListTasksResponse> ListTasksAsync(ListTasksRequest request, CancellationToken cancellationToken = default)
+    {
+        return await SendJsonRpcRequestAsync<ListTasksResponse>(A2AMethods.ListTasks, request, cancellationToken).ConfigureAwait(false);
+    }
 
-            if (response.Content.Headers.ContentType?.MediaType != expectedContentType)
+    /// <inheritdoc />
+    public async Task<AgentTask> CancelTaskAsync(CancelTaskRequest request, CancellationToken cancellationToken = default)
+    {
+        return await SendJsonRpcRequestAsync<AgentTask>(A2AMethods.CancelTask, request, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async IAsyncEnumerable<StreamResponse> SubscribeToTaskAsync(SubscribeToTaskRequest request, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        await foreach (var item in SendStreamingJsonRpcRequestAsync<StreamResponse>(A2AMethods.SubscribeToTask, request, cancellationToken).ConfigureAwait(false))
+        {
+            yield return item;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<TaskPushNotificationConfig> CreateTaskPushNotificationConfigAsync(CreateTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default)
+    {
+        return await SendJsonRpcRequestAsync<TaskPushNotificationConfig>(A2AMethods.CreateTaskPushNotificationConfig, request, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<TaskPushNotificationConfig> GetTaskPushNotificationConfigAsync(GetTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default)
+    {
+        return await SendJsonRpcRequestAsync<TaskPushNotificationConfig>(A2AMethods.GetTaskPushNotificationConfig, request, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<ListTaskPushNotificationConfigResponse> ListTaskPushNotificationConfigAsync(ListTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default)
+    {
+        return await SendJsonRpcRequestAsync<ListTaskPushNotificationConfigResponse>(A2AMethods.ListTaskPushNotificationConfig, request, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task DeleteTaskPushNotificationConfigAsync(DeleteTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default)
+    {
+        await SendJsonRpcRequestAsync<object>(A2AMethods.DeleteTaskPushNotificationConfig, request, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<AgentCard> GetExtendedAgentCardAsync(GetExtendedAgentCardRequest request, CancellationToken cancellationToken = default)
+    {
+        return await SendJsonRpcRequestAsync<AgentCard>(A2AMethods.GetExtendedAgentCard, request, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    /// <summary>No-op. The HttpClient is either shared or externally owned.</summary>
+    public void Dispose()
+    {
+        // HttpClient lifetime is managed externally or via the shared static instance.
+        GC.SuppressFinalize(this);
+    }
+
+    [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "All types are registered in source-generated JsonContext.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "All types are registered in source-generated JsonContext.")]
+    private async Task<TResult> SendJsonRpcRequestAsync<TResult>(string method, object? @params, CancellationToken cancellationToken)
+    {
+        var rpcRequest = new JsonRpcRequest
+        {
+            Method = method,
+            Id = new JsonRpcId(Guid.NewGuid().ToString()),
+            Params = @params is not null ? JsonSerializer.SerializeToElement(@params, A2AJsonUtilities.DefaultOptions) : null,
+        };
+
+        using var content = new JsonRpcContent(rpcRequest);
+        using var response = await _httpClient.PostAsync(_url, content, cancellationToken).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+
+#if NET
+        using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+#else
+        using var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+#endif
+        var rpcResponse = await JsonSerializer.DeserializeAsync<JsonRpcResponse>(stream, A2AJsonUtilities.DefaultOptions, cancellationToken).ConfigureAwait(false)
+            ?? throw new A2AException("Failed to deserialize JSON-RPC response.", A2AErrorCode.InternalError);
+
+        if (rpcResponse.Error is { } error)
+        {
+            throw new A2AException(error.Message, (A2AErrorCode)error.Code);
+        }
+
+        return rpcResponse.Result.Deserialize<TResult>(A2AJsonUtilities.DefaultOptions)
+            ?? throw new A2AException("Failed to deserialize JSON-RPC result.", A2AErrorCode.InternalError);
+    }
+
+    [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "All types are registered in source-generated JsonContext.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "All types are registered in source-generated JsonContext.")]
+    private async IAsyncEnumerable<TResult> SendStreamingJsonRpcRequestAsync<TResult>(string method, object? @params, [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var rpcRequest = new JsonRpcRequest
+        {
+            Method = method,
+            Id = new JsonRpcId(Guid.NewGuid().ToString()),
+            Params = @params is not null ? JsonSerializer.SerializeToElement(@params, A2AJsonUtilities.DefaultOptions) : null,
+        };
+
+        using var content = new JsonRpcContent(rpcRequest);
+        using var requestMessage = new HttpRequestMessage(HttpMethod.Post, _url)
+        {
+            Content = content,
+        };
+        requestMessage.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("text/event-stream"));
+
+        using var response = await _httpClient.SendAsync(requestMessage, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+
+#if NET
+        using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+#else
+        using var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+#endif
+
+        await foreach (var sseItem in SseParser.Create(stream).EnumerateAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var rpcResponse = JsonSerializer.Deserialize<JsonRpcResponse>(sseItem.Data, A2AJsonUtilities.DefaultOptions)
+                ?? throw new A2AException("Failed to deserialize streaming JSON-RPC response.", A2AErrorCode.InternalError);
+
+            if (rpcResponse.Error is { } error)
             {
-                throw new InvalidOperationException($"Invalid content type. Expected '{expectedContentType}' but got '{response.Content.Headers.ContentType?.MediaType}'.");
+                throw new A2AException(error.Message, (A2AErrorCode)error.Code);
             }
 
-            return await response.Content.ReadAsStreamAsync(
-#if NET
-                cancellationToken
-#endif
-                ).ConfigureAwait(false);
-        }
-        catch
-        {
-            response.Dispose();
-            throw;
+            var result = rpcResponse.Result.Deserialize<TResult>(A2AJsonUtilities.DefaultOptions)
+                ?? throw new A2AException("Failed to deserialize streaming JSON-RPC result.", A2AErrorCode.InternalError);
+
+            yield return result;
         }
     }
 }

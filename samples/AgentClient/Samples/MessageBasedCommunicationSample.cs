@@ -1,5 +1,4 @@
 ﻿using A2A;
-using System.Net.ServerSentEvents;
 
 namespace AgentClient.Samples;
 
@@ -57,41 +56,36 @@ internal sealed class MessageBasedCommunicationSample
         AgentCard echoAgentCard = await cardResolver.GetAgentCardAsync();
 
         // 2. Create an A2A client to communicate with the agent using url from the agent card
-        A2AClient agentClient = new(new Uri(echoAgentCard.Url));
+        A2AClient agentClient = new(new Uri(echoAgentCard.SupportedInterfaces[0].Url));
 
         // 3. Create a message to send to the agent
-        AgentMessage userMessage = new()
+        Message userMessage = new()
         {
-            Role = MessageRole.User,
+            Role = Role.User,
             MessageId = Guid.NewGuid().ToString(),
-            Parts = [
-                new TextPart
-                    {
-                        Text = "Hello from the message-based communication sample! Please echo this message."
-                    }
-            ]
+            Parts = [Part.FromText("Hello from the message-based communication sample! Please echo this message.")]
         };
 
         // 4. Send the message using non-streaming API
         await SendMessageAsync(agentClient, userMessage);
 
         // 5. Send the message using streaming API
-        await SendMessageStreamingAsync(agentClient, userMessage);
+        await SendStreamingMessageAsync(agentClient, userMessage);
     }
 
     /// <summary>
     /// Demonstrates non-streaming message communication with an A2A agent.
     /// </summary>
-    private static async Task SendMessageAsync(A2AClient agentClient, AgentMessage userMessage)
+    private static async Task SendMessageAsync(A2AClient agentClient, Message userMessage)
     {
         Console.WriteLine("\nNon-Streaming Message Communication");
-        Console.WriteLine($" Sending message via non-streaming API: {((TextPart)userMessage.Parts[0]).Text}");
+        Console.WriteLine($" Sending message via non-streaming API: {userMessage.Parts[0].Text}");
 
         // Send the message and get the response
-        AgentMessage agentResponse = (AgentMessage)await agentClient.SendMessageAsync(new MessageSendParams { Message = userMessage });
+        SendMessageResponse response = await agentClient.SendMessageAsync(new SendMessageRequest { Message = userMessage });
 
         // Display the response
-        Console.WriteLine($" Received complete response from agent: {((TextPart)agentResponse.Parts[0]).Text}");
+        Console.WriteLine($" Received complete response from agent: {response.Message!.Parts[0].Text}");
     }
 
     /// <summary>
@@ -100,18 +94,19 @@ internal sealed class MessageBasedCommunicationSample
     /// <param name="agentClient">The A2A client for communicating with the agent.</param>
     /// <param name="userMessage">The message to send to the agent.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    private static async Task SendMessageStreamingAsync(A2AClient agentClient, AgentMessage userMessage)
+    private static async Task SendStreamingMessageAsync(A2AClient agentClient, Message userMessage)
     {
         Console.WriteLine("\nStreaming Message Communication");
-        Console.WriteLine($" Sending message via streaming API: {((TextPart)userMessage.Parts[0]).Text}");
+        Console.WriteLine($" Sending message via streaming API: {userMessage.Parts[0].Text}");
 
         // Send the message and get the response as a stream
-        await foreach (SseItem<A2AEvent> sseItem in agentClient.SendMessageStreamingAsync(new MessageSendParams { Message = userMessage }))
+        await foreach (StreamResponse streamResponse in agentClient.SendStreamingMessageAsync(new SendMessageRequest { Message = userMessage }))
         {
-            AgentMessage agentResponse = (AgentMessage)sseItem.Data;
-
             // Display each part of the response as it arrives
-            Console.WriteLine($" Received streaming response chunk: {((TextPart)agentResponse.Parts[0]).Text}");
+            if (streamResponse.Message is { } message)
+            {
+                Console.WriteLine($" Received streaming response chunk: {message.Parts[0].Text}");
+            }
         }
     }
 }

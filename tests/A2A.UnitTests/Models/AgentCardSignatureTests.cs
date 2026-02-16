@@ -12,10 +12,10 @@ public class AgentCardSignatureTests
         {
             Protected = "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpPU0UiLCJraWQiOiJrZXktMSIsImprdSI6Imh0dHBzOi8vZXhhbXBsZS5jb20vYWdlbnQvandrcy5qc29uIn0",
             Signature = "QFdkNLNszlGj3z3u0YQGt_T9LixY3qtdQpZmsTdDHDe3fXV9y9-B3m2-XgCpzuhiLt8E0tV6HXoZKHv4GtHgKQ",
-            Header = new Dictionary<string, object>
+            Header = new Dictionary<string, JsonElement>
             {
-                { "kid", "key-1" },
-                { "alg", "ES256" }
+                { "kid", JsonDocument.Parse("\"key-1\"").RootElement },
+                { "alg", JsonDocument.Parse("\"ES256\"").RootElement }
             }
         };
 

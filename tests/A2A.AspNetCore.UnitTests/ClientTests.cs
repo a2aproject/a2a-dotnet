@@ -29,10 +29,8 @@ public sealed class ClientTests : IClassFixture<JsonSchemaFixture>, IDisposable
         var taskId = "test-task";
 
         // Act
-        await client.GetTaskAsync(taskId);
-        var message = mockHandler.Request?.Content != null
-            ? await mockHandler.Request.Content.ReadAsStringAsync()
-            : string.Empty;
+        await client.GetTaskAsync(new GetTaskRequest { Id = taskId });
+        var message = mockHandler.RequestBody ?? string.Empty;
         // Assert
         Assert.NotNull(message);
 
@@ -46,23 +44,21 @@ public sealed class ClientTests : IClassFixture<JsonSchemaFixture>, IDisposable
     public async Task TestSendMessage()
     {
         // Arrange
-        var taskSendParams = new MessageSendParams
+        var sendRequest = new SendMessageRequest
         {
-            Message = new AgentMessage()
+            Message = new Message()
             {
+                Role = Role.User,
                 Parts =
                 [
-                    new TextPart()
-                    {
-                        Text = "Hello, World!",
-                    }
+                    Part.FromText("Hello, World!"),
                 ],
             },
         };
 
         // Act
-        await client.SendMessageAsync(taskSendParams);
-        var message = await mockHandler!.Request!.Content!.ReadAsStringAsync();
+        await client.SendMessageAsync(sendRequest);
+        var message = mockHandler.RequestBody ?? string.Empty;
 
         // Assert
         Assert.NotNull(message);
@@ -80,8 +76,8 @@ public sealed class ClientTests : IClassFixture<JsonSchemaFixture>, IDisposable
         var taskId = "test-task";
 
         // Act
-        await client.CancelTaskAsync(new TaskIdParams { Id = taskId });
-        var message = await mockHandler!.Request!.Content!.ReadAsStringAsync();
+        await client.CancelTaskAsync(new CancelTaskRequest { Id = taskId });
+        var message = mockHandler.RequestBody ?? string.Empty;
 
         // Assert
         Assert.NotNull(message);
@@ -93,7 +89,7 @@ public sealed class ClientTests : IClassFixture<JsonSchemaFixture>, IDisposable
     }
 
     [Fact]
-    public async Task TestSetPushNotification()
+    public async Task TestCreatePushNotificationConfig()
     {
         // Arrange
 
@@ -102,15 +98,15 @@ public sealed class ClientTests : IClassFixture<JsonSchemaFixture>, IDisposable
         {
             var pushNotificationResponse = new TaskPushNotificationConfig
             {
+                Id = "response-config-id",
                 TaskId = "test-task",
                 PushNotificationConfig = new PushNotificationConfig
                 {
                     Url = "http://example.org/notify",
-                    Id = "response-config-id",
                     Token = "test-token",
-                    Authentication = new PushNotificationAuthenticationInfo
+                    Authentication = new AuthenticationInfo
                     {
-                        Schemes = ["Bearer"]
+                        Scheme = "Bearer"
                     }
                 }
             };
@@ -122,24 +118,23 @@ public sealed class ClientTests : IClassFixture<JsonSchemaFixture>, IDisposable
             };
         };
 
-        var pushNotificationConfig = new TaskPushNotificationConfig
+        var createRequest = new CreateTaskPushNotificationConfigRequest
         {
             TaskId = "test-task",
-            PushNotificationConfig = new PushNotificationConfig()
+            Config = new PushNotificationConfig()
             {
                 Url = "http://example.org/notify",
-                Id = "request-config-id",
                 Token = "test-token",
-                Authentication = new PushNotificationAuthenticationInfo()
+                Authentication = new AuthenticationInfo()
                 {
-                    Schemes = ["Bearer"],
+                    Scheme = "Bearer",
                 }
             }
         };
 
         // Act
-        await client.SetPushNotificationAsync(pushNotificationConfig);
-        var message = await mockHandler!.Request!.Content!.ReadAsStringAsync();
+        await client.CreateTaskPushNotificationConfigAsync(createRequest);
+        var message = mockHandler.RequestBody ?? string.Empty;
 
         // Assert
         Assert.NotNull(message);
@@ -169,16 +164,23 @@ public class JsonSchemaFixture
 public class MockMessageHandler : HttpMessageHandler
 {
     public HttpRequestMessage? Request { get; private set; }
+    public string? RequestBody { get; private set; }
     public Func<HttpRequestMessage, HttpResponseMessage>? ResponseProvider { get; set; }
 
-    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         Request = request;
+
+        // Capture the request body before the content may be disposed
+        if (request.Content is not null)
+        {
+            RequestBody = await request.Content.ReadAsStringAsync(cancellationToken);
+        }
 
         // Use custom response provider if available, otherwise create default
         var response = ResponseProvider?.Invoke(request) ?? CreateDefaultResponse(request);
 
-        return Task.FromResult(response);
+        return response;
     }
 
     private static HttpResponseMessage CreateDefaultResponse(HttpRequestMessage request)
@@ -188,7 +190,7 @@ public class MockMessageHandler : HttpMessageHandler
         {
             Id = "dummy-task-id",
             ContextId = "dummy-context-id",
-            Status = new AgentTaskStatus
+            Status = new TaskStatus
             {
                 State = TaskState.Completed,
             }

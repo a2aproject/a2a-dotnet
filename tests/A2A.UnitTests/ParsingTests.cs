@@ -6,66 +6,62 @@ namespace A2A.UnitTests;
 public class ParsingTests
 {
     [Fact]
-    public void RoundTripTaskSendParams()
+    public void RoundTripSendMessageRequest()
     {
         // Arrange
-        var taskSendParams = new MessageSendParams
+        var sendRequest = new SendMessageRequest
         {
-            Message = new AgentMessage()
+            Message = new Message
             {
                 Parts =
                 [
-                    new TextPart()
-                    {
-                        Text = "Hello, World!",
-                    }
+                    Part.FromText("Hello, World!"),
                 ],
+                Role = Role.User,
             },
         };
-        var json = JsonSerializer.Serialize(taskSendParams);
+        var json = JsonSerializer.Serialize(sendRequest, A2AJsonUtilities.DefaultOptions);
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
-        var deserializedParams = JsonSerializer.Deserialize<MessageSendParams>(stream);
+        var deserializedParams = JsonSerializer.Deserialize<SendMessageRequest>(stream, A2AJsonUtilities.DefaultOptions);
 
         // Act
         var result = deserializedParams;
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal(((TextPart)taskSendParams.Message.Parts[0]).Text, ((TextPart)result.Message.Parts[0]).Text);
+        Assert.Equal(sendRequest.Message.Parts[0].Text, result.Message.Parts[0].Text);
     }
 
     [Fact]
-    public void JsonRpcTaskSend()
+    public void JsonRpcSendMessage()
     {
         // Arrange
-        var taskSendParams = new MessageSendParams
+        var sendRequest = new SendMessageRequest
         {
-            Message = new AgentMessage()
+            Message = new Message
             {
                 Parts =
                 [
-                    new TextPart()
-                    {
-                        Text = "Hello, World!",
-                    }
+                    Part.FromText("Hello, World!"),
                 ],
+                Role = Role.User,
             },
         };
         var jsonRpcRequest = new JsonRpcRequest
         {
-            Method = A2AMethods.MessageSend,
-            Params = JsonSerializer.SerializeToElement(taskSendParams),
+            Method = A2AMethods.SendMessage,
+            Params = JsonSerializer.SerializeToElement(sendRequest, A2AJsonUtilities.DefaultOptions),
         };
-        var json = JsonSerializer.Serialize(jsonRpcRequest);
+        var json = JsonSerializer.Serialize(jsonRpcRequest, A2AJsonUtilities.DefaultOptions);
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
-        var deserializedRequest = JsonSerializer.Deserialize<JsonRpcRequest>(stream);
+        var deserializedRequest = JsonSerializer.Deserialize<JsonRpcRequest>(stream, A2AJsonUtilities.DefaultOptions);
 
         // Act
-        var result = deserializedRequest?.Params?.Deserialize<MessageSendParams>();
+        var result = deserializedRequest?.Params?.Deserialize<SendMessageRequest>(A2AJsonUtilities.DefaultOptions);
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal(((TextPart)taskSendParams.Message.Parts[0]).Text, ((TextPart)result.Message.Parts[0]).Text);
+        Assert.Equal(sendRequest.Message.Parts[0].Text, result.Message.Parts[0].Text);
     }
 
     [Fact]
@@ -76,14 +72,14 @@ public class ParsingTests
         {
             TaskId = "test-task",
             ContextId = "test-session",
-            Status = new AgentTaskStatus
+            Status = new TaskStatus
             {
                 State = TaskState.Working,
             }
         };
-        var json = JsonSerializer.Serialize(taskStatusUpdateEvent);
+        var json = JsonSerializer.Serialize(taskStatusUpdateEvent, A2AJsonUtilities.DefaultOptions);
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
-        var deserializedEvent = JsonSerializer.Deserialize<TaskStatusUpdateEvent>(stream);
+        var deserializedEvent = JsonSerializer.Deserialize<TaskStatusUpdateEvent>(stream, A2AJsonUtilities.DefaultOptions);
 
         // Act
         var result = deserializedEvent;
@@ -107,18 +103,13 @@ public class ParsingTests
             {
                 Parts =
                 [
-                    new TextPart
-                    {
-                        Text = "Hello, World!",
-                    }
+                    Part.FromText("Hello, World!"),
                 ],
             }
         };
-        var json = JsonSerializer.Serialize(taskArtifactUpdateEvent);
+        var json = JsonSerializer.Serialize(taskArtifactUpdateEvent, A2AJsonUtilities.DefaultOptions);
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
-        // Deserialize using the base class
-        // This is important to ensure polymorphic deserialization works correctly
-        var deserializedEvent = JsonSerializer.Deserialize<TaskArtifactUpdateEvent>(stream);
+        var deserializedEvent = JsonSerializer.Deserialize<TaskArtifactUpdateEvent>(stream, A2AJsonUtilities.DefaultOptions);
 
         // Act
         var result = deserializedEvent;
@@ -127,43 +118,84 @@ public class ParsingTests
         Assert.NotNull(result);
         Assert.Equal(taskArtifactUpdateEvent.TaskId, result.TaskId);
         Assert.Equal(taskArtifactUpdateEvent.ContextId, result.ContextId);
-        Assert.Equal(taskArtifactUpdateEvent.Artifact.Parts[0].AsTextPart().Text, result.Artifact.Parts[0].AsTextPart().Text);
+        Assert.Equal(taskArtifactUpdateEvent.Artifact.Parts[0].Text, result.Artifact.Parts[0].Text);
     }
 
     [Fact]
-    public void RoundTripJsonRpcResponseWithArtifactUpdateStatus()
+    public void RoundTripStreamResponse()
     {
         // Arrange
-        var taskArtifactUpdateEvent = new TaskArtifactUpdateEvent
+        var streamResponse = new StreamResponse
         {
-            TaskId = "test-task",
-            ContextId = "test-session",
-            Artifact = new Artifact
+            ArtifactUpdate = new TaskArtifactUpdateEvent
             {
-                Parts =
-                [
-                    new TextPart
-                    {
-                        Text = "Hello, World!",
-                    }
-                ],
+                TaskId = "test-task",
+                ContextId = "test-session",
+                Artifact = new Artifact
+                {
+                    Parts = [Part.FromText("Hello, World!")],
+                }
             }
         };
-        var jsonRpcResponse = JsonRpcResponse.CreateJsonRpcResponse<A2AEvent>("test-id", taskArtifactUpdateEvent);
-        var json = JsonSerializer.Serialize(jsonRpcResponse);
+
+        var json = JsonSerializer.Serialize(streamResponse, A2AJsonUtilities.DefaultOptions);
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
-        var deserializedResponse = JsonSerializer.Deserialize<JsonRpcResponse>(stream);
-        // Deserialize using the base class
-        // This is important to ensure polymorphic deserialization works correctly
-        var resultObject = (deserializedResponse?.Result).Deserialize<A2AEvent>();
-        // Act
+        var deserialized = JsonSerializer.Deserialize<StreamResponse>(stream, A2AJsonUtilities.DefaultOptions);
 
         // Assert
-        Assert.NotNull(resultObject);
-        var resultTaskArtifactUpdateEvent = resultObject as TaskArtifactUpdateEvent;
-        Assert.NotNull(resultTaskArtifactUpdateEvent);
-        Assert.Equal(taskArtifactUpdateEvent.TaskId, resultTaskArtifactUpdateEvent.TaskId);
-        Assert.Equal(taskArtifactUpdateEvent.ContextId, resultTaskArtifactUpdateEvent.ContextId);
-        Assert.Equal(taskArtifactUpdateEvent.Artifact.Parts[0].AsTextPart().Text, resultTaskArtifactUpdateEvent.Artifact.Parts[0].AsTextPart().Text);
+        Assert.NotNull(deserialized);
+        Assert.NotNull(deserialized.ArtifactUpdate);
+        Assert.Equal("test-task", deserialized.ArtifactUpdate!.TaskId);
+        Assert.Equal("Hello, World!", deserialized.ArtifactUpdate.Artifact.Parts[0].Text);
+    }
+
+    [Fact]
+    public void RoundTripSendMessageResponse()
+    {
+        // Arrange
+        var sendMsgResponse = new SendMessageResponse
+        {
+            Task = new AgentTask
+            {
+                Id = "test-task",
+                ContextId = "ctx-1",
+                Status = new TaskStatus { State = TaskState.Completed },
+            }
+        };
+
+        var json = JsonSerializer.Serialize(sendMsgResponse, A2AJsonUtilities.DefaultOptions);
+        var deserialized = JsonSerializer.Deserialize<SendMessageResponse>(json, A2AJsonUtilities.DefaultOptions);
+
+        // Assert
+        Assert.NotNull(deserialized);
+        Assert.NotNull(deserialized.Task);
+        Assert.Equal("test-task", deserialized.Task!.Id);
+        Assert.Equal(TaskState.Completed, deserialized.Task.Status.State);
+    }
+
+    [Fact]
+    public void TaskState_SerializesWithV1Format()
+    {
+        // Arrange
+        var status = new TaskStatus { State = TaskState.Completed };
+
+        // Act
+        var json = JsonSerializer.Serialize(status, A2AJsonUtilities.DefaultOptions);
+
+        // Assert
+        Assert.Contains("TASK_STATE_COMPLETED", json);
+    }
+
+    [Fact]
+    public void Role_SerializesWithV1Format()
+    {
+        // Arrange
+        var message = new Message { Role = Role.User, Parts = [] };
+
+        // Act
+        var json = JsonSerializer.Serialize(message, A2AJsonUtilities.DefaultOptions);
+
+        // Assert
+        Assert.Contains("ROLE_USER", json);
     }
 }

@@ -1,68 +1,43 @@
+using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 
 namespace A2A;
 
-/// <summary>
-/// Enumerator for streaming task update events to clients.
-/// </summary>
-public sealed class TaskUpdateEventEnumerator : IAsyncEnumerable<A2AEvent>, IDisposable, IAsyncDisposable
+/// <summary>Provides an async enumerable of <see cref="StreamResponse"/> backed by a channel.</summary>
+public sealed class TaskUpdateEventEnumerator : IAsyncEnumerable<StreamResponse>
 {
-    private readonly Channel<A2AEvent> _channel = Channel.CreateUnbounded<A2AEvent>();
+    private readonly Channel<StreamResponse> _channel;
 
-    /// <summary>
-    /// Gets or sets the processing task to prevent garbage collection.
-    /// </summary>
-    public Task? ProcessingTask { get; set; }
-
-    /// <summary>
-    /// Notifies of a new event in the task stream.
-    /// </summary>
-    /// <param name="taskUpdateEvent">The event to notify.</param>
-    public void NotifyEvent(A2AEvent taskUpdateEvent)
+    /// <summary>Initializes a new instance of the <see cref="TaskUpdateEventEnumerator"/> class.</summary>
+    /// <param name="options">Optional bounded channel options.</param>
+    public TaskUpdateEventEnumerator(BoundedChannelOptions? options = null)
     {
-        if (taskUpdateEvent is null)
-        {
-            throw new ArgumentNullException(nameof(taskUpdateEvent));
-        }
-
-        if (!_channel.Writer.TryWrite(taskUpdateEvent))
-        {
-            throw new InvalidOperationException("Unable to write to the event channel.");
-        }
+        _channel = options is not null
+            ? Channel.CreateBounded<StreamResponse>(options)
+            : Channel.CreateUnbounded<StreamResponse>();
     }
 
-    /// <summary>
-    /// Notifies of the final event in the task stream.
-    /// </summary>
-    /// <param name="taskUpdateEvent">The final event to notify.</param>
-    public void NotifyFinalEvent(A2AEvent taskUpdateEvent)
+    /// <summary>Writes a stream response to the channel.</summary>
+    /// <param name="response">The stream response to write.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    public async ValueTask WriteAsync(StreamResponse response, CancellationToken cancellationToken = default)
     {
-        if (taskUpdateEvent is null)
-        {
-            throw new ArgumentNullException(nameof(taskUpdateEvent));
-        }
+        await _channel.Writer.WriteAsync(response, cancellationToken).ConfigureAwait(false);
+    }
 
-        if (!_channel.Writer.TryWrite(taskUpdateEvent))
-        {
-            throw new InvalidOperationException("Unable to write to the event channel.");
-        }
-
-        _channel.Writer.TryComplete();
+    /// <summary>Marks the channel as complete, indicating no more items will be written.</summary>
+    /// <param name="exception">An optional exception to signal an error.</param>
+    public void Complete(Exception? exception = null)
+    {
+        _channel.Writer.TryComplete(exception);
     }
 
     /// <inheritdoc />
-    public IAsyncEnumerator<A2AEvent> GetAsyncEnumerator(CancellationToken cancellationToken = default) => _channel.Reader.ReadAllAsync(cancellationToken).GetAsyncEnumerator(cancellationToken);
-
-    /// <inheritdoc />
-    public void Dispose()
+    public async IAsyncEnumerator<StreamResponse> GetAsyncEnumerator(CancellationToken cancellationToken = default)
     {
-        _channel.Writer.TryComplete();
-    }
-
-    /// <inheritdoc />
-    public ValueTask DisposeAsync()
-    {
-        this.Dispose();
-        return default;
+        await foreach (var item in _channel.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+        {
+            yield return item;
+        }
     }
 }

@@ -135,46 +135,61 @@ public class SemanticKernelTravelAgent : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    public void Attach(ITaskManager taskManager)
+    public void Attach(TaskManager taskManager, ITaskStore store)
     {
         _taskManager = taskManager;
-        taskManager.OnTaskCreated = ExecuteAgentTaskAsync;
-        taskManager.OnTaskUpdated = ExecuteAgentTaskAsync;
-        taskManager.OnAgentCardQuery = GetAgentCardAsync;
+        _store = store;
+        taskManager.OnSendMessage = OnSendMessageAsync;
     }
 
-    public async Task ExecuteAgentTaskAsync(AgentTask task, CancellationToken cancellationToken)
+    private async Task<SendMessageResponse> OnSendMessageAsync(SendMessageRequest request, CancellationToken cancellationToken)
     {
-        if (_taskManager == null)
+        if (_store == null)
         {
             throw new InvalidOperationException("TaskManager is not attached.");
         }
 
-        await _taskManager.UpdateStatusAsync(task.Id, TaskState.Working, cancellationToken: cancellationToken);
+        var contextId = request.Message.ContextId ?? Guid.NewGuid().ToString("N");
+        var taskId = request.Message.TaskId ?? Guid.NewGuid().ToString("N");
 
         // Get message from the user
-        var userMessage = task.History!.Last().Parts.First().AsTextPart().Text;
+        var userMessage = request.Message.Parts.FirstOrDefault(p => p.Text is not null)?.Text ?? string.Empty;
 
         // Get the response from the agent
-        var artifact = new Artifact();
+        var artifactParts = new List<Part>();
         await foreach (AgentResponseItem<ChatMessageContent> response in _agent.InvokeAsync(userMessage, cancellationToken: cancellationToken))
         {
             var content = response.Message.Content;
-            artifact.Parts.Add(new TextPart() { Text = content! });
+            artifactParts.Add(Part.FromText(content!));
         }
 
-        // Return as artifacts
-        await _taskManager.ReturnArtifactAsync(task.Id, artifact, cancellationToken);
-        await _taskManager.UpdateStatusAsync(task.Id, TaskState.Completed, cancellationToken: cancellationToken);
+        // Build the task with artifacts and return
+        var task = new AgentTask
+        {
+            Id = taskId,
+            ContextId = contextId,
+            Status = new A2A.TaskStatus
+            {
+                State = TaskState.Completed,
+                Timestamp = DateTimeOffset.UtcNow,
+            },
+            History = [request.Message],
+            Artifacts =
+            [
+                new Artifact
+                {
+                    ArtifactId = Guid.NewGuid().ToString("N"),
+                    Parts = artifactParts,
+                }
+            ],
+        };
+
+        await _store.SetTaskAsync(task, cancellationToken);
+        return new SendMessageResponse { Task = task };
     }
 
-    public static Task<AgentCard> GetAgentCardAsync(string agentUrl, CancellationToken cancellationToken)
+    public static AgentCard GetAgentCard(string agentUrl)
     {
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return Task.FromCanceled<AgentCard>(cancellationToken);
-        }
-
         var capabilities = new AgentCapabilities()
         {
             Streaming = false,
@@ -194,17 +209,25 @@ public class SemanticKernelTravelAgent : IDisposable
             ],
         };
 
-        return Task.FromResult(new AgentCard()
+        return new AgentCard()
         {
             Name = "SK Travel Agent",
             Description = "Semantic Kernel-based travel agent providing comprehensive trip planning services including currency exchange and personalized activity planning.",
-            Url = agentUrl,
             Version = "1.0.0",
-            DefaultInputModes = ["text"],
-            DefaultOutputModes = ["text"],
+            SupportedInterfaces =
+            [
+                new AgentInterface
+                {
+                    Url = agentUrl,
+                    ProtocolBinding = "JSONRPC",
+                    ProtocolVersion = "1.0",
+                }
+            ],
+            DefaultInputModes = ["text/plain"],
+            DefaultOutputModes = ["text/plain"],
             Capabilities = capabilities,
             Skills = [skillTripPlanning],
-        });
+        };
     }
 
     #region private
@@ -213,7 +236,8 @@ public class SemanticKernelTravelAgent : IDisposable
     private readonly CurrencyPlugin _currencyPlugin;
     private readonly HttpClient _httpClient;
     private readonly ChatCompletionAgent _agent;
-    private ITaskManager? _taskManager;
+    private TaskManager? _taskManager;
+    private ITaskStore? _store;
 
     public List<string> SupportedContentTypes { get; } = ["text", "text/plain"];
 
