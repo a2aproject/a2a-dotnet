@@ -1,27 +1,23 @@
-﻿using System.Text.Json.Serialization;
+﻿namespace A2A;
 
-namespace A2A;
+using System.Text.Json.Serialization;
 
-/// <summary>
-/// Provides a declaration of a combination of target URL and supported transport to interact with an agent.
-/// </summary>
+/// <summary>Represents an interface supported by an agent.</summary>
 public sealed class AgentInterface
 {
-    /// <summary>
-    /// The transport supported by this URL.
-    /// </summary>
-    /// <remarks>
-    /// This is an open form string, to be easily extended for many transport protocols.
-    /// The core ones officially supported are JSONRPC, GRPC, and HTTP+JSON.
-    /// </remarks>
-    [JsonPropertyName("transport")]
-    [JsonRequired]
-    public required AgentTransport Transport { get; set; }
+    /// <summary>Gets or sets the URL for this interface.</summary>
+    [JsonPropertyName("url"), JsonRequired]
+    public string Url { get; set; } = string.Empty;
 
-    /// <summary>
-    /// The target URL for the agent interface.
-    /// </summary>
-    [JsonPropertyName("url")]
-    [JsonRequired]
-    public required string Url { get; set; }
+    /// <summary>Gets or sets the protocol binding.</summary>
+    [JsonPropertyName("protocolBinding"), JsonRequired]
+    public string ProtocolBinding { get; set; } = "JSONRPC";
+
+    /// <summary>Gets or sets the tenant identifier.</summary>
+    [JsonPropertyName("tenant")]
+    public string? Tenant { get; set; }
+
+    /// <summary>Gets or sets the protocol version.</summary>
+    [JsonPropertyName("protocolVersion"), JsonRequired]
+    public string ProtocolVersion { get; set; } = "1.0";
 }

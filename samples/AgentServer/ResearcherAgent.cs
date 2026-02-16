@@ -1,171 +1,144 @@
+using A2A;
 using System.Diagnostics;
 
-namespace A2A;
+using TaskStatus = A2A.TaskStatus;
+
+namespace AgentServer;
 
 public class ResearcherAgent
 {
-    private ITaskManager? _taskManager;
-    private readonly Dictionary<string, AgentState> _agentStates = [];
+    private ITaskStore? _store;
     public static readonly ActivitySource ActivitySource = new("A2A.ResearcherAgent", "1.0.0");
 
-    private enum AgentState
+    public void Attach(TaskManager taskManager, ITaskStore store)
     {
-        Planning,
-        WaitingForFeedbackOnPlan,
-        Researching
+        _store = store;
+        taskManager.OnSendMessage = OnSendMessageAsync;
     }
 
-    public void Attach(ITaskManager taskManager)
+    private async Task<SendMessageResponse> OnSendMessageAsync(SendMessageRequest request, CancellationToken cancellationToken)
     {
-        _taskManager = taskManager;
-        _taskManager.OnTaskCreated = async (task, cancellationToken) =>
-        {
-            // Initialize the agent state for the task
-            _agentStates[task.Id] = AgentState.Planning;
-            // Ignore other content in the task, just assume it is a text message.
-            var message = ((TextPart?)task.History?.Last()?.Parts?.FirstOrDefault())?.Text ?? string.Empty;
-            await InvokeAsync(task.Id, message, cancellationToken);
-        };
-        _taskManager.OnTaskUpdated = async (task, cancellationToken) =>
-        {
-            // Note that the updated callback is helpful to know not to initialize the agent state again.
-            var message = ((TextPart?)task.History?.Last()?.Parts?.FirstOrDefault())?.Text ?? string.Empty;
-            await InvokeAsync(task.Id, message, cancellationToken);
-        };
-        _taskManager.OnAgentCardQuery = GetAgentCardAsync;
-    }
+        var messageText = request.Message.Parts.FirstOrDefault(p => p.Text is not null)?.Text ?? string.Empty;
+        var contextId = request.Message.ContextId ?? Guid.NewGuid().ToString("N");
+        var taskId = request.Message.TaskId ?? Guid.NewGuid().ToString("N");
 
-    // This is the main entry point for the agent. It is called when a task is created or updated.
-    // It probably should have a cancellation token to enable the process to be cancelled.
-    public async Task InvokeAsync(string taskId, string message, CancellationToken cancellationToken)
-    {
-        if (_taskManager == null)
-        {
-            throw new InvalidOperationException("TaskManager is not attached.");
-        }
+        // Check if this is a continuation of an existing task
+        var existingTask = await _store!.GetTaskAsync(taskId, cancellationToken);
 
-        using var activity = ActivitySource.StartActivity("Invoke", ActivityKind.Server);
-        activity?.SetTag("task.id", taskId);
-        activity?.SetTag("message", message);
-        activity?.SetTag("state", _agentStates[taskId].ToString());
-
-        switch (_agentStates[taskId])
+        if (existingTask is not null)
         {
-            case AgentState.Planning:
-                await DoPlanningAsync(taskId, message, cancellationToken);
-                await _taskManager.UpdateStatusAsync(taskId, TaskState.InputRequired, new AgentMessage()
+            // Continuation: append message and process
+            await _store.AppendHistoryAsync(taskId, request.Message, cancellationToken);
+
+            if (messageText == "go ahead")
+            {
+                // Research phase
+                using var activity = ActivitySource.StartActivity("DoResearch", ActivityKind.Server);
+                activity?.SetTag("task.id", taskId);
+
+                var researchStatus = new TaskStatus { State = TaskState.Working, Timestamp = DateTimeOffset.UtcNow };
+                await _store.UpdateStatusAsync(taskId, researchStatus, cancellationToken);
+
+                existingTask.Status = new TaskStatus
                 {
-                    Parts = [new TextPart() { Text = "When ready say go ahead" }],
-                },
-                cancellationToken: cancellationToken);
-                break;
-            case AgentState.WaitingForFeedbackOnPlan:
-                if (message == "go ahead")  // Dumb check for now to avoid using an LLM
-                {
-                    await DoResearchAsync(taskId, message, cancellationToken);
-                }
-                else
-                {
-                    // Take the message and redo planning
-                    await DoPlanningAsync(taskId, message, cancellationToken);
-                    await _taskManager.UpdateStatusAsync(taskId, TaskState.InputRequired, new AgentMessage()
+                    State = TaskState.Completed,
+                    Timestamp = DateTimeOffset.UtcNow,
+                    Message = new Message
                     {
-                        Parts = [new TextPart() { Text = "When ready say go ahead" }],
-                    },
-                    cancellationToken: cancellationToken);
-                }
-                break;
-            case AgentState.Researching:
-                await DoResearchAsync(taskId, message, cancellationToken);
-                break;
-        }
-    }
-
-    private async Task DoResearchAsync(string taskId, string message, CancellationToken cancellationToken)
-    {
-        if (_taskManager == null)
-        {
-            throw new InvalidOperationException("TaskManager is not attached.");
-        }
-
-        using var activity = ActivitySource.StartActivity("DoResearch", ActivityKind.Server);
-        activity?.SetTag("task.id", taskId);
-        activity?.SetTag("message", message);
-
-        _agentStates[taskId] = AgentState.Researching;
-        await _taskManager.UpdateStatusAsync(taskId, TaskState.Working, cancellationToken: cancellationToken);
-
-        await _taskManager.ReturnArtifactAsync(
-            taskId,
-            new Artifact()
+                        Role = Role.Agent,
+                        Parts = [Part.FromText("Task completed successfully")],
+                    }
+                };
+                existingTask.Artifacts = [new Artifact { ArtifactId = Guid.NewGuid().ToString("N"), Parts = [Part.FromText($"{messageText} received.")] }];
+                var updated = await _store.SetTaskAsync(existingTask, cancellationToken);
+                return new SendMessageResponse { Task = updated };
+            }
+            else
             {
-                Parts = [new TextPart() { Text = $"{message} received." }],
-            },
-            cancellationToken);
+                // Re-plan
+                using var activity = ActivitySource.StartActivity("DoPlanning", ActivityKind.Server);
+                activity?.SetTag("task.id", taskId);
+                await Task.Delay(1000, cancellationToken);
 
-        await _taskManager.UpdateStatusAsync(taskId, TaskState.Completed, new AgentMessage()
-        {
-            Parts = [new TextPart() { Text = "Task completed successfully" }],
-        },
-        cancellationToken: cancellationToken);
-    }
-    private async Task DoPlanningAsync(string taskId, string message, CancellationToken cancellationToken)
-    {
-        if (_taskManager == null)
-        {
-            throw new InvalidOperationException("TaskManager is not attached.");
+                existingTask.Status = new TaskStatus
+                {
+                    State = TaskState.InputRequired,
+                    Timestamp = DateTimeOffset.UtcNow,
+                    Message = new Message
+                    {
+                        Role = Role.Agent,
+                        Parts = [Part.FromText("When ready say go ahead")],
+                    }
+                };
+                existingTask.Artifacts = [new Artifact { ArtifactId = Guid.NewGuid().ToString("N"), Parts = [Part.FromText($"{messageText} received.")] }];
+                var updated = await _store.SetTaskAsync(existingTask, cancellationToken);
+                return new SendMessageResponse { Task = updated };
+            }
         }
+        else
+        {
+            // New task: planning phase
+            using var activity = ActivitySource.StartActivity("DoPlanning", ActivityKind.Server);
+            activity?.SetTag("task.id", taskId);
 
-        using var activity = ActivitySource.StartActivity("DoPlanning", ActivityKind.Server);
-        activity?.SetTag("task.id", taskId);
-        activity?.SetTag("message", message);
+            await Task.Delay(1000, cancellationToken);
 
-        // Task should be in status Submitted
-        // Simulate being in a queue for a while
-        await Task.Delay(1000, cancellationToken);
-
-        // Simulate processing the task
-        await _taskManager.UpdateStatusAsync(taskId, TaskState.Working, cancellationToken: cancellationToken);
-
-        await _taskManager.ReturnArtifactAsync(
-            taskId,
-            new Artifact()
+            var task = new AgentTask
             {
-                Parts = [new TextPart() { Text = $"{message} received." }],
-            },
-            cancellationToken);
+                Id = taskId,
+                ContextId = contextId,
+                Status = new TaskStatus
+                {
+                    State = TaskState.InputRequired,
+                    Timestamp = DateTimeOffset.UtcNow,
+                    Message = new Message
+                    {
+                        Role = Role.Agent,
+                        Parts = [Part.FromText("When ready say go ahead")],
+                    }
+                },
+                History = [request.Message],
+                Artifacts = [new Artifact { ArtifactId = Guid.NewGuid().ToString("N"), Parts = [Part.FromText($"{messageText} received.")] }],
+            };
 
-        await _taskManager.UpdateStatusAsync(taskId, TaskState.InputRequired, new AgentMessage()
-        {
-            Parts = [new TextPart() { Text = "When ready say go ahead" }],
-        },
-        cancellationToken: cancellationToken);
-        _agentStates[taskId] = AgentState.WaitingForFeedbackOnPlan;
+            await _store.SetTaskAsync(task, cancellationToken);
+            return new SendMessageResponse { Task = task };
+        }
     }
 
-    private Task<AgentCard> GetAgentCardAsync(string agentUrl, CancellationToken cancellationToken)
+    public AgentCard GetAgentCard(string agentUrl)
     {
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return Task.FromCanceled<AgentCard>(cancellationToken);
-        }
-
-        var capabilities = new AgentCapabilities()
-        {
-            Streaming = true,
-            PushNotifications = false,
-        };
-
-        return Task.FromResult(new AgentCard()
+        return new AgentCard
         {
             Name = "Researcher Agent",
             Description = "Agent which conducts research.",
-            Url = agentUrl,
             Version = "1.0.0",
-            DefaultInputModes = ["text"],
-            DefaultOutputModes = ["text"],
-            Capabilities = capabilities,
-            Skills = [],
-        });
+            SupportedInterfaces =
+            [
+                new AgentInterface
+                {
+                    Url = agentUrl,
+                    ProtocolBinding = "JSONRPC",
+                    ProtocolVersion = "1.0",
+                }
+            ],
+            DefaultInputModes = ["text/plain"],
+            DefaultOutputModes = ["text/plain"],
+            Capabilities = new AgentCapabilities
+            {
+                Streaming = true,
+                PushNotifications = false,
+            },
+            Skills =
+            [
+                new AgentSkill
+                {
+                    Id = "research",
+                    Name = "Research",
+                    Description = "Conducts research on a given topic.",
+                    Tags = ["research", "planning"],
+                }
+            ],
+        };
     }
 }

@@ -106,7 +106,7 @@ public static class A2ACli
             int notificationReceiverPort = notificationReceiverUri.Port;
 
             // Create A2A client
-            var client = new A2AClient(new Uri(card.Url));
+            var client = new A2AClient(new Uri(card.SupportedInterfaces.First().Url));
 
             // Create or use provided session ID
             string sessionId = session == "0" ? Guid.NewGuid().ToString("N") : session;
@@ -131,7 +131,7 @@ public static class A2ACli
                 if (history && continueLoop)
                 {
                     Console.WriteLine("========= history ======== ");
-                    var taskResponse = await client.GetTaskAsync(taskId, cancellationToken);
+                    var taskResponse = await client.GetTaskAsync(new GetTaskRequest { Id = taskId }, cancellationToken);
 
                     // Display history in a way similar to the Python version
                     if (taskResponse.History != null)
@@ -141,9 +141,9 @@ public static class A2ACli
                             s_indentOptions));
                     }
                     taskResponse?.History?
-                        .SelectMany(artifact => artifact.Parts.OfType<TextPart>())
+                        .SelectMany(msg => msg.Parts.Where(p => p.Text is not null))
                         .ToList()
-                        .ForEach(textPart => Console.WriteLine(textPart.Text));
+                        .ForEach(part => Console.WriteLine(part.Text));
                 }
             }
         }
@@ -179,15 +179,13 @@ public static class A2ACli
         }
 
         // Create message with text part
-        var message = new AgentMessage
+        var message = new Message
         {
-            Role = MessageRole.User,
+            Role = Role.User,
+            MessageId = Guid.NewGuid().ToString("N"),
             Parts =
             [
-                new TextPart
-                {
-                    Text = prompt
-                }
+                Part.FromText(prompt)
             ]
         };
 
@@ -199,16 +197,9 @@ public static class A2ACli
             try
             {
                 byte[] fileBytes = await File.ReadAllBytesAsync(filePath, cancellationToken);
-                string fileContent = Convert.ToBase64String(fileBytes);
                 string fileName = Path.GetFileName(filePath);
 
-                message.Parts.Add(new FilePart
-                {
-                    File = new FileContent(fileContent)
-                    {
-                        Name = fileName,
-                    }
-                });
+                message.Parts.Add(Part.FromRaw(fileBytes, filename: fileName));
             }
             catch (Exception ex)
             {
@@ -217,7 +208,7 @@ public static class A2ACli
         }
 
         // Create payload for the task
-        var payload = new MessageSendParams()
+        var payload = new SendMessageRequest()
         {
             Configuration = new()
             {
@@ -229,12 +220,12 @@ public static class A2ACli
         // Add push notification configuration if enabled
         if (usePushNotifications)
         {
-            payload.Configuration.PushNotification = new PushNotificationConfig
+            payload.Configuration.PushNotificationConfig = new PushNotificationConfig
             {
                 Url = $"http://{notificationReceiverHost}:{notificationReceiverPort}/notify",
-                Authentication = new PushNotificationAuthenticationInfo
+                Authentication = new AuthenticationInfo
                 {
-                    Schemes = ["bearer"]
+                    Scheme = "bearer"
                 }
             };
         }
@@ -251,21 +242,22 @@ public static class A2ACli
         Console.WriteLine($"Send task payload => {JsonSerializer.Serialize(payload, jsonOptions)}");
         if (streaming)
         {
-            await foreach (var result in client.SendMessageStreamingAsync(payload, cancellationToken))
+            await foreach (var result in client.SendStreamingMessageAsync(payload, cancellationToken))
             {
                 Console.WriteLine($"Stream event => {JsonSerializer.Serialize(result, jsonOptions)}");
             }
 
-            var taskResult = await client.GetTaskAsync(taskId, cancellationToken);
+            var taskResult = await client.GetTaskAsync(new GetTaskRequest { Id = taskId }, cancellationToken);
         }
         else
         {
-            agentTask = await client.SendMessageAsync(payload, cancellationToken) as AgentTask;
+            var response = await client.SendMessageAsync(payload, cancellationToken);
+            agentTask = response.Task;
             Console.WriteLine($"\n{JsonSerializer.Serialize(agentTask, jsonOptions)}");
             agentTask?.Artifacts?
-                .SelectMany(artifact => artifact.Parts.OfType<TextPart>())
+                .SelectMany(artifact => artifact.Parts.Where(p => p.Text is not null))
                 .ToList()
-                .ForEach(textPart => Console.WriteLine(textPart.Text));
+                .ForEach(part => Console.WriteLine(part.Text));
         }
 
         // If the task requires more input, continue the interaction

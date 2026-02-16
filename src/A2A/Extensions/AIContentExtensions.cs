@@ -12,56 +12,56 @@ namespace Microsoft.Extensions.AI;
 /// </summary>
 public static class AIContentExtensions
 {
-    /// <summary>Creates a <see cref="ChatMessage"/> from the A2A <see cref="AgentMessage"/>.</summary>
-    /// <param name="agentMessage">The agent message to convert to an <see cref="ChatMessage"/>.</param>
-    /// <returns>The <see cref="ChatMessage"/> created to represent the <see cref="AgentMessage"/>.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="agentMessage"/> is <see langword="null"/>.</exception>
-    public static ChatMessage ToChatMessage(this AgentMessage agentMessage)
+    /// <summary>Creates a <see cref="ChatMessage"/> from the A2A <see cref="Message"/>.</summary>
+    /// <param name="message">The message to convert to an <see cref="ChatMessage"/>.</param>
+    /// <returns>The <see cref="ChatMessage"/> created to represent the <see cref="Message"/>.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="message"/> is <see langword="null"/>.</exception>
+    public static ChatMessage ToChatMessage(this Message message)
     {
-        if (agentMessage is null)
+        if (message is null)
         {
-            throw new ArgumentNullException(nameof(agentMessage));
+            throw new ArgumentNullException(nameof(message));
         }
 
         return new()
         {
-            AdditionalProperties = agentMessage.Metadata.ToAdditionalProperties(),
-            Contents = agentMessage.Parts.ConvertAll(p => p.ToAIContent()),
-            MessageId = agentMessage.MessageId,
-            RawRepresentation = agentMessage,
-            Role = agentMessage.Role switch
+            AdditionalProperties = message.Metadata.ToAdditionalProperties(),
+            Contents = message.Parts.ConvertAll(p => p.ToAIContent()),
+            MessageId = message.MessageId,
+            RawRepresentation = message,
+            Role = message.Role switch
             {
-                MessageRole.Agent => ChatRole.Assistant,
+                Role.Agent => ChatRole.Assistant,
                 _ => ChatRole.User,
             },
         };
     }
 
-    /// <summary>Creates an A2A <see cref="AgentMessage"/> from the Microsoft.Extensions.AI <see cref="ChatMessage"/>.</summary>
-    /// <param name="chatMessage">The chat message to convert to an <see cref="AgentMessage"/>.</param>
-    /// <returns>The <see cref="AgentMessage"/> created to represent the <see cref="ChatMessage"/>.</returns>
+    /// <summary>Creates an A2A <see cref="Message"/> from the Microsoft.Extensions.AI <see cref="ChatMessage"/>.</summary>
+    /// <param name="chatMessage">The chat message to convert to an <see cref="Message"/>.</param>
+    /// <returns>The <see cref="Message"/> created to represent the <see cref="ChatMessage"/>.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="chatMessage"/> is <see langword="null"/>.</exception>
     /// <remarks>
-    /// If the <paramref name="chatMessage"/>'s <see cref="ChatMessage.RawRepresentation"/> is already a <see cref="AgentMessage"/>,
+    /// If the <paramref name="chatMessage"/>'s <see cref="ChatMessage.RawRepresentation"/> is already a <see cref="Message"/>,
     /// that existing instance is returned.
     /// </remarks>
-    public static AgentMessage ToAgentMessage(this ChatMessage chatMessage)
+    public static Message ToA2AMessage(this ChatMessage chatMessage)
     {
         if (chatMessage is null)
         {
             throw new ArgumentNullException(nameof(chatMessage));
         }
 
-        if (chatMessage.RawRepresentation is AgentMessage existingAgentMessage)
+        if (chatMessage.RawRepresentation is Message existingMessage)
         {
-            return existingAgentMessage;
+            return existingMessage;
         }
 
-        return new AgentMessage
+        return new Message
         {
             MessageId = chatMessage.MessageId ?? Guid.NewGuid().ToString("N"),
             Parts = chatMessage.Contents.Select(ToPart).Where(p => p is not null).ToList()!,
-            Role = chatMessage.Role == ChatRole.Assistant ? MessageRole.Agent : MessageRole.User,
+            Role = chatMessage.Role == ChatRole.Assistant ? Role.Agent : Role.User,
         };
     }
 
@@ -77,31 +77,27 @@ public static class AIContentExtensions
         }
 
         AIContent? content = null;
-        switch (part)
+
+        if (part.Text is not null)
         {
-            case TextPart textPart:
-                content = new TextContent(textPart.Text);
-                break;
-
-            case FilePart { File: { } file }:
-                if (file.Uri is not null)
-                {
-                    content = new UriContent(file.Uri, file.MimeType ?? "application/octet-stream");
-                }
-                else if (file.Bytes is not null)
-                {
-                    content = new DataContent(Convert.FromBase64String(file.Bytes), file.MimeType ?? "application/octet-stream")
-                    {
-                        Name = file.Name,
-                    };
-                }
-                break;
-
-            case DataPart dataPart:
-                content = new DataContent(
-                    JsonSerializer.SerializeToUtf8Bytes(dataPart.Data, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(Dictionary<string, JsonElement>))),
-                    "application/json");
-                break;
+            content = new TextContent(part.Text);
+        }
+        else if (part.Url is not null)
+        {
+            content = new UriContent(part.Url, part.MediaType ?? "application/octet-stream");
+        }
+        else if (part.Raw is not null)
+        {
+            content = new DataContent(part.Raw, part.MediaType ?? "application/octet-stream")
+            {
+                Name = part.Filename,
+            };
+        }
+        else if (part.Data is { } data)
+        {
+            content = new DataContent(
+                JsonSerializer.SerializeToUtf8Bytes(data, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonElement))),
+                "application/json");
         }
 
         content ??= new AIContent();
@@ -136,21 +132,15 @@ public static class AIContentExtensions
         switch (content)
         {
             case TextContent textContent:
-                part = new TextPart { Text = textContent.Text };
+                part = Part.FromText(textContent.Text);
                 break;
 
             case UriContent uriContent:
-                part = new FilePart
-                {
-                    File = new FileContent(uriContent.Uri) { MimeType = uriContent.MediaType },
-                };
+                part = Part.FromUrl(uriContent.Uri.ToString(), uriContent.MediaType);
                 break;
 
             case DataContent dataContent:
-                part = new FilePart
-                {
-                    File = new FileContent(dataContent.Base64Data.ToString()) { MimeType = dataContent.MediaType },
-                };
+                part = Part.FromRaw(dataContent.Data.ToArray(), dataContent.MediaType);
                 break;
         }
 

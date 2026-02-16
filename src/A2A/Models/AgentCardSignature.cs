@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace A2A;
@@ -27,5 +28,5 @@ public sealed class AgentCardSignature
     /// The unprotected JWS header values.
     /// </summary>
     [JsonPropertyName("header")]
-    public Dictionary<string, object>? Header { get; set; }
+    public Dictionary<string, JsonElement>? Header { get; set; }
 }

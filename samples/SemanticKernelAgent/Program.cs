@@ -6,6 +6,8 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using SemanticKernelAgent;
 
+using Microsoft.Extensions.Logging;
+
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddHttpClient()
     .AddLogging()
@@ -15,8 +17,8 @@ builder.Services.AddHttpClient()
         resource.AddService("TravelAgent");
     })
     .WithTracing(tracing => tracing
-        .AddSource(TaskManager.ActivitySource.Name)
         .AddSource(A2AJsonRpcProcessor.ActivitySource.Name)
+        .AddSource(SemanticKernelTravelAgent.ActivitySource.Name)
         .AddAspNetCoreInstrumentation()
         .AddHttpClientInstrumentation()
         .AddOtlpExporter(options =>
@@ -32,9 +34,13 @@ var httpClient = app.Services.GetRequiredService<IHttpClientFactory>().CreateCli
 var logger = app.Logger;
 
 var agent = new SemanticKernelTravelAgent(configuration, httpClient, logger);
-var taskManager = new TaskManager();
-agent.Attach(taskManager);
-app.MapA2A(taskManager, string.Empty);
-app.MapWellKnownAgentCard(taskManager, string.Empty);
+var store = new InMemoryTaskStore();
+var taskManagerLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger<TaskManager>();
+var taskManager = new TaskManager(store, taskManagerLogger);
+agent.Attach(taskManager, store);
+
+var agentUrl = "http://localhost:5000";
+app.MapA2A(taskManager, "/");
+app.MapWellKnownAgentCard(SemanticKernelTravelAgent.GetAgentCard(agentUrl));
 
 await app.RunAsync();

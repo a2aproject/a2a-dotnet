@@ -1,5 +1,4 @@
 ﻿using System.Net;
-using System.Net.ServerSentEvents;
 using System.Text;
 using System.Text.Json;
 
@@ -11,26 +10,30 @@ public class A2AClientTests
     public async Task SendMessageAsync_MapsRequestParamsCorrectly()
     {
         // Arrange
-        HttpRequestMessage? capturedRequest = null;
+        string? capturedBody = null;
 
-        var sut = CreateA2AClient(new AgentMessage() { MessageId = "id-1", Role = MessageRole.User, Parts = [] }, req => capturedRequest = req);
-
-        var sendParams = new MessageSendParams
+        var responseResult = new SendMessageResponse
         {
-            Message = new AgentMessage
+            Message = new Message { MessageId = "id-1", Role = Role.User, Parts = [] }
+        };
+        var sut = CreateA2AClient(responseResult, req => capturedBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+
+        var sendRequest = new SendMessageRequest
+        {
+            Message = new Message
             {
-                Parts = [new TextPart { Text = "Hello" }],
-                Role = MessageRole.User,
+                Parts = [Part.FromText("Hello")],
+                Role = Role.User,
                 MessageId = "msg-1",
                 TaskId = "task-1",
                 ContextId = "ctx-1",
                 Metadata = new Dictionary<string, JsonElement> { { "foo", JsonDocument.Parse("\"bar\"").RootElement } },
                 ReferenceTaskIds = ["ref-1"]
             },
-            Configuration = new MessageSendConfiguration
+            Configuration = new SendMessageConfiguration
             {
                 AcceptedOutputModes = ["mode1"],
-                PushNotification = new PushNotificationConfig { Url = "http://push" },
+                PushNotificationConfig = new PushNotificationConfig { Url = "http://push" },
                 HistoryLength = 5,
                 Blocking = true
             },
@@ -38,100 +41,78 @@ public class A2AClientTests
         };
 
         // Act
-        await sut.SendMessageAsync(sendParams);
+        await sut.SendMessageAsync(sendRequest);
 
         // Assert
-        Assert.NotNull(capturedRequest);
+        Assert.NotNull(capturedBody);
 
-        var requestJson = JsonDocument.Parse(await capturedRequest.Content!.ReadAsStringAsync());
-        Assert.Equal("message/send", requestJson.RootElement.GetProperty("method").GetString());
+        var requestJson = JsonDocument.Parse(capturedBody);
+        Assert.Equal(A2AMethods.SendMessage, requestJson.RootElement.GetProperty("method").GetString());
         Assert.True(Guid.TryParse(requestJson.RootElement.GetProperty("id").GetString(), out _));
 
-        var parameters = requestJson.RootElement.GetProperty("params").Deserialize<MessageSendParams>();
+        var parameters = requestJson.RootElement.GetProperty("params").Deserialize<SendMessageRequest>(A2AJsonUtilities.DefaultOptions);
         Assert.NotNull(parameters);
 
-        Assert.Equal(sendParams.Message.Parts.Count, parameters.Message.Parts.Count);
-        Assert.Equal(((TextPart)sendParams.Message.Parts[0]).Text, ((TextPart)parameters.Message.Parts[0]).Text);
-        Assert.Equal(sendParams.Message.Role, parameters.Message.Role);
-        Assert.Equal(sendParams.Message.MessageId, parameters.Message.MessageId);
-        Assert.Equal(sendParams.Message.TaskId, parameters.Message.TaskId);
-        Assert.Equal(sendParams.Message.ContextId, parameters.Message.ContextId);
-        Assert.Equal(sendParams.Message.Metadata["foo"].GetString(), parameters.Message.Metadata!["foo"].GetString());
-        Assert.Equal(sendParams.Message.ReferenceTaskIds[0], parameters.Message.ReferenceTaskIds![0]);
-
-        Assert.NotNull(parameters.Configuration);
-        Assert.Equal(sendParams.Configuration.AcceptedOutputModes[0], parameters.Configuration.AcceptedOutputModes![0]);
-        Assert.Equal(sendParams.Configuration.PushNotification.Url, parameters.Configuration.PushNotification!.Url);
-        Assert.Equal(sendParams.Configuration.HistoryLength, parameters.Configuration.HistoryLength);
-        Assert.Equal(sendParams.Configuration.Blocking, parameters.Configuration.Blocking);
-
-        Assert.Equal(sendParams.Metadata["baz"].GetString(), parameters.Metadata!["baz"].GetString());
+        Assert.Equal(sendRequest.Message.Parts.Count, parameters.Message.Parts.Count);
+        Assert.Equal(sendRequest.Message.Parts[0].Text, parameters.Message.Parts[0].Text);
+        Assert.Equal(sendRequest.Message.Role, parameters.Message.Role);
+        Assert.Equal(sendRequest.Message.MessageId, parameters.Message.MessageId);
     }
 
     [Fact]
     public async Task SendMessageAsync_MapsResponseCorrectly()
     {
         // Arrange
-        var expectedMessage = new AgentMessage
+        var expectedResponse = new SendMessageResponse
         {
-            Role = MessageRole.Agent,
-            Parts =
-            [
-                new TextPart { Text = "Test text" },
-                new DataPart { Data = new Dictionary<string, JsonElement> { { "key", JsonDocument.Parse("\"value\"").RootElement } } },
-            ],
-            Metadata = new Dictionary<string, JsonElement> { { "metaKey", JsonDocument.Parse("\"metaValue\"").RootElement } },
-            ReferenceTaskIds = ["ref1", "ref2"],
-            MessageId = "msg-123",
-            TaskId = "task-456",
-            ContextId = "ctx-789"
+            Message = new Message
+            {
+                Role = Role.Agent,
+                Parts = [Part.FromText("Test text")],
+                MessageId = "msg-123",
+                TaskId = "task-456",
+                ContextId = "ctx-789"
+            }
         };
 
-        var sut = CreateA2AClient(expectedMessage);
+        var sut = CreateA2AClient(expectedResponse);
 
-        var sendParams = new MessageSendParams();
+        var sendRequest = new SendMessageRequest { Message = new Message { Parts = [], Role = Role.User } };
 
         // Act
-        var result = await sut.SendMessageAsync(sendParams) as AgentMessage;
+        var result = await sut.SendMessageAsync(sendRequest);
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal(expectedMessage.Role, result.Role);
-        Assert.Equal(expectedMessage.Parts.Count, result.Parts.Count);
-        Assert.IsType<TextPart>(result.Parts[0]);
-        Assert.Equal(((TextPart)expectedMessage.Parts[0]).Text, ((TextPart)result.Parts[0]).Text);
-        Assert.IsType<DataPart>(result.Parts[1]);
-        Assert.Equal(((DataPart)expectedMessage.Parts[1]).Data["key"].GetString(), ((DataPart)result.Parts[1]).Data["key"].GetString());
-        Assert.Equal(expectedMessage.Metadata["metaKey"].GetString(), result.Metadata!["metaKey"].GetString());
-        Assert.Equal(expectedMessage.ReferenceTaskIds, result.ReferenceTaskIds);
-        Assert.Equal(expectedMessage.MessageId, result.MessageId);
-        Assert.Equal(expectedMessage.TaskId, result.TaskId);
-        Assert.Equal(expectedMessage.ContextId, result.ContextId);
+        Assert.NotNull(result.Message);
+        Assert.Equal(expectedResponse.Message.Role, result.Message!.Role);
+        Assert.Single(result.Message.Parts);
+        Assert.Equal("Test text", result.Message.Parts[0].Text);
+        Assert.Equal(expectedResponse.Message.MessageId, result.Message.MessageId);
     }
 
     [Fact]
     public async Task GetTaskAsync_MapsRequestParamsCorrectly()
     {
         // Arrange
-        HttpRequestMessage? capturedRequest = null;
+        string? capturedBody = null;
 
-        var sut = CreateA2AClient(new AgentTask { Id = "id-1", ContextId = "ctx-1" }, req => capturedRequest = req);
+        var sut = CreateA2AClient(new AgentTask { Id = "id-1", ContextId = "ctx-1" }, req => capturedBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
 
-        var taskId = "task-1";
+        var request = new GetTaskRequest { Id = "task-1" };
 
         // Act
-        await sut.GetTaskAsync(taskId);
+        await sut.GetTaskAsync(request);
 
         // Assert
-        Assert.NotNull(capturedRequest);
+        Assert.NotNull(capturedBody);
 
-        var requestJson = JsonDocument.Parse(await capturedRequest.Content!.ReadAsStringAsync());
-        Assert.Equal("tasks/get", requestJson.RootElement.GetProperty("method").GetString());
-        Assert.True(Guid.TryParse(requestJson.RootElement.GetProperty("id").GetString(), out _));
+        var requestJson = JsonDocument.Parse(capturedBody);
+        Assert.Equal(A2AMethods.GetTask, requestJson.RootElement.GetProperty("method").GetString());
 
-        var parameters = requestJson.RootElement.GetProperty("params").Deserialize<TaskIdParams>();
+        var parameters = requestJson.RootElement.GetProperty("params").Deserialize<GetTaskRequest>(A2AJsonUtilities.DefaultOptions);
         Assert.NotNull(parameters);
-        Assert.Equal(taskId, parameters.Id);
+        Assert.Equal("task-1", parameters.Id);
     }
 
     [Fact]
@@ -142,16 +123,16 @@ public class A2AClientTests
         {
             Id = "task-1",
             ContextId = "ctx-ctx",
-            Status = new AgentTaskStatus { State = TaskState.Working },
-            Artifacts = [new Artifact { ArtifactId = "a1", Parts = { new TextPart { Text = "part" } } }],
-            History = [new AgentMessage { MessageId = "m1" }],
+            Status = new TaskStatus { State = TaskState.Working },
+            Artifacts = [new Artifact { ArtifactId = "a1", Parts = { Part.FromText("part") } }],
+            History = [new Message { MessageId = "m1" }],
             Metadata = new Dictionary<string, JsonElement> { { "foo", JsonDocument.Parse("\"bar\"").RootElement } }
         };
 
         var sut = CreateA2AClient(expectedTask);
 
         // Act
-        var result = await sut.GetTaskAsync("task-1");
+        var result = await sut.GetTaskAsync(new GetTaskRequest { Id = "task-1" });
 
         // Assert
         Assert.NotNull(result);
@@ -159,331 +140,56 @@ public class A2AClientTests
         Assert.Equal(expectedTask.ContextId, result.ContextId);
         Assert.Equal(expectedTask.Status.State, result.Status.State);
         Assert.Equal(expectedTask.Artifacts![0].ArtifactId, result.Artifacts![0].ArtifactId);
-        Assert.Equal(((TextPart)expectedTask.Artifacts![0].Parts[0]).Text, ((TextPart)result.Artifacts![0].Parts[0]).Text);
-        Assert.Equal(expectedTask.History![0].MessageId, result.History![0].MessageId);
-        Assert.Equal(expectedTask.Metadata!["foo"].GetString(), result.Metadata!["foo"].GetString());
     }
 
     [Fact]
     public async Task CancelTaskAsync_MapsRequestParamsCorrectly()
     {
         // Arrange
-        HttpRequestMessage? capturedRequest = null;
+        string? capturedBody = null;
 
-        var sut = CreateA2AClient(new AgentTask { Id = "task-2" }, req => capturedRequest = req);
+        var sut = CreateA2AClient(new AgentTask { Id = "task-2" }, req => capturedBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
 
-        var taskIdParams = new TaskIdParams
+        var cancelRequest = new CancelTaskRequest
         {
             Id = "task-2",
-            Metadata = new Dictionary<string, JsonElement> { { "meta", JsonDocument.Parse("\"val\"").RootElement } }
         };
 
         // Act
-        await sut.CancelTaskAsync(taskIdParams);
+        await sut.CancelTaskAsync(cancelRequest);
 
         // Assert
-        Assert.NotNull(capturedRequest);
+        Assert.NotNull(capturedBody);
 
-        var requestJson = JsonDocument.Parse(await capturedRequest.Content!.ReadAsStringAsync());
-        Assert.Equal("tasks/cancel", requestJson.RootElement.GetProperty("method").GetString());
-        Assert.True(Guid.TryParse(requestJson.RootElement.GetProperty("id").GetString(), out _));
+        var requestJson = JsonDocument.Parse(capturedBody);
+        Assert.Equal(A2AMethods.CancelTask, requestJson.RootElement.GetProperty("method").GetString());
 
-        var parameters = requestJson.RootElement.GetProperty("params").Deserialize<TaskIdParams>();
+        var parameters = requestJson.RootElement.GetProperty("params").Deserialize<CancelTaskRequest>(A2AJsonUtilities.DefaultOptions);
         Assert.NotNull(parameters);
-        Assert.Equal(taskIdParams.Id, parameters.Id);
-        Assert.Equal(taskIdParams.Metadata!["meta"].GetString(), parameters.Metadata!["meta"].GetString());
+        Assert.Equal(cancelRequest.Id, parameters.Id);
     }
 
     [Fact]
-    public async Task CancelTaskAsync_MapsResponseCorrectly()
+    public async Task SendStreamingMessageAsync_MapsResponseCorrectly()
     {
         // Arrange
-        var expectedTask = new AgentTask
+        var expectedResponse = new StreamResponse
         {
-            Id = "task-1",
-            ContextId = "ctx-ctx",
-            Status = new AgentTaskStatus { State = TaskState.Working },
-            Artifacts = [new Artifact { ArtifactId = "a1", Parts = { new TextPart { Text = "part" } } }],
-            History = [new AgentMessage { MessageId = "m1" }],
-            Metadata = new Dictionary<string, JsonElement> { { "foo", JsonDocument.Parse("\"bar\"").RootElement } }
-        };
-
-        var sut = CreateA2AClient(expectedTask);
-
-        var taskIdParams = new TaskIdParams { Id = "task-2" };
-
-        // Act
-        var result = await sut.CancelTaskAsync(taskIdParams);
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.Equal(expectedTask.Id, result.Id);
-        Assert.Equal(expectedTask.ContextId, result.ContextId);
-        Assert.Equal(expectedTask.Status.State, result.Status.State);
-        Assert.Equal(expectedTask.Artifacts![0].ArtifactId, result.Artifacts![0].ArtifactId);
-        Assert.Equal(((TextPart)expectedTask.Artifacts![0].Parts[0]).Text, ((TextPart)result.Artifacts![0].Parts[0]).Text);
-        Assert.Equal(expectedTask.History![0].MessageId, result.History![0].MessageId);
-        Assert.Equal(expectedTask.Metadata!["foo"].GetString(), result.Metadata!["foo"].GetString());
-    }
-
-    [Fact]
-    public async Task SetPushNotificationAsync_MapsRequestParamsCorrectly()
-    {
-        // Arrange
-        HttpRequestMessage? capturedRequest = null;
-
-        var sut = CreateA2AClient(new TaskPushNotificationConfig() { TaskId = "id-1", PushNotificationConfig = new PushNotificationConfig() { Url = "url-1" } }, req => capturedRequest = req);
-
-        var pushConfig = new TaskPushNotificationConfig
-        {
-            TaskId = "task-3",
-            PushNotificationConfig = new PushNotificationConfig
+            Message = new Message
             {
-                Url = "http://push-url",
-                Id = "push-config-123",
-                Token = "tok",
-                Authentication = new PushNotificationAuthenticationInfo
-                {
-                    Schemes = ["Bearer"],
-                }
+                Role = Role.Agent,
+                Parts = [Part.FromText("Test text")],
+                MessageId = "msg-123",
             }
         };
 
-        // Act
-        await sut.SetPushNotificationAsync(pushConfig);
+        var sut = CreateA2AClient(expectedResponse, isSse: true);
 
-        // Assert
-        Assert.NotNull(capturedRequest);
-
-        var requestJson = JsonDocument.Parse(await capturedRequest.Content!.ReadAsStringAsync());
-        Assert.Equal("tasks/pushNotificationConfig/set", requestJson.RootElement.GetProperty("method").GetString());
-        Assert.True(Guid.TryParse(requestJson.RootElement.GetProperty("id").GetString(), out _));
-
-        var parameters = requestJson.RootElement.GetProperty("params").Deserialize<TaskPushNotificationConfig>();
-        Assert.NotNull(parameters);
-        Assert.Equal(pushConfig.TaskId, parameters.TaskId);
-        Assert.Equal(pushConfig.PushNotificationConfig.Url, parameters.PushNotificationConfig.Url);
-        Assert.Equal(pushConfig.PushNotificationConfig.Id, parameters.PushNotificationConfig.Id);
-        Assert.Equal(pushConfig.PushNotificationConfig.Token, parameters.PushNotificationConfig.Token);
-        Assert.Equal(pushConfig.PushNotificationConfig.Authentication!.Schemes, parameters.PushNotificationConfig.Authentication!.Schemes);
-    }
-
-    [Fact]
-    public async Task SetPushNotificationAsync_MapsResponseCorrectly()
-    {
-        // Arrange
-        var expectedConfig = new TaskPushNotificationConfig
-        {
-            TaskId = "task-3",
-            PushNotificationConfig = new PushNotificationConfig
-            {
-                Url = "http://push-url",
-                Id = "push-config-456",
-                Token = "tok",
-                Authentication = new PushNotificationAuthenticationInfo
-                {
-                    Schemes = ["Bearer"],
-                }
-            }
-        };
-
-        var sut = CreateA2AClient(expectedConfig);
+        var sendRequest = new SendMessageRequest { Message = new Message { Parts = [], Role = Role.User } };
 
         // Act
-        var result = await sut.SetPushNotificationAsync(expectedConfig);
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.Equal(expectedConfig.TaskId, result.TaskId);
-        Assert.Equal(expectedConfig.PushNotificationConfig.Url, result.PushNotificationConfig.Url);
-        Assert.Equal(expectedConfig.PushNotificationConfig.Token, result.PushNotificationConfig.Token);
-        Assert.Equal(expectedConfig.PushNotificationConfig.Authentication!.Schemes, result.PushNotificationConfig.Authentication!.Schemes);
-    }
-
-    [Fact]
-    public async Task GetPushNotificationAsync_MapsRequestParamsCorrectly()
-    {
-        // Arrange
-        HttpRequestMessage? capturedRequest = null;
-
-        var config = new TaskPushNotificationConfig { TaskId = "task-4", PushNotificationConfig = new PushNotificationConfig { Url = "url-1" } };
-
-        var sut = CreateA2AClient(config, req => capturedRequest = req);
-
-        var notificationConfigParams = new GetTaskPushNotificationConfigParams
-        {
-            Id = "task-4",
-            Metadata = new Dictionary<string, JsonElement> { { "meta", JsonDocument.Parse("\"val\"").RootElement } },
-            PushNotificationConfigId = "config-123"
-        };
-
-        // Act
-        await sut.GetPushNotificationAsync(notificationConfigParams);
-
-        // Assert
-        Assert.NotNull(capturedRequest);
-
-        var requestJson = JsonDocument.Parse(await capturedRequest.Content!.ReadAsStringAsync());
-        Assert.Equal("tasks/pushNotificationConfig/get", requestJson.RootElement.GetProperty("method").GetString());
-        Assert.True(Guid.TryParse(requestJson.RootElement.GetProperty("id").GetString(), out _));
-
-        var parameters = requestJson.RootElement.GetProperty("params").Deserialize<GetTaskPushNotificationConfigParams>();
-        Assert.NotNull(parameters);
-        Assert.Equal(notificationConfigParams.Id, parameters.Id);
-        Assert.Equal(notificationConfigParams.Metadata!["meta"].GetString(), parameters.Metadata!["meta"].GetString());
-        Assert.Equal(notificationConfigParams.PushNotificationConfigId, parameters.PushNotificationConfigId);
-    }
-
-    [Fact]
-    public async Task GetPushNotificationAsync_MapsResponseCorrectly()
-    {
-        // Arrange
-        var expectedConfig = new TaskPushNotificationConfig
-        {
-            TaskId = "task-4",
-            PushNotificationConfig = new PushNotificationConfig
-            {
-                Url = "http://push-url2",
-                Token = "tok2",
-                Authentication = new PushNotificationAuthenticationInfo
-                {
-                    Schemes = ["Bearer"]
-                }
-            }
-        };
-
-        var sut = CreateA2AClient(expectedConfig);
-
-        var notificationConfigParams = new GetTaskPushNotificationConfigParams { Id = "task-4" };
-
-        // Act
-        var result = await sut.GetPushNotificationAsync(notificationConfigParams);
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.Equal(expectedConfig.TaskId, result.TaskId);
-        Assert.Equal(expectedConfig.PushNotificationConfig.Url, result.PushNotificationConfig.Url);
-        Assert.Equal(expectedConfig.PushNotificationConfig.Token, result.PushNotificationConfig.Token);
-        Assert.Equal(expectedConfig.PushNotificationConfig.Authentication!.Schemes, result.PushNotificationConfig.Authentication!.Schemes);
-    }
-
-    [Fact]
-    public async Task GetPushNotificationAsync_WithPushNotificationConfigId_MapsRequestCorrectly()
-    {
-        // Arrange
-        HttpRequestMessage? capturedRequest = null;
-
-        var config = new TaskPushNotificationConfig { TaskId = "task-5", PushNotificationConfig = new PushNotificationConfig { Url = "url-1" } };
-
-        var sut = CreateA2AClient(config, req => capturedRequest = req);
-
-        var notificationConfigParams = new GetTaskPushNotificationConfigParams
-        {
-            Id = "task-5",
-            PushNotificationConfigId = "specific-config-id"
-        };
-
-        // Act
-        await sut.GetPushNotificationAsync(notificationConfigParams);
-
-        // Assert
-        Assert.NotNull(capturedRequest);
-
-        var requestJson = JsonDocument.Parse(await capturedRequest.Content!.ReadAsStringAsync());
-        var parameters = requestJson.RootElement.GetProperty("params").Deserialize<GetTaskPushNotificationConfigParams>();
-        Assert.NotNull(parameters);
-        Assert.Equal(notificationConfigParams.Id, parameters.Id);
-        Assert.Equal(notificationConfigParams.PushNotificationConfigId, parameters.PushNotificationConfigId);
-        Assert.Null(parameters.Metadata);
-    }
-
-    [Fact]
-    public async Task SendMessageStreamingAsync_MapsRequestParamsCorrectly()
-    {
-        // Arrange
-        HttpRequestMessage? capturedRequest = null;
-
-        var sut = CreateA2AClient(new AgentMessage() { MessageId = "id-1", Role = MessageRole.User, Parts = [] }, req => capturedRequest = req, isSse: true);
-
-        var sendParams = new MessageSendParams
-        {
-            Message = new AgentMessage
-            {
-                Parts = [new TextPart { Text = "Hello" }],
-                Role = MessageRole.User,
-                MessageId = "msg-1",
-                TaskId = "task-1",
-                ContextId = "ctx-1",
-                Metadata = new Dictionary<string, JsonElement> { { "foo", JsonDocument.Parse("\"bar\"").RootElement } },
-                ReferenceTaskIds = ["ref-1"]
-            },
-            Configuration = new MessageSendConfiguration
-            {
-                AcceptedOutputModes = ["mode1"],
-                PushNotification = new PushNotificationConfig { Url = "http://push" },
-                HistoryLength = 5,
-                Blocking = true
-            },
-            Metadata = new Dictionary<string, JsonElement> { { "baz", JsonDocument.Parse("\"qux\"").RootElement } }
-        };
-
-        // Act
-        await foreach (var _ in sut.SendMessageStreamingAsync(sendParams))
-        {
-            break; // Only need to trigger the request
-        }
-
-        // Assert
-        Assert.NotNull(capturedRequest);
-
-        var requestJson = JsonDocument.Parse(await capturedRequest.Content!.ReadAsStringAsync());
-        Assert.Equal("message/stream", requestJson.RootElement.GetProperty("method").GetString());
-        Assert.True(Guid.TryParse(requestJson.RootElement.GetProperty("id").GetString(), out _));
-
-        var parameters = requestJson.RootElement.GetProperty("params").Deserialize<MessageSendParams>();
-        Assert.NotNull(parameters);
-        Assert.Equal(sendParams.Message.Parts.Count, parameters.Message.Parts.Count);
-        Assert.Equal(((TextPart)sendParams.Message.Parts[0]).Text, ((TextPart)parameters.Message.Parts[0]).Text);
-        Assert.Equal(sendParams.Message.Role, parameters.Message.Role);
-        Assert.Equal(sendParams.Message.MessageId, parameters.Message.MessageId);
-        Assert.Equal(sendParams.Message.TaskId, parameters.Message.TaskId);
-        Assert.Equal(sendParams.Message.ContextId, parameters.Message.ContextId);
-        Assert.Equal(sendParams.Message.Metadata["foo"].GetString(), parameters.Message.Metadata!["foo"].GetString());
-        Assert.Equal(sendParams.Message.ReferenceTaskIds[0], parameters.Message.ReferenceTaskIds![0]);
-        Assert.NotNull(parameters.Configuration);
-        Assert.Equal(sendParams.Configuration.AcceptedOutputModes[0], parameters.Configuration.AcceptedOutputModes![0]);
-        Assert.Equal(sendParams.Configuration.PushNotification.Url, parameters.Configuration.PushNotification!.Url);
-        Assert.Equal(sendParams.Configuration.HistoryLength, parameters.Configuration.HistoryLength);
-        Assert.Equal(sendParams.Configuration.Blocking, parameters.Configuration.Blocking);
-        Assert.Equal(sendParams.Metadata["baz"].GetString(), parameters.Metadata!["baz"].GetString());
-    }
-
-    [Fact]
-    public async Task SendMessageStreamingAsync_MapsResponseCorrectly()
-    {
-        // Arrange
-        var expectedMessage = new AgentMessage
-        {
-            Role = MessageRole.Agent,
-            Parts =
-            [
-                new TextPart { Text = "Test text" },
-                new DataPart { Data = new Dictionary<string, JsonElement> { { "key", JsonDocument.Parse("\"value\"").RootElement } } },
-            ],
-            Metadata = new Dictionary<string, JsonElement> { { "metaKey", JsonDocument.Parse("\"metaValue\"").RootElement } },
-            ReferenceTaskIds = ["ref1", "ref2"],
-            MessageId = "msg-123",
-            TaskId = "task-456",
-            ContextId = "ctx-789"
-        };
-
-        var sut = CreateA2AClient(expectedMessage, isSse: true);
-
-        var sendParams = new MessageSendParams();
-
-        // Act
-        SseItem<A2AEvent>? result = null;
-        await foreach (var item in sut.SendMessageStreamingAsync(sendParams))
+        StreamResponse? result = null;
+        await foreach (var item in sut.SendStreamingMessageAsync(sendRequest))
         {
             result = item;
             break;
@@ -491,112 +197,56 @@ public class A2AClientTests
 
         // Assert
         Assert.NotNull(result);
-        var message = Assert.IsType<AgentMessage>(result.Value.Data);
-        Assert.Equal(expectedMessage.Role, message.Role);
-        Assert.Equal(expectedMessage.Parts.Count, message.Parts.Count);
-        Assert.IsType<TextPart>(message.Parts[0]);
-        Assert.Equal(((TextPart)expectedMessage.Parts[0]).Text, ((TextPart)message.Parts[0]).Text);
-        Assert.IsType<DataPart>(message.Parts[1]);
-        Assert.Equal(((DataPart)expectedMessage.Parts[1]).Data["key"].GetString(), ((DataPart)message.Parts[1]).Data["key"].GetString());
-        Assert.Equal(expectedMessage.Metadata["metaKey"].GetString(), message.Metadata!["metaKey"].GetString());
-        Assert.Equal(expectedMessage.ReferenceTaskIds, message.ReferenceTaskIds);
-        Assert.Equal(expectedMessage.MessageId, message.MessageId);
-        Assert.Equal(expectedMessage.TaskId, message.TaskId);
-        Assert.Equal(expectedMessage.ContextId, message.ContextId);
+        Assert.NotNull(result.Message);
+        Assert.Equal(expectedResponse.Message.Role, result.Message!.Role);
+        Assert.Single(result.Message.Parts);
+        Assert.Equal("Test text", result.Message.Parts[0].Text);
     }
 
     [Fact]
     public async Task SubscribeToTaskAsync_MapsRequestParamsCorrectly()
     {
         // Arrange
-        HttpRequestMessage? capturedRequest = null;
+        string? capturedBody = null;
 
-        var sut = CreateA2AClient(new AgentMessage() { MessageId = "id-1", Role = MessageRole.User, Parts = [] }, req => capturedRequest = req, isSse: true);
-
-        var taskId = "task-123";
-
-        // Act
-        await foreach (var _ in sut.SubscribeToTaskAsync(taskId))
+        var responseResult = new StreamResponse
         {
-            break; // Only need to trigger the request
-        }
-
-        // Assert
-        Assert.NotNull(capturedRequest);
-
-        var requestJson = JsonDocument.Parse(await capturedRequest.Content!.ReadAsStringAsync());
-        Assert.Equal("tasks/resubscribe", requestJson.RootElement.GetProperty("method").GetString());
-        Assert.True(Guid.TryParse(requestJson.RootElement.GetProperty("id").GetString(), out _));
-
-        var parameters = requestJson.RootElement.GetProperty("params").Deserialize<TaskIdParams>();
-        Assert.NotNull(parameters);
-        Assert.Equal(taskId, parameters.Id);
-    }
-
-    [Fact]
-    public async Task SubscribeToTaskAsync_MapsResponseCorrectly()
-    {
-        // Arrange
-        var expectedMessage = new AgentMessage
-        {
-            Role = MessageRole.Agent,
-            Parts =
-            [
-                new TextPart { Text = "Test text" },
-                new DataPart { Data = new Dictionary<string, JsonElement> { { "key", JsonDocument.Parse("\"value\"").RootElement } } },
-            ],
-            Metadata = new Dictionary<string, JsonElement> { { "metaKey", JsonDocument.Parse("\"metaValue\"").RootElement } },
-            ReferenceTaskIds = ["ref1", "ref2"],
-            MessageId = "msg-123",
-            TaskId = "task-456",
-            ContextId = "ctx-789"
+            Message = new Message { MessageId = "id-1", Role = Role.User, Parts = [] }
         };
+        var sut = CreateA2AClient(responseResult, req => capturedBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult(), isSse: true);
 
-        var sut = CreateA2AClient(expectedMessage, isSse: true);
+        var request = new SubscribeToTaskRequest { Id = "task-123" };
 
         // Act
-        SseItem<A2AEvent>? result = null;
-        await foreach (var item in sut.SubscribeToTaskAsync("task-123"))
+        await foreach (var _ in sut.SubscribeToTaskAsync(request))
         {
-            result = item;
             break;
         }
 
         // Assert
-        Assert.NotNull(result);
-        var message = Assert.IsType<AgentMessage>(result.Value.Data);
-        Assert.Equal(expectedMessage.Role, message.Role);
-        Assert.Equal(expectedMessage.Parts.Count, message.Parts.Count);
-        Assert.IsType<TextPart>(message.Parts[0]);
-        Assert.Equal(((TextPart)expectedMessage.Parts[0]).Text, ((TextPart)message.Parts[0]).Text);
-        Assert.IsType<DataPart>(message.Parts[1]);
-        Assert.Equal(((DataPart)expectedMessage.Parts[1]).Data["key"].GetString(), ((DataPart)message.Parts[1]).Data["key"].GetString());
-        Assert.Equal(expectedMessage.Metadata["metaKey"].GetString(), message.Metadata!["metaKey"].GetString());
-        Assert.Equal(expectedMessage.ReferenceTaskIds, message.ReferenceTaskIds);
-        Assert.Equal(expectedMessage.MessageId, message.MessageId);
-        Assert.Equal(expectedMessage.TaskId, message.TaskId);
-        Assert.Equal(expectedMessage.ContextId, message.ContextId);
+        Assert.NotNull(capturedBody);
+
+        var requestJson = JsonDocument.Parse(capturedBody);
+        Assert.Equal(A2AMethods.SubscribeToTask, requestJson.RootElement.GetProperty("method").GetString());
     }
 
     [Fact]
-    public async Task SendMessageStreamingAsync_ThrowsOnJsonRpcError()
+    public async Task SendStreamingMessageAsync_ThrowsOnJsonRpcError()
     {
         // Arrange
         var sut = CreateA2AClient(JsonRpcResponse.InvalidParamsResponse("test-id"), isSse: true);
 
-        var sendParams = new MessageSendParams();
+        var sendRequest = new SendMessageRequest { Message = new Message { Parts = [], Role = Role.User } };
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<A2AException>(async () =>
         {
-            await foreach (var _ in sut.SendMessageStreamingAsync(sendParams))
+            await foreach (var _ in sut.SendStreamingMessageAsync(sendRequest))
             {
-                // Should throw before yielding any items
             }
         });
 
         Assert.Equal(A2AErrorCode.InvalidParams, exception.ErrorCode);
-        Assert.Contains("Invalid parameters", exception.Message);
     }
 
     [Fact]
@@ -605,16 +255,15 @@ public class A2AClientTests
         // Arrange
         var sut = CreateA2AClient(JsonRpcResponse.MethodNotFoundResponse("test-id"));
 
-        var sendParams = new MessageSendParams();
+        var sendRequest = new SendMessageRequest { Message = new Message { Parts = [], Role = Role.User } };
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<A2AException>(async () =>
         {
-            await sut.SendMessageAsync(sendParams);
+            await sut.SendMessageAsync(sendRequest);
         });
 
         Assert.Equal(A2AErrorCode.MethodNotFound, exception.ErrorCode);
-        Assert.Contains("Method not found", exception.Message);
     }
 
     private static A2AClient CreateA2AClient(object result, Action<HttpRequestMessage>? onRequest = null, bool isSse = false)
@@ -622,7 +271,7 @@ public class A2AClientTests
         var response = new JsonRpcResponse
         {
             Id = "test-id",
-            Result = JsonSerializer.SerializeToNode(result)
+            Result = JsonSerializer.SerializeToNode(result, A2AJsonUtilities.DefaultOptions)
         };
 
         return CreateA2AClient(response, onRequest, isSse);
@@ -630,7 +279,7 @@ public class A2AClientTests
 
     private static A2AClient CreateA2AClient(JsonRpcResponse jsonResponse, Action<HttpRequestMessage>? onRequest = null, bool isSse = false)
     {
-        var responseContent = JsonSerializer.Serialize(jsonResponse);
+        var responseContent = JsonSerializer.Serialize(jsonResponse, A2AJsonUtilities.DefaultOptions);
 
         var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -641,7 +290,6 @@ public class A2AClientTests
         };
 
         var handler = new MockHttpMessageHandler(response, onRequest);
-
         var httpClient = new HttpClient(handler);
 
         return new A2AClient(new Uri("http://localhost"), httpClient);

@@ -1,6 +1,4 @@
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.Json;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -11,23 +9,6 @@ namespace A2A.AspNetCore.Tests;
 public class A2AHttpProcessorTests
 {
     [Fact]
-    public async Task GetAgentCard_ShouldReturnValidJsonResult()
-    {
-        // Arrange
-        var taskManager = new TaskManager();
-        var logger = NullLogger.Instance;
-
-        // Act
-        var result = await A2AHttpProcessor.GetAgentCardAsync(taskManager, logger, "http://example.com", CancellationToken.None);
-        (int statusCode, string? contentType, AgentCard agentCard) = await GetAgentCardResponse(result);
-
-        // Assert
-        Assert.Equal(StatusCodes.Status200OK, statusCode);
-        Assert.Equal("application/json; charset=utf-8", contentType);
-        Assert.Equal("Unknown", agentCard.Name);
-    }
-
-    [Fact]
     public async Task GetTask_ShouldReturnNotNull()
     {
         // Arrange
@@ -35,8 +16,9 @@ public class A2AHttpProcessorTests
         await taskStore.SetTaskAsync(new AgentTask
         {
             Id = "testId",
+            ContextId = "ctx-1",
         });
-        var taskManager = new TaskManager(taskStore: taskStore);
+        var taskManager = new TaskManager(taskStore, NullLogger<TaskManager>.Instance);
         var logger = NullLogger.Instance;
         var id = "testId";
         var historyLength = 10;
@@ -46,7 +28,7 @@ public class A2AHttpProcessorTests
 
         // Assert
         Assert.NotNull(result);
-        Assert.IsType<A2AResponseResult>(result);
+        Assert.IsType<JsonRpcResponseResult>(result);
     }
 
     [Fact]
@@ -57,8 +39,16 @@ public class A2AHttpProcessorTests
         await taskStore.SetTaskAsync(new AgentTask
         {
             Id = "testId",
+            ContextId = "ctx-1",
+            Status = new TaskStatus { State = TaskState.Submitted },
         });
-        var taskManager = new TaskManager(taskStore: taskStore);
+        var taskManager = new TaskManager(taskStore, NullLogger<TaskManager>.Instance);
+        taskManager.OnCancelTask = async (request, ct) =>
+        {
+            var task = await taskStore.GetTaskAsync(request.Id, ct);
+            task!.Status = new TaskStatus { State = TaskState.Canceled };
+            return await taskStore.SetTaskAsync(task, ct);
+        };
         var logger = NullLogger.Instance;
         var id = "testId";
 
@@ -67,7 +57,7 @@ public class A2AHttpProcessorTests
 
         // Assert
         Assert.NotNull(result);
-        Assert.IsType<A2AResponseResult>(result);
+        Assert.IsType<JsonRpcResponseResult>(result);
     }
 
     [Fact]
@@ -78,21 +68,33 @@ public class A2AHttpProcessorTests
         await taskStore.SetTaskAsync(new AgentTask
         {
             Id = "testId",
+            ContextId = "ctx-1",
+            Status = new TaskStatus { State = TaskState.Submitted },
         });
-        var taskManager = new TaskManager(taskStore: taskStore);
-        var logger = NullLogger.Instance;
-        var sendParams = new MessageSendParams
+        var taskManager = new TaskManager(taskStore, NullLogger<TaskManager>.Instance);
+        taskManager.OnSendMessage = async (request, ct) =>
         {
-            Message = { TaskId = "testId" },
-            Configuration = new() { HistoryLength = 10 }
+            var task = await taskStore.GetTaskAsync(request.Message.TaskId!, ct);
+            return new SendMessageResponse { Task = task };
+        };
+        var logger = NullLogger.Instance;
+        var sendRequest = new SendMessageRequest
+        {
+            Message = new Message
+            {
+                TaskId = "testId",
+                Role = Role.User,
+                Parts = [Part.FromText("hi")],
+            },
+            Configuration = new SendMessageConfiguration { HistoryLength = 10 }
         };
 
         // Act
-        var result = await A2AHttpProcessor.SendMessageAsync(taskManager, logger, sendParams, CancellationToken.None);
+        var result = await A2AHttpProcessor.SendMessageAsync(taskManager, logger, sendRequest, CancellationToken.None);
 
         // Assert
         Assert.NotNull(result);
-        Assert.IsType<A2AResponseResult>(result);
+        Assert.IsType<JsonRpcResponseResult>(result);
     }
 
     [Theory]
@@ -114,7 +116,7 @@ public class A2AHttpProcessorTests
             .Setup(ts => ts.GetTaskAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new A2AException("Test exception", errorCode));
 
-        var taskManager = new TaskManager(taskStore: mockTaskStore.Object);
+        var taskManager = new TaskManager(mockTaskStore.Object, NullLogger<TaskManager>.Instance);
         var logger = NullLogger.Instance;
         var id = "testId";
         var historyLength = 10;
@@ -138,7 +140,7 @@ public class A2AHttpProcessorTests
             .Setup(ts => ts.GetTaskAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new A2AException("Test exception with unknown error code", unknownErrorCode));
 
-        var taskManager = new TaskManager(taskStore: mockTaskStore.Object);
+        var taskManager = new TaskManager(mockTaskStore.Object, NullLogger<TaskManager>.Instance);
         var logger = NullLogger.Instance;
         var id = "testId";
         var historyLength = 10;
@@ -149,25 +151,5 @@ public class A2AHttpProcessorTests
         // Assert
         Assert.NotNull(result);
         Assert.Equal(StatusCodes.Status500InternalServerError, ((IStatusCodeHttpResult)result).StatusCode);
-    }
-
-    private static async Task<(int statusCode, string? contentType, AgentCard agentCard)> GetAgentCardResponse(IResult responseResult)
-    {
-        ServiceCollection services = new();
-        services.AddSingleton<ILoggerFactory>(new NullLoggerFactory());
-        services.Configure<JsonOptions>(jsonOptions => jsonOptions.SerializerOptions.TypeInfoResolver = A2AJsonUtilities.DefaultOptions.TypeInfoResolver);
-        using ServiceProvider serviceProvider = services.BuildServiceProvider();
-        HttpContext context = new DefaultHttpContext()
-        {
-            RequestServices = serviceProvider
-        };
-        using MemoryStream memoryStream = new();
-        context.Response.Body = memoryStream;
-
-        await responseResult.ExecuteAsync(context);
-
-        context.Response.Body.Position = 0;
-        var card = await JsonSerializer.DeserializeAsync<AgentCard>(context.Response.Body, A2AJsonUtilities.DefaultOptions);
-        return (context.Response.StatusCode, context.Response.ContentType, card!);
     }
 }

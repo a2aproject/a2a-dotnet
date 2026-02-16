@@ -12,7 +12,7 @@ public class DistributedCacheTaskStoreTests
     {
         // Arrange
         var sut = BuildDistributedCacheTaskStore();
-        var task = new AgentTask { Id = "task1", Status = new AgentTaskStatus { State = TaskState.Submitted } };
+        var task = new AgentTask { Id = "task1", Status = new TaskStatus { State = TaskState.Submitted } };
 
         // Act
         await sut.SetTaskAsync(task);
@@ -55,18 +55,18 @@ public class DistributedCacheTaskStoreTests
     {
         // Arrange
         var sut = BuildDistributedCacheTaskStore();
-        var task = new AgentTask { Id = "task2", Status = new AgentTaskStatus { State = TaskState.Submitted } };
+        var task = new AgentTask { Id = "task2", Status = new TaskStatus { State = TaskState.Submitted } };
         await sut.SetTaskAsync(task);
-        var message = new AgentMessage { MessageId = "msg1" };
+        var message = new Message { MessageId = "msg1", Role = Role.Agent, Parts = [Part.FromText("status update")] };
 
         // Act
-        var status = await sut.UpdateStatusAsync("task2", TaskState.Working, message);
-        var updatedTask = await sut.GetTaskAsync("task2");
+        var updatedTask = await sut.UpdateStatusAsync("task2", new TaskStatus { State = TaskState.Working, Message = message });
+        var retrievedTask = await sut.GetTaskAsync("task2");
 
         // Assert
-        Assert.Equal(TaskState.Working, status.State);
-        Assert.Equal(TaskState.Working, updatedTask!.Status.State);
-        Assert.Equal("msg1", status.Message!.MessageId);
+        Assert.Equal(TaskState.Working, updatedTask.Status.State);
+        Assert.Equal(TaskState.Working, retrievedTask!.Status.State);
+        Assert.Equal("msg1", updatedTask.Status.Message!.MessageId);
     }
 
     [Fact]
@@ -76,123 +76,38 @@ public class DistributedCacheTaskStoreTests
         var sut = BuildDistributedCacheTaskStore();
 
         // Act & Assert
-        var x = await Assert.ThrowsAsync<A2AException>(() => sut.UpdateStatusAsync("notfound", TaskState.Completed));
+        var x = await Assert.ThrowsAsync<A2AException>(() => sut.UpdateStatusAsync("notfound", new TaskStatus { State = TaskState.Completed }));
         Assert.Equal(A2AErrorCode.TaskNotFound, x.ErrorCode);
     }
 
     [Fact]
-    public async Task GetPushNotificationAsync_ShouldReturnNull_WhenTaskDoesNotExist()
+    public async Task AppendHistoryAsync_ShouldAppendMessage()
     {
         // Arrange
         var sut = BuildDistributedCacheTaskStore();
+        var task = new AgentTask { Id = "task3", Status = new TaskStatus { State = TaskState.Working } };
+        await sut.SetTaskAsync(task);
+        var message = new Message { MessageId = "msg1", Role = Role.User, Parts = [Part.FromText("hello")] };
 
         // Act
-        var result = await sut.GetPushNotificationAsync("missing", "config-missing");
+        var updatedTask = await sut.AppendHistoryAsync("task3", message);
 
         // Assert
-        Assert.Null(result);
+        Assert.NotNull(updatedTask.History);
+        Assert.Single(updatedTask.History);
+        Assert.Equal("msg1", updatedTask.History[0].MessageId);
     }
 
     [Fact]
-    public async Task GetPushNotificationAsync_ShouldReturnNull_WhenConfigDoesNotExist()
+    public async Task AppendHistoryAsync_ShouldThrow_WhenTaskDoesNotExist()
     {
         // Arrange
         var sut = BuildDistributedCacheTaskStore();
+        var message = new Message { MessageId = "msg1", Role = Role.User, Parts = [Part.FromText("hello")] };
 
-        await sut.SetPushNotificationConfigAsync(new TaskPushNotificationConfig { TaskId = "task-id", PushNotificationConfig = new() { Id = "config-id" } });
-
-        // Act
-        var result = await sut.GetPushNotificationAsync("task-id", "config-missing");
-
-        // Assert
-        Assert.Null(result);
-    }
-
-    [Fact]
-    public async Task GetPushNotificationAsync_ShouldReturnCorrectConfig_WhenMultipleConfigsExistForSameTask()
-    {
-        // Arrange
-        var sut = BuildDistributedCacheTaskStore();
-        var taskId = "task-with-multiple-configs";
-
-        var config1 = new TaskPushNotificationConfig
-        {
-            TaskId = taskId,
-            PushNotificationConfig = new PushNotificationConfig
-            {
-                Url = "http://config1",
-                Id = "config-id-1",
-                Token = "token1"
-            }
-        };
-
-        var config2 = new TaskPushNotificationConfig
-        {
-            TaskId = taskId,
-            PushNotificationConfig = new PushNotificationConfig
-            {
-                Url = "http://config2",
-                Id = "config-id-2",
-                Token = "token2"
-            }
-        };
-
-        var config3 = new TaskPushNotificationConfig
-        {
-            TaskId = taskId,
-            PushNotificationConfig = new PushNotificationConfig
-            {
-                Url = "http://config3",
-                Id = "config-id-3",
-                Token = "token3"
-            }
-        };
-
-        // Act - Store multiple configs for the same task
-        await sut.SetPushNotificationConfigAsync(config1);
-        await sut.SetPushNotificationConfigAsync(config2);
-        await sut.SetPushNotificationConfigAsync(config3);
-
-        // Get specific configs by both taskId and notificationConfigId
-        var result1 = await sut.GetPushNotificationAsync(taskId, "config-id-1");
-        var result2 = await sut.GetPushNotificationAsync(taskId, "config-id-2");
-        var result3 = await sut.GetPushNotificationAsync(taskId, "config-id-3");
-        var resultNotFound = await sut.GetPushNotificationAsync(taskId, "non-existent-config");
-
-        // Assert - Verify each call returns the correct specific config
-        Assert.NotNull(result1);
-        Assert.Equal(taskId, result1!.TaskId);
-        Assert.Equal("config-id-1", result1.PushNotificationConfig.Id);
-        Assert.Equal("http://config1", result1.PushNotificationConfig.Url);
-        Assert.Equal("token1", result1.PushNotificationConfig.Token);
-
-        Assert.NotNull(result2);
-        Assert.Equal(taskId, result2!.TaskId);
-        Assert.Equal("config-id-2", result2.PushNotificationConfig.Id);
-        Assert.Equal("http://config2", result2.PushNotificationConfig.Url);
-        Assert.Equal("token2", result2.PushNotificationConfig.Token);
-
-        Assert.NotNull(result3);
-        Assert.Equal(taskId, result3!.TaskId);
-        Assert.Equal("config-id-3", result3.PushNotificationConfig.Id);
-        Assert.Equal("http://config3", result3.PushNotificationConfig.Url);
-        Assert.Equal("token3", result3.PushNotificationConfig.Token);
-
-        Assert.Null(resultNotFound);
-    }
-
-    [Fact]
-    public async Task GetPushNotificationsAsync_ShouldReturnEmptyList_WhenNoConfigsExistForTask()
-    {
-        // Arrange
-        var sut = BuildDistributedCacheTaskStore();
-
-        // Act
-        var result = await sut.GetPushNotificationsAsync("task-without-configs");
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.Empty(result);
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<A2AException>(() => sut.AppendHistoryAsync("notfound", message));
+        Assert.Equal(A2AErrorCode.TaskNotFound, ex.ErrorCode);
     }
 
     [Fact]
@@ -212,22 +127,6 @@ public class DistributedCacheTaskStoreTests
     }
 
     [Fact]
-    public async Task GetPushNotificationAsync_ShouldReturnCanceledTask_WhenCancellationTokenIsCanceled()
-    {
-        // Arrange
-        var sut = BuildDistributedCacheTaskStore();
-
-        using var cts = new CancellationTokenSource();
-        await cts.CancelAsync();
-
-        // Act
-        var task = sut.GetPushNotificationAsync("test-id", "config-id", cts.Token);
-
-        // Assert
-        await Assert.ThrowsAsync<OperationCanceledException>(() => task);
-    }
-
-    [Fact]
     public async Task UpdateStatusAsync_ShouldReturnCanceledTask_WhenCancellationTokenIsCanceled()
     {
         // Arrange
@@ -237,7 +136,7 @@ public class DistributedCacheTaskStoreTests
         await cts.CancelAsync();
 
         // Act
-        var task = sut.UpdateStatusAsync("test-id", TaskState.Working, cancellationToken: cts.Token);
+        var task = sut.UpdateStatusAsync("test-id", new TaskStatus { State = TaskState.Working }, cts.Token);
 
         // Assert
         await Assert.ThrowsAsync<OperationCanceledException>(() => task);
@@ -248,7 +147,7 @@ public class DistributedCacheTaskStoreTests
     {
         // Arrange
         var sut = BuildDistributedCacheTaskStore();
-        var agentTask = new AgentTask { Id = "test-id", Status = new AgentTaskStatus { State = TaskState.Submitted } };
+        var agentTask = new AgentTask { Id = "test-id", Status = new TaskStatus { State = TaskState.Submitted } };
 
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
@@ -261,67 +160,18 @@ public class DistributedCacheTaskStoreTests
     }
 
     [Fact]
-    public async Task SetPushNotificationConfigAsync_ShouldReturnCanceledTask_WhenCancellationTokenIsCanceled()
-    {
-        // Arrange
-        var sut = BuildDistributedCacheTaskStore();
-        var config = new TaskPushNotificationConfig();
-
-        using var cts = new CancellationTokenSource();
-        await cts.CancelAsync();
-
-        // Act
-        var task = sut.SetPushNotificationConfigAsync(config, cts.Token);
-
-        // Assert
-        await Assert.ThrowsAsync<OperationCanceledException>(() => task);
-    }
-
-    [Fact]
-    public async Task SetPushNotificationConfigAsync_ShouldThrowArgumentNullException_WhenConfigIsNull()
+    public async Task ListTasksAsync_ShouldReturnEmptyList()
     {
         // Arrange
         var sut = BuildDistributedCacheTaskStore();
 
-        // Act
-        var task = sut.SetPushNotificationConfigAsync(null!);
+        // Act - distributed cache does not support listing
+        var result = await sut.ListTasksAsync(new ListTasksRequest());
 
         // Assert
-        await Assert.ThrowsAsync<ArgumentNullException>(() => task);
-    }
-
-    [Fact]
-    public async Task SetPushNotificationConfigAsync_ShouldThrowArgumentException_WhenTaskIdIsNullOrEmpty()
-    {
-        // Arrange
-        var sut = BuildDistributedCacheTaskStore();
-        var config = new TaskPushNotificationConfig
-        {
-            TaskId = string.Empty,
-            PushNotificationConfig = new PushNotificationConfig { Id = "config-id" }
-        };
-
-        // Act
-        var task = sut.SetPushNotificationConfigAsync(config);
-
-        // Assert
-        await Assert.ThrowsAsync<ArgumentException>(() => task);
-    }
-
-    [Fact]
-    public async Task GetPushNotificationsAsync_ShouldReturnCanceledTask_WhenCancellationTokenIsCanceled()
-    {
-        // Arrange
-        var sut = BuildDistributedCacheTaskStore();
-
-        using var cts = new CancellationTokenSource();
-        await cts.CancelAsync();
-
-        // Act
-        var task = sut.GetPushNotificationsAsync("test-id", cts.Token);
-
-        // Assert
-        await Assert.ThrowsAsync<OperationCanceledException>(() => task);
+        Assert.NotNull(result);
+        Assert.NotNull(result.Tasks);
+        Assert.Empty(result.Tasks);
     }
 
     static DistributedCacheTaskStore BuildDistributedCacheTaskStore()

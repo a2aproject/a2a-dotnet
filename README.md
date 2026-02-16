@@ -17,7 +17,13 @@ Key features include:
 
 ## Protocol Compatibility
 
-This library implements most of the features of protocol v0.2.6, however there are some scenarios that are not yet complete for full compatibility with this version. A complete list of outstanding compatibility items can be found at: [open compatibility items](https://github.com/a2aproject/a2a-dotnet/issues?q=is:issue%20is:open%20(label:v0.2.4%20OR%20label:v0.2.5%20OR%20label:v0.2.6))
+This library implements the [A2A v1.0 specification](https://a2a-protocol.org). It provides full support for the JSON-RPC binding and HTTP+JSON REST binding, including streaming via Server-Sent Events.
+
+If you're upgrading from the v0.3 SDK, see the **[Migration Guide](docs/migration-guide-v1.md)** for a comprehensive list of breaking changes and before/after code examples. A backward-compatible `A2A.V0_3` NuGet package is available during the transition:
+
+```bash
+dotnet add package A2A.V0_3
+```
 
 ## Installation
 
@@ -70,48 +76,49 @@ using A2A.AspNetCore;
 var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
 
-// Create and register your agent
-var taskManager = new TaskManager();
-var agent = new EchoAgent();
-agent.Attach(taskManager);
+var store = new InMemoryTaskStore();
+var taskManager = new TaskManager(store);
+
+taskManager.OnSendMessage = async (request, ct) =>
+{
+    var text = request.Message.Parts.FirstOrDefault()?.Text ?? "";
+    return new SendMessageResponse
+    {
+        Message = new Message
+        {
+            MessageId = Guid.NewGuid().ToString("N"),
+            Role = Role.Agent,
+            Parts = [Part.FromText($"Echo: {text}")]
+        }
+    };
+};
+
+var agentCard = new AgentCard
+{
+    Name = "Echo Agent",
+    Description = "Echoes messages back to the user",
+    Version = "1.0.0",
+    SupportedInterfaces = [new AgentInterface
+    {
+        Url = "http://localhost:5000/echo",
+        ProtocolBinding = "JSONRPC",
+        ProtocolVersion = "1.0"
+    }],
+    DefaultInputModes = ["text/plain"],
+    DefaultOutputModes = ["text/plain"],
+    Capabilities = new AgentCapabilities { Streaming = false },
+    Skills = [new AgentSkill
+    {
+        Id = "echo",
+        Name = "Echo",
+        Description = "Echoes back user messages",
+        Tags = ["echo"]
+    }],
+};
 
 app.MapA2A(taskManager, "/echo");
+app.MapWellKnownAgentCard(agentCard);
 app.Run();
-
-public class EchoAgent
-{
-    public void Attach(ITaskManager taskManager)
-    {
-        taskManager.OnMessageReceived = ProcessMessageAsync;
-        taskManager.OnAgentCardQuery = GetAgentCardAsync;
-    }
-
-    private Task<Message> ProcessMessageAsync(MessageSendParams messageSendParams, CancellationToken cancellationToken)
-    {
-        var text = messageSendParams.Message.Parts.OfType<TextPart>().First().Text;
-        return Task.FromResult(new Message
-        {
-            Role = MessageRole.Agent,
-            MessageId = Guid.NewGuid().ToString(),
-            ContextId = messageSendParams.Message.ContextId,
-            Parts = [new TextPart { Text = $"Echo: {text}" }]
-        });
-    }
-
-    private Task<AgentCard> GetAgentCardAsync(string agentUrl, CancellationToken cancellationToken)
-    {
-        return Task.FromResult(new AgentCard
-        {
-            Name = "Echo Agent",
-            Description = "Echoes messages back to the user",
-            Url = agentUrl,
-            Version = "1.0.0",
-            DefaultInputModes = ["text"],
-            DefaultOutputModes = ["text"],
-            Capabilities = new AgentCapabilities { Streaming = true }
-        });
-    }
-}
 ```
 
 ### 2. Connect with A2AClient
@@ -119,20 +126,34 @@ public class EchoAgent
 ```csharp
 using A2A;
 
-// Discover agent and create client
-var cardResolver = new A2ACardResolver(new Uri("http://localhost:5100/"));
+// Discover agent
+var cardResolver = new A2ACardResolver(new Uri("http://localhost:5000/"));
 var agentCard = await cardResolver.GetAgentCardAsync();
-var client = new A2AClient(new Uri(agentCard.Url));
+
+// Create client using agent's endpoint
+var client = new A2AClient(new Uri(agentCard.SupportedInterfaces[0].Url));
 
 // Send message
-var response = await client.SendMessageAsync(new MessageSendParams
+var response = await client.SendMessageAsync(new SendMessageRequest
 {
-    Message = new AgentMessage
+    Message = new Message
     {
-        Role = MessageRole.User,
-        Parts = [new TextPart { Text = "Hello!" }]
+        MessageId = Guid.NewGuid().ToString("N"),
+        Role = Role.User,
+        Parts = [Part.FromText("Hello!")]
     }
 });
+
+// Handle response
+switch (response.PayloadCase)
+{
+    case SendMessageResponseCase.Message:
+        Console.WriteLine(response.Message!.Parts[0].Text);
+        break;
+    case SendMessageResponseCase.Task:
+        Console.WriteLine($"Task created: {response.Task!.Id}");
+        break;
+}
 ```
 
 ## Samples

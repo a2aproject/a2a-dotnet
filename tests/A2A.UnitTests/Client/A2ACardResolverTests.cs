@@ -14,12 +14,11 @@ public class A2ACardResolverTests
         {
             Name = "Test Agent",
             Description = "A test agent",
-            Url = "http://localhost",
-            Version = "1.0.0",
-            Capabilities = new AgentCapabilities { Streaming = true, PushNotifications = false, StateTransitionHistory = true },
+            SupportedInterfaces = [new AgentInterface { Url = "http://localhost", ProtocolBinding = "JSONRPC", ProtocolVersion = "1.0" }],
+            Capabilities = new AgentCapabilities { Streaming = true, PushNotifications = false },
             Skills = [new AgentSkill { Id = "test", Name = "Test Skill", Description = "desc", Tags = [] }]
         };
-        var json = JsonSerializer.Serialize(agentCard);
+        var json = JsonSerializer.Serialize(agentCard, A2AJsonUtilities.DefaultOptions);
         var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(json, Encoding.UTF8, "application/json")
@@ -35,10 +34,9 @@ public class A2ACardResolverTests
         Assert.NotNull(result);
         Assert.Equal(agentCard.Name, result.Name);
         Assert.Equal(agentCard.Description, result.Description);
-        Assert.Equal(agentCard.Url, result.Url);
-        Assert.Equal(agentCard.Version, result.Version);
-        Assert.Equal(agentCard.Capabilities.Streaming, result.Capabilities.Streaming);
-        Assert.Single(result.Skills);
+        Assert.Single(result.SupportedInterfaces);
+        Assert.Equal(agentCard.Capabilities.Streaming, result.Capabilities!.Streaming);
+        Assert.Single(result.Skills!);
     }
 
     [Fact]

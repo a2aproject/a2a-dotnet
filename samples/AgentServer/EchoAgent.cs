@@ -4,59 +4,64 @@ namespace AgentServer;
 
 public class EchoAgent
 {
-    public void Attach(ITaskManager taskManager)
+    public void Attach(TaskManager taskManager)
     {
-        taskManager.OnMessageReceived = ProcessMessageAsync;
-        taskManager.OnAgentCardQuery = GetAgentCardAsync;
+        taskManager.OnSendMessage = OnSendMessageAsync;
     }
 
-    private Task<A2AResponse> ProcessMessageAsync(MessageSendParams messageSendParams, CancellationToken cancellationToken)
+    private Task<SendMessageResponse> OnSendMessageAsync(SendMessageRequest request, CancellationToken cancellationToken)
     {
         if (cancellationToken.IsCancellationRequested)
         {
-            return Task.FromCanceled<A2AResponse>(cancellationToken);
+            return Task.FromCanceled<SendMessageResponse>(cancellationToken);
         }
 
-        // Process the message
-        var messageText = messageSendParams.Message.Parts.OfType<TextPart>().First().Text;
+        var messageText = request.Message.Parts.FirstOrDefault(p => p.Text is not null)?.Text ?? string.Empty;
 
-        // Create and return an artifact
-        var message = new AgentMessage()
+        var response = new Message
         {
-            Role = MessageRole.Agent,
-            MessageId = Guid.NewGuid().ToString(),
-            ContextId = messageSendParams.Message.ContextId,
-            Parts = [new TextPart() {
-                Text = $"Echo: {messageText}"
-            }]
+            Role = Role.Agent,
+            MessageId = Guid.NewGuid().ToString("N"),
+            ContextId = request.Message.ContextId,
+            Parts = [Part.FromText($"Echo: {messageText}")],
         };
 
-        return Task.FromResult<A2AResponse>(message);
+        return Task.FromResult(new SendMessageResponse { Message = response });
     }
 
-    private Task<AgentCard> GetAgentCardAsync(string agentUrl, CancellationToken cancellationToken)
+    public AgentCard GetAgentCard(string agentUrl)
     {
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return Task.FromCanceled<AgentCard>(cancellationToken);
-        }
-
-        var capabilities = new AgentCapabilities()
-        {
-            Streaming = true,
-            PushNotifications = false,
-        };
-
-        return Task.FromResult(new AgentCard()
+        return new AgentCard
         {
             Name = "Echo Agent",
             Description = "Agent which will echo every message it receives.",
-            Url = agentUrl,
             Version = "1.0.0",
-            DefaultInputModes = ["text"],
-            DefaultOutputModes = ["text"],
-            Capabilities = capabilities,
-            Skills = [],
-        });
+            SupportedInterfaces =
+            [
+                new AgentInterface
+                {
+                    Url = agentUrl,
+                    ProtocolBinding = "JSONRPC",
+                    ProtocolVersion = "1.0",
+                }
+            ],
+            DefaultInputModes = ["text/plain"],
+            DefaultOutputModes = ["text/plain"],
+            Capabilities = new AgentCapabilities
+            {
+                Streaming = true,
+                PushNotifications = false,
+            },
+            Skills =
+            [
+                new AgentSkill
+                {
+                    Id = "echo",
+                    Name = "Echo",
+                    Description = "Echoes back the user message.",
+                    Tags = ["echo", "test"],
+                }
+            ],
+        };
     }
 }
