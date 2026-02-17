@@ -11,8 +11,8 @@ public class FileContentSpecComplianceTests
         const string json = """
         {
             "name": "example.txt",
-            "mimeType": "text/plain",
-            "bytes": "SGVsbG8gV29ybGQ="
+            "mediaType": "text/plain",
+            "fileWithBytes": "SGVsbG8gV29ybGQ="
         }
         """;
 
@@ -21,8 +21,8 @@ public class FileContentSpecComplianceTests
 
         Assert.NotNull(fileContent);
         Assert.Equal("example.txt", fileContent.Name);
-        Assert.Equal("text/plain", fileContent.MimeType);
-        Assert.Equal("SGVsbG8gV29ybGQ=", fileContent.Bytes);
+        Assert.Equal("text/plain", fileContent.MediaType);
+        Assert.Equal("SGVsbG8gV29ybGQ=", fileContent.FileWithBytes);
     }
 
     [Fact]
@@ -32,8 +32,8 @@ public class FileContentSpecComplianceTests
         const string json = """
         {
             "name": "example.txt",
-            "mimeType": "text/plain",
-            "uri": "https://example.com/file.txt"
+            "mediaType": "text/plain",
+            "fileWithUri": "https://example.com/file.txt"
         }
         """;
 
@@ -42,9 +42,9 @@ public class FileContentSpecComplianceTests
 
         Assert.NotNull(fileContent);
         Assert.Equal("example.txt", fileContent.Name);
-        Assert.Equal("text/plain", fileContent.MimeType);
-        Assert.NotNull(fileContent.Uri);
-        Assert.Equal("https://example.com/file.txt", fileContent.Uri.ToString());
+        Assert.Equal("text/plain", fileContent.MediaType);
+        Assert.NotNull(fileContent.FileWithUri);
+        Assert.Equal("https://example.com/file.txt", fileContent.FileWithUri.ToString());
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public class FileContentSpecComplianceTests
         var fileWithBytes = new FileContent("SGVsbG8=")
         {
             Name = "test.txt",
-            MimeType = "text/plain",
+            MediaType = "text/plain",
         };
 
         // Act
@@ -62,9 +62,9 @@ public class FileContentSpecComplianceTests
 
         // Assert: Should not contain "kind" property
         Assert.DoesNotContain("\"kind\"", json);
-        Assert.Contains("\"bytes\"", json);
+        Assert.Contains("\"fileWithBytes\"", json);
         Assert.Contains("\"name\"", json);
-        Assert.Contains("\"mimeType\"", json);
+        Assert.Contains("\"mediaType\"", json);
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public class FileContentSpecComplianceTests
         var fileWithUri = new FileContent(new Uri("https://example.com/test.txt"))
         {
             Name = "test.txt",
-            MimeType = "text/plain",
+            MediaType = "text/plain",
         };
 
         // Act
@@ -82,21 +82,21 @@ public class FileContentSpecComplianceTests
 
         // Assert: Should not contain "kind" property
         Assert.DoesNotContain("\"kind\"", json);
-        Assert.Contains("\"uri\"", json);
+        Assert.Contains("\"fileWithUri\"", json);
         Assert.Contains("\"name\"", json);
-        Assert.Contains("\"mimeType\"", json);
+        Assert.Contains("\"mediaType\"", json);
     }
 
     [Fact]
     public void FileContent_Deserialize_WithBothBytesAndUri_ShouldThrow()
     {
-        // Arrange: Invalid JSON with both bytes and uri
+        // Arrange: Invalid JSON with both fileWithBytes and fileWithUri
         const string json = """
         {
             "name": "example.txt",
-            "mimeType": "text/plain",
-            "bytes": "SGVsbG8=",
-            "uri": "https://example.com/file.txt"
+            "mediaType": "text/plain",
+            "fileWithBytes": "SGVsbG8=",
+            "fileWithUri": "https://example.com/file.txt"
         }
         """;
 
@@ -105,17 +105,17 @@ public class FileContentSpecComplianceTests
             JsonSerializer.Deserialize<FileContent>(json, A2AJsonUtilities.DefaultOptions));
 
         Assert.Equal(A2AErrorCode.InvalidRequest, ex.ErrorCode);
-        Assert.Contains("Only one of 'bytes' or 'uri' must be specified", ex.Message);
+        Assert.Contains("Only one of 'fileWithBytes' or 'fileWithUri' must be specified", ex.Message);
     }
 
     [Fact]
     public void FileContent_Deserialize_WithNeitherBytesNorUri_ShouldThrow()
     {
-        // Arrange: Invalid JSON with neither bytes nor uri
+        // Arrange: Invalid JSON with neither fileWithBytes nor fileWithUri
         const string json = """
         {
             "name": "example.txt",
-            "mimeType": "text/plain"
+            "mediaType": "text/plain"
         }
         """;
 
@@ -124,7 +124,7 @@ public class FileContentSpecComplianceTests
             JsonSerializer.Deserialize<FileContent>(json, A2AJsonUtilities.DefaultOptions));
 
         Assert.Equal(A2AErrorCode.InvalidRequest, ex.ErrorCode);
-        Assert.Contains("must have either 'bytes' or 'uri'", ex.Message);
+        Assert.Contains("must have either 'fileWithBytes' or 'fileWithUri'", ex.Message);
     }
 
     [Fact]
@@ -134,7 +134,7 @@ public class FileContentSpecComplianceTests
         var original = new FileContent("SGVsbG8gV29ybGQ=")
         {
             Name = "test.txt",
-            MimeType = "text/plain",
+            MediaType = "text/plain",
         };
 
         // Act: Serialize and deserialize
@@ -144,8 +144,8 @@ public class FileContentSpecComplianceTests
         // Assert
         Assert.NotNull(deserialized);
         Assert.Equal(original.Name, deserialized.Name);
-        Assert.Equal(original.MimeType, deserialized.MimeType);
-        Assert.Equal(original.Bytes, deserialized.Bytes);
+        Assert.Equal(original.MediaType, deserialized.MediaType);
+        Assert.Equal(original.FileWithBytes, deserialized.FileWithBytes);
     }
 
     [Fact]
@@ -155,7 +155,7 @@ public class FileContentSpecComplianceTests
         var original = new FileContent(new Uri("https://example.com/test.txt"))
         {
             Name = "test.txt",
-            MimeType = "text/plain",
+            MediaType = "text/plain",
         };
 
         // Act: Serialize and deserialize
@@ -165,7 +165,7 @@ public class FileContentSpecComplianceTests
         // Assert
         Assert.NotNull(deserialized);
         Assert.Equal(original.Name, deserialized.Name);
-        Assert.Equal(original.MimeType, deserialized.MimeType);
-        Assert.Equal(original.Uri, deserialized.Uri);
+        Assert.Equal(original.MediaType, deserialized.MediaType);
+        Assert.Equal(original.FileWithUri, deserialized.FileWithUri);
     }
 }

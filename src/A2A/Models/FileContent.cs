@@ -7,12 +7,12 @@ namespace A2A;
 /// <summary>
 /// Represents the base entity for FileParts.
 /// According to the A2A spec, FileContent types are distinguished by the presence
-/// of either "bytes" or "uri" properties, not by a discriminator.
+/// of either "fileWithBytes" or "fileWithUri" properties, not by a discriminator.
 /// </summary>
 public class FileContent
 {
-    private string? _bytes;
-    private Uri? _uri;
+    private string? _fileWithBytes;
+    private Uri? _fileWithUri;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FileContent"/> class.
@@ -32,7 +32,7 @@ public class FileContent
             throw new ArgumentNullException(nameof(bytes));
         }
 
-        _bytes = bytes;
+        _fileWithBytes = bytes;
     }
 
     /// <summary>
@@ -40,13 +40,13 @@ public class FileContent
     /// </summary>
     /// <param name="bytes">The byte sequence representing the file content.</param>
     /// <param name="encoding">The encoding to use for converting bytes to a string. Defaults to UTF-8 if not specified.</param>
-    public FileContent(IEnumerable<byte> bytes, Encoding? encoding = null) => _bytes = (encoding ?? Encoding.UTF8).GetString([.. bytes]);
+    public FileContent(IEnumerable<byte> bytes, Encoding? encoding = null) => _fileWithBytes = (encoding ?? Encoding.UTF8).GetString([.. bytes]);
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FileContent"/> class with a URI reference.
     /// </summary>
     /// <param name="uri">The URI pointing to the file content.</param>
-    public FileContent(Uri uri) => _uri = uri;
+    public FileContent(Uri uri) => _fileWithUri = uri;
 
     /// <summary>
     /// Optional name for the file.
@@ -55,44 +55,44 @@ public class FileContent
     public string? Name { get; set; }
 
     /// <summary>
-    /// Optional mimeType for the file.
+    /// Optional media type for the file.
     /// </summary>
-    [JsonPropertyName("mimeType")]
-    public string? MimeType { get; set; }
+    [JsonPropertyName("mediaType")]
+    public string? MediaType { get; set; }
 
     /// <summary>
     /// base64 encoded content of the file.
     /// </summary>
-    [JsonPropertyName("bytes")]
-    public string? Bytes
+    [JsonPropertyName("fileWithBytes")]
+    public string? FileWithBytes
     {
-        get => _bytes;
+        get => _fileWithBytes;
         set
         {
-            if (!string.IsNullOrWhiteSpace(_uri?.ToString()))
+            if (!string.IsNullOrWhiteSpace(_fileWithUri?.ToString()))
             {
-                throw new A2AException("Only one of 'bytes' or 'uri' must be specified", A2AErrorCode.InvalidRequest);
+                throw new A2AException("Only one of 'fileWithBytes' or 'fileWithUri' must be specified", A2AErrorCode.InvalidRequest);
             }
 
-            _bytes = value;
+            _fileWithBytes = value;
         }
     }
 
     /// <summary>
     /// URL for the File content.
     /// </summary>
-    [JsonPropertyName("uri")]
-    public Uri? Uri
+    [JsonPropertyName("fileWithUri")]
+    public Uri? FileWithUri
     {
-        get => _uri;
+        get => _fileWithUri;
         set
         {
-            if (!string.IsNullOrWhiteSpace(_bytes))
+            if (!string.IsNullOrWhiteSpace(_fileWithBytes))
             {
-                throw new A2AException("Only one of 'bytes' or 'uri' must be specified", A2AErrorCode.InvalidRequest);
+                throw new A2AException("Only one of 'fileWithBytes' or 'fileWithUri' must be specified", A2AErrorCode.InvalidRequest);
             }
 
-            _uri = value;
+            _fileWithUri = value;
         }
     }
 
@@ -103,14 +103,14 @@ public class FileContent
             var root = document.RootElement;
 
             // Determine type based on presence of required properties
-            bool hasBytes = root.TryGetProperty("bytes", out var bytesProperty) &&
+            bool hasBytes = root.TryGetProperty("fileWithBytes", out var bytesProperty) &&
                            bytesProperty.ValueKind == JsonValueKind.String;
-            bool hasUri = root.TryGetProperty("uri", out var uriProperty) &&
+            bool hasUri = root.TryGetProperty("fileWithUri", out var uriProperty) &&
                          uriProperty.ValueKind == JsonValueKind.String;
 
             if (!hasBytes && !hasUri)
             {
-                throw new A2AException("FileContent must have either 'bytes' or 'uri' property", A2AErrorCode.InvalidRequest);
+                throw new A2AException("FileContent must have either 'fileWithBytes' or 'fileWithUri' property", A2AErrorCode.InvalidRequest);
             }
 
             return base.DeserializeImpl(typeof(FileContent), options, document);

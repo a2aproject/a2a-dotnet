@@ -15,9 +15,9 @@ namespace A2A.UnitTests.Models
         public void ToChatMessage_ConvertsAgentRoleAndParts()
         {
             var text = new TextPart { Text = "hello" };
-            var file = new FilePart { File = new FileContent(new Uri("https://example.com")) { MimeType = "text/plain" } };
+            var file = new FilePart { File = new FileContent(new Uri("https://example.com")) { MediaType = "text/plain" } };
             var bytes = new byte[] { 1, 2, 3 };
-            var fileBytes = new FilePart { File = new FileContent(Convert.ToBase64String(bytes)) { MimeType = "application/octet-stream", Name = "b.bin" } };
+            var fileBytes = new FilePart { File = new FileContent(Convert.ToBase64String(bytes)) { MediaType = "application/octet-stream", Name = "b.bin" } };
             var data = new DataPart { Data = new Dictionary<string, JsonElement> { ["k"] = JsonSerializer.SerializeToElement("v") } };
             var agent = new AgentMessage
             {
@@ -135,7 +135,7 @@ namespace A2A.UnitTests.Models
         public void ToAIContent_ConvertsFilePartWithUri()
         {
             var uri = new Uri("https://example.com/data.json");
-            var part = new FilePart { File = new FileContent(uri) { MimeType = "application/json" } };
+            var part = new FilePart { File = new FileContent(uri) { MediaType = "application/json" } };
             var content = part.ToAIContent();
             var uc = Assert.IsType<UriContent>(content);
             Assert.Equal(uri, uc.Uri);
@@ -147,7 +147,7 @@ namespace A2A.UnitTests.Models
         {
             var raw = new byte[] { 10, 20, 30 };
             var b64 = Convert.ToBase64String(raw);
-            var part = new FilePart { File = new FileContent(b64) { MimeType = null, Name = "r.bin" } };
+            var part = new FilePart { File = new FileContent(b64) { MediaType = null, Name = "r.bin" } };
             var content = part.ToAIContent();
             var dc = Assert.IsType<DataContent>(content);
             Assert.Equal(raw, dc.Data);
@@ -208,9 +208,9 @@ namespace A2A.UnitTests.Models
             var content = new UriContent(uri, "text/plain");
             var part = content.ToPart();
             var fp = Assert.IsType<FilePart>(part);
-            Assert.NotNull(fp.File.Uri);
-            Assert.Equal(uri, fp.File.Uri);
-            Assert.Equal("text/plain", fp.File.MimeType);
+            Assert.NotNull(fp.File.FileWithUri);
+            Assert.Equal(uri, fp.File.FileWithUri);
+            Assert.Equal("text/plain", fp.File.MediaType);
         }
 
         [Fact]
@@ -220,9 +220,9 @@ namespace A2A.UnitTests.Models
             var content = new DataContent(payload, "application/custom");
             var part = content.ToPart();
             var fp = Assert.IsType<FilePart>(part);
-            Assert.NotNull(fp.File.Bytes);
-            Assert.Equal(new byte[] { 1, 2, 3, 4 }, Convert.FromBase64String(fp.File.Bytes));
-            Assert.Equal("application/custom", fp.File.MimeType);
+            Assert.NotNull(fp.File.FileWithBytes);
+            Assert.Equal(new byte[] { 1, 2, 3, 4 }, Convert.FromBase64String(fp.File.FileWithBytes));
+            Assert.Equal("application/custom", fp.File.MediaType);
         }
 
         [Fact]

@@ -84,13 +84,13 @@ public static class AIContentExtensions
                 break;
 
             case FilePart { File: { } file }:
-                if (file.Uri is not null)
+                if (file.FileWithUri is not null)
                 {
-                    content = new UriContent(file.Uri, file.MimeType ?? "application/octet-stream");
+                    content = new UriContent(file.FileWithUri, file.MediaType ?? "application/octet-stream");
                 }
-                else if (file.Bytes is not null)
+                else if (file.FileWithBytes is not null)
                 {
-                    content = new DataContent(Convert.FromBase64String(file.Bytes), file.MimeType ?? "application/octet-stream")
+                    content = new DataContent(Convert.FromBase64String(file.FileWithBytes), file.MediaType ?? "application/octet-stream")
                     {
                         Name = file.Name,
                     };
@@ -142,14 +142,14 @@ public static class AIContentExtensions
             case UriContent uriContent:
                 part = new FilePart
                 {
-                    File = new FileContent(uriContent.Uri) { MimeType = uriContent.MediaType },
+                    File = new FileContent(uriContent.Uri) { MediaType = uriContent.MediaType },
                 };
                 break;
 
             case DataContent dataContent:
                 part = new FilePart
                 {
-                    File = new FileContent(dataContent.Base64Data.ToString()) { MimeType = dataContent.MediaType },
+                    File = new FileContent(dataContent.Base64Data.ToString()) { MediaType = dataContent.MediaType },
                 };
                 break;
         }
