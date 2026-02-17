@@ -110,6 +110,7 @@ public sealed class TaskManager : ITaskManager
             }
 
             await _taskStore.UpdateStatusAsync(task.Id, TaskState.Canceled, cancellationToken: cancellationToken).ConfigureAwait(false);
+            task = await _taskStore.GetTaskAsync(task.Id, cancellationToken).ConfigureAwait(false) ?? task;
             await OnTaskCancelled(task, cancellationToken).ConfigureAwait(false);
             return task;
         }
