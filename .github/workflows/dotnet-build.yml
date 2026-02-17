@@ -20,13 +20,13 @@ jobs:
           - dotnet-version: 9.x
             framework: net9.0
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6.0.2
       - name: Setup .NET 9.x
-        uses: actions/setup-dotnet@v5.0.1
+        uses: actions/setup-dotnet@v5.1.0
         with:
           dotnet-version: 9.x
       - name: Setup .NET ${{ matrix.dotnet-version }}
-        uses: actions/setup-dotnet@v5.0.1
+        uses: actions/setup-dotnet@v5.1.0
         with:
           dotnet-version: ${{ matrix.dotnet-version }}
       - name: Restore dependencies
@@ -40,9 +40,9 @@ jobs:
   buildSamples:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6.0.2
       - name: Setup .NET 9.x
-        uses: actions/setup-dotnet@v5.0.1
+        uses: actions/setup-dotnet@v5.1.0
         with:
           dotnet-version: 9.x
       - name: Restore dependencies

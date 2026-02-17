@@ -44,12 +44,12 @@ jobs:
 
     steps:
     - name: Clone the repo
-      uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98 # v6.0.1
       with:
           fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
 
     - name: Set up .NET
-      uses: actions/setup-dotnet@2016bd2012dba4e32de620c46fe006a3ac9f0602 # v5.0.1
+      uses: actions/setup-dotnet@baa11fbfe1d6520db94683bd5c7a3818018e4309 # v5.1.0
       with:
         dotnet-version: |
           8.0.x
@@ -75,10 +75,10 @@ jobs:
       version_suffix_args: ${{ github.event_name != 'release' && format('--version-suffix "{0}"', inputs.version_suffix_override || format('ci.{0}', github.run_number)) || '' }}
 
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98 # v6.0.1
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@2016bd2012dba4e32de620c46fe006a3ac9f0602 # v5.0.1
+        uses: actions/setup-dotnet@baa11fbfe1d6520db94683bd5c7a3818018e4309 # v5.1.0
         with:
           dotnet-version: |
             9.0.x
@@ -105,10 +105,10 @@ jobs:
       packages: write
 
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98 # v6.0.1
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@2016bd2012dba4e32de620c46fe006a3ac9f0602 # v5.0.1
+        uses: actions/setup-dotnet@baa11fbfe1d6520db94683bd5c7a3818018e4309 # v5.1.0
         with:
           dotnet-version: 9.0.x
 
@@ -143,10 +143,10 @@ jobs:
       packages: write
 
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98 # v6.0.1
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@2016bd2012dba4e32de620c46fe006a3ac9f0602 # v5.0.1
+        uses: actions/setup-dotnet@baa11fbfe1d6520db94683bd5c7a3818018e4309 # v5.1.0
         with:
           dotnet-version: 9.0.x
 
@@ -171,10 +171,10 @@ jobs:
     permissions: { }
 
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98 # v6.0.1
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@2016bd2012dba4e32de620c46fe006a3ac9f0602 # v5.0.1
+        uses: actions/setup-dotnet@baa11fbfe1d6520db94683bd5c7a3818018e4309 # v5.1.0
         with:
           dotnet-version: 9.0.x
 
