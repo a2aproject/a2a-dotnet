@@ -55,6 +55,16 @@ public static class A2ARouteBuilderExtensions
     /// <summary>
     /// Maps HTTP+JSON REST API endpoints for A2A v1.
     /// </summary>
+    /// <remarks>
+    /// <para>All REST endpoints are prefixed with <c>/v1/</c> (e.g., <c>/v1/tasks/{id}</c>).
+    /// The A2A specification defines routes without this prefix (e.g., <c>/tasks/{id}</c>).
+    /// Configure the <paramref name="path"/> parameter to control the base path.</para>
+    /// <para><strong>Limitation:</strong> Multi-tenant route variants
+    /// (<c>/{tenant}/tasks/{id}</c>) defined in the A2A specification are not currently
+    /// supported. The <c>Tenant</c> field on request types will always be <c>null</c>
+    /// for REST API calls. Use the JSON-RPC binding with explicit tenant parameters
+    /// if multi-tenant routing is required.</para>
+    /// </remarks>
     /// <param name="endpoints">The endpoint route builder.</param>
     /// <param name="taskManager">The task manager implementation.</param>
     /// <param name="agentCard">The agent card to serve at the /v1/card endpoint.</param>
