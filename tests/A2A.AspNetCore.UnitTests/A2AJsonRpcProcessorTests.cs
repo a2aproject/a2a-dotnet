@@ -468,6 +468,315 @@ public class A2AJsonRpcProcessorTests
         return context.Request;
     }
 
+    [Fact]
+    public async Task ProcessRequestAsync_ListTasks_ReturnsEmptyResult()
+    {
+        // Arrange
+        var taskManager = CreateTestTaskManager();
+        var jsonRequest = $$"""
+        {
+            "jsonrpc": "2.0",
+            "method": "{{A2AMethods.ListTasks}}",
+            "id": "list-1",
+            "params": {}
+        }
+        """;
+
+        var httpRequest = CreateHttpRequestFromJson(jsonRequest);
+
+        // Act
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+
+        // Assert
+        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
+        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+
+        Assert.Equal(StatusCodes.Status200OK, StatusCode);
+        Assert.Equal("application/json", ContentType);
+        Assert.NotNull(BodyContent.Result);
+        Assert.Null(BodyContent.Error);
+
+        var listResponse = JsonSerializer.Deserialize<ListTasksResponse>(BodyContent.Result, A2AJsonUtilities.DefaultOptions);
+        Assert.NotNull(listResponse);
+        Assert.Empty(listResponse.Tasks);
+    }
+
+    [Fact]
+    public async Task ProcessRequestAsync_ListTasks_InvalidPageSize_ReturnsError()
+    {
+        // Arrange
+        var taskManager = CreateTestTaskManager();
+        var jsonRequest = $$"""
+        {
+            "jsonrpc": "2.0",
+            "method": "{{A2AMethods.ListTasks}}",
+            "id": "list-2",
+            "params": { "pageSize": 0 }
+        }
+        """;
+
+        var httpRequest = CreateHttpRequestFromJson(jsonRequest);
+
+        // Act
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+
+        // Assert
+        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
+        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+
+        Assert.Equal(StatusCodes.Status200OK, StatusCode);
+        Assert.Equal("application/json", ContentType);
+        Assert.Null(BodyContent.Result);
+        Assert.NotNull(BodyContent.Error);
+        Assert.Equal((int)A2AErrorCode.InvalidParams, BodyContent.Error.Code);
+        Assert.Contains("pageSize", BodyContent.Error.Message);
+    }
+
+    [Fact]
+    public async Task ProcessRequestAsync_ListTasks_NegativeHistoryLength_ReturnsError()
+    {
+        // Arrange
+        var taskManager = CreateTestTaskManager();
+        var jsonRequest = $$"""
+        {
+            "jsonrpc": "2.0",
+            "method": "{{A2AMethods.ListTasks}}",
+            "id": "list-3",
+            "params": { "historyLength": -1 }
+        }
+        """;
+
+        var httpRequest = CreateHttpRequestFromJson(jsonRequest);
+
+        // Act
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+
+        // Assert
+        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
+        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+
+        Assert.Equal(StatusCodes.Status200OK, StatusCode);
+        Assert.Equal("application/json", ContentType);
+        Assert.Null(BodyContent.Result);
+        Assert.NotNull(BodyContent.Error);
+        Assert.Equal((int)A2AErrorCode.InvalidParams, BodyContent.Error.Code);
+        Assert.Contains("historyLength", BodyContent.Error.Message);
+    }
+
+    [Fact]
+    public async Task ProcessRequestAsync_PushNotificationMethod_ReturnsNotSupported()
+    {
+        // Arrange
+        var taskManager = CreateTestTaskManager();
+        var jsonRequest = $$"""
+        {
+            "jsonrpc": "2.0",
+            "method": "{{A2AMethods.CreateTaskPushNotificationConfig}}",
+            "id": "pn-1",
+            "params": { "taskId": "some-task", "pushNotificationConfig": { "url": "https://example.com/callback" } }
+        }
+        """;
+
+        var httpRequest = CreateHttpRequestFromJson(jsonRequest);
+
+        // Act
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+
+        // Assert
+        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
+        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+
+        Assert.Equal(StatusCodes.Status200OK, StatusCode);
+        Assert.Equal("application/json", ContentType);
+        Assert.Null(BodyContent.Result);
+        Assert.NotNull(BodyContent.Error);
+        Assert.Equal((int)A2AErrorCode.PushNotificationNotSupported, BodyContent.Error.Code);
+    }
+
+    [Fact]
+    public async Task ProcessRequestAsync_GetExtendedAgentCard_ReturnsNotConfigured()
+    {
+        // Arrange
+        var taskManager = CreateTestTaskManager();
+        var jsonRequest = $$"""
+        {
+            "jsonrpc": "2.0",
+            "method": "{{A2AMethods.GetExtendedAgentCard}}",
+            "id": "card-1",
+            "params": {}
+        }
+        """;
+
+        var httpRequest = CreateHttpRequestFromJson(jsonRequest);
+
+        // Act
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+
+        // Assert
+        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
+        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+
+        Assert.Equal(StatusCodes.Status200OK, StatusCode);
+        Assert.Equal("application/json", ContentType);
+        Assert.Null(BodyContent.Result);
+        Assert.NotNull(BodyContent.Error);
+        Assert.Equal((int)A2AErrorCode.ExtendedAgentCardNotConfigured, BodyContent.Error.Code);
+    }
+
+    [Fact]
+    public async Task ProcessRequestAsync_VersionNegotiation_EmptyHeader_Succeeds()
+    {
+        // Arrange - no A2A-Version header set
+        var taskManager = CreateTestTaskManager();
+        var jsonRequest = $$"""
+        {
+            "jsonrpc": "2.0",
+            "method": "{{A2AMethods.SendMessage}}",
+            "id": "ver-1",
+            "params": {
+                "message": {
+                    "messageId": "test-msg",
+                    "role": "ROLE_USER",
+                    "parts": [{"text":"hello"}]
+                }
+            }
+        }
+        """;
+
+        var httpRequest = CreateHttpRequestFromJson(jsonRequest);
+
+        // Act
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+
+        // Assert
+        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
+        var (StatusCode, _, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+
+        Assert.Equal(StatusCodes.Status200OK, StatusCode);
+        Assert.NotNull(BodyContent.Result);
+        Assert.Null(BodyContent.Error);
+    }
+
+    [Fact]
+    public async Task ProcessRequestAsync_VersionNegotiation_V10_Succeeds()
+    {
+        // Arrange
+        var taskManager = CreateTestTaskManager();
+        var jsonRequest = $$"""
+        {
+            "jsonrpc": "2.0",
+            "method": "{{A2AMethods.SendMessage}}",
+            "id": "ver-2",
+            "params": {
+                "message": {
+                    "messageId": "test-msg",
+                    "role": "ROLE_USER",
+                    "parts": [{"text":"hello"}]
+                }
+            }
+        }
+        """;
+
+        var context = new DefaultHttpContext();
+        var bytes = Encoding.UTF8.GetBytes(jsonRequest);
+        context.Request.Body = new MemoryStream(bytes);
+        context.Request.ContentType = "application/json";
+        context.Request.Headers["A2A-Version"] = "1.0";
+        var httpRequest = context.Request;
+
+        // Act
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+
+        // Assert
+        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
+        var (StatusCode, _, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+
+        Assert.Equal(StatusCodes.Status200OK, StatusCode);
+        Assert.NotNull(BodyContent.Result);
+        Assert.Null(BodyContent.Error);
+    }
+
+    [Fact]
+    public async Task ProcessRequestAsync_VersionNegotiation_V03_Succeeds()
+    {
+        // Arrange
+        var taskManager = CreateTestTaskManager();
+        var jsonRequest = $$"""
+        {
+            "jsonrpc": "2.0",
+            "method": "{{A2AMethods.SendMessage}}",
+            "id": "ver-3",
+            "params": {
+                "message": {
+                    "messageId": "test-msg",
+                    "role": "ROLE_USER",
+                    "parts": [{"text":"hello"}]
+                }
+            }
+        }
+        """;
+
+        var context = new DefaultHttpContext();
+        var bytes = Encoding.UTF8.GetBytes(jsonRequest);
+        context.Request.Body = new MemoryStream(bytes);
+        context.Request.ContentType = "application/json";
+        context.Request.Headers["A2A-Version"] = "0.3";
+        var httpRequest = context.Request;
+
+        // Act
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+
+        // Assert
+        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
+        var (StatusCode, _, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+
+        Assert.Equal(StatusCodes.Status200OK, StatusCode);
+        Assert.NotNull(BodyContent.Result);
+        Assert.Null(BodyContent.Error);
+    }
+
+    [Fact]
+    public async Task ProcessRequestAsync_VersionNegotiation_Unsupported_ReturnsError()
+    {
+        // Arrange
+        var taskManager = CreateTestTaskManager();
+        var jsonRequest = $$"""
+        {
+            "jsonrpc": "2.0",
+            "method": "{{A2AMethods.SendMessage}}",
+            "id": "ver-4",
+            "params": {
+                "message": {
+                    "messageId": "test-msg",
+                    "role": "ROLE_USER",
+                    "parts": [{"text":"hello"}]
+                }
+            }
+        }
+        """;
+
+        var context = new DefaultHttpContext();
+        var bytes = Encoding.UTF8.GetBytes(jsonRequest);
+        context.Request.Body = new MemoryStream(bytes);
+        context.Request.ContentType = "application/json";
+        context.Request.Headers["A2A-Version"] = "2.0";
+        var httpRequest = context.Request;
+
+        // Act
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+
+        // Assert
+        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
+        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+
+        Assert.Equal(StatusCodes.Status200OK, StatusCode);
+        Assert.Equal("application/json", ContentType);
+        Assert.Null(BodyContent.Result);
+        Assert.NotNull(BodyContent.Error);
+        Assert.Equal((int)A2AErrorCode.VersionNotSupported, BodyContent.Error.Code);
+        Assert.Contains("2.0", BodyContent.Error.Message);
+    }
+
     private static async Task<(int StatusCode, string? ContentType, TBody BodyContent)> GetJsonRpcResponseHttpDetails<TBody>(JsonRpcResponseResult responseResult)
     {
         HttpContext context = new DefaultHttpContext();

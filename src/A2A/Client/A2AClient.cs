@@ -13,15 +13,6 @@ public sealed class A2AClient : IA2AClient, IDisposable
     private readonly string _url;
 
     /// <summary>Initializes a new instance of the <see cref="A2AClient"/> class.</summary>
-    /// <param name="httpClient">The HTTP client to use for communication.</param>
-    /// <param name="url">The URL of the A2A agent endpoint.</param>
-    public A2AClient(HttpClient httpClient, string url)
-    {
-        _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
-        _url = url ?? throw new ArgumentNullException(nameof(url));
-    }
-
-    /// <summary>Initializes a new instance of the <see cref="A2AClient"/> class.</summary>
     /// <param name="baseUrl">The base url of the agent's hosting service.</param>
     /// <param name="httpClient">The HTTP client to use for requests.</param>
     public A2AClient(Uri baseUrl, HttpClient? httpClient = null)
