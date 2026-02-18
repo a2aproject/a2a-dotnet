@@ -266,6 +266,112 @@ public class A2AClientTests
         Assert.Equal(A2AErrorCode.MethodNotFound, exception.ErrorCode);
     }
 
+    [Fact]
+    public async Task ListTasksAsync_SendsCorrectMethodAndParams()
+    {
+        // Arrange
+        string? capturedBody = null;
+
+        var sut = CreateA2AClient(
+            new ListTasksResponse { Tasks = [] },
+            req => capturedBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+
+        var request = new ListTasksRequest { ContextId = "ctx-1" };
+
+        // Act
+        await sut.ListTasksAsync(request);
+
+        // Assert
+        Assert.NotNull(capturedBody);
+
+        var requestJson = JsonDocument.Parse(capturedBody);
+        Assert.Equal(A2AMethods.ListTasks, requestJson.RootElement.GetProperty("method").GetString());
+
+        var parameters = requestJson.RootElement.GetProperty("params").Deserialize<ListTasksRequest>(A2AJsonUtilities.DefaultOptions);
+        Assert.NotNull(parameters);
+        Assert.Equal("ctx-1", parameters.ContextId);
+    }
+
+    [Fact]
+    public async Task CancelTaskAsync_SendsCorrectMethod()
+    {
+        // Arrange
+        string? capturedBody = null;
+
+        var sut = CreateA2AClient(
+            new AgentTask { Id = "task-1" },
+            req => capturedBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+
+        // Act
+        await sut.CancelTaskAsync(new CancelTaskRequest { Id = "task-1" });
+
+        // Assert
+        Assert.NotNull(capturedBody);
+
+        var requestJson = JsonDocument.Parse(capturedBody);
+        Assert.Equal(A2AMethods.CancelTask, requestJson.RootElement.GetProperty("method").GetString());
+    }
+
+    [Fact]
+    public async Task GetExtendedAgentCardAsync_SendsCorrectMethod()
+    {
+        // Arrange
+        string? capturedBody = null;
+
+        var sut = CreateA2AClient(
+            new AgentCard { Name = "Agent", Description = "Desc", SupportedInterfaces = [new AgentInterface { Url = "http://test", ProtocolBinding = "JSONRPC", ProtocolVersion = "1.0" }] },
+            req => capturedBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+
+        // Act
+        await sut.GetExtendedAgentCardAsync(new GetExtendedAgentCardRequest());
+
+        // Assert
+        Assert.NotNull(capturedBody);
+
+        var requestJson = JsonDocument.Parse(capturedBody);
+        Assert.Equal(A2AMethods.GetExtendedAgentCard, requestJson.RootElement.GetProperty("method").GetString());
+    }
+
+    [Fact]
+    public async Task CreatePushNotificationConfigAsync_SendsCorrectMethod()
+    {
+        // Arrange
+        string? capturedBody = null;
+
+        var sut = CreateA2AClient(
+            new TaskPushNotificationConfig { Id = "cfg-1", TaskId = "t-1", PushNotificationConfig = new PushNotificationConfig { Url = "http://push" } },
+            req => capturedBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+
+        // Act
+        await sut.CreateTaskPushNotificationConfigAsync(new CreateTaskPushNotificationConfigRequest { TaskId = "t-1", ConfigId = "cfg-1", Config = new PushNotificationConfig { Url = "http://push" } });
+
+        // Assert
+        Assert.NotNull(capturedBody);
+
+        var requestJson = JsonDocument.Parse(capturedBody);
+        Assert.Equal(A2AMethods.CreateTaskPushNotificationConfig, requestJson.RootElement.GetProperty("method").GetString());
+    }
+
+    [Fact]
+    public async Task DeletePushNotificationConfigAsync_SendsCorrectMethod()
+    {
+        // Arrange
+        string? capturedBody = null;
+
+        var sut = CreateA2AClient(
+            new object(),
+            req => capturedBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+
+        // Act
+        await sut.DeleteTaskPushNotificationConfigAsync(new DeleteTaskPushNotificationConfigRequest { Id = "cfg-1", TaskId = "t-1" });
+
+        // Assert
+        Assert.NotNull(capturedBody);
+
+        var requestJson = JsonDocument.Parse(capturedBody);
+        Assert.Equal(A2AMethods.DeleteTaskPushNotificationConfig, requestJson.RootElement.GetProperty("method").GetString());
+    }
+
     private static A2AClient CreateA2AClient(object result, Action<HttpRequestMessage>? onRequest = null, bool isSse = false)
     {
         var response = new JsonRpcResponse

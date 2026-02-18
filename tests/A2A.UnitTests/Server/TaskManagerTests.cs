@@ -227,4 +227,16 @@ public class TaskManagerTests
         await Assert.ThrowsAsync<A2AException>(() =>
             taskManager.GetTaskPushNotificationConfigAsync(new GetTaskPushNotificationConfigRequest()));
     }
+
+    [Fact]
+    public async Task GetExtendedAgentCard_ThrowsNotConfigured()
+    {
+        // Arrange
+        var taskManager = CreateTaskManager();
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<A2AException>(() =>
+            taskManager.GetExtendedAgentCardAsync(new GetExtendedAgentCardRequest()));
+        Assert.Equal(A2AErrorCode.ExtendedAgentCardNotConfigured, ex.ErrorCode);
+    }
 }

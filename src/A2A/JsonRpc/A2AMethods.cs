@@ -55,5 +55,12 @@ public static class A2AMethods
     /// </summary>
     /// <param name="method">The method name to validate.</param>
     /// <returns>True if the method is valid, false otherwise.</returns>
-    public static bool IsValidMethod(string method) => method is SendMessage or SendStreamingMessage or GetTask or ListTasks or CancelTask or SubscribeToTask or CreateTaskPushNotificationConfig or GetTaskPushNotificationConfig or ListTaskPushNotificationConfig or DeleteTaskPushNotificationConfig or GetExtendedAgentCard;
+    public static bool IsValidMethod(string method) =>
+        method is SendMessage
+            or GetTask
+            or ListTasks
+            or CancelTask
+            or GetExtendedAgentCard ||
+        IsStreamingMethod(method) ||
+        IsPushNotificationMethod(method);
 }

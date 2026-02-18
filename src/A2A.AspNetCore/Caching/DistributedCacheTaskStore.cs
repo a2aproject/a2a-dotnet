@@ -6,6 +6,18 @@ namespace A2A.AspNetCore.Caching;
 /// <summary>
 /// Distributed cache implementation of task store.
 /// </summary>
+/// <remarks>
+/// <para>This store uses <see cref="IDistributedCache"/> for task persistence,
+/// suitable for multi-instance deployments (e.g., Redis, SQL Server).</para>
+/// <para><strong>Limitation:</strong> <see cref="ListTasksAsync"/> returns an empty result
+/// because key-value caches cannot query or filter across entries.
+/// Use a database-backed <see cref="ITaskStore"/> implementation for
+/// <c>ListTasks</c> support.</para>
+/// <para><strong>Concurrency:</strong> <see cref="UpdateStatusAsync"/> and
+/// <see cref="AppendHistoryAsync"/> perform read-modify-write cycles without locking.
+/// Concurrent updates to the same task may lose writes. For production use,
+/// consider implementing optimistic concurrency (e.g., ETags) or external locking.</para>
+/// </remarks>
 /// <param name="cache">The distributed cache instance.</param>
 public class DistributedCacheTaskStore(IDistributedCache cache)
     : ITaskStore
@@ -38,6 +50,12 @@ public class DistributedCacheTaskStore(IDistributedCache cache)
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// <strong>Concurrency warning:</strong> This method performs a read-modify-write
+    /// cycle without locking. Concurrent updates to the same task may lose writes.
+    /// For production use, consider implementing optimistic concurrency
+    /// (e.g., ETags) or external locking.
+    /// </remarks>
     public async Task<AgentTask> UpdateStatusAsync(string taskId, TaskStatus status, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -62,6 +80,12 @@ public class DistributedCacheTaskStore(IDistributedCache cache)
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// <strong>Concurrency warning:</strong> This method performs a read-modify-write
+    /// cycle without locking. Concurrent updates to the same task may lose writes.
+    /// For production use, consider implementing optimistic concurrency
+    /// (e.g., ETags) or external locking.
+    /// </remarks>
     public async Task<AgentTask> AppendHistoryAsync(string taskId, Message message, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -86,6 +110,11 @@ public class DistributedCacheTaskStore(IDistributedCache cache)
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Always returns an empty result. Distributed caches do not support
+    /// listing or filtering operations. Implement a database-backed
+    /// <see cref="ITaskStore"/> for full <c>ListTasks</c> support.
+    /// </remarks>
     public Task<ListTasksResponse> ListTasksAsync(ListTasksRequest request, CancellationToken cancellationToken = default)
     {
         // Distributed cache does not support listing/querying — return empty
