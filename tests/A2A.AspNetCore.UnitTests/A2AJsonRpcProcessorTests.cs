@@ -192,10 +192,10 @@ public class A2AJsonRpcProcessorTests
     }
 
     [Theory]
-    [InlineData("{\"invalidField\": \"not_message\"}", "Invalid parameters for SendMessageRequest")]  // Wrong field structure
-    [InlineData("{\"message\": \"not_object\"}", "Invalid parameters for SendMessageRequest")]        // Wrong field type
-    [InlineData("{\"message\": {\"kind\": \"invalid\"}}", "Invalid parameters for SendMessageRequest")] // Missing required fields
-    [InlineData("{\"\":\"not_a_dict\"}", "Invalid parameters for SendMessageRequest")] // Missing message field
+    [InlineData("{\"invalidField\": \"not_message\"}", "Invalid parameters: request body could not be deserialized as SendMessageRequest")]  // Wrong field structure
+    [InlineData("{\"message\": \"not_object\"}", "Invalid parameters: request body could not be deserialized as SendMessageRequest")]        // Wrong field type
+    [InlineData("{\"message\": {\"kind\": \"invalid\"}}", "Invalid parameters: request body could not be deserialized as SendMessageRequest")] // Missing required fields
+    [InlineData("{\"\":\"not_a_dict\"}", "Invalid parameters: request body could not be deserialized as SendMessageRequest")] // Missing message field
     public async Task ValidateParamsContent_HandlesInvalidParamsStructure(string paramsValue, string expectedErrorPrefix)
     {
         // Arrange

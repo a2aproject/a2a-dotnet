@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using System.Net.ServerSentEvents;
+using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 
@@ -33,14 +34,39 @@ public sealed class JsonRpcStreamedResult : IResult
         httpContext.Response.Headers.Append("Cache-Control", "no-cache");
 
         var responseTypeInfo = A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcResponse));
-        await SseFormatter.WriteAsync(
-            _events.Select(e => new SseItem<JsonRpcResponse>(JsonRpcResponse.CreateJsonRpcResponse(_requestId, e))),
-            httpContext.Response.Body,
-            (item, writer) =>
+        try
+        {
+            await SseFormatter.WriteAsync(
+                _events.Select(e => new SseItem<JsonRpcResponse>(JsonRpcResponse.CreateJsonRpcResponse(_requestId, e))),
+                httpContext.Response.Body,
+                (item, writer) =>
+                {
+                    using Utf8JsonWriter json = new(writer, new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
+                    JsonSerializer.Serialize(json, item.Data, responseTypeInfo);
+                },
+                httpContext.RequestAborted).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Client disconnected — expected
+        }
+        catch (Exception)
+        {
+            // Stream error — response already started, cannot change status code.
+            // Best effort: write an error event if the response body is still writable.
+            try
             {
-                using Utf8JsonWriter json = new(writer, new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
-                JsonSerializer.Serialize(json, item.Data, responseTypeInfo);
-            },
-            httpContext.RequestAborted).ConfigureAwait(false);
+                var errorResponse = JsonRpcResponse.InternalErrorResponse(
+                    _requestId, "An internal error occurred during streaming.");
+                var errorJson = JsonSerializer.Serialize(errorResponse, responseTypeInfo);
+                var errorBytes = Encoding.UTF8.GetBytes($"data: {errorJson}\n\n");
+                await httpContext.Response.Body.WriteAsync(errorBytes, httpContext.RequestAborted);
+                await httpContext.Response.Body.FlushAsync(httpContext.RequestAborted);
+            }
+            catch
+            {
+                // Response body is no longer writable — silently abandon
+            }
+        }
     }
 }

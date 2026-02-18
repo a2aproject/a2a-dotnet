@@ -54,7 +54,7 @@ public static class A2AJsonRpcProcessor
         {
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             var errorId = rpcRequest?.Id ?? new JsonRpcId((string?)null);
-            return new JsonRpcResponseResult(JsonRpcResponse.InternalErrorResponse(errorId, ex.Message));
+            return new JsonRpcResponseResult(JsonRpcResponse.InternalErrorResponse(errorId, "An internal error occurred."));
         }
     }
 
@@ -173,7 +173,7 @@ public static class A2AJsonRpcProcessor
         }
         catch (JsonException ex)
         {
-            throw new A2AException($"Invalid parameters for {typeof(T).Name}: {ex.Message}", ex, A2AErrorCode.InvalidParams);
+            throw new A2AException($"Invalid parameters: request body could not be deserialized as {typeof(T).Name}.", ex, A2AErrorCode.InvalidParams);
         }
 
         if (parms is null)

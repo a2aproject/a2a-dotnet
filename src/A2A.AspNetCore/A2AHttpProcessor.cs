@@ -77,7 +77,7 @@ internal static class A2AHttpProcessor
         catch (Exception ex)
         {
             logger.UnexpectedErrorInActivityName(ex, activityName);
-            return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            return Results.Problem(detail: "An internal error occurred.", statusCode: StatusCodes.Status500InternalServerError);
         }
     }
 
@@ -102,7 +102,7 @@ internal static class A2AHttpProcessor
         catch (Exception ex)
         {
             logger.UnexpectedErrorInActivityName(ex, activityName);
-            return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            return Results.Problem(detail: "An internal error occurred.", statusCode: StatusCodes.Status500InternalServerError);
         }
     }
 
@@ -142,9 +142,9 @@ internal static class A2AHttpProcessor
         {
             return MapA2AExceptionToHttpResult(ex);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            return Results.Problem(detail: "An internal error occurred.", statusCode: StatusCodes.Status500InternalServerError);
         }
     }
 
@@ -158,9 +158,9 @@ internal static class A2AHttpProcessor
         {
             return MapA2AExceptionToHttpResult(ex);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            return Results.Problem(detail: "An internal error occurred.", statusCode: StatusCodes.Status500InternalServerError);
         }
     }
 
@@ -233,8 +233,14 @@ internal static class A2AHttpProcessor
                 PageToken = pageToken,
                 HistoryLength = historyLength,
             };
-            if (!string.IsNullOrEmpty(status) && Enum.TryParse<TaskState>(status, ignoreCase: true, out var taskState))
+            if (!string.IsNullOrEmpty(status))
             {
+                if (!Enum.TryParse<TaskState>(status, ignoreCase: true, out var taskState))
+                {
+                    return Results.Problem(
+                        detail: $"Invalid status filter: '{status}'. Valid values: {string.Join(", ", Enum.GetNames<TaskState>())}",
+                        statusCode: StatusCodes.Status400BadRequest);
+                }
                 request.Status = taskState;
             }
 
@@ -357,6 +363,20 @@ internal sealed class A2AEventStreamResult : IResult
         catch (OperationCanceledException)
         {
             // Client disconnected — expected
+        }
+        catch (Exception)
+        {
+            // Stream error — response already started, best-effort error event
+            try
+            {
+                await httpContext.Response.BodyWriter.WriteAsync(
+                    Encoding.UTF8.GetBytes("data: {\"error\":\"An internal error occurred during streaming.\"}\n\n"), httpContext.RequestAborted);
+                await httpContext.Response.BodyWriter.FlushAsync(httpContext.RequestAborted);
+            }
+            catch
+            {
+                // Response body no longer writable
+            }
         }
     }
 }
