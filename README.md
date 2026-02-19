@@ -13,7 +13,7 @@ Key features include:
 - **Task-based Communication**: Create and manage persistent, long-running agent tasks
 - **Streaming Support**: Real-time communication using Server-Sent Events
 - **ASP.NET Core Integration**: Built-in extensions for hosting A2A agents in web applications
-- **Cross-platform Compatibility**: Supports .NET Standard 2.0 and .NET 8+
+- **Cross-platform Compatibility**: Supports .NET 8+
 
 ## Protocol Compatibility
 
@@ -208,22 +208,6 @@ Command-line tool for interacting with A2A agents:
    ```
 
 For detailed instructions and advanced scenarios, see the individual README files linked above.
-
-## Security
-
-The SDK handles protocol mechanics (serialization, JSON-RPC dispatch, task lifecycle). Several security responsibilities are intentionally delegated to the application:
-
-| Responsibility | Notes |
-|----------------|-------|
-| Authentication & authorization | Apply HTTP auth middleware to all A2A endpoints; the SDK enforces none. |
-| HTTPS / TLS | Required in production; the SDK does not enforce transport security. |
-| Rate limiting & request size limits | Configure in Kestrel / reverse proxy; the SDK applies no limits. |
-| Webhook URL validation (SSRF) | Validate URLs before storing or using them; the SDK does not check for private/internal targets. |
-| Tenant isolation | Scope every task and config operation to the authenticated identity; the SDK enforces no tenant boundaries. |
-| Production task storage | `InMemoryTaskStore` is for development/testing only; implement `ITaskStore` for production. |
-| File content safety | The SDK treats file bytes and URIs as opaque; validate, scan, and size-limit all file content. |
-
-See **[docs/security.md](docs/security.md)** for the full security guide, including all assumptions, non-goals, trust boundaries, and required application controls.
 
 ## Further Reading
 

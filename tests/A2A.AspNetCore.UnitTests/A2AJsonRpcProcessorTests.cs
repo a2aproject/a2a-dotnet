@@ -261,7 +261,7 @@ public class A2AJsonRpcProcessorTests
         Assert.NotNull(sendMessageResponse?.Task);
         var agentTask = sendMessageResponse.Task;
         Assert.Equal(TaskState.Submitted, agentTask.Status.State);
-        Assert.NotEmpty(agentTask.History);
+        Assert.NotEmpty(agentTask.History!);
         Assert.Equal(Role.User, agentTask.History[0].Role);
         Assert.Equal("hi", agentTask.History[0].Parts[0].Text);
         Assert.Equal("test-message-id", agentTask.History[0].MessageId);
@@ -354,7 +354,7 @@ public class A2AJsonRpcProcessorTests
         Assert.Equal(StatusCodes.Status200OK, StatusCode);
         var agentTask = JsonSerializer.Deserialize<AgentTask>(BodyContent.Result, A2AJsonUtilities.DefaultOptions);
         Assert.NotNull(agentTask);
-        Assert.NotEmpty(agentTask.History);
+        Assert.NotEmpty(agentTask.History!);
     }
 
     [Fact]
