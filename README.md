@@ -13,7 +13,7 @@ Key features include:
 - **Task-based Communication**: Create and manage persistent, long-running agent tasks
 - **Streaming Support**: Real-time communication using Server-Sent Events
 - **ASP.NET Core Integration**: Built-in extensions for hosting A2A agents in web applications
-- **Cross-platform Compatibility**: Supports .NET Standard 2.0 and .NET 8+
+- **Cross-platform Compatibility**: Supports .NET 8+
 
 ## Protocol Compatibility
 

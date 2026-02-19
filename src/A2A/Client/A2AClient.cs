@@ -122,11 +122,7 @@ public sealed class A2AClient : IA2AClient, IDisposable
         using var response = await _httpClient.PostAsync(_url, content, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-#if NET
         using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-#else
-        using var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
-#endif
         var rpcResponse = await JsonSerializer.DeserializeAsync<JsonRpcResponse>(stream, A2AJsonUtilities.DefaultOptions, cancellationToken).ConfigureAwait(false)
             ?? throw new A2AException("Failed to deserialize JSON-RPC response.", A2AErrorCode.InternalError);
 
@@ -160,11 +156,7 @@ public sealed class A2AClient : IA2AClient, IDisposable
         using var response = await _httpClient.SendAsync(requestMessage, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-#if NET
         using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-#else
-        using var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
-#endif
 
         await foreach (var sseItem in SseParser.Create(stream).EnumerateAsync(cancellationToken).ConfigureAwait(false))
         {

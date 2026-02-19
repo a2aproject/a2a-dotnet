@@ -32,6 +32,11 @@ namespace AgentClient.Samples;
 /// </remarks>
 internal sealed class GetAgentDetailsSample
 {
+    private static readonly JsonSerializerOptions s_indentedOptions = new(A2AJsonUtilities.DefaultOptions)
+    {
+        WriteIndented = true
+    };
+
     /// <summary>
     /// Demonstrates how to retrieve agent details using the <see cref="A2ACardResolver"/>.
     /// </summary>
@@ -59,9 +64,6 @@ internal sealed class GetAgentDetailsSample
 
         // 4. Display agent details
         Console.WriteLine("\nAgent card details:");
-        Console.WriteLine(JsonSerializer.Serialize(agentCard, new JsonSerializerOptions(A2AJsonUtilities.DefaultOptions)
-        {
-            WriteIndented = true
-        }));
+        Console.WriteLine(JsonSerializer.Serialize(agentCard, s_indentedOptions));
     }
 }

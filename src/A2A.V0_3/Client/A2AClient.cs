@@ -187,11 +187,7 @@ public sealed class A2AClient : IA2AClient
                 throw new InvalidOperationException($"Invalid content type. Expected '{expectedContentType}' but got '{response.Content.Headers.ContentType?.MediaType}'.");
             }
 
-            return await response.Content.ReadAsStreamAsync(
-#if NET
-                cancellationToken
-#endif
-                ).ConfigureAwait(false);
+            return await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         }
         catch
         {
