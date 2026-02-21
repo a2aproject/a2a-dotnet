@@ -1,57 +1,41 @@
 using A2A;
 using System.Text.Json;
 
-using TaskStatus = A2A.TaskStatus;
-
 namespace AgentServer;
 
-public class EchoAgentWithTasks
+public sealed class EchoAgentWithTasks : IAgentHandler
 {
-    private ITaskStore? _store;
-
-    public void Attach(TaskManager taskManager, ITaskStore store)
+    public async Task ExecuteAsync(AgentContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
     {
-        _store = store;
-        taskManager.OnSendMessage = OnSendMessageAsync;
-    }
+        var targetState = GetTargetStateFromMetadata(context.Message.Metadata);
+        var updater = new TaskUpdater(eventQueue, context.TaskId, context.ContextId);
 
-    private async Task<SendMessageResponse> OnSendMessageAsync(SendMessageRequest request, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
+        await updater.SubmitAsync(cancellationToken);
+        await updater.AddArtifactAsync(
+            [Part.FromText($"Echo: {context.UserText}")], cancellationToken: cancellationToken);
 
-        var messageText = request.Message.Parts.FirstOrDefault(p => p.Text is not null)?.Text ?? string.Empty;
-        var targetState = GetTargetStateFromMetadata(request.Message.Metadata) ?? TaskState.Completed;
-
-        var taskId = Guid.NewGuid().ToString("N");
-        var contextId = request.Message.ContextId ?? Guid.NewGuid().ToString("N");
-
-        var task = new AgentTask
+        // Transition to the target state (defaults to Completed)
+        switch (targetState)
         {
-            Id = taskId,
-            ContextId = contextId,
-            Status = new TaskStatus
-            {
-                State = targetState,
-                Timestamp = DateTimeOffset.UtcNow,
-            },
-            History = [request.Message],
-            Artifacts =
-            [
-                new Artifact
-                {
-                    ArtifactId = Guid.NewGuid().ToString("N"),
-                    Parts = [Part.FromText($"Echo: {messageText}")],
-                }
-            ],
-        };
-
-        await _store!.SetTaskAsync(task, cancellationToken);
-        return new SendMessageResponse { Task = task };
+            case TaskState.Failed:
+                await updater.FailAsync(cancellationToken: cancellationToken);
+                break;
+            case TaskState.Canceled:
+                await updater.CancelAsync(cancellationToken);
+                break;
+            case TaskState.InputRequired:
+                await updater.RequireInputAsync(
+                    new Message { Role = Role.Agent, MessageId = Guid.NewGuid().ToString("N"), Parts = [Part.FromText("Need input")] },
+                    cancellationToken);
+                break;
+            default:
+                await updater.CompleteAsync(cancellationToken: cancellationToken);
+                break;
+        }
     }
 
-    public AgentCard GetAgentCard(string agentUrl)
-    {
-        return new AgentCard
+    public static AgentCard GetAgentCard(string agentUrl) =>
+        new()
         {
             Name = "Echo Agent",
             Description = "Agent which will echo every message it receives.",
@@ -83,7 +67,6 @@ public class EchoAgentWithTasks
                 }
             ],
         };
-    }
 
     private static TaskState? GetTargetStateFromMetadata(Dictionary<string, JsonElement>? metadata)
     {

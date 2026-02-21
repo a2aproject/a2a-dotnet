@@ -5,7 +5,6 @@ using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
 using Polly;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Text.Json;
 
 namespace SemanticKernelAgent;
@@ -99,10 +98,8 @@ public class CurrencyPlugin
 /// <summary>
 /// Wraps Semantic Kernel-based agents to handle Travel related tasks
 /// </summary>
-public class SemanticKernelTravelAgent : IDisposable
+public sealed class SemanticKernelTravelAgent : IAgentHandler, IDisposable
 {
-    public static readonly ActivitySource ActivitySource = new("A2A.SemanticKernelTravelAgent", "1.0.0");
-
     /// <summary>
     /// Initializes a new instance of the SemanticKernelTravelAgent
     /// </summary>
@@ -135,57 +132,22 @@ public class SemanticKernelTravelAgent : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    public void Attach(TaskManager taskManager, ITaskStore store)
+    public async Task ExecuteAsync(AgentContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
     {
-        _taskManager = taskManager;
-        _store = store;
-        taskManager.OnSendMessage = OnSendMessageAsync;
-    }
+        var updater = new TaskUpdater(eventQueue, context.TaskId, context.ContextId);
+        await updater.SubmitAsync(cancellationToken);
+        await updater.StartWorkAsync(cancellationToken: cancellationToken);
 
-    private async Task<SendMessageResponse> OnSendMessageAsync(SendMessageRequest request, CancellationToken cancellationToken)
-    {
-        if (_store == null)
-        {
-            throw new InvalidOperationException("TaskManager is not attached.");
-        }
-
-        var contextId = request.Message.ContextId ?? Guid.NewGuid().ToString("N");
-        var taskId = request.Message.TaskId ?? Guid.NewGuid().ToString("N");
-
-        // Get message from the user
-        var userMessage = request.Message.Parts.FirstOrDefault(p => p.Text is not null)?.Text ?? string.Empty;
-
-        // Get the response from the agent
+        // Get the response from the Semantic Kernel agent
         var artifactParts = new List<Part>();
-        await foreach (AgentResponseItem<ChatMessageContent> response in _agent.InvokeAsync(userMessage, cancellationToken: cancellationToken))
+        await foreach (AgentResponseItem<ChatMessageContent> response in _agent.InvokeAsync(context.UserText ?? string.Empty, cancellationToken: cancellationToken))
         {
             var content = response.Message.Content;
             artifactParts.Add(Part.FromText(content!));
         }
 
-        // Build the task with artifacts and return
-        var task = new AgentTask
-        {
-            Id = taskId,
-            ContextId = contextId,
-            Status = new A2A.TaskStatus
-            {
-                State = TaskState.Completed,
-                Timestamp = DateTimeOffset.UtcNow,
-            },
-            History = [request.Message],
-            Artifacts =
-            [
-                new Artifact
-                {
-                    ArtifactId = Guid.NewGuid().ToString("N"),
-                    Parts = artifactParts,
-                }
-            ],
-        };
-
-        await _store.SetTaskAsync(task, cancellationToken);
-        return new SendMessageResponse { Task = task };
+        await updater.AddArtifactAsync(artifactParts, cancellationToken: cancellationToken);
+        await updater.CompleteAsync(cancellationToken: cancellationToken);
     }
 
     public static AgentCard GetAgentCard(string agentUrl)
@@ -236,8 +198,6 @@ public class SemanticKernelTravelAgent : IDisposable
     private readonly CurrencyPlugin _currencyPlugin;
     private readonly HttpClient _httpClient;
     private readonly ChatCompletionAgent _agent;
-    private TaskManager? _taskManager;
-    private ITaskStore? _store;
 
     public List<string> SupportedContentTypes { get; } = ["text", "text/plain"];
 

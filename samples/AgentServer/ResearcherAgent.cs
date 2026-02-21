@@ -1,114 +1,69 @@
 using A2A;
-using System.Diagnostics;
-
-using TaskStatus = A2A.TaskStatus;
 
 namespace AgentServer;
 
-public class ResearcherAgent
+public sealed class ResearcherAgent : IAgentHandler
 {
-    private ITaskStore? _store;
-    public static readonly ActivitySource ActivitySource = new("A2A.ResearcherAgent", "1.0.0");
-
-    public void Attach(TaskManager taskManager, ITaskStore store)
+    public async Task ExecuteAsync(AgentContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
     {
-        _store = store;
-        taskManager.OnSendMessage = OnSendMessageAsync;
-    }
+        var updater = new TaskUpdater(eventQueue, context.TaskId, context.ContextId);
 
-    private async Task<SendMessageResponse> OnSendMessageAsync(SendMessageRequest request, CancellationToken cancellationToken)
-    {
-        var messageText = request.Message.Parts.FirstOrDefault(p => p.Text is not null)?.Text ?? string.Empty;
-        var contextId = request.Message.ContextId ?? Guid.NewGuid().ToString("N");
-        var taskId = request.Message.TaskId ?? Guid.NewGuid().ToString("N");
-
-        // Check if this is a continuation of an existing task
-        var existingTask = await _store!.GetTaskAsync(taskId, cancellationToken);
-
-        if (existingTask is not null)
+        if (!context.IsContinuation)
         {
-            // Continuation: append message and process
-            await _store.AppendHistoryAsync(taskId, request.Message, cancellationToken);
+            // New task: planning phase — ask for confirmation
+            await updater.SubmitAsync(cancellationToken);
+            await updater.AddArtifactAsync(
+                [Part.FromText($"{context.UserText} received.")],
+                cancellationToken: cancellationToken);
 
-            if (messageText == "go ahead")
+            await Task.Delay(500, cancellationToken);
+
+            await updater.RequireInputAsync(new Message
             {
-                // Research phase
-                using var activity = ActivitySource.StartActivity("DoResearch", ActivityKind.Server);
-                activity?.SetTag("task.id", taskId);
+                Role = Role.Agent,
+                MessageId = Guid.NewGuid().ToString("N"),
+                ContextId = context.ContextId,
+                Parts = [Part.FromText("When ready say go ahead")],
+            }, cancellationToken);
+            return;
+        }
 
-                var researchStatus = new TaskStatus { State = TaskState.Working, Timestamp = DateTimeOffset.UtcNow };
-                await _store.UpdateStatusAsync(taskId, researchStatus, cancellationToken);
-
-                existingTask.Status = new TaskStatus
+        // Continuation
+        if (context.UserText == "go ahead")
+        {
+            // Research phase
+            await updater.StartWorkAsync(cancellationToken: cancellationToken);
+            await updater.AddArtifactAsync(
+                [Part.FromText($"{context.UserText} received.")],
+                cancellationToken: cancellationToken);
+            await updater.CompleteAsync(
+                new Message
                 {
-                    State = TaskState.Completed,
-                    Timestamp = DateTimeOffset.UtcNow,
-                    Message = new Message
-                    {
-                        Role = Role.Agent,
-                        Parts = [Part.FromText("Task completed successfully")],
-                    }
-                };
-                existingTask.Artifacts = [new Artifact { ArtifactId = Guid.NewGuid().ToString("N"), Parts = [Part.FromText($"{messageText} received.")] }];
-                var updated = await _store.SetTaskAsync(existingTask, cancellationToken);
-                return new SendMessageResponse { Task = updated };
-            }
-            else
-            {
-                // Re-plan
-                using var activity = ActivitySource.StartActivity("DoPlanning", ActivityKind.Server);
-                activity?.SetTag("task.id", taskId);
-                await Task.Delay(1000, cancellationToken);
-
-                existingTask.Status = new TaskStatus
-                {
-                    State = TaskState.InputRequired,
-                    Timestamp = DateTimeOffset.UtcNow,
-                    Message = new Message
-                    {
-                        Role = Role.Agent,
-                        Parts = [Part.FromText("When ready say go ahead")],
-                    }
-                };
-                existingTask.Artifacts = [new Artifact { ArtifactId = Guid.NewGuid().ToString("N"), Parts = [Part.FromText($"{messageText} received.")] }];
-                var updated = await _store.SetTaskAsync(existingTask, cancellationToken);
-                return new SendMessageResponse { Task = updated };
-            }
+                    Role = Role.Agent,
+                    MessageId = Guid.NewGuid().ToString("N"),
+                    Parts = [Part.FromText("Task completed successfully")],
+                },
+                cancellationToken);
         }
         else
         {
-            // New task: planning phase
-            using var activity = ActivitySource.StartActivity("DoPlanning", ActivityKind.Server);
-            activity?.SetTag("task.id", taskId);
-
-            await Task.Delay(1000, cancellationToken);
-
-            var task = new AgentTask
+            // Re-plan — ask again
+            await Task.Delay(500, cancellationToken);
+            await updater.AddArtifactAsync(
+                [Part.FromText($"{context.UserText} received.")],
+                cancellationToken: cancellationToken);
+            await updater.RequireInputAsync(new Message
             {
-                Id = taskId,
-                ContextId = contextId,
-                Status = new TaskStatus
-                {
-                    State = TaskState.InputRequired,
-                    Timestamp = DateTimeOffset.UtcNow,
-                    Message = new Message
-                    {
-                        Role = Role.Agent,
-                        Parts = [Part.FromText("When ready say go ahead")],
-                    }
-                },
-                History = [request.Message],
-                Artifacts = [new Artifact { ArtifactId = Guid.NewGuid().ToString("N"), Parts = [Part.FromText($"{messageText} received.")] }],
-            };
-
-            await _store.SetTaskAsync(task, cancellationToken);
-            return new SendMessageResponse { Task = task };
+                Role = Role.Agent,
+                MessageId = Guid.NewGuid().ToString("N"),
+                ContextId = context.ContextId,
+                Parts = [Part.FromText("When ready say go ahead")],
+            }, cancellationToken);
         }
     }
 
-    public AgentCard GetAgentCard(string agentUrl)
-    {
-        return new AgentCard
+    public static AgentCard GetAgentCard(string agentUrl) =>
+        new()
         {
             Name = "Researcher Agent",
             Description = "Agent which conducts research.",
@@ -140,5 +95,4 @@ public class ResearcherAgent
                 }
             ],
         };
-    }
 }

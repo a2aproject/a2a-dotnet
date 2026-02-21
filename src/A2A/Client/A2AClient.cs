@@ -1,5 +1,6 @@
 namespace A2A;
 
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Net.ServerSentEvents;
 using System.Runtime.CompilerServices;
@@ -111,6 +112,9 @@ public sealed class A2AClient : IA2AClient, IDisposable
     [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "All types are registered in source-generated JsonContext.")]
     private async Task<TResult> SendJsonRpcRequestAsync<TResult>(string method, object? @params, CancellationToken cancellationToken)
     {
+        using var activity = A2ADiagnostics.Source.StartActivity($"A2AClient/{method}", ActivityKind.Client);
+        var stopwatch = Stopwatch.StartNew();
+
         var rpcRequest = new JsonRpcRequest
         {
             Method = method,
@@ -118,60 +122,109 @@ public sealed class A2AClient : IA2AClient, IDisposable
             Params = @params is not null ? JsonSerializer.SerializeToElement(@params, A2AJsonUtilities.DefaultOptions) : null,
         };
 
-        using var content = new JsonRpcContent(rpcRequest);
-        using var response = await _httpClient.PostAsync(_url, content, cancellationToken).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
+        activity?.SetTag("rpc.system", "jsonrpc");
+        activity?.SetTag("rpc.method", method);
+        activity?.SetTag("url.full", _url);
+        activity?.SetTag("rpc.jsonrpc.request_id", rpcRequest.Id.ToString());
 
-        using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-        var rpcResponse = await JsonSerializer.DeserializeAsync<JsonRpcResponse>(stream, A2AJsonUtilities.DefaultOptions, cancellationToken).ConfigureAwait(false)
-            ?? throw new A2AException("Failed to deserialize JSON-RPC response.", A2AErrorCode.InternalError);
-
-        if (rpcResponse.Error is { } error)
+        try
         {
-            throw new A2AException(error.Message, (A2AErrorCode)error.Code);
-        }
+            A2ADiagnostics.ClientRequestCount.Add(1);
 
-        return rpcResponse.Result.Deserialize<TResult>(A2AJsonUtilities.DefaultOptions)
-            ?? throw new A2AException("Failed to deserialize JSON-RPC result.", A2AErrorCode.InternalError);
-    }
+            using var content = new JsonRpcContent(rpcRequest);
+            using var response = await _httpClient.PostAsync(_url, content, cancellationToken).ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
 
-    [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "All types are registered in source-generated JsonContext.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "All types are registered in source-generated JsonContext.")]
-    private async IAsyncEnumerable<TResult> SendStreamingJsonRpcRequestAsync<TResult>(string method, object? @params, [EnumeratorCancellation] CancellationToken cancellationToken)
-    {
-        var rpcRequest = new JsonRpcRequest
-        {
-            Method = method,
-            Id = new JsonRpcId(Guid.NewGuid().ToString()),
-            Params = @params is not null ? JsonSerializer.SerializeToElement(@params, A2AJsonUtilities.DefaultOptions) : null,
-        };
-
-        using var content = new JsonRpcContent(rpcRequest);
-        using var requestMessage = new HttpRequestMessage(HttpMethod.Post, _url)
-        {
-            Content = content,
-        };
-        requestMessage.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("text/event-stream"));
-
-        using var response = await _httpClient.SendAsync(requestMessage, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-
-        using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-
-        await foreach (var sseItem in SseParser.Create(stream).EnumerateAsync(cancellationToken).ConfigureAwait(false))
-        {
-            var rpcResponse = JsonSerializer.Deserialize<JsonRpcResponse>(sseItem.Data, A2AJsonUtilities.DefaultOptions)
-                ?? throw new A2AException("Failed to deserialize streaming JSON-RPC response.", A2AErrorCode.InternalError);
+            using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+            var rpcResponse = await JsonSerializer.DeserializeAsync<JsonRpcResponse>(stream, A2AJsonUtilities.DefaultOptions, cancellationToken).ConfigureAwait(false)
+                ?? throw new A2AException("Failed to deserialize JSON-RPC response.", A2AErrorCode.InternalError);
 
             if (rpcResponse.Error is { } error)
             {
                 throw new A2AException(error.Message, (A2AErrorCode)error.Code);
             }
 
-            var result = rpcResponse.Result.Deserialize<TResult>(A2AJsonUtilities.DefaultOptions)
-                ?? throw new A2AException("Failed to deserialize streaming JSON-RPC result.", A2AErrorCode.InternalError);
-
-            yield return result;
+            return rpcResponse.Result.Deserialize<TResult>(A2AJsonUtilities.DefaultOptions)
+                ?? throw new A2AException("Failed to deserialize JSON-RPC result.", A2AErrorCode.InternalError);
         }
+        catch (Exception ex)
+        {
+            A2ADiagnostics.ClientErrorCount.Add(1);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            throw;
+        }
+        finally
+        {
+            A2ADiagnostics.ClientRequestDuration.Record(stopwatch.Elapsed.TotalMilliseconds);
+        }
+    }
+
+    [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "All types are registered in source-generated JsonContext.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "All types are registered in source-generated JsonContext.")]
+    private async IAsyncEnumerable<TResult> SendStreamingJsonRpcRequestAsync<TResult>(string method, object? @params, [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        using var activity = A2ADiagnostics.Source.StartActivity($"A2AClient/{method}", ActivityKind.Client);
+        A2ADiagnostics.ClientRequestCount.Add(1);
+        int eventCount = 0;
+
+        var rpcRequest = new JsonRpcRequest
+        {
+            Method = method,
+            Id = new JsonRpcId(Guid.NewGuid().ToString()),
+            Params = @params is not null ? JsonSerializer.SerializeToElement(@params, A2AJsonUtilities.DefaultOptions) : null,
+        };
+
+        activity?.SetTag("rpc.system", "jsonrpc");
+        activity?.SetTag("rpc.method", method);
+        activity?.SetTag("url.full", _url);
+        activity?.SetTag("rpc.jsonrpc.request_id", rpcRequest.Id.ToString());
+
+        HttpResponseMessage? response = null;
+        Stream? stream = null;
+
+        try
+        {
+            using var content = new JsonRpcContent(rpcRequest);
+            using var requestMessage = new HttpRequestMessage(HttpMethod.Post, _url)
+            {
+                Content = content,
+            };
+            requestMessage.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("text/event-stream"));
+
+            response = await _httpClient.SendAsync(requestMessage, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+
+            stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            A2ADiagnostics.ClientErrorCount.Add(1);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            response?.Dispose();
+            throw;
+        }
+
+        using (response)
+        using (stream)
+        {
+            await foreach (var sseItem in SseParser.Create(stream).EnumerateAsync(cancellationToken).ConfigureAwait(false))
+            {
+                var rpcResponse = JsonSerializer.Deserialize<JsonRpcResponse>(sseItem.Data, A2AJsonUtilities.DefaultOptions)
+                    ?? throw new A2AException("Failed to deserialize streaming JSON-RPC response.", A2AErrorCode.InternalError);
+
+                if (rpcResponse.Error is { } error)
+                {
+                    throw new A2AException(error.Message, (A2AErrorCode)error.Code);
+                }
+
+                var result = rpcResponse.Result.Deserialize<TResult>(A2AJsonUtilities.DefaultOptions)
+                    ?? throw new A2AException("Failed to deserialize streaming JSON-RPC result.", A2AErrorCode.InternalError);
+
+                eventCount++;
+                yield return result;
+            }
+        }
+
+        A2ADiagnostics.ClientStreamEventCount.Record(eventCount);
     }
 }

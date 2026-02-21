@@ -1,97 +1,71 @@
 ﻿using A2A;
 
-using TaskStatus = A2A.TaskStatus;
-
 namespace AgentServer;
 
-public class SpecComplianceAgent
+public sealed class SpecComplianceAgent : IAgentHandler
 {
-    private ITaskStore? _store;
-
-    public void Attach(TaskManager taskManager, ITaskStore store)
+    public async Task ExecuteAsync(AgentContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
     {
-        _store = store;
-        taskManager.OnSendMessage = OnSendMessageAsync;
-        taskManager.OnCancelTask = OnCancelTaskAsync;
-    }
+        var updater = new TaskUpdater(eventQueue, context.TaskId, context.ContextId);
 
-    private async Task<SendMessageResponse> OnSendMessageAsync(SendMessageRequest request, CancellationToken cancellationToken)
-    {
-        var contextId = request.Message.ContextId ?? Guid.NewGuid().ToString("N");
+        // Echo the user's message parts back as an agent reply
+        var replyParts = context.Message.Parts?.ToList() ?? [Part.FromText("")];
 
-        // If the message references an existing task, continue it
-        if (!string.IsNullOrEmpty(request.Message.TaskId))
+        if (!context.IsContinuation)
         {
-            var existing = await _store!.GetTaskAsync(request.Message.TaskId, cancellationToken);
-            if (existing is not null)
+            // New task: Submit, then echo back with Working status
+            var agentReply = new Message
             {
-                // Append the new message to history
-                await _store.AppendHistoryAsync(existing.Id, request.Message, cancellationToken);
+                MessageId = Guid.NewGuid().ToString("N"),
+                Role = Role.Agent,
+                TaskId = context.TaskId,
+                ContextId = context.ContextId,
+                Parts = replyParts,
+            };
 
-                // Build agent echo reply and append it too
-                var replyMessage = new Message
+            // Emit initial task
+            await eventQueue.EnqueueTaskAsync(new AgentTask
+            {
+                Id = context.TaskId,
+                ContextId = context.ContextId,
+                Status = new A2A.TaskStatus
                 {
-                    MessageId = Guid.NewGuid().ToString("N"),
-                    Role = Role.Agent,
-                    TaskId = existing.Id,
-                    ContextId = existing.ContextId,
-                    Parts = request.Message.Parts,
-                };
-                await _store.AppendHistoryAsync(existing.Id, replyMessage, cancellationToken);
-
-                // Re-fetch to get updated history
-                var updated = await _store.GetTaskAsync(existing.Id, cancellationToken);
-                return new SendMessageResponse { Task = updated };
-            }
+                    State = TaskState.Working,
+                    Timestamp = DateTimeOffset.UtcNow,
+                },
+                History = [context.Message, agentReply],
+            }, cancellationToken);
         }
-
-        // Create a new task
-        var taskId = Guid.NewGuid().ToString("N");
-
-        // Build an agent echo reply message
-        var agentReply = new Message
+        else
         {
-            MessageId = Guid.NewGuid().ToString("N"),
-            Role = Role.Agent,
-            TaskId = taskId,
-            ContextId = contextId,
-            Parts = request.Message.Parts,
-        };
-
-        var task = new AgentTask
-        {
-            Id = taskId,
-            ContextId = contextId,
-            Status = new TaskStatus
+            // Continuation: echo the parts back
+            var agentReply = new Message
             {
-                State = TaskState.Working,
-                Timestamp = DateTimeOffset.UtcNow,
-            },
-            History = [request.Message, agentReply],
-        };
+                MessageId = Guid.NewGuid().ToString("N"),
+                Role = Role.Agent,
+                TaskId = context.TaskId,
+                ContextId = context.ContextId,
+                Parts = replyParts,
+            };
 
-        await _store!.SetTaskAsync(task, cancellationToken);
+            // Return updated task with the reply added to history
+            var history = context.Task!.History?.ToList() ?? [];
+            history.Add(context.Message);
+            history.Add(agentReply);
 
-        return new SendMessageResponse { Task = task };
+            await eventQueue.EnqueueTaskAsync(new AgentTask
+            {
+                Id = context.TaskId,
+                ContextId = context.ContextId,
+                Status = context.Task.Status,
+                History = history,
+                Artifacts = context.Task.Artifacts,
+            }, cancellationToken);
+        }
     }
 
-    private async Task<AgentTask> OnCancelTaskAsync(CancelTaskRequest request, CancellationToken cancellationToken)
-    {
-        var task = await _store!.GetTaskAsync(request.Id, cancellationToken)
-            ?? throw new A2AException($"Task '{request.Id}' not found.", A2AErrorCode.TaskNotFound);
-
-        var canceledStatus = new TaskStatus
-        {
-            State = TaskState.Canceled,
-            Timestamp = DateTimeOffset.UtcNow,
-        };
-
-        return await _store.UpdateStatusAsync(task.Id, canceledStatus, cancellationToken);
-    }
-
-    public AgentCard GetAgentCard(string agentUrl)
-    {
-        return new AgentCard
+    public static AgentCard GetAgentCard(string agentUrl) =>
+        new()
         {
             Name = "A2A Specification Compliance Agent",
             Description = "Agent for A2A specification compliance verification.",
@@ -123,5 +97,4 @@ public class SpecComplianceAgent
                 }
             ],
         };
-    }
 }
