@@ -8,23 +8,56 @@ namespace A2A.AspNetCore.Tests;
 
 public class A2AHttpProcessorTests
 {
+    private sealed class TestAgentHandler(InMemoryTaskStore store) : IAgentHandler
+    {
+        public async Task ExecuteAsync(AgentContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
+        {
+            // For SendMessage: return the existing task if continuation, or a message
+            if (context.IsContinuation)
+            {
+                await eventQueue.EnqueueTaskAsync(context.Task!, cancellationToken);
+            }
+            else
+            {
+                await eventQueue.EnqueueMessageAsync(new Message
+                {
+                    Role = Role.Agent,
+                    MessageId = Guid.NewGuid().ToString(),
+                    Parts = [Part.FromText("ok")],
+                }, cancellationToken);
+            }
+
+            eventQueue.Complete();
+        }
+
+        public async Task CancelAsync(AgentContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
+        {
+            await store.UpdateStatusAsync(context.TaskId, new TaskStatus { State = TaskState.Canceled }, cancellationToken);
+            eventQueue.Complete();
+        }
+    }
+
+    private static (A2AServer taskManager, InMemoryTaskStore store) CreateTaskManager()
+    {
+        var store = new InMemoryTaskStore();
+        var handler = new TestAgentHandler(store);
+        return (new A2AServer(handler, store, NullLogger<A2AServer>.Instance), store);
+    }
+
     [Fact]
     public async Task GetTask_ShouldReturnNotNull()
     {
         // Arrange
-        var taskStore = new InMemoryTaskStore();
-        await taskStore.SetTaskAsync(new AgentTask
+        var (taskManager, store) = CreateTaskManager();
+        await store.SetTaskAsync(new AgentTask
         {
             Id = "testId",
             ContextId = "ctx-1",
         });
-        var taskManager = new TaskManager(taskStore, NullLogger<TaskManager>.Instance);
         var logger = NullLogger.Instance;
-        var id = "testId";
-        var historyLength = 10;
 
         // Act
-        var result = await A2AHttpProcessor.GetTaskAsync(taskManager, logger, id, historyLength, null, CancellationToken.None);
+        var result = await A2AHttpProcessor.GetTaskAsync(taskManager, logger, "testId", 10, null, CancellationToken.None);
 
         // Assert
         Assert.NotNull(result);
@@ -35,25 +68,17 @@ public class A2AHttpProcessorTests
     public async Task CancelTask_ShouldReturnNotNull()
     {
         // Arrange
-        var taskStore = new InMemoryTaskStore();
-        await taskStore.SetTaskAsync(new AgentTask
+        var (taskManager, store) = CreateTaskManager();
+        await store.SetTaskAsync(new AgentTask
         {
             Id = "testId",
             ContextId = "ctx-1",
             Status = new TaskStatus { State = TaskState.Submitted },
         });
-        var taskManager = new TaskManager(taskStore, NullLogger<TaskManager>.Instance);
-        taskManager.OnCancelTask = async (request, ct) =>
-        {
-            var task = await taskStore.GetTaskAsync(request.Id, ct);
-            task!.Status = new TaskStatus { State = TaskState.Canceled };
-            return await taskStore.SetTaskAsync(task, ct);
-        };
         var logger = NullLogger.Instance;
-        var id = "testId";
 
         // Act
-        var result = await A2AHttpProcessor.CancelTaskAsync(taskManager, logger, id, CancellationToken.None);
+        var result = await A2AHttpProcessor.CancelTaskAsync(taskManager, logger, "testId", CancellationToken.None);
 
         // Assert
         Assert.NotNull(result);
@@ -64,19 +89,13 @@ public class A2AHttpProcessorTests
     public async Task SendTaskMessage_ShouldReturnNotNull()
     {
         // Arrange
-        var taskStore = new InMemoryTaskStore();
-        await taskStore.SetTaskAsync(new AgentTask
+        var (taskManager, store) = CreateTaskManager();
+        await store.SetTaskAsync(new AgentTask
         {
             Id = "testId",
             ContextId = "ctx-1",
             Status = new TaskStatus { State = TaskState.Submitted },
         });
-        var taskManager = new TaskManager(taskStore, NullLogger<TaskManager>.Instance);
-        taskManager.OnSendMessage = async (request, ct) =>
-        {
-            var task = await taskStore.GetTaskAsync(request.Message.TaskId!, ct);
-            return new SendMessageResponse { Task = task };
-        };
         var logger = NullLogger.Instance;
         var sendRequest = new SendMessageRequest
         {
@@ -116,7 +135,8 @@ public class A2AHttpProcessorTests
             .Setup(ts => ts.GetTaskAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new A2AException("Test exception", errorCode));
 
-        var taskManager = new TaskManager(mockTaskStore.Object, NullLogger<TaskManager>.Instance);
+        var handler = new Mock<IAgentHandler>().Object;
+        var taskManager = new A2AServer(handler, mockTaskStore.Object, NullLogger<A2AServer>.Instance);
         var logger = NullLogger.Instance;
         var id = "testId";
         var historyLength = 10;
@@ -140,7 +160,8 @@ public class A2AHttpProcessorTests
             .Setup(ts => ts.GetTaskAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new A2AException("Test exception with unknown error code", unknownErrorCode));
 
-        var taskManager = new TaskManager(mockTaskStore.Object, NullLogger<TaskManager>.Instance);
+        var handler = new Mock<IAgentHandler>().Object;
+        var taskManager = new A2AServer(handler, mockTaskStore.Object, NullLogger<A2AServer>.Instance);
         var logger = NullLogger.Instance;
         var id = "testId";
         var historyLength = 10;

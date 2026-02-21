@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
 namespace A2A.AspNetCore;
@@ -14,15 +13,37 @@ namespace A2A.AspNetCore;
 /// </summary>
 public static class A2ARouteBuilderExtensions
 {
-    /// <summary>Activity source for tracing A2A endpoint operations.</summary>
-    public static readonly ActivitySource ActivitySource = new("A2A.Endpoint", "1.0.0");
+    /// <summary>
+    /// Maps A2A JSON-RPC endpoint and well-known agent card using DI-registered services.
+    /// Requires prior call to <see cref="A2AServiceCollectionExtensions.AddA2AAgent{THandler}"/>.
+    /// </summary>
+    /// <param name="endpoints">The endpoint route builder.</param>
+    /// <param name="path">The route path for the A2A endpoint.</param>
+    /// <returns>An endpoint convention builder for further configuration.</returns>
+    public static IEndpointConventionBuilder MapA2A(this IEndpointRouteBuilder endpoints, [StringSyntax("Route")] string path)
+    {
+        ArgumentNullException.ThrowIfNull(endpoints);
+        ArgumentException.ThrowIfNullOrEmpty(path);
+
+        var handler = endpoints.ServiceProvider.GetRequiredService<IA2ARequestHandler>();
+        var agentCard = endpoints.ServiceProvider.GetRequiredService<AgentCard>();
+
+        var routeGroup = endpoints.MapGroup("");
+        routeGroup.MapPost(path, (HttpRequest request, CancellationToken cancellationToken)
+            => A2AJsonRpcProcessor.ProcessRequestAsync(handler, request, cancellationToken));
+
+        var wellKnown = endpoints.MapGroup(path);
+        wellKnown.MapGet(".well-known/agent-card.json", () => Results.Ok(agentCard));
+
+        return routeGroup;
+    }
 
     /// <summary>Enables JSON-RPC A2A endpoints for the specified path.</summary>
     /// <param name="endpoints">The endpoint route builder.</param>
     /// <param name="taskManager">The task manager implementation.</param>
     /// <param name="path">The route path for the A2A endpoint.</param>
     /// <returns>An endpoint convention builder for further configuration.</returns>
-    public static IEndpointConventionBuilder MapA2A(this IEndpointRouteBuilder endpoints, ITaskManager taskManager, [StringSyntax("Route")] string path)
+    public static IEndpointConventionBuilder MapA2A(this IEndpointRouteBuilder endpoints, IA2ARequestHandler taskManager, [StringSyntax("Route")] string path)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(taskManager);
@@ -71,7 +92,7 @@ public static class A2ARouteBuilderExtensions
     /// <param name="path">The route prefix for all REST endpoints.</param>
     /// <returns>An endpoint convention builder for further configuration.</returns>
     public static IEndpointConventionBuilder MapHttpA2A(
-        this IEndpointRouteBuilder endpoints, ITaskManager taskManager, AgentCard agentCard, [StringSyntax("Route")] string path = "")
+        this IEndpointRouteBuilder endpoints, IA2ARequestHandler taskManager, AgentCard agentCard, [StringSyntax("Route")] string path = "")
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(taskManager);

@@ -413,36 +413,43 @@ public class A2AJsonRpcProcessorTests
     }
 
     /// <summary>Creates a test TaskManager with in-memory store and default callbacks.</summary>
-    private static ITaskManager CreateTestTaskManager()
+    private static IA2ARequestHandler CreateTestTaskManager()
     {
         return CreateTestTaskManagerWithStore().taskManager;
     }
 
     /// <summary>Creates a test TaskManager with store exposed for pre-populating data.</summary>
-    private static (ITaskManager taskManager, InMemoryTaskStore store) CreateTestTaskManagerWithStore()
+    private static (IA2ARequestHandler taskManager, InMemoryTaskStore store) CreateTestTaskManagerWithStore()
     {
         var store = new InMemoryTaskStore();
-        var taskManager = new TaskManager(store, NullLogger<TaskManager>.Instance);
-        taskManager.OnSendMessage = async (request, ct) =>
+        var handler = new TestAgentHandler(store);
+        var taskManager = new A2AServer(handler, store, NullLogger<A2AServer>.Instance);
+        return (taskManager, store);
+    }
+
+    private sealed class TestAgentHandler(InMemoryTaskStore store) : IAgentHandler
+    {
+        public async Task ExecuteAsync(AgentContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
         {
             var task = new AgentTask
             {
-                Id = Guid.NewGuid().ToString(),
-                ContextId = request.Message.ContextId ?? Guid.NewGuid().ToString(),
+                Id = context.TaskId,
+                ContextId = context.ContextId,
                 Status = new TaskStatus { State = TaskState.Submitted },
-                History = [request.Message],
+                History = [context.Message],
             };
-            await store.SetTaskAsync(task, ct);
-            return new SendMessageResponse { Task = task };
-        };
-        taskManager.OnCancelTask = async (request, ct) =>
+            await eventQueue.EnqueueTaskAsync(task, cancellationToken);
+            eventQueue.Complete();
+        }
+
+        public async Task CancelAsync(AgentContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
         {
-            var task = await store.GetTaskAsync(request.Id, ct)
+            var task = await store.GetTaskAsync(context.TaskId, cancellationToken)
                 ?? throw new A2AException("Task not found.", A2AErrorCode.TaskNotFound);
             task.Status = new TaskStatus { State = TaskState.Canceled };
-            return await store.SetTaskAsync(task, ct);
-        };
-        return (taskManager, store);
+            await store.SetTaskAsync(task, cancellationToken);
+            eventQueue.Complete();
+        }
     }
 
     private static JsonElement ToJsonElement<T>(T obj)

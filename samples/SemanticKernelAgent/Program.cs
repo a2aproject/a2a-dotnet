@@ -1,7 +1,9 @@
 ﻿using A2A;
 using A2A.AspNetCore;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using SemanticKernelAgent;
@@ -9,16 +11,33 @@ using SemanticKernelAgent;
 using Microsoft.Extensions.Logging;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddHttpClient()
-    .AddLogging()
-    .AddOpenTelemetry()
-    .ConfigureResource(resource =>
-    {
-        resource.AddService("TravelAgent");
-    })
+
+var agentUrl = "http://localhost:5000";
+
+// Register the SK Travel Agent — constructor needs IConfiguration, HttpClient, ILogger
+builder.Services.AddHttpClient();
+builder.Services.AddSingleton<IAgentHandler>(sp =>
+{
+    var configuration = sp.GetRequiredService<IConfiguration>();
+    var httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient();
+    var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger<SemanticKernelTravelAgent>();
+    return new SemanticKernelTravelAgent(configuration, httpClient, logger);
+});
+builder.Services.AddSingleton(SemanticKernelTravelAgent.GetAgentCard(agentUrl));
+builder.Services.AddSingleton(new A2AServerOptions());
+builder.Services.TryAddSingleton<ITaskStore, InMemoryTaskStore>();
+builder.Services.TryAddSingleton<IA2ARequestHandler>(sp =>
+    new A2AServer(
+        sp.GetRequiredService<IAgentHandler>(),
+        sp.GetRequiredService<ITaskStore>(),
+        sp.GetRequiredService<ILogger<A2AServer>>(),
+        sp.GetRequiredService<A2AServerOptions>()));
+
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService("TravelAgent"))
     .WithTracing(tracing => tracing
-        .AddSource(A2AJsonRpcProcessor.ActivitySource.Name)
-        .AddSource(SemanticKernelTravelAgent.ActivitySource.Name)
+        .AddSource("A2A")
+        .AddSource("A2A.AspNetCore")
         .AddAspNetCoreInstrumentation()
         .AddHttpClientInstrumentation()
         .AddOtlpExporter(options =>
@@ -27,20 +46,8 @@ builder.Services.AddHttpClient()
             options.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.Grpc;
         })
      );
+
 var app = builder.Build();
-
-var configuration = app.Configuration;
-var httpClient = app.Services.GetRequiredService<IHttpClientFactory>().CreateClient();
-var logger = app.Logger;
-
-var agent = new SemanticKernelTravelAgent(configuration, httpClient, logger);
-var store = new InMemoryTaskStore();
-var taskManagerLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger<TaskManager>();
-var taskManager = new TaskManager(store, taskManagerLogger);
-agent.Attach(taskManager, store);
-
-var agentUrl = "http://localhost:5000";
-app.MapA2A(taskManager, "/");
-app.MapWellKnownAgentCard(SemanticKernelTravelAgent.GetAgentCard(agentUrl));
+app.MapA2A("/");
 
 await app.RunAsync();

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
 
@@ -53,6 +54,9 @@ public sealed class A2ACardResolver
     {
         cancellationToken.ThrowIfCancellationRequested();
 
+        using var activity = A2ADiagnostics.Source.StartActivity("A2ACardResolver.GetAgentCard", ActivityKind.Client);
+        activity?.SetTag("url.full", _agentCardPath.ToString());
+
         if (_logger.IsEnabled(LogLevel.Information))
         {
             _logger.FetchingAgentCardFromUrl(_agentCardPath);
@@ -71,11 +75,13 @@ public sealed class A2ACardResolver
         }
         catch (JsonException ex)
         {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             _logger.FailedToParseAgentCardJson(ex);
             throw new A2AException($"Failed to parse JSON: {ex.Message}");
         }
         catch (HttpRequestException ex)
         {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             HttpStatusCode statusCode = ex.StatusCode ?? HttpStatusCode.InternalServerError;
 
             _logger.HttpRequestFailedWithStatusCode(ex, statusCode);

@@ -10,10 +10,7 @@ namespace A2A.AspNetCore;
 /// </summary>
 public static class A2AJsonRpcProcessor
 {
-    /// <summary>Activity source for tracing A2A JSON-RPC operations.</summary>
-    public static readonly ActivitySource ActivitySource = new("A2A.Processor", "1.0.0");
-
-    internal static async Task<IResult> ProcessRequestAsync(ITaskManager taskManager, HttpRequest request, CancellationToken cancellationToken)
+    internal static async Task<IResult> ProcessRequestAsync(IA2ARequestHandler taskManager, HttpRequest request, CancellationToken cancellationToken)
     {
         // Version negotiation: check A2A-Version header
         var version = request.Headers["A2A-Version"].FirstOrDefault();
@@ -26,7 +23,7 @@ public static class A2AJsonRpcProcessor
                     A2AErrorCode.VersionNotSupported)));
         }
 
-        using var activity = ActivitySource.StartActivity("HandleA2ARequest", ActivityKind.Server);
+        using var activity = A2AAspNetCoreDiagnostics.Source.StartActivity("HandleA2ARequest", ActivityKind.Server);
 
         JsonRpcRequest? rpcRequest = null;
 
@@ -34,8 +31,8 @@ public static class A2AJsonRpcProcessor
         {
             rpcRequest = (JsonRpcRequest?)await JsonSerializer.DeserializeAsync(request.Body, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcRequest)), cancellationToken).ConfigureAwait(false);
 
-            activity?.AddTag("request.id", rpcRequest!.Id.ToString());
-            activity?.AddTag("request.method", rpcRequest!.Method);
+            activity?.SetTag("request.id", rpcRequest!.Id.ToString());
+            activity?.SetTag("request.method", rpcRequest!.Method);
 
             if (A2AMethods.IsStreamingMethod(rpcRequest!.Method))
             {
@@ -58,9 +55,9 @@ public static class A2AJsonRpcProcessor
         }
     }
 
-    internal static async Task<JsonRpcResponseResult> SingleResponseAsync(ITaskManager taskManager, JsonRpcId requestId, string method, JsonElement? parameters, CancellationToken cancellationToken)
+    internal static async Task<JsonRpcResponseResult> SingleResponseAsync(IA2ARequestHandler taskManager, JsonRpcId requestId, string method, JsonElement? parameters, CancellationToken cancellationToken)
     {
-        using var activity = ActivitySource.StartActivity($"SingleResponse/{method}", ActivityKind.Server);
+        using var activity = A2AAspNetCoreDiagnostics.Source.StartActivity($"SingleResponse/{method}", ActivityKind.Server);
         activity?.SetTag("request.id", requestId.ToString());
         activity?.SetTag("request.method", method);
 
@@ -189,9 +186,9 @@ public static class A2AJsonRpcProcessor
         return parms;
     }
 
-    internal static IResult StreamResponse(ITaskManager taskManager, JsonRpcId requestId, string method, JsonElement? parameters, CancellationToken cancellationToken)
+    internal static IResult StreamResponse(IA2ARequestHandler taskManager, JsonRpcId requestId, string method, JsonElement? parameters, CancellationToken cancellationToken)
     {
-        using var activity = ActivitySource.StartActivity("StreamResponse", ActivityKind.Server);
+        using var activity = A2AAspNetCoreDiagnostics.Source.StartActivity("StreamResponse", ActivityKind.Server);
         activity?.SetTag("request.id", requestId.ToString());
 
         if (parameters == null)

@@ -2,36 +2,22 @@ using A2A;
 
 namespace AgentServer;
 
-public class EchoAgent
+public sealed class EchoAgent : IAgentHandler
 {
-    public void Attach(TaskManager taskManager)
+    public async Task ExecuteAsync(AgentContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
     {
-        taskManager.OnSendMessage = OnSendMessageAsync;
-    }
-
-    private Task<SendMessageResponse> OnSendMessageAsync(SendMessageRequest request, CancellationToken cancellationToken)
-    {
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return Task.FromCanceled<SendMessageResponse>(cancellationToken);
-        }
-
-        var messageText = request.Message.Parts.FirstOrDefault(p => p.Text is not null)?.Text ?? string.Empty;
-
-        var response = new Message
+        var reply = new Message
         {
             Role = Role.Agent,
             MessageId = Guid.NewGuid().ToString("N"),
-            ContextId = request.Message.ContextId,
-            Parts = [Part.FromText($"Echo: {messageText}")],
+            ContextId = context.ContextId,
+            Parts = [Part.FromText($"Echo: {context.UserText}")],
         };
-
-        return Task.FromResult(new SendMessageResponse { Message = response });
+        await eventQueue.EnqueueMessageAsync(reply, cancellationToken);
     }
 
-    public AgentCard GetAgentCard(string agentUrl)
-    {
-        return new AgentCard
+    public static AgentCard GetAgentCard(string agentUrl) =>
+        new()
         {
             Name = "Echo Agent",
             Description = "Agent which will echo every message it receives.",
@@ -63,5 +49,4 @@ public class EchoAgent
                 }
             ],
         };
-    }
 }

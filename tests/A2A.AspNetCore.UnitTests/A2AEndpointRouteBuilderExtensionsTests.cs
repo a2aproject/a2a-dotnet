@@ -10,7 +10,7 @@ public class A2AEndpointRouteBuilderExtensionsTests
     {
         // Arrange
         var app = WebApplication.CreateBuilder().Build();
-        var taskManager = new Mock<ITaskManager>().Object;
+        var taskManager = new Mock<IA2ARequestHandler>().Object;
 
         // Act & Assert - Should not throw
         var result = app.MapA2A(taskManager, "/agent");
@@ -34,7 +34,7 @@ public class A2AEndpointRouteBuilderExtensionsTests
     {
         // Arrange
         var app = WebApplication.CreateBuilder().Build();
-        var taskManager = new Mock<ITaskManager>().Object;
+        var taskManager = new Mock<IA2ARequestHandler>().Object;
         var agentCard = new AgentCard { Name = "Test", Description = "Test agent" };
 
         // Act & Assert - Should not throw when calling both
@@ -52,7 +52,7 @@ public class A2AEndpointRouteBuilderExtensionsTests
     {
         // Arrange
         var app = WebApplication.CreateBuilder().Build();
-        var taskManager = new Mock<ITaskManager>().Object;
+        var taskManager = new Mock<IA2ARequestHandler>().Object;
 
         // Act & Assert
         if (path == null)
