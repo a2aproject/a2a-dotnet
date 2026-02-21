@@ -37,7 +37,7 @@ public class A2AHttpProcessorTests
         }
     }
 
-    private static (A2AServer taskManager, InMemoryTaskStore store) CreateTaskManager()
+    private static (A2AServer requestHandler, InMemoryTaskStore store) CreateServer()
     {
         var store = new InMemoryTaskStore();
         var handler = new TestAgentHandler(store);
@@ -48,7 +48,7 @@ public class A2AHttpProcessorTests
     public async Task GetTask_ShouldReturnNotNull()
     {
         // Arrange
-        var (taskManager, store) = CreateTaskManager();
+        var (requestHandler, store) = CreateServer();
         await store.SetTaskAsync(new AgentTask
         {
             Id = "testId",
@@ -57,7 +57,7 @@ public class A2AHttpProcessorTests
         var logger = NullLogger.Instance;
 
         // Act
-        var result = await A2AHttpProcessor.GetTaskAsync(taskManager, logger, "testId", 10, null, CancellationToken.None);
+        var result = await A2AHttpProcessor.GetTaskAsync(requestHandler, logger, "testId", 10, null, CancellationToken.None);
 
         // Assert
         Assert.NotNull(result);
@@ -68,7 +68,7 @@ public class A2AHttpProcessorTests
     public async Task CancelTask_ShouldReturnNotNull()
     {
         // Arrange
-        var (taskManager, store) = CreateTaskManager();
+        var (requestHandler, store) = CreateServer();
         await store.SetTaskAsync(new AgentTask
         {
             Id = "testId",
@@ -78,7 +78,7 @@ public class A2AHttpProcessorTests
         var logger = NullLogger.Instance;
 
         // Act
-        var result = await A2AHttpProcessor.CancelTaskAsync(taskManager, logger, "testId", CancellationToken.None);
+        var result = await A2AHttpProcessor.CancelTaskAsync(requestHandler, logger, "testId", CancellationToken.None);
 
         // Assert
         Assert.NotNull(result);
@@ -89,7 +89,7 @@ public class A2AHttpProcessorTests
     public async Task SendTaskMessage_ShouldReturnNotNull()
     {
         // Arrange
-        var (taskManager, store) = CreateTaskManager();
+        var (requestHandler, store) = CreateServer();
         await store.SetTaskAsync(new AgentTask
         {
             Id = "testId",
@@ -109,7 +109,7 @@ public class A2AHttpProcessorTests
         };
 
         // Act
-        var result = await A2AHttpProcessor.SendMessageAsync(taskManager, logger, sendRequest, CancellationToken.None);
+        var result = await A2AHttpProcessor.SendMessageAsync(requestHandler, logger, sendRequest, CancellationToken.None);
 
         // Assert
         Assert.NotNull(result);
@@ -136,13 +136,13 @@ public class A2AHttpProcessorTests
             .ThrowsAsync(new A2AException("Test exception", errorCode));
 
         var handler = new Mock<IAgentHandler>().Object;
-        var taskManager = new A2AServer(handler, mockTaskStore.Object, NullLogger<A2AServer>.Instance);
+        var requestHandler = new A2AServer(handler, mockTaskStore.Object, NullLogger<A2AServer>.Instance);
         var logger = NullLogger.Instance;
         var id = "testId";
         var historyLength = 10;
 
         // Act
-        var result = await A2AHttpProcessor.GetTaskAsync(taskManager, logger, id, historyLength, null, CancellationToken.None);
+        var result = await A2AHttpProcessor.GetTaskAsync(requestHandler, logger, id, historyLength, null, CancellationToken.None);
 
         // Assert
         Assert.NotNull(result);
@@ -161,13 +161,13 @@ public class A2AHttpProcessorTests
             .ThrowsAsync(new A2AException("Test exception with unknown error code", unknownErrorCode));
 
         var handler = new Mock<IAgentHandler>().Object;
-        var taskManager = new A2AServer(handler, mockTaskStore.Object, NullLogger<A2AServer>.Instance);
+        var requestHandler = new A2AServer(handler, mockTaskStore.Object, NullLogger<A2AServer>.Instance);
         var logger = NullLogger.Instance;
         var id = "testId";
         var historyLength = 10;
 
         // Act
-        var result = await A2AHttpProcessor.GetTaskAsync(taskManager, logger, id, historyLength, null, CancellationToken.None);
+        var result = await A2AHttpProcessor.GetTaskAsync(requestHandler, logger, id, historyLength, null, CancellationToken.None);
 
         // Assert
         Assert.NotNull(result);

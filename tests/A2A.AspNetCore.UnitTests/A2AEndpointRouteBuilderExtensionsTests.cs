@@ -10,10 +10,10 @@ public class A2AEndpointRouteBuilderExtensionsTests
     {
         // Arrange
         var app = WebApplication.CreateBuilder().Build();
-        var taskManager = new Mock<IA2ARequestHandler>().Object;
+        var requestHandler = new Mock<IA2ARequestHandler>().Object;
 
         // Act & Assert - Should not throw
-        var result = app.MapA2A(taskManager, "/agent");
+        var result = app.MapA2A(requestHandler, "/agent");
         Assert.NotNull(result);
     }
 
@@ -34,11 +34,11 @@ public class A2AEndpointRouteBuilderExtensionsTests
     {
         // Arrange
         var app = WebApplication.CreateBuilder().Build();
-        var taskManager = new Mock<IA2ARequestHandler>().Object;
+        var requestHandler = new Mock<IA2ARequestHandler>().Object;
         var agentCard = new AgentCard { Name = "Test", Description = "Test agent" };
 
         // Act & Assert - Should not throw when calling both
-        var result1 = app.MapA2A(taskManager, "/agent");
+        var result1 = app.MapA2A(requestHandler, "/agent");
         var result2 = app.MapWellKnownAgentCard(agentCard);
 
         Assert.NotNull(result1);
@@ -52,21 +52,21 @@ public class A2AEndpointRouteBuilderExtensionsTests
     {
         // Arrange
         var app = WebApplication.CreateBuilder().Build();
-        var taskManager = new Mock<IA2ARequestHandler>().Object;
+        var requestHandler = new Mock<IA2ARequestHandler>().Object;
 
         // Act & Assert
         if (path == null)
         {
-            Assert.Throws<ArgumentNullException>(() => app.MapA2A(taskManager, path!));
+            Assert.Throws<ArgumentNullException>(() => app.MapA2A(requestHandler, path!));
         }
         else
         {
-            Assert.Throws<ArgumentException>(() => app.MapA2A(taskManager, path));
+            Assert.Throws<ArgumentException>(() => app.MapA2A(requestHandler, path));
         }
     }
 
     [Fact]
-    public void MapA2A_RequiresNonNullTaskManager()
+    public void MapA2A_RequiresNonNullRequestHandler()
     {
         // Arrange
         var app = WebApplication.CreateBuilder().Build();

@@ -13,10 +13,10 @@ namespace A2A.AspNetCore;
 /// </summary>
 internal static class A2AHttpProcessor
 {
-    internal static Task<IResult> GetTaskAsync(IA2ARequestHandler taskManager, ILogger logger, string id, int? historyLength, string? metadata, CancellationToken cancellationToken)
+    internal static Task<IResult> GetTaskAsync(IA2ARequestHandler requestHandler, ILogger logger, string id, int? historyLength, string? metadata, CancellationToken cancellationToken)
         => WithExceptionHandlingAsync(logger, "GetTask", async ct =>
         {
-            var agentTask = await taskManager.GetTaskAsync(new GetTaskRequest
+            var agentTask = await requestHandler.GetTaskAsync(new GetTaskRequest
             {
                 Id = id,
                 HistoryLength = historyLength,
@@ -25,31 +25,31 @@ internal static class A2AHttpProcessor
             return new JsonRpcResponseResult(JsonRpcResponse.CreateJsonRpcResponse(new JsonRpcId("http"), agentTask));
         }, id, cancellationToken: cancellationToken);
 
-    internal static Task<IResult> CancelTaskAsync(IA2ARequestHandler taskManager, ILogger logger, string id, CancellationToken cancellationToken)
+    internal static Task<IResult> CancelTaskAsync(IA2ARequestHandler requestHandler, ILogger logger, string id, CancellationToken cancellationToken)
         => WithExceptionHandlingAsync(logger, "CancelTask", async ct =>
         {
-            var cancelledTask = await taskManager.CancelTaskAsync(new CancelTaskRequest { Id = id }, ct).ConfigureAwait(false);
+            var cancelledTask = await requestHandler.CancelTaskAsync(new CancelTaskRequest { Id = id }, ct).ConfigureAwait(false);
             return new JsonRpcResponseResult(JsonRpcResponse.CreateJsonRpcResponse(new JsonRpcId("http"), cancelledTask));
         }, id, cancellationToken: cancellationToken);
 
-    internal static Task<IResult> SendMessageAsync(IA2ARequestHandler taskManager, ILogger logger, SendMessageRequest sendRequest, CancellationToken cancellationToken)
+    internal static Task<IResult> SendMessageAsync(IA2ARequestHandler requestHandler, ILogger logger, SendMessageRequest sendRequest, CancellationToken cancellationToken)
         => WithExceptionHandlingAsync(logger, "SendMessage", async ct =>
         {
-            var result = await taskManager.SendMessageAsync(sendRequest, ct).ConfigureAwait(false);
+            var result = await requestHandler.SendMessageAsync(sendRequest, ct).ConfigureAwait(false);
             return new JsonRpcResponseResult(JsonRpcResponse.CreateJsonRpcResponse(new JsonRpcId("http"), result));
         }, cancellationToken: cancellationToken);
 
-    internal static IResult SendMessageStream(IA2ARequestHandler taskManager, ILogger logger, SendMessageRequest sendRequest, CancellationToken cancellationToken)
+    internal static IResult SendMessageStream(IA2ARequestHandler requestHandler, ILogger logger, SendMessageRequest sendRequest, CancellationToken cancellationToken)
         => WithExceptionHandling(logger, nameof(SendMessageStream), () =>
         {
-            var events = taskManager.SendStreamingMessageAsync(sendRequest, cancellationToken);
+            var events = requestHandler.SendStreamingMessageAsync(sendRequest, cancellationToken);
             return new JsonRpcStreamedResult(events, new JsonRpcId("http"));
         });
 
-    internal static IResult SubscribeToTask(IA2ARequestHandler taskManager, ILogger logger, string id, CancellationToken cancellationToken)
+    internal static IResult SubscribeToTask(IA2ARequestHandler requestHandler, ILogger logger, string id, CancellationToken cancellationToken)
         => WithExceptionHandling(logger, nameof(SubscribeToTask), () =>
         {
-            var events = taskManager.SubscribeToTaskAsync(new SubscribeToTaskRequest { Id = id }, cancellationToken);
+            var events = requestHandler.SubscribeToTaskAsync(new SubscribeToTaskRequest { Id = id }, cancellationToken);
             return new JsonRpcStreamedResult(events, new JsonRpcId("http"));
         }, id);
 
@@ -126,102 +126,67 @@ internal static class A2AHttpProcessor
         };
     }
 
-    // ======= REST API exception handling (simplified, without activity tracing) =======
-
-    private static async Task<IResult> WithExceptionHandlingAsync(
-        Func<CancellationToken, Task<IResult>> operation, CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await operation(cancellationToken).ConfigureAwait(false);
-        }
-        catch (A2AException ex)
-        {
-            return MapA2AExceptionToHttpResult(ex);
-        }
-        catch (Exception)
-        {
-            return Results.Problem(detail: "An internal error occurred.", statusCode: StatusCodes.Status500InternalServerError);
-        }
-    }
-
-    private static IResult WithExceptionHandling(Func<IResult> operation)
-    {
-        try
-        {
-            return operation();
-        }
-        catch (A2AException ex)
-        {
-            return MapA2AExceptionToHttpResult(ex);
-        }
-        catch (Exception)
-        {
-            return Results.Problem(detail: "An internal error occurred.", statusCode: StatusCodes.Status500InternalServerError);
-        }
-    }
-
     // ======= REST API handler methods =======
 
     // REST handler: Get agent card
     internal static Task<IResult> GetAgentCardRestAsync(
-        IA2ARequestHandler taskManager, AgentCard agentCard, CancellationToken cancellationToken)
-        => WithExceptionHandlingAsync(ct =>
-            Task.FromResult<IResult>(new A2AResponseResult(agentCard)), cancellationToken);
+        IA2ARequestHandler requestHandler, ILogger logger, AgentCard agentCard, CancellationToken cancellationToken)
+        => WithExceptionHandlingAsync(logger, "REST.GetAgentCard", ct =>
+            Task.FromResult<IResult>(new A2AResponseResult(agentCard)), cancellationToken: cancellationToken);
 
     // REST handler: Get task by ID
     internal static Task<IResult> GetTaskRestAsync(
-        IA2ARequestHandler taskManager, string id, int? historyLength, CancellationToken cancellationToken)
-        => WithExceptionHandlingAsync(async ct =>
+        IA2ARequestHandler requestHandler, ILogger logger, string id, int? historyLength, CancellationToken cancellationToken)
+        => WithExceptionHandlingAsync(logger, "REST.GetTask", async ct =>
         {
-            var result = await taskManager.GetTaskAsync(
+            var result = await requestHandler.GetTaskAsync(
                 new GetTaskRequest { Id = id, HistoryLength = historyLength }, ct).ConfigureAwait(false);
             return new A2AResponseResult(result);
-        }, cancellationToken);
+        }, id, cancellationToken);
 
     // REST handler: Cancel task
     internal static Task<IResult> CancelTaskRestAsync(
-        IA2ARequestHandler taskManager, string id, CancellationToken cancellationToken)
-        => WithExceptionHandlingAsync(async ct =>
+        IA2ARequestHandler requestHandler, ILogger logger, string id, CancellationToken cancellationToken)
+        => WithExceptionHandlingAsync(logger, "REST.CancelTask", async ct =>
         {
-            var result = await taskManager.CancelTaskAsync(
+            var result = await requestHandler.CancelTaskAsync(
                 new CancelTaskRequest { Id = id }, ct).ConfigureAwait(false);
             return new A2AResponseResult(result);
-        }, cancellationToken);
+        }, id, cancellationToken);
 
     // REST handler: Send message
     internal static Task<IResult> SendMessageRestAsync(
-        IA2ARequestHandler taskManager, SendMessageRequest request, CancellationToken cancellationToken)
-        => WithExceptionHandlingAsync(async ct =>
+        IA2ARequestHandler requestHandler, ILogger logger, SendMessageRequest request, CancellationToken cancellationToken)
+        => WithExceptionHandlingAsync(logger, "REST.SendMessage", async ct =>
         {
-            var result = await taskManager.SendMessageAsync(request, ct).ConfigureAwait(false);
+            var result = await requestHandler.SendMessageAsync(request, ct).ConfigureAwait(false);
             return new A2AResponseResult(result);
-        }, cancellationToken);
+        }, cancellationToken: cancellationToken);
 
     // REST handler: Send streaming message
     internal static IResult SendMessageStreamRest(
-        IA2ARequestHandler taskManager, SendMessageRequest request, CancellationToken cancellationToken)
-        => WithExceptionHandling(() =>
+        IA2ARequestHandler requestHandler, ILogger logger, SendMessageRequest request, CancellationToken cancellationToken)
+        => WithExceptionHandling(logger, "REST.SendMessageStream", () =>
         {
-            var events = taskManager.SendStreamingMessageAsync(request, cancellationToken);
+            var events = requestHandler.SendStreamingMessageAsync(request, cancellationToken);
             return new A2AEventStreamResult(events);
         });
 
     // REST handler: Subscribe to task
     internal static IResult SubscribeToTaskRest(
-        IA2ARequestHandler taskManager, string id, CancellationToken cancellationToken)
-        => WithExceptionHandling(() =>
+        IA2ARequestHandler requestHandler, ILogger logger, string id, CancellationToken cancellationToken)
+        => WithExceptionHandling(logger, "REST.SubscribeToTask", () =>
         {
-            var events = taskManager.SubscribeToTaskAsync(
+            var events = requestHandler.SubscribeToTaskAsync(
                 new SubscribeToTaskRequest { Id = id }, cancellationToken);
             return new A2AEventStreamResult(events);
-        });
+        }, id);
 
     // REST handler: List tasks
     internal static Task<IResult> ListTasksRestAsync(
-        IA2ARequestHandler taskManager, string? contextId, string? status, int? pageSize,
+        IA2ARequestHandler requestHandler, ILogger logger, string? contextId, string? status, int? pageSize,
         string? pageToken, int? historyLength, CancellationToken cancellationToken)
-        => WithExceptionHandlingAsync(async ct =>
+        => WithExceptionHandlingAsync(logger, "REST.ListTasks", async ct =>
         {
             var request = new ListTasksRequest
             {
@@ -241,24 +206,24 @@ internal static class A2AHttpProcessor
                 request.Status = taskState;
             }
 
-            var result = await taskManager.ListTasksAsync(request, ct).ConfigureAwait(false);
+            var result = await requestHandler.ListTasksAsync(request, ct).ConfigureAwait(false);
             return new A2AResponseResult(result);
-        }, cancellationToken);
+        }, cancellationToken: cancellationToken);
 
     // REST handler: Get extended agent card
     internal static Task<IResult> GetExtendedAgentCardRestAsync(
-        IA2ARequestHandler taskManager, CancellationToken cancellationToken)
-        => WithExceptionHandlingAsync(async ct =>
+        IA2ARequestHandler requestHandler, ILogger logger, CancellationToken cancellationToken)
+        => WithExceptionHandlingAsync(logger, "REST.GetExtendedAgentCard", async ct =>
         {
-            var result = await taskManager.GetExtendedAgentCardAsync(
+            var result = await requestHandler.GetExtendedAgentCardAsync(
                 new GetExtendedAgentCardRequest(), ct).ConfigureAwait(false);
             return new A2AResponseResult(result);
-        }, cancellationToken);
+        }, cancellationToken: cancellationToken);
 
     // REST handler: Create push notification config
     internal static Task<IResult> CreatePushNotificationConfigRestAsync(
-        IA2ARequestHandler taskManager, string taskId, PushNotificationConfig config, CancellationToken cancellationToken)
-        => WithExceptionHandlingAsync(async ct =>
+        IA2ARequestHandler requestHandler, ILogger logger, string taskId, PushNotificationConfig config, CancellationToken cancellationToken)
+        => WithExceptionHandlingAsync(logger, "REST.CreatePushNotificationConfig", async ct =>
         {
             var request = new CreateTaskPushNotificationConfigRequest
             {
@@ -266,15 +231,15 @@ internal static class A2AHttpProcessor
                 Config = config,
                 ConfigId = config.Id ?? string.Empty,
             };
-            var result = await taskManager.CreateTaskPushNotificationConfigAsync(request, ct).ConfigureAwait(false);
+            var result = await requestHandler.CreateTaskPushNotificationConfigAsync(request, ct).ConfigureAwait(false);
             return new A2AResponseResult(result);
-        }, cancellationToken);
+        }, taskId, cancellationToken);
 
     // REST handler: List push notification configs for a task
     internal static Task<IResult> ListPushNotificationConfigRestAsync(
-        IA2ARequestHandler taskManager, string taskId, int? pageSize, string? pageToken,
+        IA2ARequestHandler requestHandler, ILogger logger, string taskId, int? pageSize, string? pageToken,
         CancellationToken cancellationToken)
-        => WithExceptionHandlingAsync(async ct =>
+        => WithExceptionHandlingAsync(logger, "REST.ListPushNotificationConfig", async ct =>
         {
             var request = new ListTaskPushNotificationConfigRequest
             {
@@ -282,30 +247,30 @@ internal static class A2AHttpProcessor
                 PageSize = pageSize,
                 PageToken = pageToken,
             };
-            var result = await taskManager.ListTaskPushNotificationConfigAsync(request, ct)
+            var result = await requestHandler.ListTaskPushNotificationConfigAsync(request, ct)
                 .ConfigureAwait(false);
             return new A2AResponseResult(result);
-        }, cancellationToken);
+        }, taskId, cancellationToken);
 
     // REST handler: Get push notification config
     internal static Task<IResult> GetPushNotificationConfigRestAsync(
-        IA2ARequestHandler taskManager, string taskId, string configId, CancellationToken cancellationToken)
-        => WithExceptionHandlingAsync(async ct =>
+        IA2ARequestHandler requestHandler, ILogger logger, string taskId, string configId, CancellationToken cancellationToken)
+        => WithExceptionHandlingAsync(logger, "REST.GetPushNotificationConfig", async ct =>
         {
             var request = new GetTaskPushNotificationConfigRequest { TaskId = taskId, Id = configId };
-            var result = await taskManager.GetTaskPushNotificationConfigAsync(request, ct).ConfigureAwait(false);
+            var result = await requestHandler.GetTaskPushNotificationConfigAsync(request, ct).ConfigureAwait(false);
             return new A2AResponseResult(result);
-        }, cancellationToken);
+        }, taskId, cancellationToken);
 
     // REST handler: Delete push notification config
     internal static Task<IResult> DeletePushNotificationConfigRestAsync(
-        IA2ARequestHandler taskManager, string taskId, string configId, CancellationToken cancellationToken)
-        => WithExceptionHandlingAsync(async ct =>
+        IA2ARequestHandler requestHandler, ILogger logger, string taskId, string configId, CancellationToken cancellationToken)
+        => WithExceptionHandlingAsync(logger, "REST.DeletePushNotificationConfig", async ct =>
         {
             var request = new DeleteTaskPushNotificationConfigRequest { TaskId = taskId, Id = configId };
-            await taskManager.DeleteTaskPushNotificationConfigAsync(request, ct).ConfigureAwait(false);
+            await requestHandler.DeleteTaskPushNotificationConfigAsync(request, ct).ConfigureAwait(false);
             return Results.NoContent();
-        }, cancellationToken);
+        }, taskId, cancellationToken);
 }
 
 /// <summary>IResult for REST API JSON responses.</summary>
