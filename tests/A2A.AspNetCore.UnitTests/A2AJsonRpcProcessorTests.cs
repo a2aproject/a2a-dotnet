@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -18,7 +18,7 @@ public class A2AJsonRpcProcessorTests
     public async Task ValidateIdField_HandlesVariousIdTypes(object? idValue, bool isValid)
     {
         // Arrange
-        var taskManager = CreateTestTaskManager();
+        var requestHandler = CreateTestServer();
         var jsonRequest = $$"""
         {
             "jsonrpc": "2.0",
@@ -37,7 +37,7 @@ public class A2AJsonRpcProcessorTests
         var httpRequest = CreateHttpRequestFromJson(jsonRequest);
 
         // Act
-        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -62,7 +62,7 @@ public class A2AJsonRpcProcessorTests
     public async Task EmptyPartsArrayIsNotAllowed()
     {
         // Arrange
-        var taskManager = CreateTestTaskManager();
+        var requestHandler = CreateTestServer();
         var jsonRequest = $$"""
         {
             "jsonrpc": "2.0",
@@ -80,7 +80,7 @@ public class A2AJsonRpcProcessorTests
 
         var httpRequest = CreateHttpRequestFromJson(jsonRequest);
 
-        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
 
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
         var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
@@ -100,7 +100,7 @@ public class A2AJsonRpcProcessorTests
     public async Task ValidateMethodField_HandlesVariousMethodTypes(string methodPropertySnippet, int? expectedErrorCode)
     {
         // Arrange
-        var taskManager = CreateTestTaskManager();
+        var requestHandler = CreateTestServer();
 
         // Build JSON with conditional method property inclusion
         var hasMethodProperty = !string.IsNullOrEmpty(methodPropertySnippet);
@@ -122,7 +122,7 @@ public class A2AJsonRpcProcessorTests
         var httpRequest = CreateHttpRequestFromJson(jsonRequest);
 
         // Act
-        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -154,7 +154,7 @@ public class A2AJsonRpcProcessorTests
     public async Task ValidateParamsField_HandlesVariousParamsTypes(string paramsValue, int? expectedErrorCode)
     {
         // Arrange
-        var taskManager = CreateTestTaskManager();
+        var requestHandler = CreateTestServer();
         var jsonRequest = $$"""
         {
             "jsonrpc": "2.0",
@@ -167,7 +167,7 @@ public class A2AJsonRpcProcessorTests
         var httpRequest = CreateHttpRequestFromJson(jsonRequest);
 
         // Act
-        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -199,7 +199,7 @@ public class A2AJsonRpcProcessorTests
     public async Task ValidateParamsContent_HandlesInvalidParamsStructure(string paramsValue, string expectedErrorPrefix)
     {
         // Arrange
-        var taskManager = CreateTestTaskManager();
+        var requestHandler = CreateTestServer();
         var jsonRequest = $$"""
         {
             "jsonrpc": "2.0",
@@ -212,7 +212,7 @@ public class A2AJsonRpcProcessorTests
         var httpRequest = CreateHttpRequestFromJson(jsonRequest);
 
         // Act
-        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -230,7 +230,7 @@ public class A2AJsonRpcProcessorTests
     [Fact]
     public async Task ProcessRequest_SingleResponse_MessageSend_Works()
     {
-        var (taskManager, _) = CreateTestTaskManagerWithStore();
+        var (requestHandler, _) = CreateTestServerWithStore();
         SendMessageRequest sendRequest = new()
         {
             Message = new Message { MessageId = "test-message-id", Role = Role.User, Parts = [Part.FromText("hi")] }
@@ -245,7 +245,7 @@ public class A2AJsonRpcProcessorTests
         var httpRequest = CreateHttpRequest(req);
 
         // Act
-        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -271,7 +271,7 @@ public class A2AJsonRpcProcessorTests
     public async Task ProcessRequest_SingleResponse_InvalidParams_ReturnsError()
     {
         // Arrange
-        var taskManager = CreateTestTaskManager();
+        var requestHandler = CreateTestServer();
         var req = new JsonRpcRequest
         {
             Id = "2",
@@ -282,7 +282,7 @@ public class A2AJsonRpcProcessorTests
         var httpRequest = CreateHttpRequest(req);
 
         // Act
-        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -304,7 +304,7 @@ public class A2AJsonRpcProcessorTests
     public async Task SingleResponse_TaskGet_Works()
     {
         // Arrange
-        var (taskManager, store) = CreateTestTaskManagerWithStore();
+        var (requestHandler, store) = CreateTestServerWithStore();
         var task = await store.SetTaskAsync(new AgentTask
         {
             Id = Guid.NewGuid().ToString(),
@@ -315,7 +315,7 @@ public class A2AJsonRpcProcessorTests
         var getTaskRequest = new GetTaskRequest { Id = task.Id };
 
         // Act
-        var result = await A2AJsonRpcProcessor.SingleResponseAsync(taskManager, "4", A2AMethods.GetTask, ToJsonElement(getTaskRequest), CancellationToken.None);
+        var result = await A2AJsonRpcProcessor.SingleResponseAsync(requestHandler, "4", A2AMethods.GetTask, ToJsonElement(getTaskRequest), CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -335,7 +335,7 @@ public class A2AJsonRpcProcessorTests
     public async Task SingleResponse_TaskGet_NegativeHistoryLength_ReturnsFullHistory()
     {
         // Arrange - In v1, negative history length is treated as "return all history"
-        var (taskManager, store) = CreateTestTaskManagerWithStore();
+        var (requestHandler, store) = CreateTestServerWithStore();
         var task = await store.SetTaskAsync(new AgentTask
         {
             Id = Guid.NewGuid().ToString(),
@@ -346,7 +346,7 @@ public class A2AJsonRpcProcessorTests
         GetTaskRequest getTaskRequest = new() { Id = task.Id, HistoryLength = -1 };
 
         // Act
-        var result = await A2AJsonRpcProcessor.SingleResponseAsync(taskManager, "4", A2AMethods.GetTask, ToJsonElement(getTaskRequest), CancellationToken.None);
+        var result = await A2AJsonRpcProcessor.SingleResponseAsync(requestHandler, "4", A2AMethods.GetTask, ToJsonElement(getTaskRequest), CancellationToken.None);
 
         // Assert - should succeed with full history
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -361,7 +361,7 @@ public class A2AJsonRpcProcessorTests
     public async Task SingleResponse_TaskCancel_Works()
     {
         // Arrange
-        var (taskManager, store) = CreateTestTaskManagerWithStore();
+        var (requestHandler, store) = CreateTestServerWithStore();
         var newTask = await store.SetTaskAsync(new AgentTask
         {
             Id = Guid.NewGuid().ToString(),
@@ -371,7 +371,7 @@ public class A2AJsonRpcProcessorTests
         var cancelRequest = new CancelTaskRequest { Id = newTask.Id };
 
         // Act
-        var result = await A2AJsonRpcProcessor.SingleResponseAsync(taskManager, "5", A2AMethods.CancelTask, ToJsonElement(cancelRequest), CancellationToken.None);
+        var result = await A2AJsonRpcProcessor.SingleResponseAsync(requestHandler, "5", A2AMethods.CancelTask, ToJsonElement(cancelRequest), CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -391,10 +391,10 @@ public class A2AJsonRpcProcessorTests
     public async Task StreamResponse_SendStreamingMessage_InvalidParams_ReturnsError()
     {
         // Arrange
-        var taskManager = CreateTestTaskManager();
+        var requestHandler = CreateTestServer();
 
         // Act
-        var result = A2AJsonRpcProcessor.StreamResponse(taskManager, "10", A2AMethods.SendStreamingMessage, null, CancellationToken.None);
+        var result = A2AJsonRpcProcessor.StreamResponse(requestHandler, "10", A2AMethods.SendStreamingMessage, null, CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -412,19 +412,19 @@ public class A2AJsonRpcProcessorTests
         Assert.Equal("Invalid parameters", BodyContent.Error.Message);
     }
 
-    /// <summary>Creates a test TaskManager with in-memory store and default callbacks.</summary>
-    private static IA2ARequestHandler CreateTestTaskManager()
+    /// <summary>Creates a test A2AServer with in-memory store and default callbacks.</summary>
+    private static IA2ARequestHandler CreateTestServer()
     {
-        return CreateTestTaskManagerWithStore().taskManager;
+        return CreateTestServerWithStore().requestHandler;
     }
 
-    /// <summary>Creates a test TaskManager with store exposed for pre-populating data.</summary>
-    private static (IA2ARequestHandler taskManager, InMemoryTaskStore store) CreateTestTaskManagerWithStore()
+    /// <summary>Creates a test A2AServer with store exposed for pre-populating data.</summary>
+    private static (IA2ARequestHandler requestHandler, InMemoryTaskStore store) CreateTestServerWithStore()
     {
         var store = new InMemoryTaskStore();
         var handler = new TestAgentHandler(store);
-        var taskManager = new A2AServer(handler, store, NullLogger<A2AServer>.Instance);
-        return (taskManager, store);
+        var requestHandler = new A2AServer(handler, store, NullLogger<A2AServer>.Instance);
+        return (requestHandler, store);
     }
 
     private sealed class TestAgentHandler(InMemoryTaskStore store) : IAgentHandler
@@ -479,7 +479,7 @@ public class A2AJsonRpcProcessorTests
     public async Task ProcessRequestAsync_ListTasks_ReturnsEmptyResult()
     {
         // Arrange
-        var taskManager = CreateTestTaskManager();
+        var requestHandler = CreateTestServer();
         var jsonRequest = $$"""
         {
             "jsonrpc": "2.0",
@@ -492,7 +492,7 @@ public class A2AJsonRpcProcessorTests
         var httpRequest = CreateHttpRequestFromJson(jsonRequest);
 
         // Act
-        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -512,7 +512,7 @@ public class A2AJsonRpcProcessorTests
     public async Task ProcessRequestAsync_ListTasks_InvalidPageSize_ReturnsError()
     {
         // Arrange
-        var taskManager = CreateTestTaskManager();
+        var requestHandler = CreateTestServer();
         var jsonRequest = $$"""
         {
             "jsonrpc": "2.0",
@@ -525,7 +525,7 @@ public class A2AJsonRpcProcessorTests
         var httpRequest = CreateHttpRequestFromJson(jsonRequest);
 
         // Act
-        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -543,7 +543,7 @@ public class A2AJsonRpcProcessorTests
     public async Task ProcessRequestAsync_ListTasks_NegativeHistoryLength_ReturnsError()
     {
         // Arrange
-        var taskManager = CreateTestTaskManager();
+        var requestHandler = CreateTestServer();
         var jsonRequest = $$"""
         {
             "jsonrpc": "2.0",
@@ -556,7 +556,7 @@ public class A2AJsonRpcProcessorTests
         var httpRequest = CreateHttpRequestFromJson(jsonRequest);
 
         // Act
-        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -574,7 +574,7 @@ public class A2AJsonRpcProcessorTests
     public async Task ProcessRequestAsync_PushNotificationMethod_ReturnsNotSupported()
     {
         // Arrange
-        var taskManager = CreateTestTaskManager();
+        var requestHandler = CreateTestServer();
         var jsonRequest = $$"""
         {
             "jsonrpc": "2.0",
@@ -587,7 +587,7 @@ public class A2AJsonRpcProcessorTests
         var httpRequest = CreateHttpRequestFromJson(jsonRequest);
 
         // Act
-        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -604,7 +604,7 @@ public class A2AJsonRpcProcessorTests
     public async Task ProcessRequestAsync_GetExtendedAgentCard_ReturnsNotConfigured()
     {
         // Arrange
-        var taskManager = CreateTestTaskManager();
+        var requestHandler = CreateTestServer();
         var jsonRequest = $$"""
         {
             "jsonrpc": "2.0",
@@ -617,7 +617,7 @@ public class A2AJsonRpcProcessorTests
         var httpRequest = CreateHttpRequestFromJson(jsonRequest);
 
         // Act
-        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -634,7 +634,7 @@ public class A2AJsonRpcProcessorTests
     public async Task ProcessRequestAsync_VersionNegotiation_EmptyHeader_Succeeds()
     {
         // Arrange - no A2A-Version header set
-        var taskManager = CreateTestTaskManager();
+        var requestHandler = CreateTestServer();
         var jsonRequest = $$"""
         {
             "jsonrpc": "2.0",
@@ -653,7 +653,7 @@ public class A2AJsonRpcProcessorTests
         var httpRequest = CreateHttpRequestFromJson(jsonRequest);
 
         // Act
-        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -668,7 +668,7 @@ public class A2AJsonRpcProcessorTests
     public async Task ProcessRequestAsync_VersionNegotiation_V10_Succeeds()
     {
         // Arrange
-        var taskManager = CreateTestTaskManager();
+        var requestHandler = CreateTestServer();
         var jsonRequest = $$"""
         {
             "jsonrpc": "2.0",
@@ -692,7 +692,7 @@ public class A2AJsonRpcProcessorTests
         var httpRequest = context.Request;
 
         // Act
-        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -707,7 +707,7 @@ public class A2AJsonRpcProcessorTests
     public async Task ProcessRequestAsync_VersionNegotiation_V03_Succeeds()
     {
         // Arrange
-        var taskManager = CreateTestTaskManager();
+        var requestHandler = CreateTestServer();
         var jsonRequest = $$"""
         {
             "jsonrpc": "2.0",
@@ -731,7 +731,7 @@ public class A2AJsonRpcProcessorTests
         var httpRequest = context.Request;
 
         // Act
-        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -746,7 +746,7 @@ public class A2AJsonRpcProcessorTests
     public async Task ProcessRequestAsync_VersionNegotiation_Unsupported_ReturnsError()
     {
         // Arrange
-        var taskManager = CreateTestTaskManager();
+        var requestHandler = CreateTestServer();
         var jsonRequest = $$"""
         {
             "jsonrpc": "2.0",
@@ -770,7 +770,7 @@ public class A2AJsonRpcProcessorTests
         var httpRequest = context.Request;
 
         // Act
-        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, httpRequest, CancellationToken.None);
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);

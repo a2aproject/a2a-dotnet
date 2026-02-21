@@ -40,18 +40,18 @@ public static class A2ARouteBuilderExtensions
 
     /// <summary>Enables JSON-RPC A2A endpoints for the specified path.</summary>
     /// <param name="endpoints">The endpoint route builder.</param>
-    /// <param name="taskManager">The task manager implementation.</param>
+    /// <param name="requestHandler">The A2A request handler.</param>
     /// <param name="path">The route path for the A2A endpoint.</param>
     /// <returns>An endpoint convention builder for further configuration.</returns>
-    public static IEndpointConventionBuilder MapA2A(this IEndpointRouteBuilder endpoints, IA2ARequestHandler taskManager, [StringSyntax("Route")] string path)
+    public static IEndpointConventionBuilder MapA2A(this IEndpointRouteBuilder endpoints, IA2ARequestHandler requestHandler, [StringSyntax("Route")] string path)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
-        ArgumentNullException.ThrowIfNull(taskManager);
+        ArgumentNullException.ThrowIfNull(requestHandler);
         ArgumentException.ThrowIfNullOrEmpty(path);
 
         var routeGroup = endpoints.MapGroup("");
 
-        routeGroup.MapPost(path, (HttpRequest request, CancellationToken cancellationToken) => A2AJsonRpcProcessor.ProcessRequestAsync(taskManager, request, cancellationToken));
+        routeGroup.MapPost(path, (HttpRequest request, CancellationToken cancellationToken) => A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, request, cancellationToken));
 
         return routeGroup;
     }
@@ -87,66 +87,67 @@ public static class A2ARouteBuilderExtensions
     /// if multi-tenant routing is required.</para>
     /// </remarks>
     /// <param name="endpoints">The endpoint route builder.</param>
-    /// <param name="taskManager">The task manager implementation.</param>
+    /// <param name="requestHandler">The A2A request handler.</param>
     /// <param name="agentCard">The agent card to serve at the /v1/card endpoint.</param>
     /// <param name="path">The route prefix for all REST endpoints.</param>
     /// <returns>An endpoint convention builder for further configuration.</returns>
     public static IEndpointConventionBuilder MapHttpA2A(
-        this IEndpointRouteBuilder endpoints, IA2ARequestHandler taskManager, AgentCard agentCard, [StringSyntax("Route")] string path = "")
+        this IEndpointRouteBuilder endpoints, IA2ARequestHandler requestHandler, AgentCard agentCard, [StringSyntax("Route")] string path = "")
     {
         ArgumentNullException.ThrowIfNull(endpoints);
-        ArgumentNullException.ThrowIfNull(taskManager);
+        ArgumentNullException.ThrowIfNull(requestHandler);
         ArgumentNullException.ThrowIfNull(agentCard);
 
         var routeGroup = endpoints.MapGroup(path);
+        var logger = endpoints.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("A2A.REST");
 
         // Agent card
         routeGroup.MapGet("/v1/card", (CancellationToken ct)
-            => A2AHttpProcessor.GetAgentCardRestAsync(taskManager, agentCard, ct));
+            => A2AHttpProcessor.GetAgentCardRestAsync(requestHandler, logger, agentCard, ct));
 
         // Task operations
         routeGroup.MapGet("/v1/tasks/{id}", (string id, [FromQuery] int? historyLength, CancellationToken ct)
-            => A2AHttpProcessor.GetTaskRestAsync(taskManager, id, historyLength, ct));
+            => A2AHttpProcessor.GetTaskRestAsync(requestHandler, logger, id, historyLength, ct));
 
         routeGroup.MapPost("/v1/tasks/{id}:cancel", (string id, CancellationToken ct)
-            => A2AHttpProcessor.CancelTaskRestAsync(taskManager, id, ct));
+            => A2AHttpProcessor.CancelTaskRestAsync(requestHandler, logger, id, ct));
 
         routeGroup.MapGet("/v1/tasks/{id}:subscribe", (string id, CancellationToken ct)
-            => A2AHttpProcessor.SubscribeToTaskRest(taskManager, id, ct));
+            => A2AHttpProcessor.SubscribeToTaskRest(requestHandler, logger, id, ct));
 
         routeGroup.MapGet("/v1/tasks", ([FromQuery] string? contextId, [FromQuery] string? status,
             [FromQuery] int? pageSize, [FromQuery] string? pageToken, [FromQuery] int? historyLength,
             CancellationToken ct)
-            => A2AHttpProcessor.ListTasksRestAsync(taskManager, contextId, status, pageSize, pageToken,
+            => A2AHttpProcessor.ListTasksRestAsync(requestHandler, logger, contextId, status, pageSize, pageToken,
                 historyLength, ct));
 
         // Message operations
         routeGroup.MapPost("/v1/message:send", ([FromBody] SendMessageRequest request, CancellationToken ct)
-            => A2AHttpProcessor.SendMessageRestAsync(taskManager, request, ct));
+            => A2AHttpProcessor.SendMessageRestAsync(requestHandler, logger, request, ct));
 
         routeGroup.MapPost("/v1/message:stream", ([FromBody] SendMessageRequest request, CancellationToken ct)
-            => A2AHttpProcessor.SendMessageStreamRest(taskManager, request, ct));
+            => A2AHttpProcessor.SendMessageStreamRest(requestHandler, logger, request, ct));
 
         // Push notification config operations
         routeGroup.MapPost("/v1/tasks/{id}/pushNotificationConfigs",
             (string id, [FromBody] PushNotificationConfig config, CancellationToken ct)
-            => A2AHttpProcessor.CreatePushNotificationConfigRestAsync(taskManager, id, config, ct));
+            => A2AHttpProcessor.CreatePushNotificationConfigRestAsync(requestHandler, logger, id, config, ct));
 
         routeGroup.MapGet("/v1/tasks/{id}/pushNotificationConfigs",
             (string id, [FromQuery] int? pageSize, [FromQuery] string? pageToken, CancellationToken ct)
-            => A2AHttpProcessor.ListPushNotificationConfigRestAsync(taskManager, id, pageSize, pageToken, ct));
+            => A2AHttpProcessor.ListPushNotificationConfigRestAsync(requestHandler, logger, id, pageSize, pageToken, ct));
 
         routeGroup.MapGet("/v1/tasks/{id}/pushNotificationConfigs/{configId}",
             (string id, string configId, CancellationToken ct)
-            => A2AHttpProcessor.GetPushNotificationConfigRestAsync(taskManager, id, configId, ct));
+            => A2AHttpProcessor.GetPushNotificationConfigRestAsync(requestHandler, logger, id, configId, ct));
 
         routeGroup.MapDelete("/v1/tasks/{id}/pushNotificationConfigs/{configId}",
             (string id, string configId, CancellationToken ct)
-            => A2AHttpProcessor.DeletePushNotificationConfigRestAsync(taskManager, id, configId, ct));
+            => A2AHttpProcessor.DeletePushNotificationConfigRestAsync(requestHandler, logger, id, configId, ct));
 
         // Extended agent card
         routeGroup.MapGet("/v1/extendedAgentCard", (CancellationToken ct)
-            => A2AHttpProcessor.GetExtendedAgentCardRestAsync(taskManager, ct));
+            => A2AHttpProcessor.GetExtendedAgentCardRestAsync(requestHandler, logger, ct));
 
         return routeGroup;
     }
