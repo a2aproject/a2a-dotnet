@@ -109,7 +109,10 @@ public sealed class TaskManager : ITaskManager
                 throw new A2AException("Task is in a terminal state and cannot be cancelled.", A2AErrorCode.TaskNotCancelable);
             }
 
-            task.Status = await _taskStore.UpdateStatusAsync(task.Id, TaskState.Canceled, cancellationToken: cancellationToken).ConfigureAwait(false);
+            await _taskStore.UpdateStatusAsync(task.Id, TaskState.Canceled, cancellationToken: cancellationToken).ConfigureAwait(false);
+            task = await _taskStore.GetTaskAsync(task.Id, cancellationToken).ConfigureAwait(false)
+                ?? throw new A2AException("Task not found after cancellation.", A2AErrorCode.TaskNotFound);
+                
             await OnTaskCancelled(task, cancellationToken).ConfigureAwait(false);
             return task;
         }
