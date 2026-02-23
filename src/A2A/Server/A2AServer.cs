@@ -334,6 +334,15 @@ public class A2AServer : IA2ARequestHandler
             }
         }
 
+        // Re-fetch the task from the store to ensure the response reflects
+        // all persisted status updates and artifact additions, not a stale snapshot.
+        // This is critical for stores that don't mutate objects in-place (e.g., distributed caches).
+        if (result?.Task is not null)
+        {
+            result.Task = await _store.GetTaskAsync(context.TaskId, cancellationToken).ConfigureAwait(false)
+                ?? throw new A2AException($"Task '{context.TaskId}' not found after processing.", A2AErrorCode.TaskNotFound);
+        }
+
         return result ?? throw new A2AException(
             "Agent handler did not produce any response events.",
             A2AErrorCode.InvalidAgentResponse);
