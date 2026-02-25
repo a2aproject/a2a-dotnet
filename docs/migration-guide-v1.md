@@ -588,3 +588,64 @@ var v1Part = A2A.Part.FromText("hello");
 ```
 
 The `A2A.V0_3` package is a standalone snapshot of the v0.3 SDK. It has no dependencies on the v1 package and can be used indefinitely during the transition period.
+
+---
+
+## Task Store (Event Sourcing)
+
+The v1 SDK replaces the mutable `ITaskStore` with an append-only `ITaskEventStore` backed by event sourcing. This change eliminates race conditions, enables spec-compliant subscribe/resubscribe, and fixes artifact append semantics.
+
+### What Changed
+
+| Before | After |
+|--------|-------|
+| `ITaskStore` (5 mutation methods) | `ITaskEventStore` (append-only + projection queries) |
+| `InMemoryTaskStore` | `InMemoryEventStore` |
+| `A2AServer(handler, ITaskStore, ...)` | `A2AServer(handler, ITaskEventStore, ...)` |
+| `services.TryAddSingleton<ITaskStore, InMemoryTaskStore>()` | `services.TryAddSingleton<ITaskEventStore, InMemoryEventStore>()` |
+
+### Default Registration (No Changes Needed)
+
+If you use `AddA2AAgent<THandler>()` for DI registration, no code changes are required. The default registration now uses `InMemoryEventStore`:
+
+```csharp
+// This still works — InMemoryEventStore is registered automatically
+builder.Services.AddA2AAgent<MyAgentHandler>(agentCard);
+```
+
+### Custom Task Store Migration
+
+If you had a custom `ITaskStore`, implement `ITaskEventStore` directly:
+
+```csharp
+// Before
+services.AddSingleton<ITaskStore>(new MyCustomTaskStore());
+services.AddSingleton<IA2ARequestHandler>(sp =>
+    new A2AServer(handler, sp.GetRequiredService<ITaskStore>(), logger));
+
+// After — implement ITaskEventStore
+services.AddSingleton<ITaskEventStore>(new MyCustomEventStore());
+services.AddSingleton<IA2ARequestHandler>(sp =>
+    new A2AServer(handler, sp.GetRequiredService<ITaskEventStore>(), logger));
+```
+
+### Manual A2AServer Construction
+
+If you construct `A2AServer` directly:
+
+```csharp
+// Before
+var store = new InMemoryTaskStore();
+var server = new A2AServer(handler, store, logger);
+
+// After
+var eventStore = new InMemoryEventStore();
+var server = new A2AServer(handler, eventStore, logger);
+```
+
+### Benefits
+
+- **Subscribe/resubscribe**: `SubscribeToTaskAsync` now delivers catch-up events then live events, completing on terminal state
+- **No race conditions**: Append-only design eliminates read-modify-write races in artifact persistence
+- **Correct artifact semantics**: `append=true` extends parts, `append=false` adds or replaces by artifact ID
+- **History alignment**: Superseded status messages are moved to history (Python SDK alignment)

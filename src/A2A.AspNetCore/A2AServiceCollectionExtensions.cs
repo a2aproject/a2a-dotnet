@@ -33,11 +33,11 @@ public static class A2AServiceCollectionExtensions
         configureOptions?.Invoke(options);
         services.AddSingleton(options);
 
-        services.TryAddSingleton<ITaskStore, InMemoryTaskStore>();
+        services.TryAddSingleton<ITaskEventStore, InMemoryEventStore>();
         services.TryAddSingleton<IA2ARequestHandler>(sp =>
             new A2AServer(
                 sp.GetRequiredService<IAgentHandler>(),
-                sp.GetRequiredService<ITaskStore>(),
+                sp.GetRequiredService<ITaskEventStore>(),
                 sp.GetRequiredService<ILogger<A2AServer>>(),
                 sp.GetRequiredService<A2AServerOptions>()));
 

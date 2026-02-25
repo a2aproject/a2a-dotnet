@@ -8,7 +8,7 @@ namespace A2A.AspNetCore.Tests;
 
 public class A2AHttpProcessorTests
 {
-    private sealed class TestAgentHandler(InMemoryTaskStore store) : IAgentHandler
+    private sealed class TestAgentHandler : IAgentHandler
     {
         public async Task ExecuteAsync(AgentContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
         {
@@ -32,15 +32,15 @@ public class A2AHttpProcessorTests
 
         public async Task CancelAsync(AgentContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
         {
-            await store.UpdateStatusAsync(context.TaskId, new TaskStatus { State = TaskState.Canceled }, cancellationToken);
-            eventQueue.Complete();
+            var updater = new TaskUpdater(eventQueue, context.TaskId, context.ContextId);
+            await updater.CancelAsync(cancellationToken);
         }
     }
 
-    private static (A2AServer requestHandler, InMemoryTaskStore store) CreateServer()
+    private static (A2AServer requestHandler, InMemoryEventStore store) CreateServer()
     {
-        var store = new InMemoryTaskStore();
-        var handler = new TestAgentHandler(store);
+        var store = new InMemoryEventStore();
+        var handler = new TestAgentHandler();
         return (new A2AServer(handler, store, NullLogger<A2AServer>.Instance), store);
     }
 
@@ -49,11 +49,12 @@ public class A2AHttpProcessorTests
     {
         // Arrange
         var (requestHandler, store) = CreateServer();
-        await store.SetTaskAsync(new AgentTask
+        var agentTask = new AgentTask
         {
             Id = "testId",
             ContextId = "ctx-1",
-        });
+        };
+        await store.AppendAsync(agentTask.Id, new StreamResponse { Task = agentTask });
         var logger = NullLogger.Instance;
 
         // Act
@@ -69,12 +70,13 @@ public class A2AHttpProcessorTests
     {
         // Arrange
         var (requestHandler, store) = CreateServer();
-        await store.SetTaskAsync(new AgentTask
+        var agentTask = new AgentTask
         {
             Id = "testId",
             ContextId = "ctx-1",
             Status = new TaskStatus { State = TaskState.Submitted },
-        });
+        };
+        await store.AppendAsync(agentTask.Id, new StreamResponse { Task = agentTask });
         var logger = NullLogger.Instance;
 
         // Act
@@ -90,12 +92,13 @@ public class A2AHttpProcessorTests
     {
         // Arrange
         var (requestHandler, store) = CreateServer();
-        await store.SetTaskAsync(new AgentTask
+        var agentTask = new AgentTask
         {
             Id = "testId",
             ContextId = "ctx-1",
             Status = new TaskStatus { State = TaskState.Submitted },
-        });
+        };
+        await store.AppendAsync(agentTask.Id, new StreamResponse { Task = agentTask });
         var logger = NullLogger.Instance;
         var sendRequest = new SendMessageRequest
         {
@@ -130,7 +133,7 @@ public class A2AHttpProcessorTests
     public async Task GetTask_WithA2AException_ShouldMapToCorrectHttpStatusCode(A2AErrorCode errorCode, int expectedStatusCode)
     {
         // Arrange
-        var mockTaskStore = new Mock<ITaskStore>();
+        var mockTaskStore = new Mock<ITaskEventStore>();
         mockTaskStore
             .Setup(ts => ts.GetTaskAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new A2AException("Test exception", errorCode));
@@ -153,7 +156,7 @@ public class A2AHttpProcessorTests
     public async Task GetTask_WithUnknownA2AErrorCode_ShouldReturn500InternalServerError()
     {
         // Arrange
-        var mockTaskStore = new Mock<ITaskStore>();
+        var mockTaskStore = new Mock<ITaskEventStore>();
         // Create an A2AException with an unknown/invalid error code by casting an integer that doesn't correspond to any enum value
         var unknownErrorCode = (A2AErrorCode)(-99999);
         mockTaskStore

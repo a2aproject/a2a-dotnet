@@ -18,10 +18,10 @@ public class A2AServerTests
                ?? new TaskUpdater(eventQueue, context.TaskId, context.ContextId).CancelAsync(cancellationToken).AsTask();
     }
 
-    private static (A2AServer server, InMemoryTaskStore store, TestAgentHandler handler)
+    private static (A2AServer server, InMemoryEventStore store, TestAgentHandler handler)
         CreateServer()
     {
-        var store = new InMemoryTaskStore();
+        var store = new InMemoryEventStore();
         var handler = new TestAgentHandler();
         var server = new A2AServer(handler, store, NullLogger<A2AServer>.Instance);
         return (server, store, handler);
@@ -124,7 +124,7 @@ public class A2AServerTests
             Status = new TaskStatus { State = TaskState.Working },
             History = [new Message { MessageId = "m0", Parts = [Part.FromText("initial")] }],
         };
-        await store.SetTaskAsync(existingTask);
+        await store.AppendAsync(existingTask.Id, new StreamResponse { Task = existingTask });
 
         handler.OnExecute = async (ctx, eq, ct) =>
         {
@@ -146,11 +146,11 @@ public class A2AServerTests
         // Act
         await server.SendMessageAsync(request);
 
-        // Assert — history should now have 2 messages
+        // Assert — history should now have 3 messages: initial (m0), user follow-up (m1), agent reply (m2)
         var task = await store.GetTaskAsync("t1");
         Assert.NotNull(task);
         Assert.NotNull(task!.History);
-        Assert.Equal(2, task.History.Count);
+        Assert.Equal(3, task.History.Count);
     }
 
     [Fact]
@@ -159,12 +159,12 @@ public class A2AServerTests
         // Arrange
         var (server, store, handler) = CreateServer();
         handler.OnExecute = (_, eq, _) => { eq.Complete(); return Task.CompletedTask; };
-        await store.SetTaskAsync(new AgentTask
+        await store.AppendAsync("t1", new StreamResponse { Task = new AgentTask
         {
             Id = "t1",
             ContextId = "ctx-1",
             Status = new TaskStatus { State = TaskState.Completed },
-        });
+        }});
 
         var request = new SendMessageRequest
         {
@@ -214,12 +214,12 @@ public class A2AServerTests
     {
         // Arrange
         var (server, store, handler) = CreateServer();
-        await store.SetTaskAsync(new AgentTask
+        await store.AppendAsync("t1", new StreamResponse { Task = new AgentTask
         {
             Id = "t1",
             ContextId = "ctx-1",
             Status = new TaskStatus { State = TaskState.Working },
-        });
+        }});
 
         bool cancelCalled = false;
         handler.OnCancel = async (ctx, eq, ct) =>
@@ -242,12 +242,12 @@ public class A2AServerTests
     {
         // Arrange
         var (server, store, _) = CreateServer();
-        await store.SetTaskAsync(new AgentTask
+        await store.AppendAsync("t1", new StreamResponse { Task = new AgentTask
         {
             Id = "t1",
             ContextId = "ctx-1",
             Status = new TaskStatus { State = TaskState.Completed },
-        });
+        }});
 
         // Act & Assert
         var ex = await Assert.ThrowsAsync<A2AException>(() =>
@@ -260,12 +260,12 @@ public class A2AServerTests
     {
         // Arrange
         var (server, store, _) = CreateServer();
-        await store.SetTaskAsync(new AgentTask
+        await store.AppendAsync("t1", new StreamResponse { Task = new AgentTask
         {
             Id = "t1",
             ContextId = "ctx-1",
             Status = new TaskStatus { State = TaskState.Submitted }
-        });
+        }});
 
         // Act
         var result = await server.GetTaskAsync(new GetTaskRequest { Id = "t1" });
@@ -293,7 +293,7 @@ public class A2AServerTests
     {
         // Arrange
         var (server, store, _) = CreateServer();
-        await store.SetTaskAsync(new AgentTask
+        await store.AppendAsync("t1", new StreamResponse { Task = new AgentTask
         {
             Id = "t1",
             ContextId = "ctx-1",
@@ -303,7 +303,7 @@ public class A2AServerTests
                 new Message { MessageId = "m2", Parts = [Part.FromText("Second")] },
                 new Message { MessageId = "m3", Parts = [Part.FromText("Third")] },
             ]
-        });
+        }});
 
         // Act
         var result = await server.GetTaskAsync(new GetTaskRequest { Id = "t1", HistoryLength = 2 });
@@ -332,12 +332,69 @@ public class A2AServerTests
     }
 
     [Fact]
+    public async Task SubscribeToTaskAsync_ReturnsTaskAsFirstEvent()
+    {
+        // Arrange
+        var (server, store, handler) = CreateServer();
+        handler.OnExecute = (_, eq, _) => { eq.Complete(); return Task.CompletedTask; };
+        await store.AppendAsync("t1", new StreamResponse
+        {
+            Task = new AgentTask
+            {
+                Id = "t1",
+                ContextId = "ctx-1",
+                Status = new TaskStatus { State = TaskState.Working },
+            }
+        });
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        // Act — first event from SubscribeToTaskAsync MUST be the Task object (spec §3.1.6)
+        StreamResponse? firstEvent = null;
+        await foreach (var e in server.SubscribeToTaskAsync(new SubscribeToTaskRequest { Id = "t1" }, cts.Token))
+        {
+            firstEvent = e;
+            break; // Only need the first event
+        }
+
+        // Assert
+        Assert.NotNull(firstEvent);
+        Assert.NotNull(firstEvent!.Task);
+        Assert.Equal("t1", firstEvent.Task!.Id);
+    }
+
+    [Fact]
+    public async Task SubscribeToTaskAsync_ThrowsUnsupportedOperation_WhenTerminalState()
+    {
+        // Arrange
+        var (server, store, _) = CreateServer();
+        await store.AppendAsync("t1", new StreamResponse
+        {
+            Task = new AgentTask
+            {
+                Id = "t1",
+                ContextId = "ctx-1",
+                Status = new TaskStatus { State = TaskState.Completed },
+            }
+        });
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<A2AException>(async () =>
+        {
+            await foreach (var _ in server.SubscribeToTaskAsync(new SubscribeToTaskRequest { Id = "t1" }))
+            {
+            }
+        });
+        Assert.Equal(A2AErrorCode.UnsupportedOperation, ex.ErrorCode);
+    }
+
+    [Fact]
     public async Task ListTasksAsync_DelegatesToStore()
     {
         // Arrange
         var (server, store, _) = CreateServer();
-        await store.SetTaskAsync(new AgentTask { Id = "t1", ContextId = "ctx-1", Status = new TaskStatus { State = TaskState.Submitted } });
-        await store.SetTaskAsync(new AgentTask { Id = "t2", ContextId = "ctx-1", Status = new TaskStatus { State = TaskState.Completed } });
+        await store.AppendAsync("t1", new StreamResponse { Task = new AgentTask { Id = "t1", ContextId = "ctx-1", Status = new TaskStatus { State = TaskState.Submitted } } });
+        await store.AppendAsync("t2", new StreamResponse { Task = new AgentTask { Id = "t2", ContextId = "ctx-1", Status = new TaskStatus { State = TaskState.Completed } } });
 
         // Act
         var result = await server.ListTasksAsync(new ListTasksRequest { ContextId = "ctx-1" });

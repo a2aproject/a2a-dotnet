@@ -305,12 +305,13 @@ public class A2AJsonRpcProcessorTests
     {
         // Arrange
         var (requestHandler, store) = CreateTestServerWithStore();
-        var task = await store.SetTaskAsync(new AgentTask
+        var task = new AgentTask
         {
             Id = Guid.NewGuid().ToString(),
             ContextId = Guid.NewGuid().ToString(),
             Status = new TaskStatus { State = TaskState.Submitted }
-        });
+        };
+        await store.AppendAsync(task.Id, new StreamResponse { Task = task });
 
         var getTaskRequest = new GetTaskRequest { Id = task.Id };
 
@@ -336,13 +337,14 @@ public class A2AJsonRpcProcessorTests
     {
         // Arrange - In v1, negative history length is treated as "return all history"
         var (requestHandler, store) = CreateTestServerWithStore();
-        var task = await store.SetTaskAsync(new AgentTask
+        var task = new AgentTask
         {
             Id = Guid.NewGuid().ToString(),
             ContextId = Guid.NewGuid().ToString(),
             Status = new TaskStatus { State = TaskState.Submitted },
             History = [new Message { MessageId = "msg1", Role = Role.User, Parts = [Part.FromText("hello")] }]
-        });
+        };
+        await store.AppendAsync(task.Id, new StreamResponse { Task = task });
         GetTaskRequest getTaskRequest = new() { Id = task.Id, HistoryLength = -1 };
 
         // Act
@@ -362,12 +364,13 @@ public class A2AJsonRpcProcessorTests
     {
         // Arrange
         var (requestHandler, store) = CreateTestServerWithStore();
-        var newTask = await store.SetTaskAsync(new AgentTask
+        var newTask = new AgentTask
         {
             Id = Guid.NewGuid().ToString(),
             ContextId = Guid.NewGuid().ToString(),
             Status = new TaskStatus { State = TaskState.Submitted }
-        });
+        };
+        await store.AppendAsync(newTask.Id, new StreamResponse { Task = newTask });
         var cancelRequest = new CancelTaskRequest { Id = newTask.Id };
 
         // Act
@@ -419,15 +422,15 @@ public class A2AJsonRpcProcessorTests
     }
 
     /// <summary>Creates a test A2AServer with store exposed for pre-populating data.</summary>
-    private static (IA2ARequestHandler requestHandler, InMemoryTaskStore store) CreateTestServerWithStore()
+    private static (IA2ARequestHandler requestHandler, InMemoryEventStore store) CreateTestServerWithStore()
     {
-        var store = new InMemoryTaskStore();
-        var handler = new TestAgentHandler(store);
+        var store = new InMemoryEventStore();
+        var handler = new TestAgentHandler();
         var requestHandler = new A2AServer(handler, store, NullLogger<A2AServer>.Instance);
         return (requestHandler, store);
     }
 
-    private sealed class TestAgentHandler(InMemoryTaskStore store) : IAgentHandler
+    private sealed class TestAgentHandler : IAgentHandler
     {
         public async Task ExecuteAsync(AgentContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
         {
@@ -444,11 +447,8 @@ public class A2AJsonRpcProcessorTests
 
         public async Task CancelAsync(AgentContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
         {
-            var task = await store.GetTaskAsync(context.TaskId, cancellationToken)
-                ?? throw new A2AException("Task not found.", A2AErrorCode.TaskNotFound);
-            task.Status = new TaskStatus { State = TaskState.Canceled };
-            await store.SetTaskAsync(task, cancellationToken);
-            eventQueue.Complete();
+            var updater = new TaskUpdater(eventQueue, context.TaskId, context.ContextId);
+            await updater.CancelAsync(cancellationToken);
         }
     }
 
