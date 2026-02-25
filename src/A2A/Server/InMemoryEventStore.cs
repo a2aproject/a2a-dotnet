@@ -2,24 +2,32 @@ using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using System.Threading.Channels;
 
 namespace A2A;
 
 /// <summary>
-/// In-memory event store with inline projection cache and subscriber fan-out.
+/// In-memory event store with inline projection cache.
 /// Thread-safe via per-task locking.
 /// </summary>
 public sealed class InMemoryEventStore : ITaskEventStore
 {
     private readonly ConcurrentDictionary<string, TaskEventLog> _logs = new();
+    private readonly ChannelEventNotifier _notifier;
+
+    /// <summary>Initializes a new instance of the <see cref="InMemoryEventStore"/> class.</summary>
+    /// <param name="notifier">The notification bus for event fan-out.</param>
+    public InMemoryEventStore(ChannelEventNotifier notifier)
+    {
+        _notifier = notifier ?? throw new ArgumentNullException(nameof(notifier));
+    }
 
     /// <inheritdoc />
     public Task<long> AppendAsync(string taskId, StreamResponse streamEvent,
         long? expectedVersion = null, CancellationToken cancellationToken = default)
     {
         var log = _logs.GetOrAdd(taskId, _ => new TaskEventLog());
-        var version = log.Append(streamEvent, expectedVersion);
+        var (version, envelope) = log.Append(streamEvent, expectedVersion);
+        _notifier.Notify(taskId, envelope);
         return Task.FromResult(version);
     }
 
@@ -38,14 +46,6 @@ public sealed class InMemoryEventStore : ITaskEventStore
         }
     }
 #pragma warning restore CS1998
-
-    /// <inheritdoc />
-    public IAsyncEnumerable<EventEnvelope> SubscribeAsync(string taskId,
-        long afterVersion = -1, CancellationToken cancellationToken = default)
-    {
-        var log = _logs.GetOrAdd(taskId, _ => new TaskEventLog());
-        return log.SubscribeAsync(afterVersion, cancellationToken);
-    }
 
     /// <inheritdoc />
     public Task<bool> ExistsAsync(string taskId, CancellationToken cancellationToken = default)
@@ -69,6 +69,16 @@ public sealed class InMemoryEventStore : ITaskEventStore
             return Task.FromResult<AgentTask?>(null);
 
         return Task.FromResult(log.GetProjection());
+    }
+
+    /// <inheritdoc />
+    public Task<(AgentTask? Task, long Version)> GetTaskWithVersionAsync(
+        string taskId, CancellationToken cancellationToken = default)
+    {
+        if (!_logs.TryGetValue(taskId, out var log))
+            return Task.FromResult<(AgentTask?, long)>((null, -1));
+
+        return Task.FromResult(log.GetProjectionWithVersion());
     }
 
     /// <inheritdoc />
@@ -162,13 +172,12 @@ public sealed class InMemoryEventStore : ITaskEventStore
     private sealed class TaskEventLog
     {
         private readonly List<StreamResponse> _events = [];
-        private readonly List<Channel<EventEnvelope>> _subscribers = [];
         private readonly object _lock = new();
         private AgentTask? _projection;
 
         public int Count { get { lock (_lock) { return _events.Count; } } }
 
-        public long Append(StreamResponse streamEvent, long? expectedVersion)
+        public (long Version, EventEnvelope Envelope) Append(StreamResponse streamEvent, long? expectedVersion)
         {
             long version;
             EventEnvelope envelope;
@@ -193,10 +202,7 @@ public sealed class InMemoryEventStore : ITaskEventStore
                     : applied;
             }
 
-            // Notify subscribers outside the lock (TryWrite is non-blocking)
-            NotifySubscribers(envelope, streamEvent);
-
-            return version;
+            return (version, envelope);
         }
 
         public AgentTask? GetProjection()
@@ -205,6 +211,16 @@ public sealed class InMemoryEventStore : ITaskEventStore
             {
                 if (_projection is null) return null;
                 return CloneTask(_projection);
+            }
+        }
+
+        public (AgentTask? Task, long Version) GetProjectionWithVersion()
+        {
+            lock (_lock)
+            {
+                var version = (long)(_events.Count - 1);
+                if (_projection is null) return (null, version);
+                return (CloneTask(_projection), version);
             }
         }
 
@@ -219,68 +235,6 @@ public sealed class InMemoryEventStore : ITaskEventStore
                     .ToList();
             }
         }
-
-        public async IAsyncEnumerable<EventEnvelope> SubscribeAsync(
-            long afterVersion,
-            [EnumeratorCancellation] CancellationToken cancellationToken)
-        {
-            var channel = Channel.CreateUnbounded<EventEnvelope>(
-                new UnboundedChannelOptions { SingleWriter = false, SingleReader = true });
-
-            lock (_lock)
-            {
-                _subscribers.Add(channel);
-            }
-
-            try
-            {
-                // Catch-up: replay events after requested position
-                var catchUp = Read(afterVersion + 1);
-                foreach (var evt in catchUp)
-                {
-                    yield return evt;
-                    afterVersion = evt.Version;
-
-                    // If catch-up included a terminal event, stop immediately
-                    if (IsTerminalEvent(evt.Event))
-                        yield break;
-                }
-
-                // Live: tail subscriber channel, dedup by version
-                await foreach (var envelope in channel.Reader.ReadAllAsync(cancellationToken)
-                    .ConfigureAwait(false))
-                {
-                    if (envelope.Version <= afterVersion) continue;
-                    afterVersion = envelope.Version;
-                    yield return envelope;
-                }
-            }
-            finally
-            {
-                lock (_lock) { _subscribers.Remove(channel); }
-            }
-        }
-
-        private void NotifySubscribers(EventEnvelope envelope, StreamResponse streamEvent)
-        {
-            List<Channel<EventEnvelope>> subs;
-            lock (_lock) { subs = [.. _subscribers]; }
-
-            foreach (var sub in subs)
-                sub.Writer.TryWrite(envelope);
-
-            // If terminal state, complete all subscriber channels
-            if (IsTerminalEvent(streamEvent))
-            {
-                lock (_lock) { subs = [.. _subscribers]; }
-                foreach (var sub in subs)
-                    sub.Writer.TryComplete();
-            }
-        }
-
-        private static bool IsTerminalEvent(StreamResponse streamEvent) =>
-            streamEvent.StatusUpdate?.Status.State.IsTerminal() == true ||
-            streamEvent.Task?.Status.State.IsTerminal() == true;
 
         [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "All types are registered in source-generated JsonContext.")]
         [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "All types are registered in source-generated JsonContext.")]

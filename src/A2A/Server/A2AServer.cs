@@ -15,19 +15,23 @@ public class A2AServer : IA2ARequestHandler
 {
     private readonly IAgentHandler _handler;
     private readonly ITaskEventStore _eventStore;
+    private readonly IEventSubscriber _subscriber;
     private readonly ILogger<A2AServer> _logger;
     private readonly A2AServerOptions _options;
 
     /// <summary>Initializes a new instance of the <see cref="A2AServer"/> class.</summary>
     /// <param name="handler">The agent handler that provides execution logic.</param>
     /// <param name="eventStore">The event store used for persistence.</param>
+    /// <param name="subscriber">The event subscriber for live event streaming.</param>
     /// <param name="logger">The logger instance.</param>
     /// <param name="options">Optional configuration options.</param>
-    public A2AServer(IAgentHandler handler, ITaskEventStore eventStore, ILogger<A2AServer> logger,
+    public A2AServer(IAgentHandler handler, ITaskEventStore eventStore,
+        IEventSubscriber subscriber, ILogger<A2AServer> logger,
         A2AServerOptions? options = null)
     {
         _handler = handler ?? throw new ArgumentNullException(nameof(handler));
         _eventStore = eventStore ?? throw new ArgumentNullException(nameof(eventStore));
+        _subscriber = subscriber ?? throw new ArgumentNullException(nameof(subscriber));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _options = options ?? new A2AServerOptions();
     }
@@ -215,9 +219,14 @@ public class A2AServer : IA2ARequestHandler
         using var activity = A2ADiagnostics.Source.StartActivity("A2AServer.SubscribeToTask", ActivityKind.Internal);
         activity?.SetTag("a2a.task.id", request.Id);
 
-        // Fetch task and validate in single call (eliminates TOCTOU race)
-        var currentTask = await _eventStore.GetTaskAsync(request.Id, cancellationToken).ConfigureAwait(false)
-            ?? throw new A2AException($"Task '{request.Id}' not found.", A2AErrorCode.TaskNotFound);
+        // Atomic read: get task snapshot and its version together to avoid TOCTOU race.
+        // Non-atomic reads risk either missing events (version after task) or replaying
+        // non-idempotent events like artifact appends (version before task).
+        var (currentTask, currentVersion) = await _eventStore.GetTaskWithVersionAsync(
+            request.Id, cancellationToken).ConfigureAwait(false);
+
+        if (currentTask is null)
+            throw new A2AException($"Task '{request.Id}' not found.", A2AErrorCode.TaskNotFound);
 
         if (currentTask.Status.State.IsTerminal())
         {
@@ -229,12 +238,8 @@ public class A2AServer : IA2ARequestHandler
         // First event MUST be current Task object (spec §3.1.6)
         yield return new StreamResponse { Task = currentTask };
 
-        // Get current version for live tail starting point
-        var currentVersion = await _eventStore.GetLatestVersionAsync(request.Id, cancellationToken)
-            .ConfigureAwait(false);
-
-        // Live events via event store subscription
-        await foreach (var envelope in _eventStore.SubscribeAsync(request.Id,
+        // Live events via event subscriber (version is consistent with the task snapshot)
+        await foreach (var envelope in _subscriber.SubscribeAsync(request.Id,
             afterVersion: currentVersion, cancellationToken: cancellationToken)
             .ConfigureAwait(false))
         {

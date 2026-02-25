@@ -2,7 +2,6 @@ using A2A;
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using System.Threading.Channels;
 
 namespace AgentServer;
 
@@ -29,18 +28,25 @@ public sealed class FileEventStore : ITaskEventStore
     private readonly string _projectionsDir;
     private readonly string _indexesDir;
 
-    // In-memory subscriber channels per task (live fan-out only — catch-up reads from disk)
-    private readonly ConcurrentDictionary<string, SubscriberList> _subscribers = new();
+    private readonly ChannelEventNotifier _notifier;
+
+    // Compact JSON for JSONL storage — must not produce multi-line output
+    private static readonly JsonSerializerOptions s_storageOptions = new(A2AJsonUtilities.DefaultOptions)
+    {
+        WriteIndented = false,
+    };
 
     // Per-task lock to serialize appends (prevents interleaved writes to the same file)
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _taskLocks = new();
 
-    public FileEventStore(string baseDir)
+    public FileEventStore(string baseDir, ChannelEventNotifier notifier)
     {
         _baseDir = baseDir;
         _eventsDir = Path.Combine(baseDir, "events");
         _projectionsDir = Path.Combine(baseDir, "projections");
         _indexesDir = Path.Combine(baseDir, "indexes");
+
+        _notifier = notifier ?? throw new ArgumentNullException(nameof(notifier));
 
         Directory.CreateDirectory(_eventsDir);
         Directory.CreateDirectory(_projectionsDir);
@@ -71,7 +77,7 @@ public sealed class FileEventStore : ITaskEventStore
             var newVersion = currentVersion + 1;
 
             // 1. Append event to the event log file
-            var eventJson = JsonSerializer.Serialize(streamEvent, A2AJsonUtilities.DefaultOptions);
+            var eventJson = JsonSerializer.Serialize(streamEvent, s_storageOptions);
             await File.AppendAllTextAsync(eventFile, eventJson + Environment.NewLine, cancellationToken)
                 .ConfigureAwait(false);
 
@@ -89,7 +95,7 @@ public sealed class FileEventStore : ITaskEventStore
 
             // 4. Notify live subscribers
             var envelope = new EventEnvelope(newVersion, streamEvent);
-            NotifySubscribers(taskId, envelope, streamEvent);
+            _notifier.Notify(taskId, envelope);
 
             return newVersion;
         }
@@ -113,50 +119,10 @@ public sealed class FileEventStore : ITaskEventStore
         {
             if (version >= fromVersion)
             {
-                var streamEvent = JsonSerializer.Deserialize<StreamResponse>(line, A2AJsonUtilities.DefaultOptions)!;
+                var streamEvent = JsonSerializer.Deserialize<StreamResponse>(line, s_storageOptions)!;
                 yield return new EventEnvelope(version, streamEvent);
             }
             version++;
-        }
-    }
-
-    /// <inheritdoc />
-    public async IAsyncEnumerable<EventEnvelope> SubscribeAsync(string taskId,
-        long afterVersion = -1,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default)
-    {
-        var channel = Channel.CreateUnbounded<EventEnvelope>(
-            new UnboundedChannelOptions { SingleWriter = false, SingleReader = true });
-
-        var subs = _subscribers.GetOrAdd(taskId, _ => new SubscriberList());
-        lock (subs)
-        {
-            subs.Channels.Add(channel);
-        }
-
-        try
-        {
-            // Catch-up: read events from disk after the requested position
-            await foreach (var evt in ReadAsync(taskId, afterVersion + 1, cancellationToken).ConfigureAwait(false))
-            {
-                yield return evt;
-                afterVersion = evt.Version;
-
-                if (IsTerminalEvent(evt.Event))
-                    yield break;
-            }
-
-            // Live: tail subscriber channel, dedup by version
-            await foreach (var envelope in channel.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
-            {
-                if (envelope.Version <= afterVersion) continue;
-                afterVersion = envelope.Version;
-                yield return envelope;
-            }
-        }
-        finally
-        {
-            lock (subs) { subs.Channels.Remove(channel); }
         }
     }
 
@@ -181,6 +147,25 @@ public sealed class FileEventStore : ITaskEventStore
     {
         // Read directly from the materialized projection file — O(1), no event replay
         return await ReadProjectionAsync(taskId, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<(AgentTask? Task, long Version)> GetTaskWithVersionAsync(
+        string taskId, CancellationToken cancellationToken = default)
+    {
+        var taskLock = _taskLocks.GetOrAdd(taskId, _ => new SemaphoreSlim(1, 1));
+        await taskLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var task = await ReadProjectionAsync(taskId, cancellationToken).ConfigureAwait(false);
+            var eventFile = GetEventFilePath(taskId);
+            var version = File.Exists(eventFile) ? CountLines(eventFile) - 1 : -1L;
+            return (task, version);
+        }
+        finally
+        {
+            taskLock.Release();
+        }
     }
 
     /// <inheritdoc />
@@ -344,36 +329,5 @@ public sealed class FileEventStore : ITaskEventStore
             if (!string.IsNullOrWhiteSpace(line))
                 yield return line;
         }
-    }
-
-    // ─── Subscriber Management ───
-
-    private void NotifySubscribers(string taskId, EventEnvelope envelope, StreamResponse streamEvent)
-    {
-        if (!_subscribers.TryGetValue(taskId, out var subs)) return;
-
-        List<Channel<EventEnvelope>> channels;
-        lock (subs) { channels = [.. subs.Channels]; }
-
-        foreach (var ch in channels)
-            ch.Writer.TryWrite(envelope);
-
-        if (IsTerminalEvent(streamEvent))
-        {
-            lock (subs) { channels = [.. subs.Channels]; }
-            foreach (var ch in channels)
-                ch.Writer.TryComplete();
-        }
-    }
-
-    private static bool IsTerminalEvent(StreamResponse streamEvent)
-    {
-        var state = streamEvent.StatusUpdate?.Status.State ?? streamEvent.Task?.Status.State;
-        return state?.IsTerminal() == true;
-    }
-
-    private sealed class SubscriberList
-    {
-        public List<Channel<EventEnvelope>> Channels { get; } = [];
     }
 }

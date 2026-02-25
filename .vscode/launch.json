@@ -1,0 +1,49 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "FileStoreDemo",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "${workspaceFolder}/samples/FileStoreDemo/bin/Debug/net10.0/FileStoreDemo.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/samples/FileStoreDemo",
+            "console": "integratedTerminal",
+            "stopAtEntry": false,
+            "preLaunchTask": "build-filestoreDemo"
+        },
+        {
+            "name": "AgentServer (EchoTasks)",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "${workspaceFolder}/samples/AgentServer/bin/Debug/net10.0/AgentServer.dll",
+            "args": ["--agent", "echotasks"],
+            "cwd": "${workspaceFolder}/samples/AgentServer",
+            "console": "integratedTerminal",
+            "stopAtEntry": false,
+            "preLaunchTask": "build-agentServer"
+        },
+        {
+            "name": "AgentServer (SpecCompliance)",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "${workspaceFolder}/samples/AgentServer/bin/Debug/net10.0/AgentServer.dll",
+            "args": ["--agent", "speccompliance"],
+            "cwd": "${workspaceFolder}/samples/AgentServer",
+            "console": "integratedTerminal",
+            "stopAtEntry": false,
+            "preLaunchTask": "build-agentServer"
+        },
+        {
+            "name": "AgentServer (FileStore)",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "${workspaceFolder}/samples/AgentServer/bin/Debug/net10.0/AgentServer.dll",
+            "args": ["--agent", "echotasks", "--store", "file", "--data-dir", "${workspaceFolder}/samples/AgentServer/a2a-data"],
+            "cwd": "${workspaceFolder}/samples/AgentServer",
+            "console": "integratedTerminal",
+            "stopAtEntry": false,
+            "preLaunchTask": "build-agentServer"
+        }
+    ]
+}

@@ -33,11 +33,24 @@ public static class A2AServiceCollectionExtensions
         configureOptions?.Invoke(options);
         services.AddSingleton(options);
 
-        services.TryAddSingleton<ITaskEventStore, InMemoryEventStore>();
+        services.TryAddSingleton<ChannelEventNotifier>();
+
+        services.TryAddSingleton<ITaskEventStore>(sp =>
+            new InMemoryEventStore(sp.GetRequiredService<ChannelEventNotifier>()));
+
+        services.TryAddSingleton<IEventStore>(sp =>
+            sp.GetRequiredService<ITaskEventStore>());
+
+        services.TryAddSingleton<IEventSubscriber>(sp =>
+            new ChannelEventSubscriber(
+                sp.GetRequiredService<IEventStore>(),
+                sp.GetRequiredService<ChannelEventNotifier>()));
+
         services.TryAddSingleton<IA2ARequestHandler>(sp =>
             new A2AServer(
                 sp.GetRequiredService<IAgentHandler>(),
                 sp.GetRequiredService<ITaskEventStore>(),
+                sp.GetRequiredService<IEventSubscriber>(),
                 sp.GetRequiredService<ILogger<A2AServer>>(),
                 sp.GetRequiredService<A2AServerOptions>()));
 

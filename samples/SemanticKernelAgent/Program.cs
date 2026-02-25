@@ -25,11 +25,20 @@ builder.Services.AddSingleton<IAgentHandler>(sp =>
 });
 builder.Services.AddSingleton(SemanticKernelTravelAgent.GetAgentCard(agentUrl));
 builder.Services.AddSingleton(new A2AServerOptions());
-builder.Services.TryAddSingleton<ITaskEventStore, InMemoryEventStore>();
+builder.Services.TryAddSingleton<ChannelEventNotifier>();
+builder.Services.TryAddSingleton<ITaskEventStore>(sp =>
+    new InMemoryEventStore(sp.GetRequiredService<ChannelEventNotifier>()));
+builder.Services.TryAddSingleton<IEventStore>(sp =>
+    sp.GetRequiredService<ITaskEventStore>());
+builder.Services.TryAddSingleton<IEventSubscriber>(sp =>
+    new ChannelEventSubscriber(
+        sp.GetRequiredService<IEventStore>(),
+        sp.GetRequiredService<ChannelEventNotifier>()));
 builder.Services.TryAddSingleton<IA2ARequestHandler>(sp =>
     new A2AServer(
         sp.GetRequiredService<IAgentHandler>(),
         sp.GetRequiredService<ITaskEventStore>(),
+        sp.GetRequiredService<IEventSubscriber>(),
         sp.GetRequiredService<ILogger<A2AServer>>(),
         sp.GetRequiredService<A2AServerOptions>()));
 
