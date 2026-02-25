@@ -424,9 +424,11 @@ public class A2AJsonRpcProcessorTests
     /// <summary>Creates a test A2AServer with store exposed for pre-populating data.</summary>
     private static (IA2ARequestHandler requestHandler, InMemoryEventStore store) CreateTestServerWithStore()
     {
-        var store = new InMemoryEventStore();
+        var notifier = new ChannelEventNotifier();
+        var store = new InMemoryEventStore(notifier);
+        var subscriber = new ChannelEventSubscriber(store, notifier);
         var handler = new TestAgentHandler();
-        var requestHandler = new A2AServer(handler, store, NullLogger<A2AServer>.Instance);
+        var requestHandler = new A2AServer(handler, store, subscriber, NullLogger<A2AServer>.Instance);
         return (requestHandler, store);
     }
 

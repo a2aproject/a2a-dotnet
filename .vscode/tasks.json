@@ -1,0 +1,21 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "build-filestoreDemo",
+			"type": "shell",
+			"command": "dotnet",
+			"args": ["build", "${workspaceFolder}/samples/FileStoreDemo/FileStoreDemo.csproj"],
+			"group": "build",
+			"problemMatcher": ["$msCompile"]
+		},
+		{
+			"label": "build-agentServer",
+			"type": "shell",
+			"command": "dotnet",
+			"args": ["build", "${workspaceFolder}/samples/AgentServer/AgentServer.csproj"],
+			"group": "build",
+			"problemMatcher": ["$msCompile"]
+		}
+	]
+}

@@ -203,8 +203,12 @@ static async Task<(WebApplication host, A2AClient client)> StartServerAsync(
     var builder = WebApplication.CreateBuilder();
     builder.WebHost.UseUrls(baseUrl);
 
+    // Register ChannelEventNotifier (shared notification bus)
+    builder.Services.AddSingleton<ChannelEventNotifier>();
+
     // Register FileEventStore BEFORE AddA2AAgent (TryAddSingleton picks up ours)
-    builder.Services.AddSingleton<ITaskEventStore>(new FileEventStore(dataDir));
+    builder.Services.AddSingleton<ITaskEventStore>(sp =>
+        new FileEventStore(dataDir, sp.GetRequiredService<ChannelEventNotifier>()));
     builder.Services.AddA2AAgent<DemoAgent>(DemoAgent.GetAgentCard($"{baseUrl}{agentPath}"));
 
     // Suppress noisy console output

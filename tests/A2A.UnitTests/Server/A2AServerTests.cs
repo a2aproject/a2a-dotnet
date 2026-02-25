@@ -21,9 +21,11 @@ public class A2AServerTests
     private static (A2AServer server, InMemoryEventStore store, TestAgentHandler handler)
         CreateServer()
     {
-        var store = new InMemoryEventStore();
+        var notifier = new ChannelEventNotifier();
+        var store = new InMemoryEventStore(notifier);
+        var subscriber = new ChannelEventSubscriber(store, notifier);
         var handler = new TestAgentHandler();
-        var server = new A2AServer(handler, store, NullLogger<A2AServer>.Instance);
+        var server = new A2AServer(handler, store, subscriber, NullLogger<A2AServer>.Instance);
         return (server, store, handler);
     }
 

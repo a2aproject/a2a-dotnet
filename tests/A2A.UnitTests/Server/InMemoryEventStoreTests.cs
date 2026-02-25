@@ -2,11 +2,17 @@ namespace A2A.UnitTests.Server;
 
 public class InMemoryEventStoreTests
 {
+    private static InMemoryEventStore CreateStore()
+    {
+        var notifier = new ChannelEventNotifier();
+        return new InMemoryEventStore(notifier);
+    }
+
     [Fact]
     public async Task AppendAsync_And_GetTaskAsync_ShouldProjectTask()
     {
         // Arrange
-        var sut = new InMemoryEventStore();
+        var sut = CreateStore();
         var task = new AgentTask
         {
             Id = "t1",
@@ -28,7 +34,7 @@ public class InMemoryEventStoreTests
     public async Task GetTaskAsync_ShouldReturnNull_WhenNoEvents()
     {
         // Arrange
-        var sut = new InMemoryEventStore();
+        var sut = CreateStore();
 
         // Act
         var result = await sut.GetTaskAsync("nonexistent");
@@ -38,10 +44,47 @@ public class InMemoryEventStoreTests
     }
 
     [Fact]
+    public async Task GetTaskWithVersionAsync_ShouldReturnTaskAndVersionAtomically()
+    {
+        // Arrange
+        var sut = CreateStore();
+        await sut.AppendAsync("t1", new StreamResponse
+        {
+            Task = new AgentTask { Id = "t1", ContextId = "ctx", Status = new TaskStatus { State = TaskState.Submitted } }
+        });
+        await sut.AppendAsync("t1", new StreamResponse
+        {
+            StatusUpdate = new TaskStatusUpdateEvent { TaskId = "t1", ContextId = "ctx", Status = new TaskStatus { State = TaskState.Working } }
+        });
+
+        // Act
+        var (task, version) = await sut.GetTaskWithVersionAsync("t1");
+
+        // Assert — both must reflect the same state
+        Assert.NotNull(task);
+        Assert.Equal(TaskState.Working, task!.Status.State);
+        Assert.Equal(1, version); // 2 events → version 1
+    }
+
+    [Fact]
+    public async Task GetTaskWithVersionAsync_ShouldReturnNullAndNegativeOne_WhenNoEvents()
+    {
+        // Arrange
+        var sut = CreateStore();
+
+        // Act
+        var (task, version) = await sut.GetTaskWithVersionAsync("nonexistent");
+
+        // Assert
+        Assert.Null(task);
+        Assert.Equal(-1, version);
+    }
+
+    [Fact]
     public async Task AppendAsync_StatusUpdate_ShouldUpdateProjection()
     {
         // Arrange
-        var sut = new InMemoryEventStore();
+        var sut = CreateStore();
         await sut.AppendAsync("t1", new StreamResponse
         {
             Task = new AgentTask
@@ -73,7 +116,7 @@ public class InMemoryEventStoreTests
     public async Task AppendAsync_ArtifactUpdate_ShouldUpdateProjection()
     {
         // Arrange
-        var sut = new InMemoryEventStore();
+        var sut = CreateStore();
         await sut.AppendAsync("t1", new StreamResponse
         {
             Task = new AgentTask
@@ -107,7 +150,7 @@ public class InMemoryEventStoreTests
     public async Task ReadAsync_ShouldReturnEventsFromVersion()
     {
         // Arrange
-        var sut = new InMemoryEventStore();
+        var sut = CreateStore();
         await sut.AppendAsync("t1", new StreamResponse
         {
             Task = new AgentTask { Id = "t1", ContextId = "ctx-1", Status = new TaskStatus { State = TaskState.Submitted } }
@@ -140,7 +183,7 @@ public class InMemoryEventStoreTests
     public async Task ReadAsync_ShouldReturnEmpty_WhenNoEvents()
     {
         // Arrange
-        var sut = new InMemoryEventStore();
+        var sut = CreateStore();
 
         // Act
         var events = new List<EventEnvelope>();
@@ -157,7 +200,7 @@ public class InMemoryEventStoreTests
     public async Task ExistsAsync_ShouldReturnTrue_WhenEventsExist()
     {
         // Arrange
-        var sut = new InMemoryEventStore();
+        var sut = CreateStore();
         await sut.AppendAsync("t1", new StreamResponse
         {
             Task = new AgentTask { Id = "t1", ContextId = "ctx-1", Status = new TaskStatus { State = TaskState.Submitted } }
@@ -171,7 +214,7 @@ public class InMemoryEventStoreTests
     public async Task ExistsAsync_ShouldReturnFalse_WhenNoEvents()
     {
         // Arrange
-        var sut = new InMemoryEventStore();
+        var sut = CreateStore();
 
         // Act & Assert
         Assert.False(await sut.ExistsAsync("nonexistent"));
@@ -181,7 +224,7 @@ public class InMemoryEventStoreTests
     public async Task ListTasksAsync_ShouldReturnAllTasks()
     {
         // Arrange
-        var sut = new InMemoryEventStore();
+        var sut = CreateStore();
         await sut.AppendAsync("t1", new StreamResponse
         {
             Task = new AgentTask { Id = "t1", ContextId = "ctx-1", Status = new TaskStatus { State = TaskState.Submitted } }
@@ -204,7 +247,7 @@ public class InMemoryEventStoreTests
     public async Task ListTasksAsync_ShouldFilterByContextId()
     {
         // Arrange
-        var sut = new InMemoryEventStore();
+        var sut = CreateStore();
         await sut.AppendAsync("t1", new StreamResponse
         {
             Task = new AgentTask { Id = "t1", ContextId = "ctx-1", Status = new TaskStatus { State = TaskState.Submitted } }
@@ -227,7 +270,7 @@ public class InMemoryEventStoreTests
     public async Task ListTasksAsync_ShouldFilterByStatus()
     {
         // Arrange
-        var sut = new InMemoryEventStore();
+        var sut = CreateStore();
         await sut.AppendAsync("t1", new StreamResponse
         {
             Task = new AgentTask { Id = "t1", ContextId = "ctx-1", Status = new TaskStatus { State = TaskState.Submitted } }
@@ -250,7 +293,7 @@ public class InMemoryEventStoreTests
     public async Task ListTasksAsync_ShouldNotMutateStoredData()
     {
         // Arrange — regression test: mutating a returned projection must not affect stored state
-        var sut = new InMemoryEventStore();
+        var sut = CreateStore();
         await sut.AppendAsync("t1", new StreamResponse
         {
             Task = new AgentTask
@@ -279,7 +322,7 @@ public class InMemoryEventStoreTests
     public async Task ListTasksAsync_ShouldTrimHistoryByHistoryLength()
     {
         // Arrange
-        var sut = new InMemoryEventStore();
+        var sut = CreateStore();
         await sut.AppendAsync("t1", new StreamResponse
         {
             Task = new AgentTask
@@ -312,7 +355,7 @@ public class InMemoryEventStoreTests
     public async Task ListTasksAsync_HistoryLengthZero_ShouldRemoveHistory()
     {
         // Arrange
-        var sut = new InMemoryEventStore();
+        var sut = CreateStore();
         await sut.AppendAsync("t1", new StreamResponse
         {
             Task = new AgentTask
@@ -336,7 +379,7 @@ public class InMemoryEventStoreTests
     public async Task AppendAsync_WithExpectedVersion_ShouldEnforceConcurrency()
     {
         // Arrange
-        var sut = new InMemoryEventStore();
+        var sut = CreateStore();
         await sut.AppendAsync("t1", new StreamResponse
         {
             Task = new AgentTask { Id = "t1", ContextId = "ctx-1", Status = new TaskStatus { State = TaskState.Submitted } }
@@ -354,127 +397,5 @@ public class InMemoryEventStoreTests
                 }
             }, expectedVersion: 0));
         Assert.Equal(A2AErrorCode.InvalidRequest, ex.ErrorCode);
-    }
-
-    [Fact]
-    public async Task SubscribeAsync_ShouldDeliverCatchUpEvents()
-    {
-        // Arrange
-        var sut = new InMemoryEventStore();
-        await sut.AppendAsync("t1", new StreamResponse
-        {
-            Task = new AgentTask { Id = "t1", ContextId = "ctx-1", Status = new TaskStatus { State = TaskState.Submitted } }
-        });
-        await sut.AppendAsync("t1", new StreamResponse
-        {
-            StatusUpdate = new TaskStatusUpdateEvent
-            {
-                TaskId = "t1",
-                ContextId = "ctx-1",
-                Status = new TaskStatus { State = TaskState.Completed },
-            }
-        });
-
-        // Act — subscribe from version -1 (catch-up all events)
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var events = new List<EventEnvelope>();
-        await foreach (var e in sut.SubscribeAsync("t1", afterVersion: -1, cts.Token))
-        {
-            events.Add(e);
-            if (events.Count >= 2) break;
-        }
-
-        // Assert — should see both events via catch-up
-        Assert.Equal(2, events.Count);
-        Assert.Equal(0, events[0].Version);
-        Assert.Equal(1, events[1].Version);
-    }
-
-    [Fact]
-    public async Task SubscribeAsync_ShouldDeliverLiveEvents()
-    {
-        // Arrange
-        var sut = new InMemoryEventStore();
-        await sut.AppendAsync("t1", new StreamResponse
-        {
-            Task = new AgentTask { Id = "t1", ContextId = "ctx-1", Status = new TaskStatus { State = TaskState.Submitted } }
-        });
-
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var events = new List<EventEnvelope>();
-
-        // Act — subscribe from version 0 (skip catch-up of initial event), then append
-        var subscribeTask = Task.Run(async () =>
-        {
-            await foreach (var e in sut.SubscribeAsync("t1", afterVersion: 0, cts.Token))
-            {
-                events.Add(e);
-                break; // Only need the first live event
-            }
-        }, cts.Token);
-
-        // Give subscriber time to register its channel
-        await Task.Delay(100, cts.Token);
-
-        await sut.AppendAsync("t1", new StreamResponse
-        {
-            StatusUpdate = new TaskStatusUpdateEvent
-            {
-                TaskId = "t1",
-                ContextId = "ctx-1",
-                Status = new TaskStatus { State = TaskState.Completed },
-            }
-        });
-
-        await subscribeTask;
-
-        // Assert
-        Assert.Single(events);
-        Assert.Equal(1, events[0].Version);
-        Assert.NotNull(events[0].Event.StatusUpdate);
-        Assert.Equal(TaskState.Completed, events[0].Event.StatusUpdate!.Status.State);
-    }
-
-    [Fact]
-    public async Task SubscribeAsync_ShouldCompleteOnTerminalState()
-    {
-        // Arrange
-        var sut = new InMemoryEventStore();
-        await sut.AppendAsync("t1", new StreamResponse
-        {
-            Task = new AgentTask { Id = "t1", ContextId = "ctx-1", Status = new TaskStatus { State = TaskState.Working } }
-        });
-
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var events = new List<EventEnvelope>();
-
-        // Act — subscribe, then push a terminal status
-        var subscribeTask = Task.Run(async () =>
-        {
-            await foreach (var e in sut.SubscribeAsync("t1", afterVersion: 0, cts.Token))
-            {
-                events.Add(e);
-                break; // Collect just the terminal event
-            }
-        }, cts.Token);
-
-        await Task.Delay(100, cts.Token);
-
-        await sut.AppendAsync("t1", new StreamResponse
-        {
-            StatusUpdate = new TaskStatusUpdateEvent
-            {
-                TaskId = "t1",
-                ContextId = "ctx-1",
-                Status = new TaskStatus { State = TaskState.Failed },
-            }
-        });
-
-        // Subscription task should complete promptly
-        await subscribeTask;
-
-        // Assert
-        Assert.Single(events);
-        Assert.Equal(TaskState.Failed, events[0].Event.StatusUpdate!.Status.State);
     }
 }

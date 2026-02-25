@@ -39,9 +39,11 @@ public class A2AHttpProcessorTests
 
     private static (A2AServer requestHandler, InMemoryEventStore store) CreateServer()
     {
-        var store = new InMemoryEventStore();
+        var notifier = new ChannelEventNotifier();
+        var store = new InMemoryEventStore(notifier);
+        var subscriber = new ChannelEventSubscriber(store, notifier);
         var handler = new TestAgentHandler();
-        return (new A2AServer(handler, store, NullLogger<A2AServer>.Instance), store);
+        return (new A2AServer(handler, store, subscriber, NullLogger<A2AServer>.Instance), store);
     }
 
     [Fact]
@@ -139,7 +141,8 @@ public class A2AHttpProcessorTests
             .ThrowsAsync(new A2AException("Test exception", errorCode));
 
         var handler = new Mock<IAgentHandler>().Object;
-        var requestHandler = new A2AServer(handler, mockTaskStore.Object, NullLogger<A2AServer>.Instance);
+        var subscriber = new Mock<IEventSubscriber>().Object;
+        var requestHandler = new A2AServer(handler, mockTaskStore.Object, subscriber, NullLogger<A2AServer>.Instance);
         var logger = NullLogger.Instance;
         var id = "testId";
         var historyLength = 10;
@@ -164,7 +167,8 @@ public class A2AHttpProcessorTests
             .ThrowsAsync(new A2AException("Test exception with unknown error code", unknownErrorCode));
 
         var handler = new Mock<IAgentHandler>().Object;
-        var requestHandler = new A2AServer(handler, mockTaskStore.Object, NullLogger<A2AServer>.Instance);
+        var subscriber = new Mock<IEventSubscriber>().Object;
+        var requestHandler = new A2AServer(handler, mockTaskStore.Object, subscriber, NullLogger<A2AServer>.Instance);
         var logger = NullLogger.Instance;
         var id = "testId";
         var historyLength = 10;

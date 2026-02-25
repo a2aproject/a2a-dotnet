@@ -27,6 +27,17 @@ public interface ITaskEventStore : IEventStore
     Task<AgentTask?> GetTaskAsync(string taskId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Get the projected task state and its current event log version atomically.
+    /// Used by <see cref="A2AServer.SubscribeToTaskAsync"/> to avoid a TOCTOU race
+    /// between reading the task snapshot and determining the subscribe cursor.
+    /// </summary>
+    /// <param name="taskId">The task to project.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The projected task and its version, or (null, -1) if no events exist.</returns>
+    Task<(AgentTask? Task, long Version)> GetTaskWithVersionAsync(
+        string taskId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Query tasks with filtering and pagination.
     /// Operates over projected task state.
     /// </summary>

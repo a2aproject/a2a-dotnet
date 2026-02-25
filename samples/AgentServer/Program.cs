@@ -16,7 +16,9 @@ if (storeType?.Equals("file", StringComparison.OrdinalIgnoreCase) == true)
 {
     var dataDir = GetArgValue(args, "--data-dir", "-d") ?? Path.Combine(Directory.GetCurrentDirectory(), "a2a-data");
     Console.WriteLine($"Using FileEventStore at: {dataDir}");
-    builder.Services.AddSingleton<ITaskEventStore>(new FileEventStore(dataDir));
+    builder.Services.AddSingleton<ChannelEventNotifier>();
+    builder.Services.AddSingleton<ITaskEventStore>(sp =>
+        new FileEventStore(dataDir, sp.GetRequiredService<ChannelEventNotifier>()));
 }
 
 // Register the appropriate agent via DI
