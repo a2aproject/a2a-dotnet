@@ -6,9 +6,18 @@ using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Get the agent type from command line arguments
-var agentType = GetAgentTypeFromArgs(args);
+// Get the agent type and store type from command line arguments
+var agentType = GetArgValue(args, "--agent", "-a") ?? "echo";
+var storeType = GetArgValue(args, "--store", "-s");
 var baseUrl = "http://localhost:5048";
+
+// Register file-backed event store if requested (before AddA2AAgent so TryAddSingleton picks it up)
+if (storeType?.Equals("file", StringComparison.OrdinalIgnoreCase) == true)
+{
+    var dataDir = GetArgValue(args, "--data-dir", "-d") ?? Path.Combine(Directory.GetCurrentDirectory(), "a2a-data");
+    Console.WriteLine($"Using FileEventStore at: {dataDir}");
+    builder.Services.AddSingleton<ITaskEventStore>(new FileEventStore(dataDir));
+}
 
 // Register the appropriate agent via DI
 switch (agentType.ToLowerInvariant())
@@ -79,16 +88,12 @@ if (agentType.Equals("speccompliance", StringComparison.OrdinalIgnoreCase))
 
 app.Run();
 
-static string GetAgentTypeFromArgs(string[] args)
+static string? GetArgValue(string[] args, string longName, string shortName)
 {
     for (int i = 0; i < args.Length - 1; i++)
     {
-        if (args[i] == "--agent" || args[i] == "-a")
-        {
+        if (args[i] == longName || args[i] == shortName)
             return args[i + 1];
-        }
     }
-
-    Console.WriteLine("No agent specified. Use --agent or -a parameter to specify agent type (echo, echotasks, researcher, speccompliance). Defaulting to 'echo'.");
-    return "echo";
+    return null;
 }
