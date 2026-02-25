@@ -14,20 +14,20 @@ namespace A2A;
 public class A2AServer : IA2ARequestHandler
 {
     private readonly IAgentHandler _handler;
-    private readonly ITaskStore _store;
+    private readonly ITaskEventStore _eventStore;
     private readonly ILogger<A2AServer> _logger;
     private readonly A2AServerOptions _options;
 
     /// <summary>Initializes a new instance of the <see cref="A2AServer"/> class.</summary>
     /// <param name="handler">The agent handler that provides execution logic.</param>
-    /// <param name="store">The task store used for persistence.</param>
+    /// <param name="eventStore">The event store used for persistence.</param>
     /// <param name="logger">The logger instance.</param>
     /// <param name="options">Optional configuration options.</param>
-    public A2AServer(IAgentHandler handler, ITaskStore store, ILogger<A2AServer> logger,
+    public A2AServer(IAgentHandler handler, ITaskEventStore eventStore, ILogger<A2AServer> logger,
         A2AServerOptions? options = null)
     {
         _handler = handler ?? throw new ArgumentNullException(nameof(handler));
-        _store = store ?? throw new ArgumentNullException(nameof(store));
+        _eventStore = eventStore ?? throw new ArgumentNullException(nameof(eventStore));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _options = options ?? new A2AServerOptions();
     }
@@ -49,7 +49,9 @@ public class A2AServer : IA2ARequestHandler
 
             if (context.IsContinuation && _options.AutoAppendHistory)
             {
-                await _store.AppendHistoryAsync(context.TaskId, request.Message, cancellationToken).ConfigureAwait(false);
+                await _eventStore.AppendAsync(context.TaskId,
+                    new StreamResponse { Message = request.Message },
+                    cancellationToken: cancellationToken).ConfigureAwait(false);
             }
 
             var eventQueue = new AgentEventQueue();
@@ -102,7 +104,9 @@ public class A2AServer : IA2ARequestHandler
 
             if (context.IsContinuation && _options.AutoAppendHistory)
             {
-                await _store.AppendHistoryAsync(context.TaskId, request.Message, cancellationToken).ConfigureAwait(false);
+                await _eventStore.AppendAsync(context.TaskId,
+                    new StreamResponse { Message = request.Message },
+                    cancellationToken: cancellationToken).ConfigureAwait(false);
             }
 
             eventQueue = new AgentEventQueue();
@@ -147,7 +151,7 @@ public class A2AServer : IA2ARequestHandler
     public virtual async Task<AgentTask> GetTaskAsync(
         GetTaskRequest request, CancellationToken cancellationToken = default)
     {
-        var task = await _store.GetTaskAsync(request.Id, cancellationToken).ConfigureAwait(false)
+        var task = await _eventStore.GetTaskAsync(request.Id, cancellationToken).ConfigureAwait(false)
             ?? throw new A2AException($"Task '{request.Id}' not found.", A2AErrorCode.TaskNotFound);
 
         return task.WithHistoryTrimmedTo(request.HistoryLength);
@@ -157,7 +161,7 @@ public class A2AServer : IA2ARequestHandler
     public virtual async Task<ListTasksResponse> ListTasksAsync(
         ListTasksRequest request, CancellationToken cancellationToken = default)
     {
-        return await _store.ListTasksAsync(request, cancellationToken).ConfigureAwait(false);
+        return await _eventStore.ListTasksAsync(request, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -167,7 +171,7 @@ public class A2AServer : IA2ARequestHandler
         using var activity = A2ADiagnostics.Source.StartActivity("A2AServer.CancelTask", ActivityKind.Internal);
         activity?.SetTag("a2a.task.id", request.Id);
 
-        var task = await _store.GetTaskAsync(request.Id, cancellationToken).ConfigureAwait(false)
+        var task = await _eventStore.GetTaskAsync(request.Id, cancellationToken).ConfigureAwait(false)
             ?? throw new A2AException($"Task '{request.Id}' not found.", A2AErrorCode.TaskNotFound);
 
         if (task.Status.State.IsTerminal())
@@ -199,18 +203,43 @@ public class A2AServer : IA2ARequestHandler
             await PersistEventAsync(response, context, cancellationToken).ConfigureAwait(false);
         }
 
-        return await _store.GetTaskAsync(request.Id, cancellationToken).ConfigureAwait(false)
+        return await _eventStore.GetTaskAsync(request.Id, cancellationToken).ConfigureAwait(false)
             ?? throw new A2AException($"Task '{request.Id}' not found.", A2AErrorCode.TaskNotFound);
     }
 
     /// <inheritdoc />
     public virtual async IAsyncEnumerable<StreamResponse> SubscribeToTaskAsync(
-        SubscribeToTaskRequest request, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        SubscribeToTaskRequest request,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        _ = await _store.GetTaskAsync(request.Id, cancellationToken).ConfigureAwait(false)
+        using var activity = A2ADiagnostics.Source.StartActivity("A2AServer.SubscribeToTask", ActivityKind.Internal);
+        activity?.SetTag("a2a.task.id", request.Id);
+
+        // Fetch task and validate in single call (eliminates TOCTOU race)
+        var currentTask = await _eventStore.GetTaskAsync(request.Id, cancellationToken).ConfigureAwait(false)
             ?? throw new A2AException($"Task '{request.Id}' not found.", A2AErrorCode.TaskNotFound);
 
-        yield break;
+        if (currentTask.Status.State.IsTerminal())
+        {
+            throw new A2AException(
+                "Task is in a terminal state and cannot be subscribed to.",
+                A2AErrorCode.UnsupportedOperation);
+        }
+
+        // First event MUST be current Task object (spec §3.1.6)
+        yield return new StreamResponse { Task = currentTask };
+
+        // Get current version for live tail starting point
+        var currentVersion = await _eventStore.GetLatestVersionAsync(request.Id, cancellationToken)
+            .ConfigureAwait(false);
+
+        // Live events via event store subscription
+        await foreach (var envelope in _eventStore.SubscribeAsync(request.Id,
+            afterVersion: currentVersion, cancellationToken: cancellationToken)
+            .ConfigureAwait(false))
+        {
+            yield return envelope.Event;
+        }
     }
 
     /// <inheritdoc />
@@ -259,7 +288,7 @@ public class A2AServer : IA2ARequestHandler
 
         if (!string.IsNullOrEmpty(taskId))
         {
-            existingTask = await _store.GetTaskAsync(taskId, cancellationToken).ConfigureAwait(false)
+            existingTask = await _eventStore.GetTaskAsync(taskId, cancellationToken).ConfigureAwait(false)
                 ?? throw new A2AException($"Task '{taskId}' not found.", A2AErrorCode.TaskNotFound);
             contextId ??= existingTask.ContextId;
         }
@@ -288,24 +317,13 @@ public class A2AServer : IA2ARequestHandler
     private async Task PersistEventAsync(
         StreamResponse response, AgentContext context, CancellationToken cancellationToken)
     {
-        if (response.Task is { } task)
+        if (response.Task is not null)
         {
             A2ADiagnostics.TaskCreatedCount.Add(1);
-            await _store.SetTaskAsync(task, cancellationToken).ConfigureAwait(false);
         }
-        else if (response.StatusUpdate is { } statusUpdate)
-        {
-            await _store.UpdateStatusAsync(context.TaskId, statusUpdate.Status, cancellationToken).ConfigureAwait(false);
-        }
-        else if (response.ArtifactUpdate is { } artifactUpdate)
-        {
-            var existing = await _store.GetTaskAsync(context.TaskId, cancellationToken).ConfigureAwait(false);
-            if (existing is not null)
-            {
-                (existing.Artifacts ??= []).Add(artifactUpdate.Artifact);
-                await _store.SetTaskAsync(existing, cancellationToken).ConfigureAwait(false);
-            }
-        }
+
+        await _eventStore.AppendAsync(context.TaskId, response, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private async Task<SendMessageResponse> MaterializeResponseAsync(
@@ -334,12 +352,11 @@ public class A2AServer : IA2ARequestHandler
             }
         }
 
-        // Re-fetch the task from the store to ensure the response reflects
-        // all persisted status updates and artifact additions, not a stale snapshot.
-        // This is critical for stores that don't mutate objects in-place (e.g., distributed caches).
+        // Re-fetch the projected task to ensure the response reflects
+        // all persisted events, not a stale snapshot.
         if (result?.Task is not null)
         {
-            result.Task = await _store.GetTaskAsync(context.TaskId, cancellationToken).ConfigureAwait(false)
+            result.Task = await _eventStore.GetTaskAsync(context.TaskId, cancellationToken).ConfigureAwait(false)
                 ?? throw new A2AException($"Task '{context.TaskId}' not found after processing.", A2AErrorCode.TaskNotFound);
         }
 
