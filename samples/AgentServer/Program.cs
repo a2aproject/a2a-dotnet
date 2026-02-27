@@ -6,6 +6,18 @@ using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Configure CORS to allow all origins
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        // Common local dev server ports: React (3000), ASP.NET (5000), Vite (5173)
+        policy.WithOrigins("http://localhost:3000", "http://localhost:5000", "http://localhost:5173")
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+});
+
 // Configure OpenTelemetry
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource.AddService("A2AAgentServer"))
@@ -26,6 +38,7 @@ builder.Services.AddOpenTelemetry()
 var app = builder.Build();
 
 app.UseHttpsRedirection();
+app.UseCors();
 
 // Add health endpoint
 app.MapGet("/health", () => Results.Ok(new { Status = "Healthy", Timestamp = DateTimeOffset.UtcNow }));
@@ -68,6 +81,14 @@ switch (agentType.ToLowerInvariant())
         app.MapWellKnownAgentCard(taskManager, "/speccompliance");
         break;
 
+    case "streaming":
+        var streamingAgent = new StreamingArtifactAgent();
+        streamingAgent.Attach(taskManager);
+        app.MapA2A(taskManager, "/streaming");
+        app.MapWellKnownAgentCard(taskManager, "/streaming");
+        app.MapHttpA2A(taskManager, "/streaming");
+        break;
+
     default:
         Console.WriteLine($"Unknown agent type: {agentType}");
         Environment.Exit(1);
@@ -88,6 +109,6 @@ static string GetAgentTypeFromArgs(string[] args)
     }
 
     // Default to echo if no agent specified
-    Console.WriteLine("No agent specified. Use --agent or -a parameter to specify agent type (echo, echotasks, researcher, speccompliance). Defaulting to 'echo'.");
+    Console.WriteLine("No agent specified. Use --agent or -a parameter to specify agent type (echo, echotasks, researcher, speccompliance, streaming). Defaulting to 'echo'.");
     return "echo";
 }
