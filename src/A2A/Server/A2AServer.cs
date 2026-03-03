@@ -48,7 +48,7 @@ public class A2AServer : IA2ARequestHandler
         {
             A2ADiagnostics.RequestCount.Add(1);
 
-            var context = await ResolveContextAsync(request, isStreaming: false, cancellationToken).ConfigureAwait(false);
+            var context = await ResolveContextAsync(request, streamingResponse: false, cancellationToken).ConfigureAwait(false);
             TagActivity(activity, context);
             GuardTerminalState(context);
 
@@ -104,7 +104,7 @@ public class A2AServer : IA2ARequestHandler
 
         try
         {
-            context = await ResolveContextAsync(request, isStreaming: true, cancellationToken).ConfigureAwait(false);
+            context = await ResolveContextAsync(request, streamingResponse: true, cancellationToken).ConfigureAwait(false);
             TagActivity(activity, context);
             GuardTerminalState(context);
 
@@ -195,7 +195,7 @@ public class A2AServer : IA2ARequestHandler
             Task = task,
             TaskId = task.Id,
             ContextId = task.ContextId,
-            IsStreaming = false,
+            StreamingResponse = false,
             Metadata = request.Metadata,
         };
 
@@ -303,7 +303,7 @@ public class A2AServer : IA2ARequestHandler
     // ─── Private Helpers ───
 
     private async Task<AgentContext> ResolveContextAsync(
-        SendMessageRequest request, bool isStreaming, CancellationToken cancellationToken)
+        SendMessageRequest request, bool streamingResponse, CancellationToken cancellationToken)
     {
         AgentTask? existingTask = null;
         var taskId = request.Message.TaskId;
@@ -322,7 +322,7 @@ public class A2AServer : IA2ARequestHandler
             Task = existingTask,
             TaskId = taskId ?? Guid.NewGuid().ToString("N"),
             ContextId = contextId ?? Guid.NewGuid().ToString("N"),
-            IsStreaming = isStreaming,
+            StreamingResponse = streamingResponse,
             Metadata = request.Metadata,
         };
     }
@@ -407,7 +407,7 @@ public class A2AServer : IA2ARequestHandler
         activity?.SetTag("a2a.task.id", context.TaskId);
         activity?.SetTag("a2a.context.id", context.ContextId);
         activity?.SetTag("a2a.is_continuation", context.IsContinuation);
-        activity?.SetTag("a2a.is_streaming", context.IsStreaming);
+        activity?.SetTag("a2a.streaming_response", context.StreamingResponse);
     }
 
     private static void RecordException(Activity? activity, Exception ex)

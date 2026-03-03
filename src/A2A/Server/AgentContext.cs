@@ -20,8 +20,8 @@ public sealed class AgentContext
     /// <summary>The context ID — client-provided or newly generated.</summary>
     public required string ContextId { get; init; }
 
-    /// <summary>Whether this is a streaming request (vs synchronous send).</summary>
-    public required bool IsStreaming { get; init; }
+    /// <summary>Whether the response will be streamed (SSE) vs returned synchronously.</summary>
+    public required bool StreamingResponse { get; init; }
 
     /// <summary>Original request metadata.</summary>
     public Dictionary<string, JsonElement>? Metadata { get; init; }

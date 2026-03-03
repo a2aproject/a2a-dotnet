@@ -10,7 +10,7 @@ public class AgentContextTests
             Message = new Message { MessageId = "m1", Role = Role.User, Parts = [Part.FromText("hello")] },
             TaskId = "t1",
             ContextId = "ctx-1",
-            IsStreaming = false,
+            StreamingResponse = false,
         };
 
         Assert.Equal("hello", context.UserText);
@@ -24,7 +24,7 @@ public class AgentContextTests
             Message = new Message { MessageId = "m1", Role = Role.User, Parts = [new Part { Data = System.Text.Json.JsonDocument.Parse("{}").RootElement }] },
             TaskId = "t1",
             ContextId = "ctx-1",
-            IsStreaming = false,
+            StreamingResponse = false,
         };
 
         Assert.Null(context.UserText);
@@ -39,7 +39,7 @@ public class AgentContextTests
             Task = new AgentTask { Id = "t1", ContextId = "ctx-1", Status = new TaskStatus { State = TaskState.Working } },
             TaskId = "t1",
             ContextId = "ctx-1",
-            IsStreaming = false,
+            StreamingResponse = false,
         };
 
         Assert.True(context.IsContinuation);
@@ -54,7 +54,7 @@ public class AgentContextTests
             Task = null,
             TaskId = "t1",
             ContextId = "ctx-1",
-            IsStreaming = false,
+            StreamingResponse = false,
         };
 
         Assert.False(context.IsContinuation);
