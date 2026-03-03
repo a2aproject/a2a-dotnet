@@ -333,9 +333,9 @@ public class A2AJsonRpcProcessorTests
     }
 
     [Fact]
-    public async Task SingleResponse_TaskGet_NegativeHistoryLength_ReturnsFullHistory()
+    public async Task SingleResponse_TaskGet_NegativeHistoryLength_ReturnsInvalidParams()
     {
-        // Arrange - In v1, negative history length is treated as "return all history"
+        // Arrange - Negative historyLength is invalid per spec
         var (requestHandler, store) = CreateTestServerWithStore();
         var task = new AgentTask
         {
@@ -347,16 +347,10 @@ public class A2AJsonRpcProcessorTests
         await store.SaveTaskAsync(task.Id, task);
         GetTaskRequest getTaskRequest = new() { Id = task.Id, HistoryLength = -1 };
 
-        // Act
-        var result = await A2AJsonRpcProcessor.SingleResponseAsync(requestHandler, "4", A2AMethods.GetTask, ToJsonElement(getTaskRequest), CancellationToken.None);
-
-        // Assert - should succeed with full history
-        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
-        var (StatusCode, _, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
-        Assert.Equal(StatusCodes.Status200OK, StatusCode);
-        var agentTask = JsonSerializer.Deserialize<AgentTask>(BodyContent.Result, A2AJsonUtilities.DefaultOptions);
-        Assert.NotNull(agentTask);
-        Assert.NotEmpty(agentTask.History!);
+        // Act & Assert — A2AServer.GetTaskAsync throws InvalidParams for negative historyLength
+        var ex = await Assert.ThrowsAsync<A2AException>(() =>
+            A2AJsonRpcProcessor.SingleResponseAsync(requestHandler, "4", A2AMethods.GetTask, ToJsonElement(getTaskRequest), CancellationToken.None));
+        Assert.Equal(A2AErrorCode.InvalidParams, ex.ErrorCode);
     }
 
     [Fact]

@@ -154,6 +154,13 @@ public class A2AServer : IA2ARequestHandler
     public virtual async Task<AgentTask> GetTaskAsync(
         GetTaskRequest request, CancellationToken cancellationToken = default)
     {
+        if (request.HistoryLength is { } hl && hl < 0)
+        {
+            throw new A2AException(
+                $"Invalid historyLength: {hl}. Must be non-negative.",
+                A2AErrorCode.InvalidParams);
+        }
+
         var task = await _taskStore.GetTaskAsync(request.Id, cancellationToken).ConfigureAwait(false)
             ?? throw new A2AException($"Task '{request.Id}' not found.", A2AErrorCode.TaskNotFound);
 
