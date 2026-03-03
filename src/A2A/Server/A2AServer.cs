@@ -74,6 +74,7 @@ public class A2AServer : IA2ARequestHandler
 
             var result = await MaterializeResponseAsync(eventQueue, context, cancellationToken).ConfigureAwait(false);
             await agentTask.ConfigureAwait(false); // surface handler exceptions
+
             return result;
         }
         catch (Exception ex)
@@ -334,11 +335,6 @@ public class A2AServer : IA2ARequestHandler
     private async Task PersistEventAsync(
         StreamResponse response, AgentContext context, CancellationToken cancellationToken)
     {
-        if (response.Task is not null)
-        {
-            A2ADiagnostics.TaskCreatedCount.Add(1);
-        }
-
         using (await _notifier.AcquireTaskLockAsync(context.TaskId, cancellationToken).ConfigureAwait(false))
         {
             var currentTask = await _taskStore.GetTaskAsync(context.TaskId, cancellationToken)
@@ -351,6 +347,11 @@ public class A2AServer : IA2ARequestHandler
             {
                 _notifier.Notify(context.TaskId, response);
                 return;
+            }
+
+            if (currentTask is null)
+            {
+                A2ADiagnostics.TaskCreatedCount.Add(1);
             }
 
             await _taskStore.SaveTaskAsync(context.TaskId, updatedTask, cancellationToken)
