@@ -54,7 +54,7 @@ public class A2AServer : IA2ARequestHandler
 
             if (context.IsContinuation && _options.AutoAppendHistory)
             {
-                await PersistEventAsync(
+                await ApplyEventAsync(
                     new StreamResponse { Message = request.Message },
                     context, cancellationToken).ConfigureAwait(false);
             }
@@ -110,7 +110,7 @@ public class A2AServer : IA2ARequestHandler
 
             if (context.IsContinuation && _options.AutoAppendHistory)
             {
-                await PersistEventAsync(
+                await ApplyEventAsync(
                     new StreamResponse { Message = request.Message },
                     context, cancellationToken).ConfigureAwait(false);
             }
@@ -138,10 +138,7 @@ public class A2AServer : IA2ARequestHandler
 
         await foreach (var response in eventQueue.WithCancellation(cancellationToken).ConfigureAwait(false))
         {
-            if (_options.AutoPersistEvents)
-            {
-                await PersistEventAsync(response, context!, cancellationToken).ConfigureAwait(false);
-            }
+            await ApplyEventAsync(response, context!, cancellationToken).ConfigureAwait(false);
 
             eventCount++;
             yield return response;
@@ -206,7 +203,7 @@ public class A2AServer : IA2ARequestHandler
 
         await foreach (var response in eventQueue.WithCancellation(cancellationToken).ConfigureAwait(false))
         {
-            await PersistEventAsync(response, context, cancellationToken).ConfigureAwait(false);
+            await ApplyEventAsync(response, context, cancellationToken).ConfigureAwait(false);
         }
 
         return await _taskStore.GetTaskAsync(request.Id, cancellationToken).ConfigureAwait(false)
@@ -225,7 +222,7 @@ public class A2AServer : IA2ARequestHandler
         Channel<StreamResponse> channel;
 
         // Atomic: read task state + register subscriber channel under per-task lock.
-        // Concurrent PersistEventAsync calls block until the channel is registered,
+        // Concurrent ApplyEventAsync calls block until the channel is registered,
         // guaranteeing no events are lost between snapshot and live stream.
         using (await _notifier.AcquireTaskLockAsync(request.Id, cancellationToken).ConfigureAwait(false))
         {
@@ -332,7 +329,7 @@ public class A2AServer : IA2ARequestHandler
         }
     }
 
-    private async Task PersistEventAsync(
+    private async Task ApplyEventAsync(
         StreamResponse response, AgentContext context, CancellationToken cancellationToken)
     {
         using (await _notifier.AcquireTaskLockAsync(context.TaskId, cancellationToken).ConfigureAwait(false))
@@ -368,10 +365,7 @@ public class A2AServer : IA2ARequestHandler
 
         await foreach (var response in eventQueue.WithCancellation(cancellationToken).ConfigureAwait(false))
         {
-            if (_options.AutoPersistEvents)
-            {
-                await PersistEventAsync(response, context, cancellationToken).ConfigureAwait(false);
-            }
+            await ApplyEventAsync(response, context, cancellationToken).ConfigureAwait(false);
 
             // Capture the first Task or Message as the synchronous response
             if (result is null)

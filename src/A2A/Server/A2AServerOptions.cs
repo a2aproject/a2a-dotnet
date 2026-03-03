@@ -10,10 +10,4 @@ public sealed class A2AServerOptions
     /// on continuation requests. Default: true.
     /// </summary>
     public bool AutoAppendHistory { get; set; } = true;
-
-    /// <summary>
-    /// Whether to automatically persist events to the store as they flow
-    /// through during streaming. Default: true.
-    /// </summary>
-    public bool AutoPersistEvents { get; set; } = true;
 }
