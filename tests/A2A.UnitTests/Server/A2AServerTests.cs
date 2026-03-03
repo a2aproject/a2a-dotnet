@@ -240,6 +240,40 @@ public class A2AServerTests
     }
 
     [Fact]
+    public async Task GivenExistingTask_WhenCancelTaskWithMetadata_ThenMetadataPassedToHandler()
+    {
+        // Arrange
+        var (server, store, handler) = CreateServer();
+        await store.SaveTaskAsync("t1", new AgentTask
+        {
+            Id = "t1",
+            ContextId = "ctx-1",
+            Status = new TaskStatus { State = TaskState.Working },
+        });
+
+        Dictionary<string, System.Text.Json.JsonElement>? capturedMetadata = null;
+        handler.OnCancel = async (ctx, eq, ct) =>
+        {
+            capturedMetadata = ctx.Metadata;
+            var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
+            await updater.CancelAsync(ct);
+        };
+
+        var metadata = new Dictionary<string, System.Text.Json.JsonElement>
+        {
+            ["reason"] = System.Text.Json.JsonDocument.Parse("\"user-requested\"").RootElement,
+        };
+
+        // Act
+        await server.CancelTaskAsync(new CancelTaskRequest { Id = "t1", Metadata = metadata });
+
+        // Assert
+        Assert.NotNull(capturedMetadata);
+        Assert.True(capturedMetadata!.ContainsKey("reason"));
+        Assert.Equal("user-requested", capturedMetadata["reason"].GetString());
+    }
+
+    [Fact]
     public async Task GivenTerminalTask_WhenCancelTask_ThenThrowsTaskNotCancelable()
     {
         // Arrange
