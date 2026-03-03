@@ -12,9 +12,9 @@
 		<ProjectReference Include="..\..\src\A2A.AspNetCore\A2A.AspNetCore.csproj" />
 	</ItemGroup>
 
-	<!-- Include FileEventStore from AgentServer sample -->
+	<!-- Include FileTaskStore from AgentServer sample -->
 	<ItemGroup>
-		<Compile Include="..\AgentServer\FileEventStore.cs" Link="FileEventStore.cs" />
+		<Compile Include="..\AgentServer\FileTaskStore.cs" Link="FileTaskStore.cs" />
 	</ItemGroup>
 
 </Project>
