@@ -37,13 +37,12 @@ public class A2AHttpProcessorTests
         }
     }
 
-    private static (A2AServer requestHandler, InMemoryEventStore store) CreateServer()
+    private static (A2AServer requestHandler, InMemoryTaskStore store) CreateServer()
     {
         var notifier = new ChannelEventNotifier();
-        var store = new InMemoryEventStore(notifier);
-        var subscriber = new ChannelEventSubscriber(store, notifier);
+        var store = new InMemoryTaskStore();
         var handler = new TestAgentHandler();
-        return (new A2AServer(handler, store, subscriber, NullLogger<A2AServer>.Instance), store);
+        return (new A2AServer(handler, store, notifier, NullLogger<A2AServer>.Instance), store);
     }
 
     [Fact]
@@ -56,7 +55,7 @@ public class A2AHttpProcessorTests
             Id = "testId",
             ContextId = "ctx-1",
         };
-        await store.AppendAsync(agentTask.Id, new StreamResponse { Task = agentTask });
+        await store.SaveTaskAsync(agentTask.Id, agentTask);
         var logger = NullLogger.Instance;
 
         // Act
@@ -78,7 +77,7 @@ public class A2AHttpProcessorTests
             ContextId = "ctx-1",
             Status = new TaskStatus { State = TaskState.Submitted },
         };
-        await store.AppendAsync(agentTask.Id, new StreamResponse { Task = agentTask });
+        await store.SaveTaskAsync(agentTask.Id, agentTask);
         var logger = NullLogger.Instance;
 
         // Act
@@ -100,7 +99,7 @@ public class A2AHttpProcessorTests
             ContextId = "ctx-1",
             Status = new TaskStatus { State = TaskState.Submitted },
         };
-        await store.AppendAsync(agentTask.Id, new StreamResponse { Task = agentTask });
+        await store.SaveTaskAsync(agentTask.Id, agentTask);
         var logger = NullLogger.Instance;
         var sendRequest = new SendMessageRequest
         {
@@ -135,14 +134,14 @@ public class A2AHttpProcessorTests
     public async Task GetTask_WithA2AException_ShouldMapToCorrectHttpStatusCode(A2AErrorCode errorCode, int expectedStatusCode)
     {
         // Arrange
-        var mockTaskStore = new Mock<ITaskEventStore>();
+        var mockTaskStore = new Mock<ITaskStore>();
         mockTaskStore
             .Setup(ts => ts.GetTaskAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new A2AException("Test exception", errorCode));
 
         var handler = new Mock<IAgentHandler>().Object;
-        var subscriber = new Mock<IEventSubscriber>().Object;
-        var requestHandler = new A2AServer(handler, mockTaskStore.Object, subscriber, NullLogger<A2AServer>.Instance);
+        var notifier = new ChannelEventNotifier();
+        var requestHandler = new A2AServer(handler, mockTaskStore.Object, notifier, NullLogger<A2AServer>.Instance);
         var logger = NullLogger.Instance;
         var id = "testId";
         var historyLength = 10;
@@ -159,7 +158,7 @@ public class A2AHttpProcessorTests
     public async Task GetTask_WithUnknownA2AErrorCode_ShouldReturn500InternalServerError()
     {
         // Arrange
-        var mockTaskStore = new Mock<ITaskEventStore>();
+        var mockTaskStore = new Mock<ITaskStore>();
         // Create an A2AException with an unknown/invalid error code by casting an integer that doesn't correspond to any enum value
         var unknownErrorCode = (A2AErrorCode)(-99999);
         mockTaskStore
@@ -167,8 +166,8 @@ public class A2AHttpProcessorTests
             .ThrowsAsync(new A2AException("Test exception with unknown error code", unknownErrorCode));
 
         var handler = new Mock<IAgentHandler>().Object;
-        var subscriber = new Mock<IEventSubscriber>().Object;
-        var requestHandler = new A2AServer(handler, mockTaskStore.Object, subscriber, NullLogger<A2AServer>.Instance);
+        var notifier = new ChannelEventNotifier();
+        var requestHandler = new A2AServer(handler, mockTaskStore.Object, notifier, NullLogger<A2AServer>.Instance);
         var logger = NullLogger.Instance;
         var id = "testId";
         var historyLength = 10;

@@ -1,11 +1,11 @@
-// FileStoreDemo: Demonstrates file-backed event store with data recovery after server restart.
+// FileStoreDemo: Demonstrates file-backed task store with data recovery after server restart.
 //
 // This demo:
-// 1. Starts an A2A server with FileEventStore (persists to ./demo-data/)
+// 1. Starts an A2A server with FileTaskStore (persists to ./demo-data/)
 // 2. Sends messages that create tasks with artifacts
 // 3. Lists tasks — shows they exist
 // 4. Stops the server (simulating a crash/restart)
-// 5. Starts a NEW server with FileEventStore pointing to the same directory
+// 5. Starts a NEW server with FileTaskStore pointing to the same directory
 // 6. Lists tasks again — shows data survived the restart
 // 7. Retrieves individual task details — full history and artifacts preserved
 //
@@ -24,13 +24,13 @@ if (Directory.Exists(dataDir))
     Directory.Delete(dataDir, recursive: true);
 
 Console.WriteLine("╔══════════════════════════════════════════════════════════════╗");
-Console.WriteLine("║    FileEventStore Demo — Data Recovery After Restart        ║");
+Console.WriteLine("║    FileTaskStore Demo — Data Recovery After Restart        ║");
 Console.WriteLine("╚══════════════════════════════════════════════════════════════╝");
 Console.WriteLine();
 
 // ───── Phase 1: Start server, create tasks ─────
 
-Console.WriteLine("▶ Phase 1: Starting server with FileEventStore...");
+Console.WriteLine("▶ Phase 1: Starting server with FileTaskStore...");
 var (host1, client) = await StartServerAsync(baseUrl, agentPath, dataDir);
 
 Console.WriteLine("  Sending 3 messages to create tasks...");
@@ -195,7 +195,7 @@ if (Directory.Exists(dataDir))
 
 return;
 
-// ─── Helper: start an A2A server with FileEventStore ───
+// ─── Helper: start an A2A server with FileTaskStore ───
 
 static async Task<(WebApplication host, A2AClient client)> StartServerAsync(
     string baseUrl, string agentPath, string dataDir)
@@ -203,12 +203,9 @@ static async Task<(WebApplication host, A2AClient client)> StartServerAsync(
     var builder = WebApplication.CreateBuilder();
     builder.WebHost.UseUrls(baseUrl);
 
-    // Register ChannelEventNotifier (shared notification bus)
-    builder.Services.AddSingleton<ChannelEventNotifier>();
-
-    // Register FileEventStore BEFORE AddA2AAgent (TryAddSingleton picks up ours)
-    builder.Services.AddSingleton<ITaskEventStore>(sp =>
-        new FileEventStore(dataDir, sp.GetRequiredService<ChannelEventNotifier>()));
+    // Register FileTaskStore BEFORE AddA2AAgent (TryAddSingleton picks up ours)
+    builder.Services.AddSingleton<ITaskStore>(sp =>
+        new FileTaskStore(dataDir));
     builder.Services.AddA2AAgent<DemoAgent>(DemoAgent.GetAgentCard($"{baseUrl}{agentPath}"));
 
     // Suppress noisy console output
@@ -230,7 +227,7 @@ file sealed class DemoAgent : IAgentHandler
     public static AgentCard GetAgentCard(string url) => new()
     {
         Name = "File Store Demo Agent",
-        Description = "Demonstrates FileEventStore with data persistence across restarts.",
+        Description = "Demonstrates FileTaskStore with data persistence across restarts.",
         Version = "1.0.0",
         SupportedInterfaces =
         [

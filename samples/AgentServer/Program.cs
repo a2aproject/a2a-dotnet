@@ -11,14 +11,13 @@ var agentType = GetArgValue(args, "--agent", "-a") ?? "echo";
 var storeType = GetArgValue(args, "--store", "-s");
 var baseUrl = "http://localhost:5048";
 
-// Register file-backed event store if requested (before AddA2AAgent so TryAddSingleton picks it up)
+// Register file-backed task store if requested (before AddA2AAgent so TryAddSingleton picks it up)
 if (storeType?.Equals("file", StringComparison.OrdinalIgnoreCase) == true)
 {
     var dataDir = GetArgValue(args, "--data-dir", "-d") ?? Path.Combine(Directory.GetCurrentDirectory(), "a2a-data");
-    Console.WriteLine($"Using FileEventStore at: {dataDir}");
-    builder.Services.AddSingleton<ChannelEventNotifier>();
-    builder.Services.AddSingleton<ITaskEventStore>(sp =>
-        new FileEventStore(dataDir, sp.GetRequiredService<ChannelEventNotifier>()));
+    Console.WriteLine($"Using FileTaskStore at: {dataDir}");
+    builder.Services.AddSingleton<ITaskStore>(sp =>
+        new FileTaskStore(dataDir));
 }
 
 // Register the appropriate agent via DI

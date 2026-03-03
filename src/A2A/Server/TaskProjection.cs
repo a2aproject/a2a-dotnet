@@ -5,10 +5,9 @@ namespace A2A;
 /// from a stream of <see cref="StreamResponse"/> events.
 /// </summary>
 /// <remarks>
-/// SQL or persistent store implementors can reuse <see cref="Apply"/> inside their
-/// <see cref="IEventStore.AppendAsync"/> to maintain a projected read model alongside
-/// the event log, enabling efficient <see cref="ITaskEventStore.GetTaskAsync"/> and
-/// <see cref="ITaskEventStore.ListTasksAsync"/> without full event replay.
+/// <see cref="A2AServer"/> uses <see cref="Apply"/> to mutate task state before
+/// persisting via <see cref="ITaskStore.SaveTaskAsync"/>. Store implementors do
+/// not need to call this directly.
 /// </remarks>
 public static class TaskProjection
 {
@@ -41,23 +40,6 @@ public static class TaskProjection
         }
 
         return current;
-    }
-
-    /// <summary>
-    /// Replay an entire event stream to produce the current task state.
-    /// </summary>
-    /// <param name="events">The event stream to replay.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    public static async Task<AgentTask?> ReplayAsync(
-        IAsyncEnumerable<EventEnvelope> events,
-        CancellationToken cancellationToken = default)
-    {
-        AgentTask? state = null;
-        await foreach (var envelope in events.WithCancellation(cancellationToken).ConfigureAwait(false))
-        {
-            state = Apply(state, envelope.Event);
-        }
-        return state;
     }
 
     private static AgentTask ApplyStatus(AgentTask current, TaskStatusUpdateEvent su)

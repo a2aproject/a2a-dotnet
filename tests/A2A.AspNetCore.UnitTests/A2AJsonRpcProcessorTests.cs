@@ -311,7 +311,7 @@ public class A2AJsonRpcProcessorTests
             ContextId = Guid.NewGuid().ToString(),
             Status = new TaskStatus { State = TaskState.Submitted }
         };
-        await store.AppendAsync(task.Id, new StreamResponse { Task = task });
+        await store.SaveTaskAsync(task.Id, task);
 
         var getTaskRequest = new GetTaskRequest { Id = task.Id };
 
@@ -344,7 +344,7 @@ public class A2AJsonRpcProcessorTests
             Status = new TaskStatus { State = TaskState.Submitted },
             History = [new Message { MessageId = "msg1", Role = Role.User, Parts = [Part.FromText("hello")] }]
         };
-        await store.AppendAsync(task.Id, new StreamResponse { Task = task });
+        await store.SaveTaskAsync(task.Id, task);
         GetTaskRequest getTaskRequest = new() { Id = task.Id, HistoryLength = -1 };
 
         // Act
@@ -370,7 +370,7 @@ public class A2AJsonRpcProcessorTests
             ContextId = Guid.NewGuid().ToString(),
             Status = new TaskStatus { State = TaskState.Submitted }
         };
-        await store.AppendAsync(newTask.Id, new StreamResponse { Task = newTask });
+        await store.SaveTaskAsync(newTask.Id, newTask);
         var cancelRequest = new CancelTaskRequest { Id = newTask.Id };
 
         // Act
@@ -422,13 +422,12 @@ public class A2AJsonRpcProcessorTests
     }
 
     /// <summary>Creates a test A2AServer with store exposed for pre-populating data.</summary>
-    private static (IA2ARequestHandler requestHandler, InMemoryEventStore store) CreateTestServerWithStore()
+    private static (IA2ARequestHandler requestHandler, InMemoryTaskStore store) CreateTestServerWithStore()
     {
         var notifier = new ChannelEventNotifier();
-        var store = new InMemoryEventStore(notifier);
-        var subscriber = new ChannelEventSubscriber(store, notifier);
+        var store = new InMemoryTaskStore();
         var handler = new TestAgentHandler();
-        var requestHandler = new A2AServer(handler, store, subscriber, NullLogger<A2AServer>.Instance);
+        var requestHandler = new A2AServer(handler, store, notifier, NullLogger<A2AServer>.Instance);
         return (requestHandler, store);
     }
 

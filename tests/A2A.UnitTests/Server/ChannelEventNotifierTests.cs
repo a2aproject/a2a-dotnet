@@ -4,9 +4,6 @@ namespace A2A.UnitTests.Server;
 
 public class ChannelEventNotifierTests
 {
-    private static EventEnvelope CreateEnvelope(long version, StreamResponse evt)
-        => new() { Version = version, Event = evt };
-
     private static StreamResponse WorkingStatus(string taskId = "t1")
         => new()
         {
@@ -35,10 +32,9 @@ public class ChannelEventNotifierTests
         // Arrange
         var notifier = new ChannelEventNotifier();
         var evt = WorkingStatus();
-        var envelope = CreateEnvelope(0, evt);
 
         // Act & Assert — should not throw
-        notifier.Notify("t1", envelope);
+        notifier.Notify("t1", evt);
     }
 
     [Fact]
@@ -50,17 +46,16 @@ public class ChannelEventNotifierTests
         var ch2 = notifier.CreateChannel("t1");
 
         var evt = WorkingStatus();
-        var envelope = CreateEnvelope(0, evt);
 
         // Act
-        notifier.Notify("t1", envelope);
+        notifier.Notify("t1", evt);
 
         // Assert — both channels should receive the event
         Assert.True(ch1.Reader.TryRead(out var r1));
-        Assert.Equal(0, r1.Version);
+        Assert.NotNull(r1.StatusUpdate);
 
         Assert.True(ch2.Reader.TryRead(out var r2));
-        Assert.Equal(0, r2.Version);
+        Assert.NotNull(r2.StatusUpdate);
     }
 
     [Fact]
@@ -71,14 +66,14 @@ public class ChannelEventNotifierTests
         var ch = notifier.CreateChannel("t1");
 
         var evt = TerminalStatus();
-        var envelope = CreateEnvelope(1, evt);
 
         // Act
-        notifier.Notify("t1", envelope);
+        notifier.Notify("t1", evt);
 
         // Assert — channel should receive the event and then complete
         Assert.True(ch.Reader.TryRead(out var received));
-        Assert.Equal(1, received.Version);
+        Assert.NotNull(received.StatusUpdate);
+        Assert.Equal(TaskState.Completed, received.StatusUpdate!.Status.State);
 
         // Reader should complete since the event is terminal
         await ch.Reader.Completion;
@@ -93,12 +88,11 @@ public class ChannelEventNotifierTests
         // Act
         var ch = notifier.CreateChannel("t1");
         var evt = WorkingStatus();
-        var envelope = CreateEnvelope(0, evt);
-        notifier.Notify("t1", envelope);
+        notifier.Notify("t1", evt);
 
         // Assert — channel should receive the event
         Assert.True(ch.Reader.TryRead(out var received));
-        Assert.Equal(0, received.Version);
+        Assert.NotNull(received.StatusUpdate);
     }
 
     [Fact]
@@ -112,8 +106,7 @@ public class ChannelEventNotifierTests
         notifier.RemoveChannel("t1", ch);
 
         var evt = WorkingStatus();
-        var envelope = CreateEnvelope(0, evt);
-        notifier.Notify("t1", envelope);
+        notifier.Notify("t1", evt);
 
         // Assert — removed channel should NOT receive the event
         Assert.False(ch.Reader.TryRead(out _));
@@ -131,14 +124,98 @@ public class ChannelEventNotifierTests
         notifier.RemoveChannel("t1", ch1);
 
         var evt = WorkingStatus();
-        var envelope = CreateEnvelope(0, evt);
 
         // Act
-        notifier.Notify("t1", envelope);
+        notifier.Notify("t1", evt);
 
         // Assert — ch1 should NOT receive, ch2 should receive
         Assert.False(ch1.Reader.TryRead(out _));
         Assert.True(ch2.Reader.TryRead(out var received));
-        Assert.Equal(0, received.Version);
+        Assert.NotNull(received.StatusUpdate);
+    }
+
+    [Fact]
+    public async Task AcquireTaskLockAsync_BlocksConcurrentAccess()
+    {
+        // Arrange
+        var notifier = new ChannelEventNotifier();
+        var lockAcquired = false;
+        var lockReleased = false;
+
+        // Act — acquire lock, verify second acquire blocks until first released
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var firstLock = await notifier.AcquireTaskLockAsync("t1", cts.Token);
+
+        var secondLockTask = Task.Run(async () =>
+        {
+            lockAcquired = true;
+            using var secondLock = await notifier.AcquireTaskLockAsync("t1", cts.Token);
+            lockReleased = true;
+        }, cts.Token);
+
+        // Allow time for the second lock attempt to start waiting
+        await Task.Delay(200, cts.Token);
+
+        // Assert — second lock should be waiting (lockReleased still false)
+        Assert.True(lockAcquired);
+        Assert.False(lockReleased);
+
+        // Release first lock
+        firstLock.Dispose();
+        await secondLockTask;
+
+        // Assert — second lock was acquired and released
+        Assert.True(lockReleased);
+    }
+
+    [Fact]
+    public async Task AcquireTaskLockAsync_IsPerTask_NotGlobal()
+    {
+        // Arrange
+        var notifier = new ChannelEventNotifier();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        // Act — acquire lock for t1, then immediately acquire for t2 (should not block)
+        using var lock1 = await notifier.AcquireTaskLockAsync("t1", cts.Token);
+        using var lock2 = await notifier.AcquireTaskLockAsync("t2", cts.Token);
+
+        // Assert — if we get here, locks for different tasks don't block each other
+        Assert.NotNull(lock1);
+        Assert.NotNull(lock2);
+    }
+
+    [Fact]
+    public void Notify_DoesNotCrossTaskBoundary()
+    {
+        var notifier = new ChannelEventNotifier();
+        var chA = notifier.CreateChannel("task-a");
+        var chB = notifier.CreateChannel("task-b");
+
+        notifier.Notify("task-a", WorkingStatus("task-a"));
+
+        Assert.True(chA.Reader.TryRead(out _));   // task-a gets it
+        Assert.False(chB.Reader.TryRead(out _));  // task-b does not
+    }
+
+    [Fact]
+    public async Task ConcurrentNotify_DoesNotCorruptChannelList()
+    {
+        var notifier = new ChannelEventNotifier();
+
+        // Run 20 concurrent operations: create channels, notify, remove channels
+        var tasks = Enumerable.Range(0, 20).Select(i => Task.Run(() =>
+        {
+            if (i % 3 == 0)
+            {
+                var ch = notifier.CreateChannel("t1");
+                notifier.RemoveChannel("t1", ch);
+            }
+            else
+            {
+                notifier.Notify("t1", WorkingStatus());
+            }
+        }));
+
+        await Task.WhenAll(tasks); // Should not throw or deadlock
     }
 }

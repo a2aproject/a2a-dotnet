@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Threading.Channels;
 
 namespace A2A.UnitTests.Server;
 
@@ -18,14 +19,13 @@ public class A2AServerTests
                ?? new TaskUpdater(eventQueue, context.TaskId, context.ContextId).CancelAsync(cancellationToken).AsTask();
     }
 
-    private static (A2AServer server, InMemoryEventStore store, TestAgentHandler handler)
+    private static (A2AServer server, InMemoryTaskStore store, TestAgentHandler handler)
         CreateServer()
     {
         var notifier = new ChannelEventNotifier();
-        var store = new InMemoryEventStore(notifier);
-        var subscriber = new ChannelEventSubscriber(store, notifier);
+        var store = new InMemoryTaskStore();
         var handler = new TestAgentHandler();
-        var server = new A2AServer(handler, store, subscriber, NullLogger<A2AServer>.Instance);
+        var server = new A2AServer(handler, store, notifier, NullLogger<A2AServer>.Instance);
         return (server, store, handler);
     }
 
@@ -126,7 +126,7 @@ public class A2AServerTests
             Status = new TaskStatus { State = TaskState.Working },
             History = [new Message { MessageId = "m0", Parts = [Part.FromText("initial")] }],
         };
-        await store.AppendAsync(existingTask.Id, new StreamResponse { Task = existingTask });
+        await store.SaveTaskAsync(existingTask.Id, existingTask);
 
         handler.OnExecute = async (ctx, eq, ct) =>
         {
@@ -161,12 +161,12 @@ public class A2AServerTests
         // Arrange
         var (server, store, handler) = CreateServer();
         handler.OnExecute = (_, eq, _) => { eq.Complete(); return Task.CompletedTask; };
-        await store.AppendAsync("t1", new StreamResponse { Task = new AgentTask
+        await store.SaveTaskAsync("t1", new AgentTask
         {
             Id = "t1",
             ContextId = "ctx-1",
             Status = new TaskStatus { State = TaskState.Completed },
-        }});
+        });
 
         var request = new SendMessageRequest
         {
@@ -216,12 +216,12 @@ public class A2AServerTests
     {
         // Arrange
         var (server, store, handler) = CreateServer();
-        await store.AppendAsync("t1", new StreamResponse { Task = new AgentTask
+        await store.SaveTaskAsync("t1", new AgentTask
         {
             Id = "t1",
             ContextId = "ctx-1",
             Status = new TaskStatus { State = TaskState.Working },
-        }});
+        });
 
         bool cancelCalled = false;
         handler.OnCancel = async (ctx, eq, ct) =>
@@ -244,12 +244,12 @@ public class A2AServerTests
     {
         // Arrange
         var (server, store, _) = CreateServer();
-        await store.AppendAsync("t1", new StreamResponse { Task = new AgentTask
+        await store.SaveTaskAsync("t1", new AgentTask
         {
             Id = "t1",
             ContextId = "ctx-1",
             Status = new TaskStatus { State = TaskState.Completed },
-        }});
+        });
 
         // Act & Assert
         var ex = await Assert.ThrowsAsync<A2AException>(() =>
@@ -262,12 +262,12 @@ public class A2AServerTests
     {
         // Arrange
         var (server, store, _) = CreateServer();
-        await store.AppendAsync("t1", new StreamResponse { Task = new AgentTask
+        await store.SaveTaskAsync("t1", new AgentTask
         {
             Id = "t1",
             ContextId = "ctx-1",
             Status = new TaskStatus { State = TaskState.Submitted }
-        }});
+        });
 
         // Act
         var result = await server.GetTaskAsync(new GetTaskRequest { Id = "t1" });
@@ -295,7 +295,7 @@ public class A2AServerTests
     {
         // Arrange
         var (server, store, _) = CreateServer();
-        await store.AppendAsync("t1", new StreamResponse { Task = new AgentTask
+        await store.SaveTaskAsync("t1", new AgentTask
         {
             Id = "t1",
             ContextId = "ctx-1",
@@ -305,7 +305,7 @@ public class A2AServerTests
                 new Message { MessageId = "m2", Parts = [Part.FromText("Second")] },
                 new Message { MessageId = "m3", Parts = [Part.FromText("Third")] },
             ]
-        }});
+        });
 
         // Act
         var result = await server.GetTaskAsync(new GetTaskRequest { Id = "t1", HistoryLength = 2 });
@@ -339,14 +339,11 @@ public class A2AServerTests
         // Arrange
         var (server, store, handler) = CreateServer();
         handler.OnExecute = (_, eq, _) => { eq.Complete(); return Task.CompletedTask; };
-        await store.AppendAsync("t1", new StreamResponse
+        await store.SaveTaskAsync("t1", new AgentTask
         {
-            Task = new AgentTask
-            {
-                Id = "t1",
-                ContextId = "ctx-1",
-                Status = new TaskStatus { State = TaskState.Working },
-            }
+            Id = "t1",
+            ContextId = "ctx-1",
+            Status = new TaskStatus { State = TaskState.Working },
         });
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -370,14 +367,11 @@ public class A2AServerTests
     {
         // Arrange
         var (server, store, _) = CreateServer();
-        await store.AppendAsync("t1", new StreamResponse
+        await store.SaveTaskAsync("t1", new AgentTask
         {
-            Task = new AgentTask
-            {
-                Id = "t1",
-                ContextId = "ctx-1",
-                Status = new TaskStatus { State = TaskState.Completed },
-            }
+            Id = "t1",
+            ContextId = "ctx-1",
+            Status = new TaskStatus { State = TaskState.Completed },
         });
 
         // Act & Assert
@@ -395,8 +389,8 @@ public class A2AServerTests
     {
         // Arrange
         var (server, store, _) = CreateServer();
-        await store.AppendAsync("t1", new StreamResponse { Task = new AgentTask { Id = "t1", ContextId = "ctx-1", Status = new TaskStatus { State = TaskState.Submitted } } });
-        await store.AppendAsync("t2", new StreamResponse { Task = new AgentTask { Id = "t2", ContextId = "ctx-1", Status = new TaskStatus { State = TaskState.Completed } } });
+        await store.SaveTaskAsync("t1", new AgentTask { Id = "t1", ContextId = "ctx-1", Status = new TaskStatus { State = TaskState.Submitted } });
+        await store.SaveTaskAsync("t2", new AgentTask { Id = "t2", ContextId = "ctx-1", Status = new TaskStatus { State = TaskState.Completed } });
 
         // Act
         var result = await server.ListTasksAsync(new ListTasksRequest { ContextId = "ctx-1" });
@@ -429,5 +423,148 @@ public class A2AServerTests
         var ex = await Assert.ThrowsAsync<A2AException>(() =>
             server.GetExtendedAgentCardAsync(new GetExtendedAgentCardRequest()));
         Assert.Equal(A2AErrorCode.ExtendedAgentCardNotConfigured, ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task SubscribeToTaskAsync_DeliversLiveEvents()
+    {
+        var (server, store, handler) = CreateServer();
+        // Seed a working task
+        await store.SaveTaskAsync("t1", new AgentTask { Id = "t1", ContextId = "ctx", Status = new TaskStatus { State = TaskState.Working } });
+
+        handler.OnExecute = async (ctx, eq, ct) =>
+        {
+            var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
+            await updater.SubmitAsync(ct);
+            await updater.CompleteAsync(cancellationToken: ct);
+        };
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var events = new List<StreamResponse>();
+        var snapshotReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        // Start subscribing (first event = task snapshot, signals channel is registered)
+        var subscribeTask = Task.Run(async () =>
+        {
+            await foreach (var e in server.SubscribeToTaskAsync(new SubscribeToTaskRequest { Id = "t1" }, cts.Token))
+            {
+                events.Add(e);
+                if (events.Count == 1) snapshotReceived.TrySetResult();
+                if (e.StatusUpdate?.Status.State.IsTerminal() == true) break;
+            }
+        }, cts.Token);
+
+        // Wait for snapshot (proves channel is registered — no race)
+        await snapshotReceived.Task.WaitAsync(cts.Token);
+
+        // Send a message that triggers the handler (which completes the task)
+        await server.SendMessageAsync(new SendMessageRequest
+        {
+            Message = new Message { Role = Role.User, MessageId = "m1", TaskId = "t1", Parts = [Part.FromText("go")] }
+        }, cts.Token);
+
+        await subscribeTask;
+
+        // First event = Task snapshot, subsequent = live events
+        Assert.True(events.Count >= 2);
+        Assert.NotNull(events[0].Task); // snapshot
+    }
+
+    [Fact]
+    public async Task SubscribeToTaskAsync_AtomicRace_NoMissedEvents()
+    {
+        // Directly test via notifier + store to control timing precisely
+        var notifier = new ChannelEventNotifier();
+        var store = new InMemoryTaskStore();
+        await store.SaveTaskAsync("t1", new AgentTask { Id = "t1", ContextId = "ctx", Status = new TaskStatus { State = TaskState.Working } });
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        // Simulate subscribe: lock → get + createChannel → unlock
+        Channel<StreamResponse> channel;
+        using (await notifier.AcquireTaskLockAsync("t1", cts.Token))
+        {
+            var task = await store.GetTaskAsync("t1", cts.Token);
+            Assert.NotNull(task);
+            channel = notifier.CreateChannel("t1");
+        }
+
+        // Simulate persist: lock → save + notify → unlock
+        using (await notifier.AcquireTaskLockAsync("t1", cts.Token))
+        {
+            var completed = new AgentTask { Id = "t1", ContextId = "ctx", Status = new TaskStatus { State = TaskState.Completed } };
+            await store.SaveTaskAsync("t1", completed, cts.Token);
+            notifier.Notify("t1", new StreamResponse
+            {
+                StatusUpdate = new TaskStatusUpdateEvent { TaskId = "t1", ContextId = "ctx", Status = new TaskStatus { State = TaskState.Completed } }
+            });
+        }
+
+        // Verify: event was delivered to the channel (not missed)
+        Assert.True(channel.Reader.TryRead(out var evt));
+        Assert.NotNull(evt.StatusUpdate);
+        Assert.Equal(TaskState.Completed, evt.StatusUpdate!.Status.State);
+    }
+
+    [Fact]
+    public async Task SubscribeToTaskAsync_MultipleSubscribers_AllReceive()
+    {
+        var notifier = new ChannelEventNotifier();
+
+        // Register two subscriber channels
+        var ch1 = notifier.CreateChannel("t1");
+        var ch2 = notifier.CreateChannel("t1");
+
+        // Persist and notify
+        notifier.Notify("t1", new StreamResponse
+        {
+            StatusUpdate = new TaskStatusUpdateEvent { TaskId = "t1", ContextId = "ctx", Status = new TaskStatus { State = TaskState.Completed } }
+        });
+
+        // Both channels should receive the event
+        Assert.True(ch1.Reader.TryRead(out var e1));
+        Assert.True(ch2.Reader.TryRead(out var e2));
+        Assert.Equal(TaskState.Completed, e1.StatusUpdate!.Status.State);
+        Assert.Equal(TaskState.Completed, e2.StatusUpdate!.Status.State);
+    }
+
+    [Fact]
+    public async Task SubscribeToTaskAsync_TerminalEvent_EndsStream()
+    {
+        var (server, store, handler) = CreateServer();
+        await store.SaveTaskAsync("t1", new AgentTask { Id = "t1", ContextId = "ctx", Status = new TaskStatus { State = TaskState.Working } });
+
+        handler.OnExecute = async (ctx, eq, ct) =>
+        {
+            var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
+            await updater.SubmitAsync(ct);
+            await updater.FailAsync(cancellationToken: ct);
+        };
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var events = new List<StreamResponse>();
+        var snapshotReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var subscribeTask = Task.Run(async () =>
+        {
+            await foreach (var e in server.SubscribeToTaskAsync(new SubscribeToTaskRequest { Id = "t1" }, cts.Token))
+            {
+                events.Add(e);
+                if (events.Count == 1) snapshotReceived.TrySetResult();
+            }
+        }, cts.Token);
+
+        // Wait for snapshot (proves channel is registered — no race)
+        await snapshotReceived.Task.WaitAsync(cts.Token);
+
+        await server.SendMessageAsync(new SendMessageRequest
+        {
+            Message = new Message { Role = Role.User, MessageId = "m1", TaskId = "t1", Parts = [Part.FromText("trigger")] }
+        }, cts.Token);
+
+        await subscribeTask; // Should complete without timeout
+
+        Assert.True(events.Count >= 2); // snapshot + at least terminal
+        Assert.Contains(events, e => e.StatusUpdate?.Status.State == TaskState.Failed);
     }
 }
