@@ -189,6 +189,7 @@ public class A2AServer : IA2ARequestHandler
             TaskId = task.Id,
             ContextId = task.ContextId,
             IsStreaming = false,
+            Metadata = request.Metadata,
         };
 
         var eventQueue = new AgentEventQueue();
