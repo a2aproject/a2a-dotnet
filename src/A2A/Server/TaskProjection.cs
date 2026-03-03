@@ -15,22 +15,22 @@ public static class TaskProjection
     /// Apply a single event to an AgentTask state, returning the updated state.
     /// </summary>
     /// <param name="current">The current task state, or null if no events have been applied.</param>
-    /// <param name="event">The event to apply.</param>
-    public static AgentTask? Apply(AgentTask? current, StreamResponse @event)
+    /// <param name="streamEvent">The event to apply.</param>
+    public static AgentTask? Apply(AgentTask? current, StreamResponse streamEvent)
     {
-        if (@event.Task is { } task)
+        if (streamEvent.Task is { } task)
             return task;
 
         if (current is null)
             return current;
 
-        if (@event.StatusUpdate is { } su)
+        if (streamEvent.StatusUpdate is { } su)
             return ApplyStatus(current, su);
 
-        if (@event.ArtifactUpdate is { } au)
+        if (streamEvent.ArtifactUpdate is { } au)
             return ApplyArtifact(current, au);
 
-        if (@event.Message is { } msg)
+        if (streamEvent.Message is { } msg)
         {
             if (current is not null)
             {
