@@ -22,7 +22,7 @@ public sealed class ResearcherAgent : IAgentHandler
             {
                 Role = Role.Agent,
                 MessageId = Guid.NewGuid().ToString("N"),
-                ContextId = context.ContextId,
+                ContextId = updater.ContextId,
                 Parts = [Part.FromText("When ready say go ahead")],
             }, cancellationToken);
             return;
@@ -56,7 +56,7 @@ public sealed class ResearcherAgent : IAgentHandler
             {
                 Role = Role.Agent,
                 MessageId = Guid.NewGuid().ToString("N"),
-                ContextId = context.ContextId,
+                ContextId = updater.ContextId,
                 Parts = [Part.FromText("When ready say go ahead")],
             }, cancellationToken);
         }

@@ -10,7 +10,6 @@ public sealed class EchoAgent : IAgentHandler
         {
             Role = Role.Agent,
             MessageId = Guid.NewGuid().ToString("N"),
-            ContextId = context.ContextId,
             Parts = [Part.FromText($"Echo: {context.UserText}")],
         };
         await eventQueue.EnqueueMessageAsync(reply, cancellationToken);

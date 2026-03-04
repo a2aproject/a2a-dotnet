@@ -17,8 +17,8 @@ public sealed class RequestContext
     /// <summary>The task ID — existing or newly generated.</summary>
     public required string TaskId { get; init; }
 
-    /// <summary>The context ID — client-provided or newly generated.</summary>
-    public required string ContextId { get; init; }
+    /// <summary>The context ID — client-provided, inherited from existing task, or null if not yet assigned.</summary>
+    public string? ContextId { get; init; }
 
     /// <summary>Whether the response will be streamed (SSE) vs returned synchronously.</summary>
     public required bool StreamingResponse { get; init; }

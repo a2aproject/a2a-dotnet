@@ -429,10 +429,11 @@ public class A2AJsonRpcProcessorTests
     {
         public async Task ExecuteAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
         {
+            var updater = new TaskUpdater(eventQueue, context.TaskId, context.ContextId);
             var task = new AgentTask
             {
                 Id = context.TaskId,
-                ContextId = context.ContextId,
+                ContextId = updater.ContextId,
                 Status = new TaskStatus { State = TaskState.Submitted },
                 History = [context.Message],
             };

@@ -19,7 +19,7 @@ public sealed class SpecComplianceAgent : IAgentHandler
                 MessageId = Guid.NewGuid().ToString("N"),
                 Role = Role.Agent,
                 TaskId = context.TaskId,
-                ContextId = context.ContextId,
+                ContextId = updater.ContextId,
                 Parts = replyParts,
             };
 
@@ -27,7 +27,7 @@ public sealed class SpecComplianceAgent : IAgentHandler
             await eventQueue.EnqueueTaskAsync(new AgentTask
             {
                 Id = context.TaskId,
-                ContextId = context.ContextId,
+                ContextId = updater.ContextId,
                 Status = new A2A.TaskStatus
                 {
                     State = TaskState.Working,
@@ -44,7 +44,7 @@ public sealed class SpecComplianceAgent : IAgentHandler
                 MessageId = Guid.NewGuid().ToString("N"),
                 Role = Role.Agent,
                 TaskId = context.TaskId,
-                ContextId = context.ContextId,
+                ContextId = updater.ContextId,
                 Parts = replyParts,
             };
 
@@ -56,7 +56,7 @@ public sealed class SpecComplianceAgent : IAgentHandler
             await eventQueue.EnqueueTaskAsync(new AgentTask
             {
                 Id = context.TaskId,
-                ContextId = context.ContextId,
+                ContextId = updater.ContextId,
                 Status = context.Task.Status,
                 History = history,
                 Artifacts = context.Task.Artifacts,

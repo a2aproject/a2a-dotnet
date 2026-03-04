@@ -207,7 +207,7 @@ public class A2AServerTests
         // Assert
         Assert.NotNull(capturedContext);
         Assert.False(string.IsNullOrEmpty(capturedContext!.TaskId));
-        Assert.False(string.IsNullOrEmpty(capturedContext.ContextId));
+        Assert.Null(capturedContext.ContextId);
         Assert.False(capturedContext.IsContinuation);
     }
 
