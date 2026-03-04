@@ -9,13 +9,15 @@ namespace A2A;
 /// <param name="eventQueue">The event queue to write lifecycle events to.</param>
 /// <param name="taskId">The task ID to operate on.</param>
 /// <param name="contextId">The context ID to operate on.</param>
-public sealed class TaskUpdater(AgentEventQueue eventQueue, string taskId, string contextId)
+public sealed class TaskUpdater(AgentEventQueue eventQueue, string taskId, string? contextId)
 {
+    private readonly string _contextId = contextId ?? Guid.NewGuid().ToString("N");
+
     /// <summary>Gets the task ID this updater operates on.</summary>
     public string TaskId => taskId;
 
     /// <summary>Gets the context ID this updater operates on.</summary>
-    public string ContextId => contextId;
+    public string ContextId => _contextId;
 
     /// <summary>Emit the initial task with Submitted status.</summary>
     /// <param name="cancellationToken">Cancellation token.</param>
@@ -23,7 +25,7 @@ public sealed class TaskUpdater(AgentEventQueue eventQueue, string taskId, strin
         => eventQueue.EnqueueTaskAsync(new AgentTask
         {
             Id = taskId,
-            ContextId = contextId,
+            ContextId = _contextId,
             Status = new TaskStatus
             {
                 State = TaskState.Submitted,
@@ -38,7 +40,7 @@ public sealed class TaskUpdater(AgentEventQueue eventQueue, string taskId, strin
         => eventQueue.EnqueueStatusUpdateAsync(new TaskStatusUpdateEvent
         {
             TaskId = taskId,
-            ContextId = contextId,
+            ContextId = _contextId,
             Status = new TaskStatus
             {
                 State = TaskState.Working,
@@ -66,7 +68,7 @@ public sealed class TaskUpdater(AgentEventQueue eventQueue, string taskId, strin
         => eventQueue.EnqueueArtifactUpdateAsync(new TaskArtifactUpdateEvent
         {
             TaskId = taskId,
-            ContextId = contextId,
+            ContextId = _contextId,
             Artifact = new Artifact
             {
                 ArtifactId = artifactId ?? Guid.NewGuid().ToString("N"),
@@ -86,7 +88,7 @@ public sealed class TaskUpdater(AgentEventQueue eventQueue, string taskId, strin
         await eventQueue.EnqueueStatusUpdateAsync(new TaskStatusUpdateEvent
         {
             TaskId = taskId,
-            ContextId = contextId,
+            ContextId = _contextId,
             Status = new TaskStatus
             {
                 State = TaskState.Completed,
@@ -105,7 +107,7 @@ public sealed class TaskUpdater(AgentEventQueue eventQueue, string taskId, strin
         await eventQueue.EnqueueStatusUpdateAsync(new TaskStatusUpdateEvent
         {
             TaskId = taskId,
-            ContextId = contextId,
+            ContextId = _contextId,
             Status = new TaskStatus
             {
                 State = TaskState.Failed,
@@ -123,7 +125,7 @@ public sealed class TaskUpdater(AgentEventQueue eventQueue, string taskId, strin
         await eventQueue.EnqueueStatusUpdateAsync(new TaskStatusUpdateEvent
         {
             TaskId = taskId,
-            ContextId = contextId,
+            ContextId = _contextId,
             Status = new TaskStatus
             {
                 State = TaskState.Canceled,
@@ -141,7 +143,7 @@ public sealed class TaskUpdater(AgentEventQueue eventQueue, string taskId, strin
         await eventQueue.EnqueueStatusUpdateAsync(new TaskStatusUpdateEvent
         {
             TaskId = taskId,
-            ContextId = contextId,
+            ContextId = _contextId,
             Status = new TaskStatus
             {
                 State = TaskState.Rejected,
@@ -160,7 +162,7 @@ public sealed class TaskUpdater(AgentEventQueue eventQueue, string taskId, strin
         await eventQueue.EnqueueStatusUpdateAsync(new TaskStatusUpdateEvent
         {
             TaskId = taskId,
-            ContextId = contextId,
+            ContextId = _contextId,
             Status = new TaskStatus
             {
                 State = TaskState.InputRequired,
@@ -179,7 +181,7 @@ public sealed class TaskUpdater(AgentEventQueue eventQueue, string taskId, strin
         await eventQueue.EnqueueStatusUpdateAsync(new TaskStatusUpdateEvent
         {
             TaskId = taskId,
-            ContextId = contextId,
+            ContextId = _contextId,
             Status = new TaskStatus
             {
                 State = TaskState.AuthRequired,
