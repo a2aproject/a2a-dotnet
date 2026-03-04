@@ -23,6 +23,7 @@ public class AgentContextTests
         {
             Message = new Message { MessageId = "m1", Role = Role.User, Parts = [new Part { Data = System.Text.Json.JsonDocument.Parse("{}").RootElement }] },
             TaskId = "t1",
+            ContextId = "ctx-1",
             StreamingResponse = false,
         };
 
@@ -52,6 +53,7 @@ public class AgentContextTests
             Message = new Message { MessageId = "m1", Role = Role.User, Parts = [Part.FromText("hi")] },
             Task = null,
             TaskId = "t1",
+            ContextId = "ctx-1",
             StreamingResponse = false,
         };
 
