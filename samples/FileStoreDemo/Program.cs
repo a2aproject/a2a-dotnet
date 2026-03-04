@@ -239,7 +239,7 @@ file sealed class DemoAgent : IAgentHandler
         DefaultOutputModes = ["text"],
     };
 
-    public async Task ExecuteAsync(AgentContext context, AgentEventQueue eventQueue, CancellationToken ct)
+    public async Task ExecuteAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken ct)
     {
         var updater = new TaskUpdater(eventQueue, context.TaskId, context.ContextId);
         await updater.SubmitAsync(ct);
@@ -251,7 +251,7 @@ file sealed class DemoAgent : IAgentHandler
         {
             Role = Role.Agent,
             MessageId = Guid.NewGuid().ToString(),
-            ContextId = context.ContextId,
+            ContextId = updater.ContextId,
             TaskId = context.TaskId,
             Parts = [Part.FromText($"Acknowledged: {userText}")],
         }, ct);
@@ -259,7 +259,7 @@ file sealed class DemoAgent : IAgentHandler
         await updater.CompleteAsync(cancellationToken: ct);
     }
 
-    public async Task CancelAsync(AgentContext context, AgentEventQueue eventQueue, CancellationToken ct)
+    public async Task CancelAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken ct)
     {
         var updater = new TaskUpdater(eventQueue, context.TaskId, context.ContextId);
         await updater.CancelAsync(ct);
