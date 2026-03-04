@@ -132,7 +132,7 @@ public sealed class SemanticKernelTravelAgent : IAgentHandler, IDisposable
         GC.SuppressFinalize(this);
     }
 
-    public async Task ExecuteAsync(AgentContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
+    public async Task ExecuteAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
     {
         var updater = new TaskUpdater(eventQueue, context.TaskId, context.ContextId);
         await updater.SubmitAsync(cancellationToken);

@@ -8,13 +8,13 @@ public class A2AServerTests
 {
     private sealed class TestAgentHandler : IAgentHandler
     {
-        public Func<AgentContext, AgentEventQueue, CancellationToken, Task>? OnExecute { get; set; }
-        public Func<AgentContext, AgentEventQueue, CancellationToken, Task>? OnCancel { get; set; }
+        public Func<RequestContext, AgentEventQueue, CancellationToken, Task>? OnExecute { get; set; }
+        public Func<RequestContext, AgentEventQueue, CancellationToken, Task>? OnCancel { get; set; }
 
-        public Task ExecuteAsync(AgentContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
+        public Task ExecuteAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
             => OnExecute?.Invoke(context, eventQueue, cancellationToken) ?? Task.CompletedTask;
 
-        public Task CancelAsync(AgentContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
+        public Task CancelAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
             => OnCancel?.Invoke(context, eventQueue, cancellationToken)
                ?? new TaskUpdater(eventQueue, context.TaskId, context.ContextId).CancelAsync(cancellationToken).AsTask();
     }
@@ -183,7 +183,7 @@ public class A2AServerTests
     {
         // Arrange
         var (server, _, handler) = CreateServer();
-        AgentContext? capturedContext = null;
+        RequestContext? capturedContext = null;
         handler.OnExecute = async (ctx, eq, ct) =>
         {
             capturedContext = ctx;

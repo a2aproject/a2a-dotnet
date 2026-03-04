@@ -10,7 +10,7 @@ public class A2AHttpProcessorTests
 {
     private sealed class TestAgentHandler : IAgentHandler
     {
-        public async Task ExecuteAsync(AgentContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
+        public async Task ExecuteAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
         {
             // For SendMessage: return the existing task if continuation, or a message
             if (context.IsContinuation)
@@ -30,7 +30,7 @@ public class A2AHttpProcessorTests
             eventQueue.Complete();
         }
 
-        public async Task CancelAsync(AgentContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
+        public async Task CancelAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
         {
             var updater = new TaskUpdater(eventQueue, context.TaskId, context.ContextId);
             await updater.CancelAsync(cancellationToken);

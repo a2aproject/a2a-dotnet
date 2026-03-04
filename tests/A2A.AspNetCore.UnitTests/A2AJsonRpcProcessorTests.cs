@@ -427,7 +427,7 @@ public class A2AJsonRpcProcessorTests
 
     private sealed class TestAgentHandler : IAgentHandler
     {
-        public async Task ExecuteAsync(AgentContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
+        public async Task ExecuteAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
         {
             var task = new AgentTask
             {
@@ -440,7 +440,7 @@ public class A2AJsonRpcProcessorTests
             eventQueue.Complete();
         }
 
-        public async Task CancelAsync(AgentContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
+        public async Task CancelAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
         {
             var updater = new TaskUpdater(eventQueue, context.TaskId, context.ContextId);
             await updater.CancelAsync(cancellationToken);

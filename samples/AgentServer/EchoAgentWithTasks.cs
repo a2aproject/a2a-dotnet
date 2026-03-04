@@ -5,7 +5,7 @@ namespace AgentServer;
 
 public sealed class EchoAgentWithTasks : IAgentHandler
 {
-    public async Task ExecuteAsync(AgentContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
+    public async Task ExecuteAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
     {
         var targetState = GetTargetStateFromMetadata(context.Message.Metadata);
         var updater = new TaskUpdater(eventQueue, context.TaskId, context.ContextId);

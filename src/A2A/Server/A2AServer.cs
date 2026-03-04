@@ -97,7 +97,7 @@ public class A2AServer : IA2ARequestHandler
         using var activity = A2ADiagnostics.Source.StartActivity("A2AServer.SendStreamingMessage", ActivityKind.Internal);
         A2ADiagnostics.RequestCount.Add(1);
 
-        AgentContext? context = null;
+        RequestContext? context = null;
         AgentEventQueue? eventQueue = null;
         Task? agentTask = null;
         int eventCount = 0;
@@ -189,7 +189,7 @@ public class A2AServer : IA2ARequestHandler
             throw new A2AException("Task is already in a terminal state.", A2AErrorCode.TaskNotCancelable);
         }
 
-        var context = new AgentContext
+        var context = new RequestContext
         {
             Message = task.History?.LastOrDefault() ?? new Message { Role = Role.User, MessageId = string.Empty, Parts = [] },
             Task = task,
@@ -302,7 +302,7 @@ public class A2AServer : IA2ARequestHandler
 
     // ─── Private Helpers ───
 
-    private async Task<AgentContext> ResolveContextAsync(
+    private async Task<RequestContext> ResolveContextAsync(
         SendMessageRequest request, bool streamingResponse, CancellationToken cancellationToken)
     {
         AgentTask? existingTask = null;
@@ -316,7 +316,7 @@ public class A2AServer : IA2ARequestHandler
             contextId ??= existingTask.ContextId;
         }
 
-        return new AgentContext
+        return new RequestContext
         {
             Message = request.Message,
             Task = existingTask,
@@ -327,7 +327,7 @@ public class A2AServer : IA2ARequestHandler
         };
     }
 
-    private static void GuardTerminalState(AgentContext context)
+    private static void GuardTerminalState(RequestContext context)
     {
         if (context.Task is not null && context.Task.Status.State.IsTerminal())
         {
@@ -338,7 +338,7 @@ public class A2AServer : IA2ARequestHandler
     }
 
     private async Task ApplyEventAsync(
-        StreamResponse response, AgentContext context, CancellationToken cancellationToken)
+        StreamResponse response, RequestContext context, CancellationToken cancellationToken)
     {
         using (await _notifier.AcquireTaskLockAsync(context.TaskId, cancellationToken).ConfigureAwait(false))
         {
@@ -367,7 +367,7 @@ public class A2AServer : IA2ARequestHandler
     }
 
     private async Task<SendMessageResponse> MaterializeResponseAsync(
-        AgentEventQueue eventQueue, AgentContext context, CancellationToken cancellationToken)
+        AgentEventQueue eventQueue, RequestContext context, CancellationToken cancellationToken)
     {
         SendMessageResponse? result = null;
 
@@ -402,7 +402,7 @@ public class A2AServer : IA2ARequestHandler
             A2AErrorCode.InvalidAgentResponse);
     }
 
-    private static void TagActivity(Activity? activity, AgentContext context)
+    private static void TagActivity(Activity? activity, RequestContext context)
     {
         activity?.SetTag("a2a.task.id", context.TaskId);
         activity?.SetTag("a2a.context.id", context.ContextId);
