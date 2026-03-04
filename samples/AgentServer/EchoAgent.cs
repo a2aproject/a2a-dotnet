@@ -6,13 +6,8 @@ public sealed class EchoAgent : IAgentHandler
 {
     public async Task ExecuteAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
     {
-        var reply = new Message
-        {
-            Role = Role.Agent,
-            MessageId = Guid.NewGuid().ToString("N"),
-            Parts = [Part.FromText($"Echo: {context.UserText}")],
-        };
-        await eventQueue.EnqueueMessageAsync(reply, cancellationToken);
+        var responder = new MessageResponder(eventQueue, context.ContextId);
+        await responder.ReplyAsync($"Echo: {context.UserText}", cancellationToken);
     }
 
     public static AgentCard GetAgentCard(string agentUrl) =>
