@@ -247,14 +247,8 @@ file sealed class DemoAgent : IAgentHandler
 
         // Echo back with a response
         var userText = context.Message.Parts?.FirstOrDefault()?.Text ?? "no input";
-        await eventQueue.EnqueueMessageAsync(new Message
-        {
-            Role = Role.Agent,
-            MessageId = Guid.NewGuid().ToString(),
-            ContextId = updater.ContextId,
-            TaskId = context.TaskId,
-            Parts = [Part.FromText($"Acknowledged: {userText}")],
-        }, ct);
+        var responder = new MessageResponder(eventQueue, updater.ContextId);
+        await responder.ReplyAsync($"Acknowledged: {userText}", ct);
 
         await updater.CompleteAsync(cancellationToken: ct);
     }
