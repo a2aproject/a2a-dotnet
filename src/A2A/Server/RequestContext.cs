@@ -6,7 +6,7 @@ namespace A2A;
 /// Provides the agent with pre-resolved context for the current request.
 /// IDs are pre-generated, existing task is pre-fetched from store.
 /// </summary>
-public sealed class AgentContext
+public sealed class RequestContext
 {
     /// <summary>The incoming client message.</summary>
     public required Message Message { get; init; }

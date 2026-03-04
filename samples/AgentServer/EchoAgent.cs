@@ -4,7 +4,7 @@ namespace AgentServer;
 
 public sealed class EchoAgent : IAgentHandler
 {
-    public async Task ExecuteAsync(AgentContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
+    public async Task ExecuteAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
     {
         var reply = new Message
         {
