@@ -321,7 +321,8 @@ public class A2AServer : IA2ARequestHandler
             Message = request.Message,
             Task = existingTask,
             TaskId = taskId ?? Guid.NewGuid().ToString("N"),
-            ContextId = contextId,
+            ContextId = contextId ?? Guid.NewGuid().ToString("N"),
+            ClientProvidedContextId = contextId is not null,
             StreamingResponse = streamingResponse,
             Metadata = request.Metadata,
         };
