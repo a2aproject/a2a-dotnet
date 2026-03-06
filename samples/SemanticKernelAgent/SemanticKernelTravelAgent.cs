@@ -15,7 +15,7 @@ namespace SemanticKernelAgent;
 /// A simple currency plugin that leverages Frankfurter for exchange rates.
 /// The Plugin is used by the currency_exchange_agent.
 /// </summary>
-public class CurrencyPlugin
+public partial class CurrencyPlugin
 {
     private readonly ILogger<CurrencyPlugin> _logger;
     private readonly HttpClient _httpClient;
@@ -53,8 +53,7 @@ public class CurrencyPlugin
     {
         try
         {
-            _logger.LogInformation("Getting exchange rate from {CurrencyFrom} to {CurrencyTo} for date {Date}",
-                currencyFrom, currencyTo, date);
+            LogGettingExchangeRate(_logger, currencyFrom, currencyTo, date);
 
             // Build request URL with query parameters
             var requestUri = $"https://api.frankfurter.app/{date}?from={Uri.EscapeDataString(currencyFrom)}&to={Uri.EscapeDataString(currencyTo)}";
@@ -91,6 +90,9 @@ public class CurrencyPlugin
         (int)response.StatusCode is 408 // Request Timeout
             or 429 // Too Many Requests
             or >= 500 and < 600; // Server errors
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Getting exchange rate from {CurrencyFrom} to {CurrencyTo} for date {Date}")]
+    private static partial void LogGettingExchangeRate(ILogger logger, string currencyFrom, string currencyTo, string date);
 }
 #endregion
 
@@ -99,7 +101,7 @@ public class CurrencyPlugin
 /// <summary>
 /// Wraps Semantic Kernel-based agents to handle Travel related tasks
 /// </summary>
-public class SemanticKernelTravelAgent : IDisposable
+public partial class SemanticKernelTravelAgent : IDisposable
 {
     public static readonly ActivitySource ActivitySource = new("A2A.SemanticKernelTravelAgent", "1.0.0");
 
@@ -237,7 +239,7 @@ public class SemanticKernelTravelAgent : IDisposable
                     string deploymentName = azureConfig["DeploymentName"] ?? throw new ArgumentException("AzureOpenAI DeploymentName must be provided");
                     string? apiVersion = azureConfig["ApiVersion"];
 
-                    _logger.LogInformation("Initializing Semantic Kernel agent with Azure OpenAI deployment {DeploymentName}", deploymentName);
+                    LogInitializingWithAzureOpenAI(_logger, deploymentName);
                     builder.AddAzureOpenAIChatCompletion(deploymentName, endpoint, azureApiKey, apiVersion: apiVersion);
                     break;
 
@@ -251,7 +253,7 @@ public class SemanticKernelTravelAgent : IDisposable
                     string apiKey = openAiConfig["ApiKey"] ?? throw new ArgumentException("OpenAI ApiKey must be provided");
                     string modelId = openAiConfig["Model"] ?? "gpt-4.1";
 
-                    _logger.LogInformation("Initializing Semantic Kernel agent with OpenAI model {ModelId}", modelId);
+                    LogInitializingWithOpenAI(_logger, modelId);
                     builder.AddOpenAIChatCompletion(modelId, apiKey);
                     break;
             }
@@ -290,6 +292,12 @@ public class SemanticKernelTravelAgent : IDisposable
             throw;
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Initializing Semantic Kernel agent with Azure OpenAI deployment {DeploymentName}")]
+    private static partial void LogInitializingWithAzureOpenAI(ILogger logger, string deploymentName);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Initializing Semantic Kernel agent with OpenAI model {ModelId}")]
+    private static partial void LogInitializingWithOpenAI(ILogger logger, string modelId);
 
     #endregion
 }
