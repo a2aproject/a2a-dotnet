@@ -15,7 +15,7 @@ namespace SemanticKernelAgent;
 /// A simple currency plugin that leverages Frankfurter for exchange rates.
 /// The Plugin is used by the currency_exchange_agent.
 /// </summary>
-public partial class CurrencyPlugin
+public class CurrencyPlugin
 {
     private readonly ILogger<CurrencyPlugin> _logger;
     private readonly HttpClient _httpClient;
@@ -53,7 +53,7 @@ public partial class CurrencyPlugin
     {
         try
         {
-            LogGettingExchangeRate(_logger, currencyFrom, currencyTo, date);
+            Log.GettingExchangeRate(_logger, currencyFrom, currencyTo, date);
 
             // Build request URL with query parameters
             var requestUri = $"https://api.frankfurter.app/{date}?from={Uri.EscapeDataString(currencyFrom)}&to={Uri.EscapeDataString(currencyTo)}";
@@ -90,9 +90,6 @@ public partial class CurrencyPlugin
         (int)response.StatusCode is 408 // Request Timeout
             or 429 // Too Many Requests
             or >= 500 and < 600; // Server errors
-
-    [LoggerMessage(Level = LogLevel.Information, Message = "Getting exchange rate from {CurrencyFrom} to {CurrencyTo} for date {Date}")]
-    private static partial void LogGettingExchangeRate(ILogger logger, string currencyFrom, string currencyTo, string date);
 }
 #endregion
 
@@ -101,7 +98,7 @@ public partial class CurrencyPlugin
 /// <summary>
 /// Wraps Semantic Kernel-based agents to handle Travel related tasks
 /// </summary>
-public partial class SemanticKernelTravelAgent : IDisposable
+public class SemanticKernelTravelAgent : IDisposable
 {
     public static readonly ActivitySource ActivitySource = new("A2A.SemanticKernelTravelAgent", "1.0.0");
 
@@ -239,7 +236,7 @@ public partial class SemanticKernelTravelAgent : IDisposable
                     string deploymentName = azureConfig["DeploymentName"] ?? throw new ArgumentException("AzureOpenAI DeploymentName must be provided");
                     string? apiVersion = azureConfig["ApiVersion"];
 
-                    LogInitializingWithAzureOpenAI(_logger, deploymentName);
+                    Log.InitializingWithAzureOpenAI(_logger, deploymentName);
                     builder.AddAzureOpenAIChatCompletion(deploymentName, endpoint, azureApiKey, apiVersion: apiVersion);
                     break;
 
@@ -253,7 +250,7 @@ public partial class SemanticKernelTravelAgent : IDisposable
                     string apiKey = openAiConfig["ApiKey"] ?? throw new ArgumentException("OpenAI ApiKey must be provided");
                     string modelId = openAiConfig["Model"] ?? "gpt-4.1";
 
-                    LogInitializingWithOpenAI(_logger, modelId);
+                    Log.InitializingWithOpenAI(_logger, modelId);
                     builder.AddOpenAIChatCompletion(modelId, apiKey);
                     break;
             }
@@ -293,13 +290,18 @@ public partial class SemanticKernelTravelAgent : IDisposable
         }
     }
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Initializing Semantic Kernel agent with Azure OpenAI deployment {DeploymentName}")]
-    private static partial void LogInitializingWithAzureOpenAI(ILogger logger, string deploymentName);
-
-    [LoggerMessage(Level = LogLevel.Information, Message = "Initializing Semantic Kernel agent with OpenAI model {ModelId}")]
-    private static partial void LogInitializingWithOpenAI(ILogger logger, string modelId);
-
     #endregion
 }
 #endregion
 
+internal static partial class Log
+{
+    [LoggerMessage(Level = LogLevel.Information, Message = "Getting exchange rate from {CurrencyFrom} to {CurrencyTo} for date {Date}")]
+    internal static partial void GettingExchangeRate(ILogger logger, string currencyFrom, string currencyTo, string date);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Initializing Semantic Kernel agent with Azure OpenAI deployment {DeploymentName}")]
+    internal static partial void InitializingWithAzureOpenAI(ILogger logger, string deploymentName);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Initializing Semantic Kernel agent with OpenAI model {ModelId}")]
+    internal static partial void InitializingWithOpenAI(ILogger logger, string modelId);
+}
