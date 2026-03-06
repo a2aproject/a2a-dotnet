@@ -1,4 +1,5 @@
-﻿using A2A;
+﻿#pragma warning disable CA1873 // Avoid unnecessary lazy evaluation (coding sample — simplicity over micro-optimisation)
+using A2A;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
@@ -53,7 +54,7 @@ public class CurrencyPlugin
     {
         try
         {
-            Log.GettingExchangeRate(_logger, currencyFrom, currencyTo, date);
+            _logger.LogInformation("Getting exchange rate from {CurrencyFrom} to {CurrencyTo} for date {Date}", currencyFrom, currencyTo, date);
 
             // Build request URL with query parameters
             var requestUri = $"https://api.frankfurter.app/{date}?from={Uri.EscapeDataString(currencyFrom)}&to={Uri.EscapeDataString(currencyTo)}";
@@ -236,7 +237,7 @@ public class SemanticKernelTravelAgent : IDisposable
                     string deploymentName = azureConfig["DeploymentName"] ?? throw new ArgumentException("AzureOpenAI DeploymentName must be provided");
                     string? apiVersion = azureConfig["ApiVersion"];
 
-                    Log.InitializingWithAzureOpenAI(_logger, deploymentName);
+                    _logger.LogInformation("Initializing Semantic Kernel agent with Azure OpenAI deployment {DeploymentName}", deploymentName);
                     builder.AddAzureOpenAIChatCompletion(deploymentName, endpoint, azureApiKey, apiVersion: apiVersion);
                     break;
 
@@ -250,7 +251,7 @@ public class SemanticKernelTravelAgent : IDisposable
                     string apiKey = openAiConfig["ApiKey"] ?? throw new ArgumentException("OpenAI ApiKey must be provided");
                     string modelId = openAiConfig["Model"] ?? "gpt-4.1";
 
-                    Log.InitializingWithOpenAI(_logger, modelId);
+                    _logger.LogInformation("Initializing Semantic Kernel agent with OpenAI model {ModelId}", modelId);
                     builder.AddOpenAIChatCompletion(modelId, apiKey);
                     break;
             }
@@ -294,14 +295,3 @@ public class SemanticKernelTravelAgent : IDisposable
 }
 #endregion
 
-internal static partial class Log
-{
-    [LoggerMessage(Level = LogLevel.Information, Message = "Getting exchange rate from {CurrencyFrom} to {CurrencyTo} for date {Date}")]
-    internal static partial void GettingExchangeRate(ILogger logger, string currencyFrom, string currencyTo, string date);
-
-    [LoggerMessage(Level = LogLevel.Information, Message = "Initializing Semantic Kernel agent with Azure OpenAI deployment {DeploymentName}")]
-    internal static partial void InitializingWithAzureOpenAI(ILogger logger, string deploymentName);
-
-    [LoggerMessage(Level = LogLevel.Information, Message = "Initializing Semantic Kernel agent with OpenAI model {ModelId}")]
-    internal static partial void InitializingWithOpenAI(ILogger logger, string modelId);
-}
