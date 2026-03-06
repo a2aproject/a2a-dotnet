@@ -1,4 +1,5 @@
-﻿using A2A;
+﻿#pragma warning disable CA1873 // Avoid unnecessary lazy evaluation (coding sample — simplicity over micro-optimisation)
+using A2A;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
@@ -53,8 +54,7 @@ public class CurrencyPlugin
     {
         try
         {
-            _logger.LogInformation("Getting exchange rate from {CurrencyFrom} to {CurrencyTo} for date {Date}",
-                currencyFrom, currencyTo, date);
+            _logger.LogInformation("Getting exchange rate from {CurrencyFrom} to {CurrencyTo} for date {Date}", currencyFrom, currencyTo, date);
 
             // Build request URL with query parameters
             var requestUri = $"https://api.frankfurter.app/{date}?from={Uri.EscapeDataString(currencyFrom)}&to={Uri.EscapeDataString(currencyTo)}";
