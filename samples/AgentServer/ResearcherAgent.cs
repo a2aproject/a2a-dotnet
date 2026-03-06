@@ -23,13 +23,13 @@ public class ResearcherAgent
             // Initialize the agent state for the task
             _agentStates[task.Id] = AgentState.Planning;
             // Ignore other content in the task, just assume it is a text message.
-            var message = ((TextPart?)task.History?.Last()?.Parts?.FirstOrDefault())?.Text ?? string.Empty;
+            var message = ((TextPart?)task.History?.LastOrDefault(m => m.Role == MessageRole.User)?.Parts?.FirstOrDefault())?.Text ?? string.Empty;
             await InvokeAsync(task.Id, message, cancellationToken);
         };
         _taskManager.OnTaskUpdated = async (task, cancellationToken) =>
         {
             // Note that the updated callback is helpful to know not to initialize the agent state again.
-            var message = ((TextPart?)task.History?.Last()?.Parts?.FirstOrDefault())?.Text ?? string.Empty;
+            var message = ((TextPart?)task.History?.LastOrDefault(m => m.Role == MessageRole.User)?.Parts?.FirstOrDefault())?.Text ?? string.Empty;
             await InvokeAsync(task.Id, message, cancellationToken);
         };
         _taskManager.OnAgentCardQuery = GetAgentCardAsync;
@@ -53,11 +53,6 @@ public class ResearcherAgent
         {
             case AgentState.Planning:
                 await DoPlanningAsync(taskId, message, cancellationToken);
-                await _taskManager.UpdateStatusAsync(taskId, TaskState.InputRequired, new AgentMessage()
-                {
-                    Parts = [new TextPart() { Text = "When ready say go ahead" }],
-                },
-                cancellationToken: cancellationToken);
                 break;
             case AgentState.WaitingForFeedbackOnPlan:
                 if (message == "go ahead")  // Dumb check for now to avoid using an LLM
@@ -68,11 +63,6 @@ public class ResearcherAgent
                 {
                     // Take the message and redo planning
                     await DoPlanningAsync(taskId, message, cancellationToken);
-                    await _taskManager.UpdateStatusAsync(taskId, TaskState.InputRequired, new AgentMessage()
-                    {
-                        Parts = [new TextPart() { Text = "When ready say go ahead" }],
-                    },
-                    cancellationToken: cancellationToken);
                 }
                 break;
             case AgentState.Researching:

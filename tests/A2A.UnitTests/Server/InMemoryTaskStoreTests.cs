@@ -281,3 +281,209 @@ public class InMemoryTaskStoreTests
         await Assert.ThrowsAsync<TaskCanceledException>(() => task);
     }
 }
+
+/// <summary>
+/// Tests for <see cref="ArtifactHelper"/>.
+/// </summary>
+public class ArtifactHelperTests
+{
+    [Fact]
+    public void ApplyArtifactUpdate_WithAppendFalse_AddsNewArtifact()
+    {
+        // Arrange
+        var task = new AgentTask { Id = "task1", Status = new AgentTaskStatus { State = TaskState.Submitted } };
+        var artifact = new Artifact
+        {
+            ArtifactId = "artifact1",
+            Name = "Test Artifact",
+            Parts = [new TextPart { Text = "Content" }]
+        };
+
+        // Act
+        ArtifactHelper.ApplyArtifactUpdate(task, artifact, append: false);
+
+        // Assert
+        Assert.NotNull(task.Artifacts);
+        Assert.Single(task.Artifacts);
+        Assert.Equal("artifact1", task.Artifacts[0].ArtifactId);
+        Assert.Equal("Test Artifact", task.Artifacts[0].Name);
+    }
+
+    [Fact]
+    public void ApplyArtifactUpdate_WithAppendTrue_AppendsToExistingArtifact()
+    {
+        // Arrange
+        var task = new AgentTask { Id = "task1", Status = new AgentTaskStatus { State = TaskState.Submitted } };
+
+        ArtifactHelper.ApplyArtifactUpdate(task, new Artifact
+        {
+            ArtifactId = "artifact1",
+            Name = "Story",
+            Parts = [new TextPart { Text = "Part 1. " }]
+        }, append: false);
+
+        // Act
+        ArtifactHelper.ApplyArtifactUpdate(task, new Artifact
+        {
+            ArtifactId = "artifact1",
+            Parts = [new TextPart { Text = "Part 2." }]
+        }, append: true);
+
+        // Assert
+        Assert.NotNull(task.Artifacts);
+        Assert.Single(task.Artifacts);
+        Assert.Equal("artifact1", task.Artifacts[0].ArtifactId);
+        Assert.Equal(2, task.Artifacts[0].Parts.Count);
+        Assert.Equal("Part 1. ", task.Artifacts[0].Parts[0].AsTextPart().Text);
+        Assert.Equal("Part 2.", task.Artifacts[0].Parts[1].AsTextPart().Text);
+    }
+
+    [Fact]
+    public void ApplyArtifactUpdate_WithAppendTrue_CreatesNewArtifactIfNotExists()
+    {
+        // Arrange
+        var task = new AgentTask { Id = "task1", Status = new AgentTaskStatus { State = TaskState.Submitted } };
+
+        // Act - append to non-existent artifact should create it
+        ArtifactHelper.ApplyArtifactUpdate(task, new Artifact
+        {
+            ArtifactId = "artifact1",
+            Parts = [new TextPart { Text = "Content" }]
+        }, append: true);
+
+        // Assert
+        Assert.NotNull(task.Artifacts);
+        Assert.Single(task.Artifacts);
+        Assert.Equal("artifact1", task.Artifacts[0].ArtifactId);
+    }
+
+    [Fact]
+    public void ApplyArtifactUpdate_WithAppendFalse_ReplacesExistingArtifact()
+    {
+        // Arrange
+        var task = new AgentTask { Id = "task1", Status = new AgentTaskStatus { State = TaskState.Submitted } };
+
+        ArtifactHelper.ApplyArtifactUpdate(task, new Artifact
+        {
+            ArtifactId = "artifact1",
+            Name = "Original",
+            Parts = [new TextPart { Text = "Old Content" }]
+        }, append: false);
+
+        // Act
+        ArtifactHelper.ApplyArtifactUpdate(task, new Artifact
+        {
+            ArtifactId = "artifact1",
+            Name = "Updated",
+            Parts = [new TextPart { Text = "New Content" }]
+        }, append: false);
+
+        // Assert
+        Assert.NotNull(task.Artifacts);
+        Assert.Single(task.Artifacts);
+        Assert.Equal("Updated", task.Artifacts[0].Name);
+        Assert.Single(task.Artifacts[0].Parts);
+        Assert.Equal("New Content", task.Artifacts[0].Parts[0].AsTextPart().Text);
+    }
+
+    [Fact]
+    public void ApplyArtifactUpdate_MergesMetadataAndExtensions()
+    {
+        // Arrange
+        var task = new AgentTask { Id = "task1", Status = new AgentTaskStatus { State = TaskState.Submitted } };
+
+        ArtifactHelper.ApplyArtifactUpdate(task, new Artifact
+        {
+            ArtifactId = "artifact1",
+            Parts = [new TextPart { Text = "Content" }],
+            Metadata = new() { ["key1"] = System.Text.Json.JsonDocument.Parse("\"value1\"").RootElement },
+            Extensions = ["ext1"]
+        }, append: false);
+
+        // Act
+        ArtifactHelper.ApplyArtifactUpdate(task, new Artifact
+        {
+            ArtifactId = "artifact1",
+            Parts = [new TextPart { Text = " More" }],
+            Metadata = new() { ["key2"] = System.Text.Json.JsonDocument.Parse("\"value2\"").RootElement },
+            Extensions = ["ext2"]
+        }, append: true);
+
+        // Assert
+        Assert.NotNull(task.Artifacts);
+        Assert.Single(task.Artifacts);
+        Assert.Equal(2, task.Artifacts[0].Parts.Count);
+        Assert.NotNull(task.Artifacts[0].Metadata);
+        Assert.Equal(2, task.Artifacts[0].Metadata!.Count);
+        Assert.NotNull(task.Artifacts[0].Extensions);
+        Assert.Equal(2, task.Artifacts[0].Extensions!.Count);
+    }
+
+    [Fact]
+    public void ApplyArtifactUpdate_InitializesArtifactsList()
+    {
+        // Arrange - task with null Artifacts
+        var task = new AgentTask { Id = "task1", Status = new AgentTaskStatus { State = TaskState.Submitted } };
+        Assert.Null(task.Artifacts);
+
+        // Act
+        ArtifactHelper.ApplyArtifactUpdate(task, new Artifact
+        {
+            ArtifactId = "artifact1",
+            Parts = [new TextPart { Text = "Content" }]
+        }, append: false);
+
+        // Assert
+        Assert.NotNull(task.Artifacts);
+        Assert.Single(task.Artifacts);
+    }
+
+    [Fact]
+    public void ApplyArtifactUpdate_UpdatesNameAndDescriptionOnAppend()
+    {
+        // Arrange
+        var task = new AgentTask { Id = "task1", Status = new AgentTaskStatus { State = TaskState.Submitted } };
+
+        ArtifactHelper.ApplyArtifactUpdate(task, new Artifact
+        {
+            ArtifactId = "artifact1",
+            Name = "Original Name",
+            Description = "Original Description",
+            Parts = [new TextPart { Text = "Content" }]
+        }, append: false);
+
+        // Act - append with new name, no description
+        ArtifactHelper.ApplyArtifactUpdate(task, new Artifact
+        {
+            ArtifactId = "artifact1",
+            Name = "Updated Name",
+            Parts = [new TextPart { Text = " More" }]
+        }, append: true);
+
+        // Assert - name updated, description preserved
+        Assert.Equal("Updated Name", task.Artifacts![0].Name);
+        Assert.Equal("Original Description", task.Artifacts[0].Description);
+    }
+
+    [Fact]
+    public void ApplyArtifactUpdate_CreatesDefensiveCopy()
+    {
+        // Arrange
+        var task = new AgentTask { Id = "task1", Status = new AgentTaskStatus { State = TaskState.Submitted } };
+        var originalParts = new List<Part> { new TextPart { Text = "Content" } };
+        var artifact = new Artifact
+        {
+            ArtifactId = "artifact1",
+            Parts = originalParts
+        };
+
+        // Act
+        ArtifactHelper.ApplyArtifactUpdate(task, artifact, append: false);
+
+        // Mutate the original list
+        originalParts.Add(new TextPart { Text = "Injected" });
+
+        // Assert - stored artifact should not be affected
+        Assert.Single(task.Artifacts![0].Parts);
+    }
+}
