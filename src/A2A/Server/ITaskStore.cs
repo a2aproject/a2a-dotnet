@@ -28,6 +28,11 @@ public interface ITaskStore
     /// <summary>Delete a task.</summary>
     /// <param name="taskId">The task identifier.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
+    /// <remarks>
+    /// This method is not called by the SDK itself. It is provided for implementations
+    /// that need task pruning (e.g. TTL expiry, admin cleanup). Implementations that
+    /// do not need deletion may leave the body empty or throw <see cref="NotSupportedException"/>.
+    /// </remarks>
     Task DeleteTaskAsync(string taskId, CancellationToken cancellationToken = default);
 
     /// <summary>

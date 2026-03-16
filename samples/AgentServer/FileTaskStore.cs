@@ -7,6 +7,12 @@ namespace AgentServer;
 /// <summary>
 /// File-backed task store with per-task JSON files and context index files
 /// for efficient <see cref="ITaskStore.ListTasksAsync"/>.
+/// </summary>
+/// <remarks>
+/// <para><strong>This is a sample implementation for demonstration purposes only.
+/// Do not use in production.</strong> It lacks proper concurrency control across
+/// processes, has no atomic index updates, and performs full file scans for
+/// unindexed queries.</para>
 /// <para>
 /// Storage layout:
 /// <code>
@@ -15,7 +21,7 @@ namespace AgentServer;
 ///   indexes/context_{id}.idx      — newline-delimited task IDs per context
 /// </code>
 /// </para>
-/// </summary>
+/// </remarks>
 public sealed class FileTaskStore : ITaskStore
 {
     private readonly string _tasksDir;
@@ -69,13 +75,9 @@ public sealed class FileTaskStore : ITaskStore
     }
 
     /// <inheritdoc />
+    /// <remarks>Not implemented in this sample. Throws <see cref="NotSupportedException"/>.</remarks>
     public Task DeleteTaskAsync(string taskId, CancellationToken cancellationToken = default)
-    {
-        var path = GetTaskFilePath(taskId);
-        if (File.Exists(path))
-            File.Delete(path);
-        return Task.CompletedTask;
-    }
+        => throw new NotSupportedException("Task deletion is not supported by this sample store.");
 
     /// <inheritdoc />
     public async Task<ListTasksResponse> ListTasksAsync(ListTasksRequest request,

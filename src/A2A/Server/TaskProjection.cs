@@ -32,10 +32,7 @@ public static class TaskProjection
 
         if (streamEvent.Message is { } msg)
         {
-            if (current is not null)
-            {
-                (current.History ??= []).Add(msg);
-            }
+            (current.History ??= []).Add(msg);
             return current;
         }
 

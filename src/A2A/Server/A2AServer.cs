@@ -136,18 +136,33 @@ public class A2AServer : IA2ARequestHandler
             throw;
         }
 
-        await foreach (var response in eventQueue.WithCancellation(cancellationToken).ConfigureAwait(false))
+        try
         {
-            await ApplyEventAsync(response, context!, cancellationToken).ConfigureAwait(false);
+            await foreach (var response in eventQueue.WithCancellation(cancellationToken).ConfigureAwait(false))
+            {
+                try
+                {
+                    await ApplyEventAsync(response, context!, cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    A2ADiagnostics.ErrorCount.Add(1);
+                    activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+                    RecordException(activity, ex);
+                    yield break;
+                }
 
-            eventCount++;
-            yield return response;
+                eventCount++;
+                yield return response;
+            }
+
+            // Surface any agent exceptions
+            await agentTask!.ConfigureAwait(false);
         }
-
-        A2ADiagnostics.StreamEventCount.Record(eventCount);
-
-        // Surface any agent exceptions
-        await agentTask!.ConfigureAwait(false);
+        finally
+        {
+            A2ADiagnostics.StreamEventCount.Record(eventCount);
+        }
     }
 
     /// <inheritdoc />
@@ -200,19 +215,24 @@ public class A2AServer : IA2ARequestHandler
         };
 
         var eventQueue = new AgentEventQueue();
-        try
+        var agentTask = Task.Run(async () =>
         {
-            await _handler.CancelAsync(context, eventQueue, cancellationToken).ConfigureAwait(false);
-        }
-        finally
-        {
-            eventQueue.Complete();
-        }
+            try
+            {
+                await _handler.CancelAsync(context, eventQueue, cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                eventQueue.Complete();
+            }
+        }, cancellationToken);
 
         await foreach (var response in eventQueue.WithCancellation(cancellationToken).ConfigureAwait(false))
         {
             await ApplyEventAsync(response, context, cancellationToken).ConfigureAwait(false);
         }
+
+        await agentTask.ConfigureAwait(false);
 
         return await _taskStore.GetTaskAsync(request.Id, cancellationToken).ConfigureAwait(false)
             ?? throw new A2AException($"Task '{request.Id}' not found.", A2AErrorCode.TaskNotFound);

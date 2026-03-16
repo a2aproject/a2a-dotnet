@@ -54,8 +54,23 @@ public sealed class ChannelEventNotifier
     /// <param name="channel">The channel to remove.</param>
     internal void RemoveChannel(string taskId, Channel<StreamResponse> channel)
     {
-        if (!_subscribers.TryGetValue(taskId, out var set)) return;
-        lock (set) { set.Channels.Remove(channel); }
+        if (!_subscribers.TryGetValue(taskId, out var set))
+        {
+            throw new InvalidOperationException(
+                $"No subscriber set found for task '{taskId}'. " +
+                "This indicates a bug: RemoveChannel was called without a matching CreateChannel, " +
+                "or the subscriber set was evicted by a concurrent call.");
+        }
+
+        lock (set)
+        {
+            set.Channels.Remove(channel);
+            if (set.Channels.Count == 0)
+            {
+                _subscribers.TryRemove(taskId, out _);
+                _taskLocks.TryRemove(taskId, out _);
+            }
+        }
     }
 
     /// <summary>
@@ -64,12 +79,23 @@ public sealed class ChannelEventNotifier
     /// </summary>
     /// <param name="taskId">The task to acquire the lock for.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<IDisposable> AcquireTaskLockAsync(
+    internal async Task<IDisposable> AcquireTaskLockAsync(
         string taskId, CancellationToken cancellationToken = default)
     {
-        var sem = _taskLocks.GetOrAdd(taskId, _ => new SemaphoreSlim(1, 1));
-        await sem.WaitAsync(cancellationToken).ConfigureAwait(false);
-        return new TaskLockRelease(sem);
+        // Retry loop handles the race where RemoveChannel evicts the
+        // semaphore between GetOrAdd and WaitAsync completion.
+        while (true)
+        {
+            var sem = _taskLocks.GetOrAdd(taskId, _ => new SemaphoreSlim(1, 1));
+            await sem.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+            // Verify this semaphore is still the live entry.
+            if (_taskLocks.TryGetValue(taskId, out var current) && ReferenceEquals(current, sem))
+                return new TaskLockRelease(sem);
+
+            // Evicted while waiting — release the orphaned semaphore and retry.
+            sem.Release();
+        }
     }
 
     private static bool IsTerminalEvent(StreamResponse streamEvent)
