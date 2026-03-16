@@ -22,11 +22,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6.0.2
       - name: Setup .NET 10.x
-        uses: actions/setup-dotnet@v5.1.0
+        uses: actions/setup-dotnet@v5.2.0
         with:
           dotnet-version: 10.x
       - name: Setup .NET ${{ matrix.dotnet-version }}
-        uses: actions/setup-dotnet@v5.1.0
+        uses: actions/setup-dotnet@v5.2.0
         with:
           dotnet-version: ${{ matrix.dotnet-version }}
       - name: Restore dependencies
@@ -40,7 +40,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6.0.2
       - name: Setup .NET 10.x
-        uses: actions/setup-dotnet@v5.1.0
+        uses: actions/setup-dotnet@v5.2.0
         with:
           dotnet-version: 10.x
       - name: Restore dependencies
