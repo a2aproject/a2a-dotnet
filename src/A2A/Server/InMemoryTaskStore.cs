@@ -1,133 +1,127 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
+using System.Text.Json;
 
 namespace A2A;
 
 /// <summary>
-/// In-memory implementation of task store for development and testing.
+/// In-memory task store using <see cref="ConcurrentDictionary{TKey, TValue}"/>.
+/// Suitable for development and testing.
 /// </summary>
 public sealed class InMemoryTaskStore : ITaskStore
 {
-    private readonly ConcurrentDictionary<string, AgentTask> _taskCache = [];
-    // PushNotificationConfig.Id is optional, so there can be multiple configs with no Id.
-    // Since we want to maintain order of insertion and thread safety, we use a ConcurrentQueue.
-    private readonly ConcurrentDictionary<string, ConcurrentQueue<TaskPushNotificationConfig>> _pushNotificationCache = [];
+    private readonly ConcurrentDictionary<string, AgentTask> _tasks = new();
 
     /// <inheritdoc />
     public Task<AgentTask?> GetTaskAsync(string taskId, CancellationToken cancellationToken = default)
     {
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return Task.FromCanceled<AgentTask?>(cancellationToken);
-        }
-
-        return string.IsNullOrEmpty(taskId)
-            ? Task.FromException<AgentTask?>(new ArgumentNullException(nameof(taskId)))
-            : Task.FromResult(_taskCache.TryGetValue(taskId, out var task) ? task : null);
+        if (!_tasks.TryGetValue(taskId, out var task))
+            return Task.FromResult<AgentTask?>(null);
+        return Task.FromResult<AgentTask?>(CloneTask(task));
     }
 
     /// <inheritdoc />
-    public Task<TaskPushNotificationConfig?> GetPushNotificationAsync(string taskId, string notificationConfigId, CancellationToken cancellationToken = default)
+    public Task SaveTaskAsync(string taskId, AgentTask task, CancellationToken cancellationToken = default)
     {
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return Task.FromCanceled<TaskPushNotificationConfig?>(cancellationToken);
-        }
-
-        if (string.IsNullOrEmpty(taskId))
-        {
-            return Task.FromException<TaskPushNotificationConfig?>(new ArgumentNullException(nameof(taskId)));
-        }
-
-        if (!_pushNotificationCache.TryGetValue(taskId, out var pushNotificationConfigs))
-        {
-            return Task.FromResult<TaskPushNotificationConfig?>(null);
-        }
-
-        var pushNotificationConfig = pushNotificationConfigs.FirstOrDefault(config => config.PushNotificationConfig.Id == notificationConfigId);
-
-        return Task.FromResult<TaskPushNotificationConfig?>(pushNotificationConfig);
+        _tasks[taskId] = CloneTask(task);
+        return Task.CompletedTask;
     }
 
     /// <inheritdoc />
-    public Task<AgentTaskStatus> UpdateStatusAsync(string taskId, TaskState status, AgentMessage? message = null, CancellationToken cancellationToken = default)
+    public Task DeleteTaskAsync(string taskId, CancellationToken cancellationToken = default)
     {
-        if (cancellationToken.IsCancellationRequested)
+        _tasks.TryRemove(taskId, out _);
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task<ListTasksResponse> ListTasksAsync(ListTasksRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        IEnumerable<AgentTask> allTasks = _tasks.Values
+            .Select(CloneTask);
+
+        // Apply filters
+        if (!string.IsNullOrEmpty(request.ContextId))
+            allTasks = allTasks.Where(t => t.ContextId == request.ContextId);
+
+        if (request.Status is { } statusFilter)
+            allTasks = allTasks.Where(t => t.Status.State == statusFilter);
+
+        if (request.StatusTimestampAfter is not null)
+            allTasks = allTasks.Where(t =>
+                t.Status.Timestamp is not null &&
+                t.Status.Timestamp > request.StatusTimestampAfter);
+
+        // Sort descending by status timestamp (newest first)
+        var taskList = allTasks
+            .OrderByDescending(t => t.Status.Timestamp ?? DateTimeOffset.MinValue)
+            .ToList();
+
+        var totalSize = taskList.Count;
+
+        // Pagination
+        int startIndex = 0;
+        if (!string.IsNullOrEmpty(request.PageToken))
         {
-            return Task.FromCanceled<AgentTaskStatus>(cancellationToken);
+            if (!int.TryParse(request.PageToken, out var offset) || offset < 0)
+            {
+                throw new A2AException(
+                    $"Invalid pageToken: {request.PageToken}",
+                    A2AErrorCode.InvalidParams);
+            }
+
+            startIndex = offset;
         }
 
-        if (string.IsNullOrEmpty(taskId))
+        var pageSize = request.PageSize ?? 50;
+        var page = taskList.Skip(startIndex).Take(pageSize).ToList();
+
+        // Trim history
+        if (request.HistoryLength is { } historyLength)
         {
-            return Task.FromException<AgentTaskStatus>(new A2AException("Invalid task ID", new ArgumentNullException(nameof(taskId)), A2AErrorCode.InvalidParams));
+            foreach (var task in page)
+            {
+                if (historyLength == 0)
+                {
+                    task.History = null;
+                }
+                else if (task.History is { Count: > 0 })
+                {
+                    task.History = task.History
+                        .Skip(Math.Max(0, task.History.Count - historyLength))
+                        .ToList();
+                }
+            }
         }
 
-        if (!_taskCache.TryGetValue(taskId, out var task))
+        if (request.IncludeArtifacts is not true)
         {
-            return Task.FromException<AgentTaskStatus>(new A2AException("Task not found.", A2AErrorCode.TaskNotFound));
+            foreach (var task in page)
+            {
+                task.Artifacts = null;
+            }
         }
 
-        return Task.FromResult(task.Status = task.Status with
+        var nextIndex = startIndex + page.Count;
+        var nextPageToken = nextIndex < totalSize
+            ? nextIndex.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            : string.Empty;
+
+        return Task.FromResult(new ListTasksResponse
         {
-            Message = message,
-            State = status,
-            Timestamp = DateTimeOffset.UtcNow
+            Tasks = page,
+            NextPageToken = nextPageToken,
+            PageSize = page.Count,
+            TotalSize = totalSize,
         });
     }
 
-    /// <inheritdoc />
-    public Task SetTaskAsync(AgentTask task, CancellationToken cancellationToken = default)
+    [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "All types are registered in source-generated JsonContext.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "All types are registered in source-generated JsonContext.")]
+    private static AgentTask CloneTask(AgentTask task)
     {
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return Task.FromCanceled(cancellationToken);
-        }
-
-        if (task is null)
-        {
-            return Task.FromException(new ArgumentNullException(nameof(task)));
-        }
-
-        if (string.IsNullOrEmpty(task.Id))
-        {
-            return Task.FromException(new A2AException("Invalid task ID", A2AErrorCode.InvalidParams));
-        }
-
-        _taskCache[task.Id] = task;
-        return Task.CompletedTask;
-    }
-
-    /// <inheritdoc />
-    public Task SetPushNotificationConfigAsync(TaskPushNotificationConfig pushNotificationConfig, CancellationToken cancellationToken = default)
-    {
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return Task.FromCanceled(cancellationToken);
-        }
-
-        if (pushNotificationConfig is null)
-        {
-            return Task.FromException(new ArgumentNullException(nameof(pushNotificationConfig)));
-        }
-
-        var pushNotificationConfigs = _pushNotificationCache.GetOrAdd(pushNotificationConfig.TaskId, _ => []);
-        pushNotificationConfigs.Enqueue(pushNotificationConfig);
-
-        return Task.CompletedTask;
-    }
-
-    /// <inheritdoc />
-    public Task<IEnumerable<TaskPushNotificationConfig>> GetPushNotificationsAsync(string taskId, CancellationToken cancellationToken = default)
-    {
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return Task.FromCanceled<IEnumerable<TaskPushNotificationConfig>>(cancellationToken);
-        }
-
-        if (!_pushNotificationCache.TryGetValue(taskId, out var pushNotificationConfigs))
-        {
-            return Task.FromResult<IEnumerable<TaskPushNotificationConfig>>([]);
-        }
-
-        return Task.FromResult<IEnumerable<TaskPushNotificationConfig>>(pushNotificationConfigs);
+        var json = JsonSerializer.SerializeToUtf8Bytes(task, A2AJsonUtilities.DefaultOptions);
+        return JsonSerializer.Deserialize<AgentTask>(json, A2AJsonUtilities.DefaultOptions)!;
     }
 }

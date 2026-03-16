@@ -9,6 +9,8 @@
 
 # Visual Studio files
 .vs/
+.vscode/launch.json
+.vscode/tasks.json
 *.user
 *.userosscache
 *.sln.docstates
@@ -46,6 +48,9 @@ ScaffoldingReadMe.txt
 ~$*
 *~
 CodeCoverage/
+
+# Copilot tracking artifacts
+.copilot-tracking/
 
 # MSBuild Binary and Structured Log
 *.binlog

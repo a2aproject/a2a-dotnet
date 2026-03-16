@@ -19,6 +19,7 @@
     <File Path="src/Directory.Build.props" />
     <Project Path="src/A2A.AspNetCore/A2A.AspNetCore.csproj" />
     <Project Path="src/A2A/A2A.csproj" />
+    <Project Path="src/A2A.V0_3/A2A.V0_3.csproj" />
   </Folder>
    <Folder Name="/Solution Items/">
      <File Path=".editorconfig" />
@@ -31,5 +32,6 @@
   <Folder Name="/tests/">
     <Project Path="tests/A2A.AspNetCore.UnitTests/A2A.AspNetCore.UnitTests.csproj" />
     <Project Path="tests/A2A.UnitTests/A2A.UnitTests.csproj" />
+    <Project Path="tests/A2A.V0_3.UnitTests/A2A.V0_3.UnitTests.csproj" />
   </Folder>
 </Solution>

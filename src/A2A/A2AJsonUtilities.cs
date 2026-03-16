@@ -36,15 +36,11 @@ public static partial class A2AJsonUtilities
         // Clone source-generated options so we can customize
         var opts = new JsonSerializerOptions(JsonContext.Default.Options)
         {
-            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping // optional: keep '+' unescaped
+            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
         };
 
         // Chain with all supported types from MEAI.
         opts.TypeInfoResolverChain.Add(AIJsonUtilities.DefaultOptions.TypeInfoResolver!);
-
-        // Register custom converters at options-level (not attributes)
-        opts.Converters.Add(new A2AJsonConverter<MessageSendParams>());
-        opts.Converters.Add(new FileContent.Converter());
 
         opts.MakeReadOnly();
         return opts;
@@ -63,19 +59,69 @@ public static partial class A2AJsonUtilities
     [JsonSerializable(typeof(JsonRpcResponse))]
     [JsonSerializable(typeof(Dictionary<string, JsonElement>))]
 
-    // A2A
-    [JsonSerializable(typeof(A2AEvent))]
-    [JsonSerializable(typeof(A2AResponse))]
-    [JsonSerializable(typeof(AgentCard))]
+    // Core types
     [JsonSerializable(typeof(AgentTask))]
-    [JsonSerializable(typeof(GetTaskPushNotificationConfigParams))]
-    [JsonSerializable(typeof(List<TaskPushNotificationConfig>))]
-    [JsonSerializable(typeof(MessageSendParams))]
-    [JsonSerializable(typeof(PushNotificationAuthenticationInfo))]
+    [JsonSerializable(typeof(Message))]
+    [JsonSerializable(typeof(Part))]
+    [JsonSerializable(typeof(Artifact))]
+    [JsonSerializable(typeof(TaskStatus))]
+    [JsonSerializable(typeof(TaskState))]
+    [JsonSerializable(typeof(Role))]
+
+    // Event types
+    [JsonSerializable(typeof(TaskStatusUpdateEvent))]
+    [JsonSerializable(typeof(TaskArtifactUpdateEvent))]
+
+    // Response types
+    [JsonSerializable(typeof(SendMessageResponse))]
+    [JsonSerializable(typeof(StreamResponse))]
+    [JsonSerializable(typeof(ListTasksResponse))]
+    [JsonSerializable(typeof(ListTaskPushNotificationConfigResponse))]
+
+    // Agent discovery
+    [JsonSerializable(typeof(AgentCard))]
+    [JsonSerializable(typeof(AgentInterface))]
+    [JsonSerializable(typeof(AgentCapabilities))]
+    [JsonSerializable(typeof(AgentProvider))]
+    [JsonSerializable(typeof(AgentSkill))]
+    [JsonSerializable(typeof(AgentExtension))]
+    [JsonSerializable(typeof(AgentCardSignature))]
+
+    // Security
+    [JsonSerializable(typeof(SecurityScheme))]
+    [JsonSerializable(typeof(ApiKeySecurityScheme))]
+    [JsonSerializable(typeof(HttpAuthSecurityScheme))]
+    [JsonSerializable(typeof(OAuth2SecurityScheme))]
+    [JsonSerializable(typeof(OpenIdConnectSecurityScheme))]
+    [JsonSerializable(typeof(MutualTlsSecurityScheme))]
+    [JsonSerializable(typeof(OAuthFlows))]
+    [JsonSerializable(typeof(AuthorizationCodeOAuthFlow))]
+    [JsonSerializable(typeof(ClientCredentialsOAuthFlow))]
+    [JsonSerializable(typeof(DeviceCodeOAuthFlow))]
+#pragma warning disable CS0618 // Obsolete types
+    [JsonSerializable(typeof(ImplicitOAuthFlow))]
+    [JsonSerializable(typeof(PasswordOAuthFlow))]
+#pragma warning restore CS0618
+    [JsonSerializable(typeof(SecurityRequirement))]
+    [JsonSerializable(typeof(StringList))]
+
+    // Request types
+    [JsonSerializable(typeof(SendMessageRequest))]
+    [JsonSerializable(typeof(SendMessageConfiguration))]
+    [JsonSerializable(typeof(GetTaskRequest))]
+    [JsonSerializable(typeof(ListTasksRequest))]
+    [JsonSerializable(typeof(CancelTaskRequest))]
+    [JsonSerializable(typeof(SubscribeToTaskRequest))]
+    [JsonSerializable(typeof(CreateTaskPushNotificationConfigRequest))]
+    [JsonSerializable(typeof(GetTaskPushNotificationConfigRequest))]
+    [JsonSerializable(typeof(ListTaskPushNotificationConfigRequest))]
+    [JsonSerializable(typeof(DeleteTaskPushNotificationConfigRequest))]
+    [JsonSerializable(typeof(GetExtendedAgentCardRequest))]
+
+    // Push notification types
     [JsonSerializable(typeof(PushNotificationConfig))]
-    [JsonSerializable(typeof(TaskIdParams))]
+    [JsonSerializable(typeof(AuthenticationInfo))]
     [JsonSerializable(typeof(TaskPushNotificationConfig))]
-    [JsonSerializable(typeof(TaskQueryParams))]
 
     [ExcludeFromCodeCoverage]
     internal sealed partial class JsonContext : JsonSerializerContext;

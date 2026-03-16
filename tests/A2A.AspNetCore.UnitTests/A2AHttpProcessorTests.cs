@@ -1,6 +1,4 @@
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.Json;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -10,89 +8,116 @@ namespace A2A.AspNetCore.Tests;
 
 public class A2AHttpProcessorTests
 {
-    [Fact]
-    public async Task GetAgentCard_ShouldReturnValidJsonResult()
+    private sealed class TestAgentHandler : IAgentHandler
     {
-        // Arrange
-        var taskManager = new TaskManager();
-        var logger = NullLogger.Instance;
+        public async Task ExecuteAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
+        {
+            // For SendMessage: return the existing task if continuation, or a message
+            if (context.IsContinuation)
+            {
+                await eventQueue.EnqueueTaskAsync(context.Task!, cancellationToken);
+            }
+            else
+            {
+                await eventQueue.EnqueueMessageAsync(new Message
+                {
+                    Role = Role.Agent,
+                    MessageId = Guid.NewGuid().ToString(),
+                    Parts = [Part.FromText("ok")],
+                }, cancellationToken);
+            }
 
-        // Act
-        var result = await A2AHttpProcessor.GetAgentCardAsync(taskManager, logger, "http://example.com", CancellationToken.None);
-        (int statusCode, string? contentType, AgentCard agentCard) = await GetAgentCardResponse(result);
+            eventQueue.Complete();
+        }
 
-        // Assert
-        Assert.Equal(StatusCodes.Status200OK, statusCode);
-        Assert.Equal("application/json; charset=utf-8", contentType);
-        Assert.Equal("Unknown", agentCard.Name);
+        public async Task CancelAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
+        {
+            var updater = new TaskUpdater(eventQueue, context.TaskId, context.ContextId);
+            await updater.CancelAsync(cancellationToken);
+        }
+    }
+
+    private static (A2AServer requestHandler, InMemoryTaskStore store) CreateServer()
+    {
+        var notifier = new ChannelEventNotifier();
+        var store = new InMemoryTaskStore();
+        var handler = new TestAgentHandler();
+        return (new A2AServer(handler, store, notifier, NullLogger<A2AServer>.Instance), store);
     }
 
     [Fact]
     public async Task GetTask_ShouldReturnNotNull()
     {
         // Arrange
-        var taskStore = new InMemoryTaskStore();
-        await taskStore.SetTaskAsync(new AgentTask
+        var (requestHandler, store) = CreateServer();
+        var agentTask = new AgentTask
         {
             Id = "testId",
-        });
-        var taskManager = new TaskManager(taskStore: taskStore);
+            ContextId = "ctx-1",
+        };
+        await store.SaveTaskAsync(agentTask.Id, agentTask);
         var logger = NullLogger.Instance;
-        var id = "testId";
-        var historyLength = 10;
 
         // Act
-        var result = await A2AHttpProcessor.GetTaskAsync(taskManager, logger, id, historyLength, null, CancellationToken.None);
+        var result = await A2AHttpProcessor.GetTaskAsync(requestHandler, logger, "testId", 10, null, CancellationToken.None);
 
         // Assert
         Assert.NotNull(result);
-        Assert.IsType<A2AResponseResult>(result);
+        Assert.IsType<JsonRpcResponseResult>(result);
     }
 
     [Fact]
     public async Task CancelTask_ShouldReturnNotNull()
     {
         // Arrange
-        var taskStore = new InMemoryTaskStore();
-        await taskStore.SetTaskAsync(new AgentTask
+        var (requestHandler, store) = CreateServer();
+        var agentTask = new AgentTask
         {
             Id = "testId",
-        });
-        var taskManager = new TaskManager(taskStore: taskStore);
+            ContextId = "ctx-1",
+            Status = new TaskStatus { State = TaskState.Submitted },
+        };
+        await store.SaveTaskAsync(agentTask.Id, agentTask);
         var logger = NullLogger.Instance;
-        var id = "testId";
 
         // Act
-        var result = await A2AHttpProcessor.CancelTaskAsync(taskManager, logger, id, CancellationToken.None);
+        var result = await A2AHttpProcessor.CancelTaskAsync(requestHandler, logger, "testId", CancellationToken.None);
 
         // Assert
         Assert.NotNull(result);
-        Assert.IsType<A2AResponseResult>(result);
+        Assert.IsType<JsonRpcResponseResult>(result);
     }
 
     [Fact]
     public async Task SendTaskMessage_ShouldReturnNotNull()
     {
         // Arrange
-        var taskStore = new InMemoryTaskStore();
-        await taskStore.SetTaskAsync(new AgentTask
+        var (requestHandler, store) = CreateServer();
+        var agentTask = new AgentTask
         {
             Id = "testId",
-        });
-        var taskManager = new TaskManager(taskStore: taskStore);
+            ContextId = "ctx-1",
+            Status = new TaskStatus { State = TaskState.Submitted },
+        };
+        await store.SaveTaskAsync(agentTask.Id, agentTask);
         var logger = NullLogger.Instance;
-        var sendParams = new MessageSendParams
+        var sendRequest = new SendMessageRequest
         {
-            Message = { TaskId = "testId" },
-            Configuration = new() { HistoryLength = 10 }
+            Message = new Message
+            {
+                TaskId = "testId",
+                Role = Role.User,
+                Parts = [Part.FromText("hi")],
+            },
+            Configuration = new SendMessageConfiguration { HistoryLength = 10 }
         };
 
         // Act
-        var result = await A2AHttpProcessor.SendMessageAsync(taskManager, logger, sendParams, CancellationToken.None);
+        var result = await A2AHttpProcessor.SendMessageAsync(requestHandler, logger, sendRequest, CancellationToken.None);
 
         // Assert
         Assert.NotNull(result);
-        Assert.IsType<A2AResponseResult>(result);
+        Assert.IsType<JsonRpcResponseResult>(result);
     }
 
     [Theory]
@@ -114,13 +139,15 @@ public class A2AHttpProcessorTests
             .Setup(ts => ts.GetTaskAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new A2AException("Test exception", errorCode));
 
-        var taskManager = new TaskManager(taskStore: mockTaskStore.Object);
+        var handler = new Mock<IAgentHandler>().Object;
+        var notifier = new ChannelEventNotifier();
+        var requestHandler = new A2AServer(handler, mockTaskStore.Object, notifier, NullLogger<A2AServer>.Instance);
         var logger = NullLogger.Instance;
         var id = "testId";
         var historyLength = 10;
 
         // Act
-        var result = await A2AHttpProcessor.GetTaskAsync(taskManager, logger, id, historyLength, null, CancellationToken.None);
+        var result = await A2AHttpProcessor.GetTaskAsync(requestHandler, logger, id, historyLength, null, CancellationToken.None);
 
         // Assert
         Assert.NotNull(result);
@@ -138,36 +165,18 @@ public class A2AHttpProcessorTests
             .Setup(ts => ts.GetTaskAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new A2AException("Test exception with unknown error code", unknownErrorCode));
 
-        var taskManager = new TaskManager(taskStore: mockTaskStore.Object);
+        var handler = new Mock<IAgentHandler>().Object;
+        var notifier = new ChannelEventNotifier();
+        var requestHandler = new A2AServer(handler, mockTaskStore.Object, notifier, NullLogger<A2AServer>.Instance);
         var logger = NullLogger.Instance;
         var id = "testId";
         var historyLength = 10;
 
         // Act
-        var result = await A2AHttpProcessor.GetTaskAsync(taskManager, logger, id, historyLength, null, CancellationToken.None);
+        var result = await A2AHttpProcessor.GetTaskAsync(requestHandler, logger, id, historyLength, null, CancellationToken.None);
 
         // Assert
         Assert.NotNull(result);
         Assert.Equal(StatusCodes.Status500InternalServerError, ((IStatusCodeHttpResult)result).StatusCode);
-    }
-
-    private static async Task<(int statusCode, string? contentType, AgentCard agentCard)> GetAgentCardResponse(IResult responseResult)
-    {
-        ServiceCollection services = new();
-        services.AddSingleton<ILoggerFactory>(new NullLoggerFactory());
-        services.Configure<JsonOptions>(jsonOptions => jsonOptions.SerializerOptions.TypeInfoResolver = A2AJsonUtilities.DefaultOptions.TypeInfoResolver);
-        using ServiceProvider serviceProvider = services.BuildServiceProvider();
-        HttpContext context = new DefaultHttpContext()
-        {
-            RequestServices = serviceProvider
-        };
-        using MemoryStream memoryStream = new();
-        context.Response.Body = memoryStream;
-
-        await responseResult.ExecuteAsync(context);
-
-        context.Response.Body.Position = 0;
-        var card = await JsonSerializer.DeserializeAsync<AgentCard>(context.Response.Body, A2AJsonUtilities.DefaultOptions);
-        return (context.Response.StatusCode, context.Response.ContentType, card!);
     }
 }

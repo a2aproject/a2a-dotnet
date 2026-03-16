@@ -1,35 +1,24 @@
+namespace A2A;
+
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace A2A;
-
-/// <summary>
-/// A declaration of an extension supported by an Agent.
-/// </summary>
+/// <summary>Represents an extension supported by an agent.</summary>
 public sealed class AgentExtension
 {
-    /// <summary>
-    /// Gets or sets the URI of the extension.
-    /// </summary>
-    [JsonPropertyName("uri")]
-    [JsonRequired]
-    public string? Uri { get; set; } = string.Empty;
+    /// <summary>Gets or sets the URI identifying this extension.</summary>
+    [JsonPropertyName("uri"), JsonRequired]
+    public string Uri { get; set; } = string.Empty;
 
-    /// <summary>
-    /// Gets or sets a description of how this agent uses this extension.
-    /// </summary>
+    /// <summary>Gets or sets the description of this extension.</summary>
     [JsonPropertyName("description")]
     public string? Description { get; set; }
 
-    /// <summary>
-    /// Gets or sets whether the client must follow specific requirements of the extension.
-    /// </summary>
+    /// <summary>Gets or sets whether this extension is required.</summary>
     [JsonPropertyName("required")]
-    public bool Required { get; set; } = false;
+    public bool? Required { get; set; }
 
-    /// <summary>
-    /// Gets or sets optional configuration for the extension.
-    /// </summary>
+    /// <summary>Gets or sets the parameters for this extension.</summary>
     [JsonPropertyName("params")]
-    public Dictionary<string, JsonElement>? Params { get; set; }
+    public JsonElement? Params { get; set; }
 }

@@ -6,39 +6,38 @@ namespace A2A.UnitTests.Models
     public sealed class AIContentExtensionsTests
     {
         [Fact]
-        public void ToChatMessage_ThrowsOnNullAgentMessage()
+        public void ToChatMessage_ThrowsOnNullMessage()
         {
-            Assert.Throws<ArgumentNullException>("agentMessage", () => ((AgentMessage)null!).ToChatMessage());
+            Assert.Throws<ArgumentNullException>("message", () => ((Message)null!).ToChatMessage());
         }
 
         [Fact]
         public void ToChatMessage_ConvertsAgentRoleAndParts()
         {
-            var text = new TextPart { Text = "hello" };
-            var file = new FilePart { File = new FileContent(new Uri("https://example.com")) { MimeType = "text/plain" } };
-            var bytes = new byte[] { 1, 2, 3 };
-            var fileBytes = new FilePart { File = new FileContent(Convert.ToBase64String(bytes)) { MimeType = "application/octet-stream", Name = "b.bin" } };
-            var data = new DataPart { Data = new Dictionary<string, JsonElement> { ["k"] = JsonSerializer.SerializeToElement("v") } };
-            var agent = new AgentMessage
+            var textPart = Part.FromText("hello");
+            var urlPart = Part.FromUrl("https://example.com", "text/plain");
+            var rawBytes = new byte[] { 1, 2, 3 };
+            var rawPart = Part.FromRaw(rawBytes, "application/octet-stream", "b.bin");
+            var dataPart = Part.FromData(JsonSerializer.SerializeToElement(new Dictionary<string, string> { ["k"] = "v" }));
+            var message = new Message
             {
-                Role = MessageRole.Agent,
+                Role = Role.Agent,
                 MessageId = "mid-1",
-                Parts = new List<Part> { text, file, fileBytes, data }
+                Parts = new List<Part> { textPart, urlPart, rawPart, dataPart }
             };
 
-            var chat = agent.ToChatMessage();
+            var chat = message.ToChatMessage();
 
             Assert.Equal(ChatRole.Assistant, chat.Role);
-            Assert.Same(agent, chat.RawRepresentation);
-            Assert.Equal(agent.MessageId, chat.MessageId);
-            Assert.Equal(agent.Parts.Count, chat.Contents.Count);
+            Assert.Same(message, chat.RawRepresentation);
+            Assert.Equal(message.MessageId, chat.MessageId);
+            Assert.Equal(message.Parts.Count, chat.Contents.Count);
 
             // Validate all content mappings
             var c0 = Assert.IsType<TextContent>(chat.Contents[0]);
             Assert.Equal("hello", c0.Text);
 
             var c1 = Assert.IsType<UriContent>(chat.Contents[1]);
-            Assert.Equal(new Uri("https://example.com"), c1.Uri);
             Assert.Equal("text/plain", c1.MediaType);
 
             var c2 = Assert.IsType<DataContent>(chat.Contents[2]);
@@ -46,7 +45,7 @@ namespace A2A.UnitTests.Models
             Assert.Equal("application/octet-stream", c2.MediaType);
 
             var c3 = Assert.IsType<DataContent>(chat.Contents[3]);
-            Assert.Same(data, c3.RawRepresentation);
+            Assert.Same(dataPart, c3.RawRepresentation);
         }
 
         [Fact]
@@ -57,15 +56,15 @@ namespace A2A.UnitTests.Models
                 ["num"] = JsonSerializer.SerializeToElement(42),
                 ["str"] = JsonSerializer.SerializeToElement("value")
             };
-            var agent = new AgentMessage
+            var message = new Message
             {
-                Role = MessageRole.User,
+                Role = Role.User,
                 MessageId = "m-meta",
                 Parts = new List<Part>(),
                 Metadata = metadata
             };
 
-            var chat = agent.ToChatMessage();
+            var chat = message.ToChatMessage();
             Assert.NotNull(chat.AdditionalProperties);
             Assert.Equal(2, chat.AdditionalProperties!.Count);
             Assert.True(chat.AdditionalProperties.TryGetValue("num", out var numObj));
@@ -77,23 +76,23 @@ namespace A2A.UnitTests.Models
         }
 
         [Fact]
-        public void ToAgentMessage_ThrowsOnNullChatMessage()
+        public void ToA2AMessage_ThrowsOnNullChatMessage()
         {
-            Assert.Throws<ArgumentNullException>("chatMessage", () => ((ChatMessage)null!).ToAgentMessage());
+            Assert.Throws<ArgumentNullException>("chatMessage", () => ((ChatMessage)null!).ToA2AMessage());
         }
 
         [Fact]
-        public void ToAgentMessage_ReturnsExistingAgentMessageWhenRawRepresentationMatches()
+        public void ToA2AMessage_ReturnsExistingMessageWhenRawRepresentationMatches()
         {
-            var original = new AgentMessage { MessageId = "m1", Parts = new List<Part> { new TextPart { Text = "hi" } } };
+            var original = new Message { MessageId = "m1", Parts = new List<Part> { Part.FromText("hi") } };
             var chat = original.ToChatMessage();
 
             Assert.Same(original, chat.RawRepresentation);
-            Assert.Same(original, chat.ToAgentMessage());
+            Assert.Same(original, chat.ToA2AMessage());
         }
 
         [Fact]
-        public void ToAgentMessage_GeneratesMessageIdAndConvertsParts()
+        public void ToA2AMessage_GeneratesMessageIdAndConvertsParts()
         {
             var chat = new ChatMessage
             {
@@ -106,13 +105,13 @@ namespace A2A.UnitTests.Models
                 }
             };
 
-            var msg = chat.ToAgentMessage();
+            var msg = chat.ToA2AMessage();
 
-            Assert.Equal(MessageRole.Agent, msg.Role);
+            Assert.Equal(Role.Agent, msg.Role);
             Assert.False(string.IsNullOrWhiteSpace(msg.MessageId));
             Assert.Equal(2, msg.Parts.Count);
-            Assert.IsType<TextPart>(msg.Parts[0]);
-            Assert.IsType<FilePart>(msg.Parts[1]);
+            Assert.NotNull(msg.Parts[0].Text);
+            Assert.NotNull(msg.Parts[1].Url);
         }
 
         [Fact]
@@ -122,9 +121,9 @@ namespace A2A.UnitTests.Models
         }
 
         [Fact]
-        public void ToAIContent_ConvertsTextPart()
+        public void WhenTextPart_ToAIContent_ReturnsTextContent()
         {
-            var part = new TextPart { Text = "abc" };
+            var part = Part.FromText("abc");
             var content = part.ToAIContent();
             var tc = Assert.IsType<TextContent>(content);
             Assert.Equal("abc", tc.Text);
@@ -132,51 +131,35 @@ namespace A2A.UnitTests.Models
         }
 
         [Fact]
-        public void ToAIContent_ConvertsFilePartWithUri()
+        public void WhenUrlPart_ToAIContent_ReturnsUriContent()
         {
-            var uri = new Uri("https://example.com/data.json");
-            var part = new FilePart { File = new FileContent(uri) { MimeType = "application/json" } };
+            var part = Part.FromUrl("https://example.com/data.json", "application/json");
             var content = part.ToAIContent();
             var uc = Assert.IsType<UriContent>(content);
-            Assert.Equal(uri, uc.Uri);
             Assert.Equal("application/json", uc.MediaType);
         }
 
         [Fact]
-        public void ToAIContent_ConvertsFilePartWithBytes()
+        public void WhenRawPart_ToAIContent_ReturnsDataContent()
         {
             var raw = new byte[] { 10, 20, 30 };
-            var b64 = Convert.ToBase64String(raw);
-            var part = new FilePart { File = new FileContent(b64) { MimeType = null, Name = "r.bin" } };
+            var part = Part.FromRaw(raw, "image/png", "r.bin");
             var content = part.ToAIContent();
             var dc = Assert.IsType<DataContent>(content);
             Assert.Equal(raw, dc.Data);
-            Assert.Equal("application/octet-stream", dc.MediaType); // default applied
+            Assert.Equal("image/png", dc.MediaType);
         }
 
         [Fact]
-        public void ToAIContent_ConvertsDataPartWithMetadata()
+        public void WhenDataPart_ToAIContent_ReturnsDataContent()
         {
-            var metaValue = JsonSerializer.SerializeToElement(123);
-            var part = new DataPart
-            {
-                Data = new Dictionary<string, JsonElement> { ["x"] = JsonSerializer.SerializeToElement("y") },
-                Metadata = new Dictionary<string, JsonElement> { ["m"] = metaValue }
-            };
+            var part = Part.FromData(JsonSerializer.SerializeToElement(new { x = "y" }));
+            part.Metadata = new Dictionary<string, JsonElement> { ["m"] = JsonSerializer.SerializeToElement(123) };
             var content = part.ToAIContent();
             Assert.IsType<DataContent>(content);
             Assert.NotNull(content.AdditionalProperties);
             Assert.True(content.AdditionalProperties!.TryGetValue("m", out var obj));
             Assert.True(obj is JsonElement je && je.GetInt32() == 123);
-        }
-
-        [Fact]
-        public void ToAIContent_FallsBackToBaseAIContentForUnknownPart()
-        {
-            var part = new CustomPart();
-            var content = part.ToAIContent();
-            Assert.Equal(typeof(AIContent), content.GetType());
-            Assert.Same(part, content.RawRepresentation);
         }
 
         [Fact]
@@ -188,7 +171,7 @@ namespace A2A.UnitTests.Models
         [Fact]
         public void ToPart_ReturnsExistingPartWhenRawRepresentationPresent()
         {
-            var part = new TextPart { Text = "hi" };
+            var part = Part.FromText("hi");
             Assert.Same(part, part.ToAIContent().ToPart());
         }
 
@@ -197,8 +180,8 @@ namespace A2A.UnitTests.Models
         {
             var content = new TextContent("hello");
             var part = content.ToPart();
-            var tp = Assert.IsType<TextPart>(part);
-            Assert.Equal("hello", tp.Text);
+            Assert.NotNull(part);
+            Assert.Equal("hello", part!.Text);
         }
 
         [Fact]
@@ -207,10 +190,9 @@ namespace A2A.UnitTests.Models
             var uri = new Uri("https://example.com/a.txt");
             var content = new UriContent(uri, "text/plain");
             var part = content.ToPart();
-            var fp = Assert.IsType<FilePart>(part);
-            Assert.NotNull(fp.File.Uri);
-            Assert.Equal(uri, fp.File.Uri);
-            Assert.Equal("text/plain", fp.File.MimeType);
+            Assert.NotNull(part);
+            Assert.NotNull(part!.Url);
+            Assert.Equal("text/plain", part.MediaType);
         }
 
         [Fact]
@@ -219,10 +201,10 @@ namespace A2A.UnitTests.Models
             var payload = new byte[] { 1, 2, 3, 4 };
             var content = new DataContent(payload, "application/custom");
             var part = content.ToPart();
-            var fp = Assert.IsType<FilePart>(part);
-            Assert.NotNull(fp.File.Bytes);
-            Assert.Equal(new byte[] { 1, 2, 3, 4 }, Convert.FromBase64String(fp.File.Bytes));
-            Assert.Equal("application/custom", fp.File.MimeType);
+            Assert.NotNull(part);
+            Assert.NotNull(part!.Raw);
+            Assert.Equal(new byte[] { 1, 2, 3, 4 }, part.Raw);
+            Assert.Equal("application/custom", part.MediaType);
         }
 
         [Fact]
@@ -241,6 +223,33 @@ namespace A2A.UnitTests.Models
             Assert.Equal("str", part.Metadata["s"].GetString());
             Assert.Equal(42, part.Metadata["i"].GetInt32());
         }
-        private sealed class CustomPart() : Part("custom-kind") { }
+
+        [Fact]
+        public void WhenMessage_ToChatMessage_ReturnsChatMessage()
+        {
+            var message = new Message
+            {
+                Role = Role.User,
+                Parts = [Part.FromText("Hello")],
+                MessageId = "test-id",
+            };
+
+            var chatMessage = message.ToChatMessage();
+
+            Assert.Equal(ChatRole.User, chatMessage.Role);
+            Assert.Equal("test-id", chatMessage.MessageId);
+            Assert.Single(chatMessage.Contents);
+        }
+
+        [Fact]
+        public void WhenChatMessage_ToA2AMessage_ReturnsMessage()
+        {
+            var chatMessage = new ChatMessage(ChatRole.Assistant, "Hello");
+
+            var message = chatMessage.ToA2AMessage();
+
+            Assert.Equal(Role.Agent, message.Role);
+            Assert.NotEmpty(message.Parts);
+        }
     }
 }

@@ -1,26 +1,32 @@
-﻿namespace A2A.UnitTests.Server;
+namespace A2A.UnitTests.Server;
 
 public class InMemoryTaskStoreTests
 {
     [Fact]
-    public async Task SetTaskAsync_And_GetTaskAsync_ShouldStoreAndRetrieveTask()
+    public async Task SaveAndGetTask_ShouldRoundTrip()
     {
         // Arrange
         var sut = new InMemoryTaskStore();
-        var task = new AgentTask { Id = "task1", Status = new AgentTaskStatus { State = TaskState.Submitted } };
+        var task = new AgentTask
+        {
+            Id = "t1",
+            ContextId = "ctx-1",
+            Status = new TaskStatus { State = TaskState.Submitted },
+        };
 
         // Act
-        await sut.SetTaskAsync(task);
-        var result = await sut.GetTaskAsync("task1");
+        await sut.SaveTaskAsync("t1", task);
+        var result = await sut.GetTaskAsync("t1");
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal("task1", result!.Id);
+        Assert.Equal("t1", result!.Id);
+        Assert.Equal("ctx-1", result.ContextId);
         Assert.Equal(TaskState.Submitted, result.Status.State);
     }
 
     [Fact]
-    public async Task GetTaskAsync_ShouldReturnNull_WhenTaskDoesNotExist()
+    public async Task GetTaskAsync_ReturnsNull_WhenNotExists()
     {
         // Arrange
         var sut = new InMemoryTaskStore();
@@ -33,251 +39,262 @@ public class InMemoryTaskStoreTests
     }
 
     [Fact]
-    public async Task UpdateStatusAsync_ShouldUpdateTaskStatus()
+    public async Task SaveTaskAsync_ShouldUpsert()
     {
         // Arrange
         var sut = new InMemoryTaskStore();
-        var task = new AgentTask { Id = "task2", Status = new AgentTaskStatus { State = TaskState.Submitted } };
-        await sut.SetTaskAsync(task);
-        var message = new AgentMessage { MessageId = "msg1" };
-
-        // Act
-        var status = await sut.UpdateStatusAsync("task2", TaskState.Working, message);
-        var updatedTask = await sut.GetTaskAsync("task2");
-
-        // Assert
-        Assert.Equal(TaskState.Working, status.State);
-        Assert.Equal(TaskState.Working, updatedTask!.Status.State);
-        Assert.Equal("msg1", status.Message!.MessageId);
-    }
-
-    [Fact]
-    public async Task UpdateStatusAsync_ShouldThrow_WhenTaskDoesNotExist()
-    {
-        // Arrange
-        var sut = new InMemoryTaskStore();
-
-        // Act & Assert
-        var ex = await Assert.ThrowsAsync<A2AException>(() => sut.UpdateStatusAsync("notfound", TaskState.Completed));
-        Assert.Equal(A2AErrorCode.TaskNotFound, ex.ErrorCode);
-    }
-
-    [Fact]
-    public async Task GetPushNotificationAsync_ShouldReturnNull_WhenTaskDoesNotExist()
-    {
-        // Arrange
-        var sut = new InMemoryTaskStore();
-
-        // Act
-        var result = await sut.GetPushNotificationAsync("missing", "config-missing");
-
-        // Assert
-        Assert.Null(result);
-    }
-
-    [Fact]
-    public async Task GetPushNotificationAsync_ShouldReturnNull_WhenConfigDoesNotExist()
-    {
-        // Arrange
-        var sut = new InMemoryTaskStore();
-
-        await sut.SetPushNotificationConfigAsync(new TaskPushNotificationConfig { TaskId = "task-id", PushNotificationConfig = new() { Id = "config-id" } });
-
-        // Act
-        var result = await sut.GetPushNotificationAsync("task-id", "config-missing");
-
-        // Assert
-        Assert.Null(result);
-    }
-
-    [Fact]
-    public async Task GetPushNotificationAsync_ShouldReturnCorrectConfig_WhenMultipleConfigsExistForSameTask()
-    {
-        // Arrange
-        var sut = new InMemoryTaskStore();
-        var taskId = "task-with-multiple-configs";
-
-        var config1 = new TaskPushNotificationConfig
+        var task = new AgentTask
         {
-            TaskId = taskId,
-            PushNotificationConfig = new PushNotificationConfig
-            {
-                Url = "http://config1",
-                Id = "config-id-1",
-                Token = "token1"
-            }
+            Id = "t1",
+            ContextId = "ctx-1",
+            Status = new TaskStatus { State = TaskState.Submitted },
         };
+        await sut.SaveTaskAsync("t1", task);
 
-        var config2 = new TaskPushNotificationConfig
-        {
-            TaskId = taskId,
-            PushNotificationConfig = new PushNotificationConfig
-            {
-                Url = "http://config2",
-                Id = "config-id-2",
-                Token = "token2"
-            }
-        };
-
-        var config3 = new TaskPushNotificationConfig
-        {
-            TaskId = taskId,
-            PushNotificationConfig = new PushNotificationConfig
-            {
-                Url = "http://config3",
-                Id = "config-id-3",
-                Token = "token3"
-            }
-        };
-
-        // Act - Store multiple configs for the same task
-        await sut.SetPushNotificationConfigAsync(config1);
-        await sut.SetPushNotificationConfigAsync(config2);
-        await sut.SetPushNotificationConfigAsync(config3);
-
-        // Get specific configs by both taskId and notificationConfigId
-        var result1 = await sut.GetPushNotificationAsync(taskId, "config-id-1");
-        var result2 = await sut.GetPushNotificationAsync(taskId, "config-id-2");
-        var result3 = await sut.GetPushNotificationAsync(taskId, "config-id-3");
-        var resultNotFound = await sut.GetPushNotificationAsync(taskId, "non-existent-config");
-
-        // Assert - Verify each call returns the correct specific config
-        Assert.NotNull(result1);
-        Assert.Equal(taskId, result1!.TaskId);
-        Assert.Equal("config-id-1", result1.PushNotificationConfig.Id);
-        Assert.Equal("http://config1", result1.PushNotificationConfig.Url);
-        Assert.Equal("token1", result1.PushNotificationConfig.Token);
-
-        Assert.NotNull(result2);
-        Assert.Equal(taskId, result2!.TaskId);
-        Assert.Equal("config-id-2", result2.PushNotificationConfig.Id);
-        Assert.Equal("http://config2", result2.PushNotificationConfig.Url);
-        Assert.Equal("token2", result2.PushNotificationConfig.Token);
-
-        Assert.NotNull(result3);
-        Assert.Equal(taskId, result3!.TaskId);
-        Assert.Equal("config-id-3", result3.PushNotificationConfig.Id);
-        Assert.Equal("http://config3", result3.PushNotificationConfig.Url);
-        Assert.Equal("token3", result3.PushNotificationConfig.Token);
-
-        Assert.Null(resultNotFound);
-    }
-
-    [Fact]
-    public async Task GetPushNotificationsAsync_ShouldReturnEmptyList_WhenNoConfigsExistForTask()
-    {
-        // Arrange
-        var sut = new InMemoryTaskStore();
-
-        // Act
-        var result = await sut.GetPushNotificationsAsync("task-without-configs");
+        // Act — modify and save again
+        task.Status = new TaskStatus { State = TaskState.Working };
+        await sut.SaveTaskAsync("t1", task);
 
         // Assert
+        var result = await sut.GetTaskAsync("t1");
         Assert.NotNull(result);
-        Assert.Empty(result);
+        Assert.Equal(TaskState.Working, result!.Status.State);
     }
 
     [Fact]
-    public async Task GetTaskAsync_ShouldReturnCanceledTask_WhenCancellationTokenIsCanceled()
+    public async Task DeleteTaskAsync_ShouldRemoveTask()
+    {
+        // Arrange
+        var sut = new InMemoryTaskStore();
+        var task = new AgentTask
+        {
+            Id = "t1",
+            ContextId = "ctx-1",
+            Status = new TaskStatus { State = TaskState.Submitted },
+        };
+        await sut.SaveTaskAsync("t1", task);
+
+        // Act
+        await sut.DeleteTaskAsync("t1");
+
+        // Assert
+        var result = await sut.GetTaskAsync("t1");
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task DeleteTaskAsync_NoOp_WhenNotExists()
     {
         // Arrange
         var sut = new InMemoryTaskStore();
 
-        using var cts = new CancellationTokenSource();
-        await cts.CancelAsync();
-
-        // Act
-        var task = sut.GetTaskAsync("test-id", cts.Token);
-
-        // Assert
-        Assert.True(task.IsCanceled);
-        await Assert.ThrowsAsync<TaskCanceledException>(() => task);
+        // Act & Assert — should not throw
+        await sut.DeleteTaskAsync("nonexistent");
     }
 
     [Fact]
-    public async Task GetPushNotificationAsync_ShouldReturnCanceledTask_WhenCancellationTokenIsCanceled()
+    public async Task ListTasksAsync_ShouldReturnAllTasks()
     {
         // Arrange
         var sut = new InMemoryTaskStore();
-
-        using var cts = new CancellationTokenSource();
-        await cts.CancelAsync();
+        await sut.SaveTaskAsync("t1", new AgentTask { Id = "t1", ContextId = "ctx-1", Status = new TaskStatus { State = TaskState.Submitted } });
+        await sut.SaveTaskAsync("t2", new AgentTask { Id = "t2", ContextId = "ctx-2", Status = new TaskStatus { State = TaskState.Working } });
 
         // Act
-        var task = sut.GetPushNotificationAsync("test-id", "config-id", cts.Token);
+        var result = await sut.ListTasksAsync(new ListTasksRequest());
 
         // Assert
-        Assert.True(task.IsCanceled);
-        await Assert.ThrowsAsync<TaskCanceledException>(() => task);
+        Assert.NotNull(result.Tasks);
+        Assert.Equal(2, result.Tasks!.Count);
+        Assert.Equal(2, result.TotalSize);
     }
 
     [Fact]
-    public async Task UpdateStatusAsync_ShouldReturnCanceledTask_WhenCancellationTokenIsCanceled()
+    public async Task ListTasksAsync_ShouldFilterByContextId()
     {
         // Arrange
         var sut = new InMemoryTaskStore();
-
-        using var cts = new CancellationTokenSource();
-        await cts.CancelAsync();
+        await sut.SaveTaskAsync("t1", new AgentTask { Id = "t1", ContextId = "ctx-1", Status = new TaskStatus { State = TaskState.Submitted } });
+        await sut.SaveTaskAsync("t2", new AgentTask { Id = "t2", ContextId = "ctx-2", Status = new TaskStatus { State = TaskState.Working } });
 
         // Act
-        var task = sut.UpdateStatusAsync("test-id", TaskState.Working, cancellationToken: cts.Token);
+        var result = await sut.ListTasksAsync(new ListTasksRequest { ContextId = "ctx-1" });
 
         // Assert
-        Assert.True(task.IsCanceled);
-        await Assert.ThrowsAsync<TaskCanceledException>(() => task);
+        Assert.NotNull(result.Tasks);
+        Assert.Single(result.Tasks!);
+        Assert.Equal("t1", result.Tasks![0].Id);
     }
 
     [Fact]
-    public async Task SetTaskAsync_ShouldReturnCanceledTask_WhenCancellationTokenIsCanceled()
+    public async Task ListTasksAsync_ShouldFilterByStatus()
     {
         // Arrange
         var sut = new InMemoryTaskStore();
-        var agentTask = new AgentTask { Id = "test-id", Status = new AgentTaskStatus { State = TaskState.Submitted } };
-
-        using var cts = new CancellationTokenSource();
-        await cts.CancelAsync();
+        await sut.SaveTaskAsync("t1", new AgentTask { Id = "t1", ContextId = "ctx-1", Status = new TaskStatus { State = TaskState.Submitted } });
+        await sut.SaveTaskAsync("t2", new AgentTask { Id = "t2", ContextId = "ctx-1", Status = new TaskStatus { State = TaskState.Completed } });
 
         // Act
-        var task = sut.SetTaskAsync(agentTask, cts.Token);
+        var result = await sut.ListTasksAsync(new ListTasksRequest { Status = TaskState.Completed });
 
         // Assert
-        Assert.True(task.IsCanceled);
-        await Assert.ThrowsAsync<TaskCanceledException>(() => task);
+        Assert.NotNull(result.Tasks);
+        Assert.Single(result.Tasks!);
+        Assert.Equal("t2", result.Tasks![0].Id);
     }
 
     [Fact]
-    public async Task SetPushNotificationConfigAsync_ShouldReturnCanceledTask_WhenCancellationTokenIsCanceled()
+    public async Task ListTasksAsync_ShouldNotMutateStoredData()
     {
-        // Arrange
+        // Arrange — regression test: mutating a returned task must not affect stored state
         var sut = new InMemoryTaskStore();
-        var config = new TaskPushNotificationConfig();
+        await sut.SaveTaskAsync("t1", new AgentTask
+        {
+            Id = "t1",
+            ContextId = "ctx-1",
+            Status = new TaskStatus { State = TaskState.Working },
+            History = [new Message { MessageId = "m1", Parts = [Part.FromText("original")] }],
+        });
 
-        using var cts = new CancellationTokenSource();
-        await cts.CancelAsync();
+        // Act — get task, mutate it
+        var first = await sut.GetTaskAsync("t1");
+        first!.History!.Add(new Message { MessageId = "m-injected", Parts = [Part.FromText("injected")] });
+        first.Status = new TaskStatus { State = TaskState.Completed };
 
-        // Act
-        var task = sut.SetPushNotificationConfigAsync(config, cts.Token);
-
-        // Assert
-        Assert.True(task.IsCanceled);
-        await Assert.ThrowsAsync<TaskCanceledException>(() => task);
+        // Assert — re-read should return unmutated state
+        var second = await sut.GetTaskAsync("t1");
+        Assert.NotNull(second);
+        Assert.Equal(TaskState.Working, second!.Status.State);
+        Assert.Single(second.History!);
+        Assert.Equal("m1", second.History![0].MessageId);
     }
 
     [Fact]
-    public async Task GetPushNotificationsAsync_ShouldReturnCanceledTask_WhenCancellationTokenIsCanceled()
+    public async Task ListTasksAsync_ShouldTrimHistoryByHistoryLength()
     {
         // Arrange
         var sut = new InMemoryTaskStore();
+        await sut.SaveTaskAsync("t1", new AgentTask
+        {
+            Id = "t1",
+            ContextId = "ctx-1",
+            Status = new TaskStatus { State = TaskState.Working },
+            History =
+            [
+                new Message { MessageId = "m1", Parts = [Part.FromText("first")] },
+                new Message { MessageId = "m2", Parts = [Part.FromText("second")] },
+                new Message { MessageId = "m3", Parts = [Part.FromText("third")] },
+            ],
+        });
 
-        using var cts = new CancellationTokenSource();
-        await cts.CancelAsync();
-
-        // Act
-        var task = sut.GetPushNotificationsAsync("test-id", cts.Token);
+        // Act — request historyLength = 1 (keep only last message)
+        var result = await sut.ListTasksAsync(new ListTasksRequest { HistoryLength = 1 });
 
         // Assert
-        Assert.True(task.IsCanceled);
-        await Assert.ThrowsAsync<TaskCanceledException>(() => task);
+        Assert.NotNull(result.Tasks);
+        Assert.Single(result.Tasks!);
+        var task = result.Tasks![0];
+        Assert.NotNull(task.History);
+        Assert.Single(task.History!);
+        Assert.Equal("m3", task.History![0].MessageId);
+    }
+
+    [Fact]
+    public async Task ListTasksAsync_HistoryLengthZero_ShouldRemoveHistory()
+    {
+        // Arrange
+        var sut = new InMemoryTaskStore();
+        await sut.SaveTaskAsync("t1", new AgentTask
+        {
+            Id = "t1",
+            ContextId = "ctx-1",
+            Status = new TaskStatus { State = TaskState.Working },
+            History = [new Message { MessageId = "m1", Parts = [Part.FromText("data")] }],
+        });
+
+        // Act
+        var result = await sut.ListTasksAsync(new ListTasksRequest { HistoryLength = 0 });
+
+        // Assert
+        var task = result.Tasks![0];
+        Assert.Null(task.History);
+    }
+
+    [Fact]
+    public async Task ListTasksAsync_ShouldPaginate()
+    {
+        var sut = new InMemoryTaskStore();
+        // Save 5 tasks
+        for (int i = 1; i <= 5; i++)
+            await sut.SaveTaskAsync($"t{i}", new AgentTask { Id = $"t{i}", ContextId = "ctx", Status = new TaskStatus { State = TaskState.Working } });
+
+        // Request page 1 (size 2)
+        var page1 = await sut.ListTasksAsync(new ListTasksRequest { PageSize = 2 });
+        Assert.Equal(2, page1.Tasks!.Count);
+        Assert.Equal(5, page1.TotalSize);
+        Assert.False(string.IsNullOrEmpty(page1.NextPageToken));
+
+        // Request page 2 using NextPageToken
+        var page2 = await sut.ListTasksAsync(new ListTasksRequest { PageSize = 2, PageToken = page1.NextPageToken });
+        Assert.Equal(2, page2.Tasks!.Count);
+        Assert.False(string.IsNullOrEmpty(page2.NextPageToken));
+
+        // Request page 3 (last page)
+        var page3 = await sut.ListTasksAsync(new ListTasksRequest { PageSize = 2, PageToken = page2.NextPageToken });
+        Assert.Single(page3.Tasks!);
+        Assert.True(string.IsNullOrEmpty(page3.NextPageToken)); // no more pages
+    }
+
+    [Fact]
+    public async Task ListTasksAsync_ShouldFilterByStatusTimestampAfter()
+    {
+        var sut = new InMemoryTaskStore();
+        var now = DateTimeOffset.UtcNow;
+        await sut.SaveTaskAsync("t-old", new AgentTask { Id = "t-old", ContextId = "ctx", Status = new TaskStatus { State = TaskState.Completed, Timestamp = now.AddHours(-2) } });
+        await sut.SaveTaskAsync("t-new", new AgentTask { Id = "t-new", ContextId = "ctx", Status = new TaskStatus { State = TaskState.Working, Timestamp = now } });
+
+        var result = await sut.ListTasksAsync(new ListTasksRequest { StatusTimestampAfter = now.AddHours(-1) });
+        Assert.Single(result.Tasks!);
+        Assert.Equal("t-new", result.Tasks![0].Id);
+    }
+
+    [Fact]
+    public async Task ListTasksAsync_ShouldExcludeArtifactsByDefault()
+    {
+        var sut = new InMemoryTaskStore();
+        await sut.SaveTaskAsync("t1", new AgentTask
+        {
+            Id = "t1", ContextId = "ctx",
+            Status = new TaskStatus { State = TaskState.Completed },
+            Artifacts = [new Artifact { ArtifactId = "a1", Parts = [Part.FromText("data")] }]
+        });
+
+        // Default: artifacts excluded
+        var without = await sut.ListTasksAsync(new ListTasksRequest());
+        Assert.Null(without.Tasks![0].Artifacts);
+
+        // Explicitly include
+        var with = await sut.ListTasksAsync(new ListTasksRequest { IncludeArtifacts = true });
+        Assert.NotNull(with.Tasks![0].Artifacts);
+        Assert.Single(with.Tasks![0].Artifacts!);
+    }
+
+    [Fact]
+    public async Task ConcurrentSaveAndGet_ShouldNotCorrupt()
+    {
+        var sut = new InMemoryTaskStore();
+        await sut.SaveTaskAsync("t1", new AgentTask { Id = "t1", ContextId = "ctx", Status = new TaskStatus { State = TaskState.Submitted } });
+
+        // Run 50 concurrent saves + gets
+        var tasks = Enumerable.Range(0, 50).Select(i => Task.Run(async () =>
+        {
+            var state = i % 2 == 0 ? TaskState.Working : TaskState.Completed;
+            await sut.SaveTaskAsync("t1", new AgentTask { Id = "t1", ContextId = "ctx", Status = new TaskStatus { State = state } });
+            var result = await sut.GetTaskAsync("t1");
+            Assert.NotNull(result);
+            Assert.Equal("t1", result!.Id);
+        }));
+
+        await Task.WhenAll(tasks); // Should not throw, corrupt, or deadlock
     }
 }

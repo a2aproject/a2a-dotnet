@@ -3,69 +3,70 @@ using System.Text.Json;
 
 namespace AgentServer;
 
-public class EchoAgentWithTasks
+public sealed class EchoAgentWithTasks : IAgentHandler
 {
-    private ITaskManager? _taskManager;
-
-    public void Attach(ITaskManager taskManager)
+    public async Task ExecuteAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
     {
-        _taskManager = taskManager;
-        taskManager.OnTaskCreated = ProcessMessageAsync;
-        taskManager.OnTaskUpdated = ProcessMessageAsync;
-        taskManager.OnAgentCardQuery = GetAgentCardAsync;
-    }
+        var targetState = GetTargetStateFromMetadata(context.Message.Metadata);
+        var updater = new TaskUpdater(eventQueue, context.TaskId, context.ContextId);
 
-    private async Task ProcessMessageAsync(AgentTask task, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
+        await updater.SubmitAsync(cancellationToken);
+        await updater.AddArtifactAsync(
+            [Part.FromText($"Echo: {context.UserText}")], cancellationToken: cancellationToken);
 
-        // Process the message
-        var lastMessage = task.History!.Last();
-        var messageText = lastMessage.Parts.OfType<TextPart>().First().Text;
-
-        // Check for target-state metadata to determine task behavior
-        TaskState targetState = GetTargetStateFromMetadata(lastMessage.Metadata) ?? TaskState.Completed;
-
-        // This is a short-lived task - complete it immediately
-        await _taskManager!.ReturnArtifactAsync(task.Id, new Artifact()
+        // Transition to the target state (defaults to Completed)
+        switch (targetState)
         {
-            Parts = [new TextPart() {
-                Text = $"Echo: {messageText}"
-            }]
-        }, cancellationToken);
-
-        await _taskManager!.UpdateStatusAsync(
-            task.Id,
-            status: targetState,
-            final: targetState is TaskState.Completed or TaskState.Canceled or TaskState.Failed or TaskState.Rejected,
-            cancellationToken: cancellationToken);
-    }
-
-    private Task<AgentCard> GetAgentCardAsync(string agentUrl, CancellationToken cancellationToken)
-    {
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return Task.FromCanceled<AgentCard>(cancellationToken);
+            case TaskState.Failed:
+                await updater.FailAsync(cancellationToken: cancellationToken);
+                break;
+            case TaskState.Canceled:
+                await updater.CancelAsync(cancellationToken);
+                break;
+            case TaskState.InputRequired:
+                await updater.RequireInputAsync(
+                    new Message { Role = Role.Agent, MessageId = Guid.NewGuid().ToString("N"), Parts = [Part.FromText("Need input")] },
+                    cancellationToken);
+                break;
+            default:
+                await updater.CompleteAsync(cancellationToken: cancellationToken);
+                break;
         }
+    }
 
-        var capabilities = new AgentCapabilities()
-        {
-            Streaming = true,
-            PushNotifications = false,
-        };
-
-        return Task.FromResult(new AgentCard()
+    public static AgentCard GetAgentCard(string agentUrl) =>
+        new()
         {
             Name = "Echo Agent",
             Description = "Agent which will echo every message it receives.",
-            Url = agentUrl,
             Version = "1.0.0",
-            DefaultInputModes = ["text"],
-            DefaultOutputModes = ["text"],
-            Capabilities = capabilities,
-            Skills = [],
-        });
-    }
+            SupportedInterfaces =
+            [
+                new AgentInterface
+                {
+                    Url = agentUrl,
+                    ProtocolBinding = "JSONRPC",
+                    ProtocolVersion = "1.0",
+                }
+            ],
+            DefaultInputModes = ["text/plain"],
+            DefaultOutputModes = ["text/plain"],
+            Capabilities = new AgentCapabilities
+            {
+                Streaming = true,
+                PushNotifications = false,
+            },
+            Skills =
+            [
+                new AgentSkill
+                {
+                    Id = "echo",
+                    Name = "Echo",
+                    Description = "Echoes back the user message with task tracking.",
+                    Tags = ["echo", "test"],
+                }
+            ],
+        };
 
     private static TaskState? GetTargetStateFromMetadata(Dictionary<string, JsonElement>? metadata)
     {

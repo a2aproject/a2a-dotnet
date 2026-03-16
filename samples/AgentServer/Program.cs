@@ -6,13 +6,51 @@ using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Get the agent type and store type from command line arguments
+var agentType = GetArgValue(args, "--agent", "-a") ?? "echo";
+var storeType = GetArgValue(args, "--store", "-s");
+var baseUrl = "http://localhost:5048";
+
+// Register file-backed task store if requested (before AddA2AAgent so TryAddSingleton picks it up)
+if (storeType?.Equals("file", StringComparison.OrdinalIgnoreCase) == true)
+{
+    var dataDir = GetArgValue(args, "--data-dir", "-d") ?? Path.Combine(Directory.GetCurrentDirectory(), "a2a-data");
+    Console.WriteLine($"Using FileTaskStore at: {dataDir}");
+    builder.Services.AddSingleton<ITaskStore>(sp =>
+        new FileTaskStore(dataDir));
+}
+
+// Register the appropriate agent via DI
+switch (agentType.ToLowerInvariant())
+{
+    case "echo":
+        builder.Services.AddA2AAgent<EchoAgent>(EchoAgent.GetAgentCard($"{baseUrl}/echo"));
+        break;
+
+    case "echotasks":
+        builder.Services.AddA2AAgent<EchoAgentWithTasks>(EchoAgentWithTasks.GetAgentCard($"{baseUrl}/echotasks"));
+        break;
+
+    case "researcher":
+        builder.Services.AddA2AAgent<ResearcherAgent>(ResearcherAgent.GetAgentCard($"{baseUrl}/researcher"));
+        break;
+
+    case "speccompliance":
+        builder.Services.AddA2AAgent<SpecComplianceAgent>(SpecComplianceAgent.GetAgentCard($"{baseUrl}/speccompliance"));
+        break;
+
+    default:
+        Console.WriteLine($"Unknown agent type: {agentType}");
+        Environment.Exit(1);
+        return;
+}
+
 // Configure OpenTelemetry
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource.AddService("A2AAgentServer"))
     .WithTracing(tracing => tracing
-        .AddSource(TaskManager.ActivitySource.Name)
-        .AddSource(A2AJsonRpcProcessor.ActivitySource.Name)
-        .AddSource(ResearcherAgent.ActivitySource.Name)
+        .AddSource("A2A")
+        .AddSource("A2A.AspNetCore")
         .AddAspNetCoreInstrumentation()
         .AddHttpClientInstrumentation()
         .AddConsoleExporter()
@@ -30,64 +68,33 @@ app.UseHttpsRedirection();
 // Add health endpoint
 app.MapGet("/health", () => Results.Ok(new { Status = "Healthy", Timestamp = DateTimeOffset.UtcNow }));
 
-// Get the agent type from command line arguments
-var agentType = GetAgentTypeFromArgs(args);
-
-// Create and register the specified agent
-var taskManager = new TaskManager();
-
-switch (agentType.ToLowerInvariant())
+// Map A2A endpoints using DI-registered services
+var path = agentType.ToLowerInvariant() switch
 {
-    case "echo":
-        var echoAgent = new EchoAgent();
-        echoAgent.Attach(taskManager);
-        app.MapA2A(taskManager, "/echo");
-        app.MapWellKnownAgentCard(taskManager, "/echo");
-        app.MapHttpA2A(taskManager, "/echo");
-        break;
+    "echo" => "/echo",
+    "echotasks" => "/echotasks",
+    "researcher" => "/researcher",
+    "speccompliance" => "/speccompliance",
+    _ => "/agent",
+};
 
-    case "echotasks":
-        var echoAgentWithTasks = new EchoAgentWithTasks();
-        echoAgentWithTasks.Attach(taskManager);
-        app.MapA2A(taskManager, "/echotasks");
-        app.MapWellKnownAgentCard(taskManager, "/echotasks");
-        app.MapHttpA2A(taskManager, "/echotasks");
-        break;
+app.MapA2A(path);
 
-    case "researcher":
-        var researcherAgent = new ResearcherAgent();
-        researcherAgent.Attach(taskManager);
-        app.MapA2A(taskManager, "/researcher");
-        app.MapWellKnownAgentCard(taskManager, "/researcher");
-        break;
-
-    case "speccompliance":
-        var specComplianceAgent = new SpecComplianceAgent();
-        specComplianceAgent.Attach(taskManager);
-        app.MapA2A(taskManager, "/speccompliance");
-        app.MapWellKnownAgentCard(taskManager, "/speccompliance");
-        break;
-
-    default:
-        Console.WriteLine($"Unknown agent type: {agentType}");
-        Environment.Exit(1);
-        return;
+// For spec compliance, also map at root for well-known agent card discovery
+if (agentType.Equals("speccompliance", StringComparison.OrdinalIgnoreCase))
+{
+    var card = app.Services.GetRequiredService<AgentCard>();
+    app.MapWellKnownAgentCard(card);
 }
 
 app.Run();
 
-static string GetAgentTypeFromArgs(string[] args)
+static string? GetArgValue(string[] args, string longName, string shortName)
 {
-    // Look for --agent parameter
     for (int i = 0; i < args.Length - 1; i++)
     {
-        if (args[i] == "--agent" || args[i] == "-a")
-        {
+        if (args[i] == longName || args[i] == shortName)
             return args[i + 1];
-        }
     }
-
-    // Default to echo if no agent specified
-    Console.WriteLine("No agent specified. Use --agent or -a parameter to specify agent type (echo, echotasks, researcher, speccompliance). Defaulting to 'echo'.");
-    return "echo";
+    return null;
 }

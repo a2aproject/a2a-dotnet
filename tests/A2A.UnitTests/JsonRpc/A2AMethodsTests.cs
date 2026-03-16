@@ -5,10 +5,10 @@ namespace A2A.UnitTests.JsonRpc;
 public class A2AMethodsTests
 {
     [Fact]
-    public void IsStreamingMethod_ReturnsTrue_ForMessageStream()
+    public void IsStreamingMethod_ReturnsTrue_ForSendStreamingMessage()
     {
         // Arrange
-        var method = A2AMethods.MessageStream;
+        var method = A2AMethods.SendStreamingMessage;
 
         // Act
         var result = A2AMethods.IsStreamingMethod(method);
@@ -18,10 +18,10 @@ public class A2AMethodsTests
     }
 
     [Fact]
-    public void IsStreamingMethod_ReturnsTrue_ForTaskSubscribe()
+    public void IsStreamingMethod_ReturnsTrue_ForSubscribeToTask()
     {
         // Arrange
-        var method = A2AMethods.TaskSubscribe;
+        var method = A2AMethods.SubscribeToTask;
 
         // Act
         var result = A2AMethods.IsStreamingMethod(method);
@@ -31,11 +31,12 @@ public class A2AMethodsTests
     }
 
     [Theory]
-    [InlineData(A2AMethods.MessageSend)]
-    [InlineData(A2AMethods.TaskGet)]
-    [InlineData(A2AMethods.TaskCancel)]
-    [InlineData(A2AMethods.TaskPushNotificationConfigSet)]
-    [InlineData(A2AMethods.TaskPushNotificationConfigGet)]
+    [InlineData(A2AMethods.SendMessage)]
+    [InlineData(A2AMethods.GetTask)]
+    [InlineData(A2AMethods.CancelTask)]
+    [InlineData(A2AMethods.ListTasks)]
+    [InlineData(A2AMethods.CreateTaskPushNotificationConfig)]
+    [InlineData(A2AMethods.GetTaskPushNotificationConfig)]
     [InlineData("unknown/method")]
     public void IsStreamingMethod_ReturnsFalse_ForNonStreamingMethods(string method)
     {
@@ -48,7 +49,7 @@ public class A2AMethodsTests
 
     [Theory]
     [InlineData("unknown/method")]
-    [InlineData("message/ssend")]
+    [InlineData("message/send")]
     [InlineData("invalid")]
     [InlineData("")]
     public void IsValidMethod_ReturnsFalse_ForInvalidMethods(string method)

@@ -4,192 +4,90 @@ namespace A2A.UnitTests.Models;
 
 public class AgentCardTests
 {
-    private const string ExpectedJson = """
-        {
-          "name": "Test Agent",
-          "description": "A test agent for MVP serialization",
-          "url": "https://example.com/agent",
-          "provider": {
-            "organization": "Test Org",
-            "url": "https://testorg.com"
-          },
-          "version": "1.0.0",
-          "protocolVersion": "0.3.0",
-          "documentationUrl": "https://docs.example.com",
-          "capabilities": {
-            "streaming": true,
-            "pushNotifications": false,
-            "stateTransitionHistory": true
-          },
-          "securitySchemes": {
-            "apiKey": {
-              "type": "apiKey",
-              "name": "X-API-Key",
-              "in": "header"
-            }
-          },
-          "security": [
-            {
-              "apiKey": []
-            }
-          ],
-          "defaultInputModes": ["text", "image"],
-          "defaultOutputModes": ["text", "json"],
-          "skills": [
-            {
-              "id": "test-skill",
-              "name": "Test Skill",
-              "description": "A test skill",
-              "tags": ["test", "skill"],
-              "examples": ["Example usage"],
-              "inputModes": ["text"],
-              "outputModes": ["text"],
-              "security": [
-                {
-                  "oauth": ["read"]
-                }
-              ]
-            }
-          ],
-          "supportsAuthenticatedExtendedCard": true,
-          "additionalInterfaces": [
-            {
-              "transport": "JSONRPC",
-              "url": "https://jsonrpc.example.com/agent"
-            }
-          ],
-          "preferredTransport": "GRPC",
-          "signatures": [
-            {
-              "protected": "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpPU0UiLCJraWQiOiJrZXktMSIsImprdSI6Imh0dHBzOi8vZXhhbXBsZS5jb20vYWdlbnQvandrcy5qc29uIn0",
-              "signature": "QFdkNLNszlGj3z3u0YQGt_T9LixY3qtdQpZmsTdDHDe3fXV9y9-B3m2-XgCpzuhiLt8E0tV6HXoZKHv4GtHgKQ"
-            }
-          ]
-        }
-        """;
-
     [Fact]
-    public void AgentCard_Deserialize_AllPropertiesCorrect()
+    public void WhenValidAgentCard_Serialized_RoundTripsCorrectly()
     {
-        // Act
-        var deserializedCard = JsonSerializer.Deserialize<AgentCard>(ExpectedJson, A2AJsonUtilities.DefaultOptions);
+        var card = new AgentCard
+        {
+            Name = "Test Agent",
+            Description = "A test agent",
+            SupportedInterfaces =
+            [
+                new AgentInterface
+                {
+                    Url = "http://localhost:5000/a2a",
+                    ProtocolBinding = "JSONRPC",
+                    ProtocolVersion = "1.0",
+                }
+            ],
+        };
 
-        // Assert
-        Assert.NotNull(deserializedCard);
-        Assert.Equal("Test Agent", deserializedCard.Name);
-        Assert.Equal("A test agent for MVP serialization", deserializedCard.Description);
-        Assert.Equal("https://example.com/agent", deserializedCard.Url);
-        Assert.Equal("1.0.0", deserializedCard.Version);
-        Assert.Equal("0.3.0", deserializedCard.ProtocolVersion);
-        Assert.Equal("https://docs.example.com", deserializedCard.DocumentationUrl);
-        Assert.True(deserializedCard.SupportsAuthenticatedExtendedCard);
+        var json = JsonSerializer.Serialize(card, A2AJsonUtilities.DefaultOptions);
+        var deserialized = JsonSerializer.Deserialize<AgentCard>(json, A2AJsonUtilities.DefaultOptions);
 
-        // Provider
-        Assert.NotNull(deserializedCard.Provider);
-        Assert.Equal("Test Org", deserializedCard.Provider.Organization);
-        Assert.Equal("https://testorg.com", deserializedCard.Provider.Url);
-
-        // Capabilities
-        Assert.NotNull(deserializedCard.Capabilities);
-        Assert.True(deserializedCard.Capabilities.Streaming);
-        Assert.False(deserializedCard.Capabilities.PushNotifications);
-        Assert.True(deserializedCard.Capabilities.StateTransitionHistory);
-
-        // Security
-        Assert.NotNull(deserializedCard.SecuritySchemes);
-        Assert.Single(deserializedCard.SecuritySchemes);
-        Assert.Contains("apiKey", deserializedCard.SecuritySchemes.Keys);
-        var apisec = Assert.IsType<ApiKeySecurityScheme>(deserializedCard.SecuritySchemes["apiKey"]);
-        Assert.False(string.IsNullOrWhiteSpace(apisec.Name));
-        Assert.False(string.IsNullOrWhiteSpace(apisec.KeyLocation));
-
-        Assert.NotNull(deserializedCard.Security);
-        Assert.Single(deserializedCard.Security);
-
-        var securityRequirement = deserializedCard.Security[0];
-        Assert.NotNull(securityRequirement);
-        Assert.Single(securityRequirement);
-        Assert.True(securityRequirement.ContainsKey("apiKey"));
-        Assert.Empty(securityRequirement["apiKey"]);
-
-        // Input/Output modes
-        Assert.Equal(new List<string> { "text", "image" }, deserializedCard.DefaultInputModes);
-        Assert.Equal(new List<string> { "text", "json" }, deserializedCard.DefaultOutputModes);
-
-        // Skills
-        Assert.NotNull(deserializedCard.Skills);
-        Assert.Single(deserializedCard.Skills);
-        var skill = deserializedCard.Skills[0];
-        Assert.Equal("test-skill", skill.Id);
-        Assert.Equal("Test Skill", skill.Name);
-        Assert.Equal("A test skill", skill.Description);
-        Assert.NotNull(skill.Tags);
-        Assert.Equal(2, skill.Tags.Count);
-        Assert.Contains("test", skill.Tags);
-        Assert.Contains("skill", skill.Tags);
-
-        // Skill Security
-        Assert.NotNull(skill.Security);
-        Assert.Single(skill.Security);
-        var skillSecurityRequirement = skill.Security[0];
-        Assert.NotNull(skillSecurityRequirement);
-        Assert.Single(skillSecurityRequirement);
-        Assert.True(skillSecurityRequirement.ContainsKey("oauth"));
-        Assert.Equal(["read"], skillSecurityRequirement["oauth"]);
-
-        // Transport properties
-        Assert.Equal("GRPC", deserializedCard.PreferredTransport.Label);
-        Assert.NotNull(deserializedCard.AdditionalInterfaces);
-        Assert.Single(deserializedCard.AdditionalInterfaces);
-        Assert.Equal("JSONRPC", deserializedCard.AdditionalInterfaces[0].Transport.Label);
-        Assert.Equal("https://jsonrpc.example.com/agent", deserializedCard.AdditionalInterfaces[0].Url);
-
-        // Signatures
-        Assert.NotNull(deserializedCard.Signatures);
-        Assert.Single(deserializedCard.Signatures);
-        var signature = deserializedCard.Signatures[0];
-        Assert.Equal("eyJhbGciOiJFUzI1NiIsInR5cCI6IkpPU0UiLCJraWQiOiJrZXktMSIsImprdSI6Imh0dHBzOi8vZXhhbXBsZS5jb20vYWdlbnQvandrcy5qc29uIn0", signature.Protected);
-        Assert.Equal("QFdkNLNszlGj3z3u0YQGt_T9LixY3qtdQpZmsTdDHDe3fXV9y9-B3m2-XgCpzuhiLt8E0tV6HXoZKHv4GtHgKQ", signature.Signature);
-        Assert.Null(signature.Header);
+        Assert.NotNull(deserialized);
+        Assert.Equal("Test Agent", deserialized.Name);
+        Assert.Equal("A test agent", deserialized.Description);
+        Assert.Single(deserialized.SupportedInterfaces);
+        Assert.Equal("http://localhost:5000/a2a", deserialized.SupportedInterfaces[0].Url);
     }
 
     [Fact]
-    public void AgentCard_Serialize_ProducesExpectedJson()
+    public void WhenNullOptionalFields_Serialized_OmitsNullFields()
+    {
+        var card = new AgentCard
+        {
+            Name = "Agent",
+            Description = "Desc",
+            SupportedInterfaces = [new AgentInterface { Url = "http://test", ProtocolBinding = "JSONRPC", ProtocolVersion = "1.0" }],
+        };
+
+        var json = JsonSerializer.Serialize(card, A2AJsonUtilities.DefaultOptions);
+        var doc = JsonDocument.Parse(json);
+
+        Assert.True(doc.RootElement.TryGetProperty("capabilities", out _));
+        Assert.True(doc.RootElement.TryGetProperty("skills", out _));
+        Assert.False(doc.RootElement.TryGetProperty("securitySchemes", out _));
+    }
+
+    [Fact]
+    public void AgentCard_Serialize_WithAllProperties_RoundTripsCorrectly()
     {
         // Arrange
         var agentCard = new AgentCard
         {
             Name = "Test Agent",
-            Description = "A test agent for MVP serialization",
-            Url = "https://example.com/agent",
+            Description = "A test agent for v1 serialization",
             Provider = new AgentProvider
             {
                 Organization = "Test Org",
                 Url = "https://testorg.com"
             },
-            Version = "1.0.0",
-            ProtocolVersion = "0.3.0",
-            DocumentationUrl = "https://docs.example.com",
+            SupportedInterfaces =
+            [
+                new AgentInterface
+                {
+                    Url = "https://example.com/agent",
+                    ProtocolBinding = "JSONRPC",
+                    ProtocolVersion = "1.0",
+                }
+            ],
             Capabilities = new AgentCapabilities
             {
                 Streaming = true,
                 PushNotifications = false,
-                StateTransitionHistory = true
             },
             SecuritySchemes = new Dictionary<string, SecurityScheme>
             {
-                ["apiKey"] = new ApiKeySecurityScheme("X-API-Key", "header")
-            },
-            Security = new List<Dictionary<string, string[]>>
-            {
-                new()
+                ["apiKey"] = new SecurityScheme
                 {
-                    ["apiKey"] = []
+                    ApiKeySecurityScheme = new ApiKeySecurityScheme { Name = "X-API-Key", Location = "header" }
                 }
             },
             DefaultInputModes = ["text", "image"],
             DefaultOutputModes = ["text", "json"],
-            Skills = [
+            Skills =
+            [
                 new AgentSkill
                 {
                     Id = "test-skill",
@@ -199,103 +97,185 @@ public class AgentCardTests
                     Examples = ["Example usage"],
                     InputModes = ["text"],
                     OutputModes = ["text"],
-                    Security = [
-                        new Dictionary<string, string[]>
-                        {
-                            ["oauth"] = ["read"]
-                        }
-                    ]
                 }
             ],
-            SupportsAuthenticatedExtendedCard = true,
-            AdditionalInterfaces = [
-                new AgentInterface
-                {
-                    Transport = AgentTransport.JsonRpc,
-                    Url = "https://jsonrpc.example.com/agent"
-                }
-            ],
-            PreferredTransport = new AgentTransport("GRPC"),
-            Signatures = [
+            Signatures =
+            [
                 new AgentCardSignature
                 {
-                    Protected = "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpPU0UiLCJraWQiOiJrZXktMSIsImprdSI6Imh0dHBzOi8vZXhhbXBsZS5jb20vYWdlbnQvandrcy5qc29uIn0",
-                    Signature = "QFdkNLNszlGj3z3u0YQGt_T9LixY3qtdQpZmsTdDHDe3fXV9y9-B3m2-XgCpzuhiLt8E0tV6HXoZKHv4GtHgKQ"
+                    Protected = "eyJhbGciOiJFUzI1NiJ9",
+                    Signature = "dGVzdC1zaWduYXR1cmU"
                 }
             ]
         };
 
         // Act
-        var serializedJson = JsonSerializer.Serialize(agentCard, A2AJsonUtilities.DefaultOptions);
+        var json = JsonSerializer.Serialize(agentCard, A2AJsonUtilities.DefaultOptions);
+        var deserialized = JsonSerializer.Deserialize<AgentCard>(json, A2AJsonUtilities.DefaultOptions);
 
-        // Assert - Compare objects instead of raw JSON strings to avoid formatting/ordering issues
-        // and provide more meaningful error messages when properties don't match
-        var expectedCard = JsonSerializer.Deserialize<AgentCard>(ExpectedJson, A2AJsonUtilities.DefaultOptions);
-        var actualCard = JsonSerializer.Deserialize<AgentCard>(serializedJson, A2AJsonUtilities.DefaultOptions);
+        // Assert
+        Assert.NotNull(deserialized);
+        Assert.Equal(agentCard.Name, deserialized.Name);
+        Assert.Equal(agentCard.Description, deserialized.Description);
+        Assert.NotNull(deserialized.Provider);
+        Assert.Equal("Test Org", deserialized.Provider.Organization);
+        Assert.Single(deserialized.SupportedInterfaces);
+        Assert.Equal("https://example.com/agent", deserialized.SupportedInterfaces[0].Url);
+        Assert.NotNull(deserialized.Capabilities);
+        Assert.True(deserialized.Capabilities.Streaming);
+        Assert.NotNull(deserialized.SecuritySchemes);
+        Assert.Single(deserialized.SecuritySchemes);
+        Assert.NotNull(deserialized.SecuritySchemes["apiKey"].ApiKeySecurityScheme);
+        Assert.Equal("X-API-Key", deserialized.SecuritySchemes["apiKey"].ApiKeySecurityScheme!.Name);
+        Assert.Equal(new List<string> { "text", "image" }, deserialized.DefaultInputModes);
+        Assert.Equal(new List<string> { "text", "json" }, deserialized.DefaultOutputModes);
+        Assert.NotNull(deserialized.Skills);
+        Assert.Single(deserialized.Skills);
+        Assert.Equal("test-skill", deserialized.Skills[0].Id);
+        Assert.NotNull(deserialized.Signatures);
+        Assert.Single(deserialized.Signatures);
+        Assert.Equal("eyJhbGciOiJFUzI1NiJ9", deserialized.Signatures[0].Protected);
+    }
 
-        Assert.NotNull(actualCard);
-        Assert.NotNull(expectedCard);
-
-        // Compare key properties
-        Assert.Equal(expectedCard.Name, actualCard.Name);
-        Assert.Equal(expectedCard.Description, actualCard.Description);
-        Assert.Equal(expectedCard.Url, actualCard.Url);
-        Assert.Equal(expectedCard.Version, actualCard.Version);
-        Assert.Equal(expectedCard.ProtocolVersion, actualCard.ProtocolVersion);
-        Assert.Equal(expectedCard.DocumentationUrl, actualCard.DocumentationUrl);
-        Assert.Equal(expectedCard.SupportsAuthenticatedExtendedCard, actualCard.SupportsAuthenticatedExtendedCard);
-
-        // Provider
-        Assert.Equal(expectedCard.Provider?.Organization, actualCard.Provider?.Organization);
-        Assert.Equal(expectedCard.Provider?.Url, actualCard.Provider?.Url);
-
-        // Capabilities
-        Assert.Equal(expectedCard.Capabilities?.Streaming, actualCard.Capabilities?.Streaming);
-        Assert.Equal(expectedCard.Capabilities?.PushNotifications, actualCard.Capabilities?.PushNotifications);
-        Assert.Equal(expectedCard.Capabilities?.StateTransitionHistory, actualCard.Capabilities?.StateTransitionHistory);
-
-        // Input/Output modes
-        Assert.Equal(expectedCard.DefaultInputModes, actualCard.DefaultInputModes);
-        Assert.Equal(expectedCard.DefaultOutputModes, actualCard.DefaultOutputModes);
-
-        // Skills
-        Assert.Equal(expectedCard.Skills?.Count, actualCard.Skills?.Count);
-        if (expectedCard.Skills?.Count > 0 && actualCard.Skills?.Count > 0)
+    [Fact]
+    public void Serialize_WithSupportedInterfaces_RoundTrips()
+    {
+        // Arrange
+        var card = new AgentCard
         {
-            var expectedSkill = expectedCard.Skills[0];
-            var actualSkill = actualCard.Skills[0];
-            Assert.Equal(expectedSkill.Id, actualSkill.Id);
-            Assert.Equal(expectedSkill.Name, actualSkill.Name);
-            Assert.Equal(expectedSkill.Description, actualSkill.Description);
-            Assert.Equal(expectedSkill.Tags, actualSkill.Tags);
-            Assert.Equal(expectedSkill.Examples, actualSkill.Examples);
-            Assert.Equal(expectedSkill.InputModes, actualSkill.InputModes);
-            Assert.Equal(expectedSkill.OutputModes, actualSkill.OutputModes);
-
-            // Skill Security
-            Assert.Equal(expectedSkill.Security?.Count, actualSkill.Security?.Count);
-            if (expectedSkill.Security?.Count > 0 && actualSkill.Security?.Count > 0)
-            {
-                Assert.Equal(expectedSkill.Security[0].Count, actualSkill.Security[0].Count);
-                foreach (var kvp in expectedSkill.Security[0])
+            Name = "Interface Agent",
+            Description = "Tests interfaces",
+            SupportedInterfaces =
+            [
+                new AgentInterface
                 {
-                    Assert.True(actualSkill.Security[0].ContainsKey(kvp.Key));
-                    Assert.Equal(kvp.Value, actualSkill.Security[0][kvp.Key]);
+                    Url = "http://localhost:8080/a2a",
+                    ProtocolBinding = "JSONRPC",
+                    ProtocolVersion = "1.0",
+                }
+            ],
+        };
+
+        // Act
+        var json = JsonSerializer.Serialize(card, A2AJsonUtilities.DefaultOptions);
+        var deserialized = JsonSerializer.Deserialize<AgentCard>(json, A2AJsonUtilities.DefaultOptions);
+
+        // Assert
+        Assert.NotNull(deserialized);
+        Assert.Single(deserialized.SupportedInterfaces);
+        var iface = deserialized.SupportedInterfaces[0];
+        Assert.Equal("http://localhost:8080/a2a", iface.Url);
+        Assert.Equal("JSONRPC", iface.ProtocolBinding);
+        Assert.Equal("1.0", iface.ProtocolVersion);
+    }
+
+    [Fact]
+    public void Serialize_WithSecuritySchemes_RoundTrips()
+    {
+        // Arrange
+        var card = new AgentCard
+        {
+            Name = "Secure Agent",
+            Description = "Tests security schemes",
+            SupportedInterfaces = [new AgentInterface { Url = "http://test", ProtocolBinding = "JSONRPC", ProtocolVersion = "1.0" }],
+            SecuritySchemes = new Dictionary<string, SecurityScheme>
+            {
+                ["bearer"] = new SecurityScheme
+                {
+                    HttpAuthSecurityScheme = new HttpAuthSecurityScheme { Scheme = "bearer", BearerFormat = "JWT" }
                 }
             }
-        }
+        };
 
-        // Transport properties
-        Assert.Equal(expectedCard.PreferredTransport.Label, actualCard.PreferredTransport.Label);
-        Assert.Equal(expectedCard.AdditionalInterfaces?.Count, actualCard.AdditionalInterfaces?.Count);
-        if (expectedCard.AdditionalInterfaces?.Count > 0 && actualCard.AdditionalInterfaces?.Count > 0)
+        // Act
+        var json = JsonSerializer.Serialize(card, A2AJsonUtilities.DefaultOptions);
+        var deserialized = JsonSerializer.Deserialize<AgentCard>(json, A2AJsonUtilities.DefaultOptions);
+
+        // Assert
+        Assert.NotNull(deserialized);
+        Assert.NotNull(deserialized.SecuritySchemes);
+        Assert.Single(deserialized.SecuritySchemes);
+        Assert.NotNull(deserialized.SecuritySchemes["bearer"].HttpAuthSecurityScheme);
+        Assert.Equal("bearer", deserialized.SecuritySchemes["bearer"].HttpAuthSecurityScheme!.Scheme);
+    }
+
+    [Fact]
+    public void Serialize_WithSecurityRequirements_RoundTrips()
+    {
+        // Arrange
+        var card = new AgentCard
         {
-            Assert.Equal(expectedCard.AdditionalInterfaces[0].Transport.Label, actualCard.AdditionalInterfaces[0].Transport.Label);
-            Assert.Equal(expectedCard.AdditionalInterfaces[0].Url, actualCard.AdditionalInterfaces[0].Url);
-        }
+            Name = "Requirements Agent",
+            Description = "Tests security requirements",
+            SupportedInterfaces = [new AgentInterface { Url = "http://test", ProtocolBinding = "JSONRPC", ProtocolVersion = "1.0" }],
+            SecurityRequirements =
+            [
+                new SecurityRequirement
+                {
+                    Schemes = new Dictionary<string, StringList>
+                    {
+                        ["oauth2"] = new StringList { List = ["read", "write"] }
+                    }
+                }
+            ]
+        };
 
-        // Security schemes
-        Assert.Equal(expectedCard.SecuritySchemes?.Count, actualCard.SecuritySchemes?.Count);
-        Assert.Equal(expectedCard.Security?.Count, actualCard.Security?.Count);
+        // Act
+        var json = JsonSerializer.Serialize(card, A2AJsonUtilities.DefaultOptions);
+        var deserialized = JsonSerializer.Deserialize<AgentCard>(json, A2AJsonUtilities.DefaultOptions);
+
+        // Assert
+        Assert.NotNull(deserialized);
+        Assert.NotNull(deserialized.SecurityRequirements);
+        Assert.Single(deserialized.SecurityRequirements);
+        Assert.NotNull(deserialized.SecurityRequirements[0].Schemes);
+        Assert.Equal(new List<string> { "read", "write" }, deserialized.SecurityRequirements[0].Schemes!["oauth2"].List);
+    }
+
+    [Fact]
+    public void RequiredFields_AllPresent_Serializes()
+    {
+        // Arrange
+        var card = new AgentCard
+        {
+            Name = "Complete Agent",
+            Description = "Full description",
+            Version = "2.0.0",
+            SupportedInterfaces = [new AgentInterface { Url = "http://test", ProtocolBinding = "JSONRPC", ProtocolVersion = "1.0" }],
+        };
+
+        // Act
+        var json = JsonSerializer.Serialize(card, A2AJsonUtilities.DefaultOptions);
+        var doc = JsonDocument.Parse(json);
+
+        // Assert
+        Assert.True(doc.RootElement.TryGetProperty("name", out _));
+        Assert.True(doc.RootElement.TryGetProperty("description", out _));
+        Assert.True(doc.RootElement.TryGetProperty("version", out _));
+        Assert.True(doc.RootElement.TryGetProperty("supportedInterfaces", out _));
+        Assert.True(doc.RootElement.TryGetProperty("capabilities", out _));
+        Assert.True(doc.RootElement.TryGetProperty("skills", out _));
+        Assert.True(doc.RootElement.TryGetProperty("defaultInputModes", out _));
+        Assert.True(doc.RootElement.TryGetProperty("defaultOutputModes", out _));
+    }
+
+    [Fact]
+    public void Version_SerializesCorrectly()
+    {
+        // Arrange
+        var card = new AgentCard
+        {
+            Name = "Versioned Agent",
+            Description = "Tests version",
+            Version = "1.2.3",
+            SupportedInterfaces = [new AgentInterface { Url = "http://test", ProtocolBinding = "JSONRPC", ProtocolVersion = "1.0" }],
+        };
+
+        // Act
+        var json = JsonSerializer.Serialize(card, A2AJsonUtilities.DefaultOptions);
+        var doc = JsonDocument.Parse(json);
+
+        // Assert
+        Assert.Equal("1.2.3", doc.RootElement.GetProperty("version").GetString());
     }
 }

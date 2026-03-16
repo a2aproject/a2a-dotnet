@@ -1,12 +1,10 @@
-﻿#pragma warning disable CA1873 // Avoid unnecessary lazy evaluation (coding sample — simplicity over micro-optimisation)
-using A2A;
+﻿using A2A;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
 using Polly;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Text.Json;
 
 namespace SemanticKernelAgent;
@@ -54,7 +52,8 @@ public class CurrencyPlugin
     {
         try
         {
-            _logger.LogInformation("Getting exchange rate from {CurrencyFrom} to {CurrencyTo} for date {Date}", currencyFrom, currencyTo, date);
+            _logger.LogInformation("Getting exchange rate from {CurrencyFrom} to {CurrencyTo} for date {Date}",
+                currencyFrom, currencyTo, date);
 
             // Build request URL with query parameters
             var requestUri = $"https://api.frankfurter.app/{date}?from={Uri.EscapeDataString(currencyFrom)}&to={Uri.EscapeDataString(currencyTo)}";
@@ -99,10 +98,8 @@ public class CurrencyPlugin
 /// <summary>
 /// Wraps Semantic Kernel-based agents to handle Travel related tasks
 /// </summary>
-public class SemanticKernelTravelAgent : IDisposable
+public sealed class SemanticKernelTravelAgent : IAgentHandler, IDisposable
 {
-    public static readonly ActivitySource ActivitySource = new("A2A.SemanticKernelTravelAgent", "1.0.0");
-
     /// <summary>
     /// Initializes a new instance of the SemanticKernelTravelAgent
     /// </summary>
@@ -135,46 +132,26 @@ public class SemanticKernelTravelAgent : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    public void Attach(ITaskManager taskManager)
+    public async Task ExecuteAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
     {
-        _taskManager = taskManager;
-        taskManager.OnTaskCreated = ExecuteAgentTaskAsync;
-        taskManager.OnTaskUpdated = ExecuteAgentTaskAsync;
-        taskManager.OnAgentCardQuery = GetAgentCardAsync;
-    }
+        var updater = new TaskUpdater(eventQueue, context.TaskId, context.ContextId);
+        await updater.SubmitAsync(cancellationToken);
+        await updater.StartWorkAsync(cancellationToken: cancellationToken);
 
-    public async Task ExecuteAgentTaskAsync(AgentTask task, CancellationToken cancellationToken)
-    {
-        if (_taskManager == null)
-        {
-            throw new InvalidOperationException("TaskManager is not attached.");
-        }
-
-        await _taskManager.UpdateStatusAsync(task.Id, TaskState.Working, cancellationToken: cancellationToken);
-
-        // Get message from the user
-        var userMessage = task.History!.Last().Parts.First().AsTextPart().Text;
-
-        // Get the response from the agent
-        var artifact = new Artifact();
-        await foreach (AgentResponseItem<ChatMessageContent> response in _agent.InvokeAsync(userMessage, cancellationToken: cancellationToken))
+        // Get the response from the Semantic Kernel agent
+        var artifactParts = new List<Part>();
+        await foreach (AgentResponseItem<ChatMessageContent> response in _agent.InvokeAsync(context.UserText ?? string.Empty, cancellationToken: cancellationToken))
         {
             var content = response.Message.Content;
-            artifact.Parts.Add(new TextPart() { Text = content! });
+            artifactParts.Add(Part.FromText(content!));
         }
 
-        // Return as artifacts
-        await _taskManager.ReturnArtifactAsync(task.Id, artifact, cancellationToken);
-        await _taskManager.UpdateStatusAsync(task.Id, TaskState.Completed, cancellationToken: cancellationToken);
+        await updater.AddArtifactAsync(artifactParts, cancellationToken: cancellationToken);
+        await updater.CompleteAsync(cancellationToken: cancellationToken);
     }
 
-    public static Task<AgentCard> GetAgentCardAsync(string agentUrl, CancellationToken cancellationToken)
+    public static AgentCard GetAgentCard(string agentUrl)
     {
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return Task.FromCanceled<AgentCard>(cancellationToken);
-        }
-
         var capabilities = new AgentCapabilities()
         {
             Streaming = false,
@@ -194,17 +171,25 @@ public class SemanticKernelTravelAgent : IDisposable
             ],
         };
 
-        return Task.FromResult(new AgentCard()
+        return new AgentCard()
         {
             Name = "SK Travel Agent",
             Description = "Semantic Kernel-based travel agent providing comprehensive trip planning services including currency exchange and personalized activity planning.",
-            Url = agentUrl,
             Version = "1.0.0",
-            DefaultInputModes = ["text"],
-            DefaultOutputModes = ["text"],
+            SupportedInterfaces =
+            [
+                new AgentInterface
+                {
+                    Url = agentUrl,
+                    ProtocolBinding = "JSONRPC",
+                    ProtocolVersion = "1.0",
+                }
+            ],
+            DefaultInputModes = ["text/plain"],
+            DefaultOutputModes = ["text/plain"],
             Capabilities = capabilities,
             Skills = [skillTripPlanning],
-        });
+        };
     }
 
     #region private
@@ -213,7 +198,6 @@ public class SemanticKernelTravelAgent : IDisposable
     private readonly CurrencyPlugin _currencyPlugin;
     private readonly HttpClient _httpClient;
     private readonly ChatCompletionAgent _agent;
-    private ITaskManager? _taskManager;
 
     public List<string> SupportedContentTypes { get; } = ["text", "text/plain"];
 

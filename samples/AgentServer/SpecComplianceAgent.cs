@@ -2,66 +2,99 @@
 
 namespace AgentServer;
 
-public class SpecComplianceAgent
+public sealed class SpecComplianceAgent : IAgentHandler
 {
-    private ITaskManager? _taskManager;
-
-    public void Attach(ITaskManager taskManager)
+    public async Task ExecuteAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
     {
-        taskManager.OnAgentCardQuery = GetAgentCard;
-        taskManager.OnTaskCreated = OnTaskCreatedAsync;
-        taskManager.OnTaskUpdated = OnTaskUpdatedAsync;
-        _taskManager = taskManager;
-    }
+        var updater = new TaskUpdater(eventQueue, context.TaskId, context.ContextId);
 
-    private async Task OnTaskCreatedAsync(AgentTask task, CancellationToken cancellationToken)
-    {
-        // A temporary solution to prevent the compliance test at https://github.com/a2aproject/a2a-tck/blob/main/tests/optional/capabilities/test_streaming_methods.py from hanging.
-        // It can be removed after the issue https://github.com/a2aproject/a2a-dotnet/issues/97 is resolved.
-        if (task.History?.Any(m => m.MessageId.StartsWith("test-stream-message-id", StringComparison.InvariantCulture)) ?? false)
+        // Echo the user's message parts back as an agent reply
+        var replyParts = context.Message.Parts?.ToList() ?? [Part.FromText("")];
+
+        if (!context.IsContinuation)
         {
-            await _taskManager!.UpdateStatusAsync(
-            task.Id,
-            status: TaskState.Completed,
-            final: true,
-            cancellationToken: cancellationToken);
+            // New task: Submit, then echo back with Working status
+            var agentReply = new Message
+            {
+                MessageId = Guid.NewGuid().ToString("N"),
+                Role = Role.Agent,
+                TaskId = context.TaskId,
+                ContextId = updater.ContextId,
+                Parts = replyParts,
+            };
+
+            // Emit initial task
+            await eventQueue.EnqueueTaskAsync(new AgentTask
+            {
+                Id = context.TaskId,
+                ContextId = updater.ContextId,
+                Status = new A2A.TaskStatus
+                {
+                    State = TaskState.Working,
+                    Timestamp = DateTimeOffset.UtcNow,
+                },
+                History = [context.Message, agentReply],
+            }, cancellationToken);
+        }
+        else
+        {
+            // Continuation: echo the parts back
+            var agentReply = new Message
+            {
+                MessageId = Guid.NewGuid().ToString("N"),
+                Role = Role.Agent,
+                TaskId = context.TaskId,
+                ContextId = updater.ContextId,
+                Parts = replyParts,
+            };
+
+            // Return updated task with the reply added to history
+            var history = context.Task!.History?.ToList() ?? [];
+            history.Add(context.Message);
+            history.Add(agentReply);
+
+            await eventQueue.EnqueueTaskAsync(new AgentTask
+            {
+                Id = context.TaskId,
+                ContextId = updater.ContextId,
+                Status = context.Task.Status,
+                History = history,
+                Artifacts = context.Task.Artifacts,
+            }, cancellationToken);
         }
     }
 
-    private async Task OnTaskUpdatedAsync(AgentTask task, CancellationToken cancellationToken)
-    {
-        if (task.Status.State is TaskState.Submitted && task.History?.Count > 0)
-        {
-            // The spec does not specify that a task state must be updated when a message is sent,
-            // but the tck tests expect the task to be in Working/Input-required or Completed state after a message is sent:
-            // https://github.com/a2aproject/a2a-tck/blob/22f7c191d85f2d4ff2f4564da5d8691944bb7ffd/tests/optional/quality/test_task_state_quality.py#L129
-            await _taskManager!.UpdateStatusAsync(task.Id, TaskState.Working, cancellationToken: cancellationToken);
-        }
-    }
-
-    private Task<AgentCard> GetAgentCard(string agentUrl, CancellationToken cancellationToken)
-    {
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return Task.FromCanceled<AgentCard>(cancellationToken);
-        }
-
-        var capabilities = new AgentCapabilities()
-        {
-            Streaming = true,
-            PushNotifications = false,
-        };
-
-        return Task.FromResult(new AgentCard()
+    public static AgentCard GetAgentCard(string agentUrl) =>
+        new()
         {
             Name = "A2A Specification Compliance Agent",
-            Description = "Agent to run A2A specification compliance tests.",
-            Url = agentUrl,
+            Description = "Agent for A2A specification compliance verification.",
             Version = "1.0.0",
-            DefaultInputModes = ["text"],
-            DefaultOutputModes = ["text"],
-            Capabilities = capabilities,
-            Skills = [],
-        });
-    }
+            SupportedInterfaces =
+            [
+                new AgentInterface
+                {
+                    Url = agentUrl,
+                    ProtocolBinding = "JSONRPC",
+                    ProtocolVersion = "1.0",
+                }
+            ],
+            DefaultInputModes = ["text/plain"],
+            DefaultOutputModes = ["text/plain"],
+            Capabilities = new AgentCapabilities
+            {
+                Streaming = true,
+                PushNotifications = false,
+            },
+            Skills =
+            [
+                new AgentSkill
+                {
+                    Id = "echo",
+                    Name = "Echo",
+                    Description = "Echoes back user messages for specification compliance verification.",
+                    Tags = ["echo", "a2a", "compliance"],
+                }
+            ],
+        };
 }

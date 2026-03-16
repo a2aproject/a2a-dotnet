@@ -1,34 +1,23 @@
-using System.Text.Json.Serialization;
-
 namespace A2A;
 
-/// <summary>
-/// Configuration for setting up push notifications for task updates.
-/// </summary>
+using System.Text.Json.Serialization;
+
+/// <summary>Represents a push notification configuration.</summary>
 public sealed class PushNotificationConfig
 {
-    /// <summary>
-    /// URL for sending the push notifications.
-    /// </summary>
-    [JsonPropertyName("url")]
-    [JsonRequired]
-    public string Url { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Optional server-generated identifier for the push notification configuration to support multiple callbacks.
-    /// </summary>
+    /// <summary>Unique identifier for the push notification configuration.</summary>
     [JsonPropertyName("id")]
     public string? Id { get; set; }
 
-    /// <summary>
-    /// Token unique to this task/session.
-    /// </summary>
+    /// <summary>Gets or sets the URL for push notifications.</summary>
+    [JsonPropertyName("url"), JsonRequired]
+    public string Url { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the authentication information.</summary>
+    [JsonPropertyName("authentication")]
+    public AuthenticationInfo? Authentication { get; set; }
+
+    /// <summary>Gets or sets the token for push notifications.</summary>
     [JsonPropertyName("token")]
     public string? Token { get; set; }
-
-    /// <summary>
-    /// Authentication details for push notifications.
-    /// </summary>
-    [JsonPropertyName("authentication")]
-    public PushNotificationAuthenticationInfo? Authentication { get; set; }
 }
