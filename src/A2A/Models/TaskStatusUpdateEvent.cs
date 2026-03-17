@@ -7,18 +7,17 @@ using System.Text.Json.Serialization;
 public sealed class TaskStatusUpdateEvent
 {
     /// <summary>Gets or sets the task identifier.</summary>
-    [JsonPropertyName("taskId"), JsonRequired]
+    [JsonRequired]
     public string TaskId { get; set; } = string.Empty;
 
     /// <summary>Gets or sets the context identifier.</summary>
-    [JsonPropertyName("contextId"), JsonRequired]
+    [JsonRequired]
     public string ContextId { get; set; } = string.Empty;
 
     /// <summary>Gets or sets the updated task status.</summary>
-    [JsonPropertyName("status"), JsonRequired]
+    [JsonRequired]
     public TaskStatus Status { get; set; } = new();
 
     /// <summary>Gets or sets the metadata associated with this event.</summary>
-    [JsonPropertyName("metadata")]
     public Dictionary<string, JsonElement>? Metadata { get; set; }
 }

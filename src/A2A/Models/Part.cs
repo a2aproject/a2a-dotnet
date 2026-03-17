@@ -22,31 +22,24 @@ public enum PartContentCase
 public sealed class Part
 {
     /// <summary>Gets or sets the text content.</summary>
-    [JsonPropertyName("text")]
     public string? Text { get; set; }
 
     /// <summary>Gets or sets the raw binary content.</summary>
-    [JsonPropertyName("raw")]
     public byte[]? Raw { get; set; }
 
     /// <summary>Gets or sets the URL reference to content.</summary>
-    [JsonPropertyName("url")]
     public string? Url { get; set; }
 
     /// <summary>Gets or sets the structured data content.</summary>
-    [JsonPropertyName("data")]
     public JsonElement? Data { get; set; }
 
     /// <summary>Gets or sets the metadata associated with this part.</summary>
-    [JsonPropertyName("metadata")]
     public Dictionary<string, JsonElement>? Metadata { get; set; }
 
     /// <summary>Gets or sets the filename associated with this part.</summary>
-    [JsonPropertyName("filename")]
     public string? Filename { get; set; }
 
     /// <summary>Gets or sets the media type of the content.</summary>
-    [JsonPropertyName("mediaType")]
     public string? MediaType { get; set; }
 
     /// <summary>Gets which content field is currently set.</summary>

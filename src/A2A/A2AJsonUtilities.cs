@@ -46,12 +46,6 @@ public static partial class A2AJsonUtilities
         return opts;
     });
 
-    // Keep in sync with CreateDefaultOptions above.
-    [JsonSourceGenerationOptions(JsonSerializerDefaults.Web,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        NumberHandling = JsonNumberHandling.AllowReadingFromString,
-        AllowOutOfOrderMetadataProperties = true)]
-
     // JSON-RPC
     [JsonSerializable(typeof(JsonRpcError))]
     [JsonSerializable(typeof(JsonRpcId))]
@@ -123,6 +117,10 @@ public static partial class A2AJsonUtilities
     [JsonSerializable(typeof(AuthenticationInfo))]
     [JsonSerializable(typeof(TaskPushNotificationConfig))]
 
+    [JsonSourceGenerationOptions(JsonSerializerDefaults.Web,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        NumberHandling = JsonNumberHandling.AllowReadingFromString,
+        AllowOutOfOrderMetadataProperties = true)]
     [ExcludeFromCodeCoverage]
     internal sealed partial class JsonContext : JsonSerializerContext;
 }

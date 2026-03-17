@@ -6,6 +6,5 @@ using System.Text.Json.Serialization;
 public sealed class SecurityRequirement
 {
     /// <summary>Gets or sets the security schemes and their required scopes.</summary>
-    [JsonPropertyName("schemes")]
     public Dictionary<string, StringList>? Schemes { get; set; }
 }

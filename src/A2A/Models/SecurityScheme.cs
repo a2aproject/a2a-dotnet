@@ -23,11 +23,9 @@ public enum SecuritySchemeCase
 public sealed class SecurityScheme
 {
     /// <summary>Gets or sets the API key security scheme.</summary>
-    [JsonPropertyName("apiKeySecurityScheme")]
     public ApiKeySecurityScheme? ApiKeySecurityScheme { get; set; }
 
     /// <summary>Gets or sets the HTTP auth security scheme.</summary>
-    [JsonPropertyName("httpAuthSecurityScheme")]
     public HttpAuthSecurityScheme? HttpAuthSecurityScheme { get; set; }
 
     /// <summary>Gets or sets the OAuth2 security scheme.</summary>
@@ -35,11 +33,9 @@ public sealed class SecurityScheme
     public OAuth2SecurityScheme? OAuth2SecurityScheme { get; set; }
 
     /// <summary>Gets or sets the OpenID Connect security scheme.</summary>
-    [JsonPropertyName("openIdConnectSecurityScheme")]
     public OpenIdConnectSecurityScheme? OpenIdConnectSecurityScheme { get; set; }
 
     /// <summary>Gets or sets the mutual TLS security scheme.</summary>
-    [JsonPropertyName("mtlsSecurityScheme")]
     public MutualTlsSecurityScheme? MtlsSecurityScheme { get; set; }
 
     /// <summary>Gets which security scheme type is currently set.</summary>

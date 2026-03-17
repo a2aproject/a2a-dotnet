@@ -6,14 +6,13 @@ using System.Text.Json.Serialization;
 public sealed class ApiKeySecurityScheme
 {
     /// <summary>Gets or sets the name of the API key.</summary>
-    [JsonPropertyName("name"), JsonRequired]
+    [JsonRequired]
     public string Name { get; set; } = string.Empty;
 
     /// <summary>Description of the API key security scheme.</summary>
-    [JsonPropertyName("description")]
     public string? Description { get; set; }
 
     /// <summary>Location of the API key (query, header, or cookie).</summary>
-    [JsonPropertyName("location"), JsonRequired]
+    [JsonRequired]
     public string Location { get; set; } = string.Empty;
 }

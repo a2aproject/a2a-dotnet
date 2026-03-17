@@ -6,6 +6,5 @@ using System.Text.Json.Serialization;
 public sealed class StringList
 {
     /// <summary>Gets or sets the list of string values.</summary>
-    [JsonPropertyName("list")]
     public List<string> List { get; set; } = [];
 }

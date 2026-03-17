@@ -79,23 +79,12 @@ public sealed class ChannelEventNotifier
     /// </summary>
     /// <param name="taskId">The task to acquire the lock for.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    internal async Task<IDisposable> AcquireTaskLockAsync(
+    public async Task<IDisposable> AcquireTaskLockAsync(
         string taskId, CancellationToken cancellationToken = default)
     {
-        // Retry loop handles the race where RemoveChannel evicts the
-        // semaphore between GetOrAdd and WaitAsync completion.
-        while (true)
-        {
-            var sem = _taskLocks.GetOrAdd(taskId, _ => new SemaphoreSlim(1, 1));
-            await sem.WaitAsync(cancellationToken).ConfigureAwait(false);
-
-            // Verify this semaphore is still the live entry.
-            if (_taskLocks.TryGetValue(taskId, out var current) && ReferenceEquals(current, sem))
-                return new TaskLockRelease(sem);
-
-            // Evicted while waiting — release the orphaned semaphore and retry.
-            sem.Release();
-        }
+        var sem = _taskLocks.GetOrAdd(taskId, _ => new SemaphoreSlim(1, 1));
+        await sem.WaitAsync(cancellationToken).ConfigureAwait(false);
+        return new TaskLockRelease(sem);
     }
 
     private static bool IsTerminalEvent(StreamResponse streamEvent)

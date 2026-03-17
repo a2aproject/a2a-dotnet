@@ -6,6 +6,5 @@ using System.Text.Json.Serialization;
 public sealed class GetExtendedAgentCardRequest
 {
     /// <summary>Gets or sets the tenant identifier.</summary>
-    [JsonPropertyName("tenant")]
     public string? Tenant { get; set; }
 }

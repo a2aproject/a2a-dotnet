@@ -6,11 +6,10 @@ using System.Text.Json.Serialization;
 public sealed class OAuth2SecurityScheme
 {
     /// <summary>Description of the OAuth2 security scheme.</summary>
-    [JsonPropertyName("description")]
     public string? Description { get; set; }
 
     /// <summary>Gets or sets the OAuth2 flows.</summary>
-    [JsonPropertyName("flows"), JsonRequired]
+    [JsonRequired]
     public OAuthFlows Flows { get; set; } = new();
 
     /// <summary>URL for OAuth2 metadata discovery.</summary>

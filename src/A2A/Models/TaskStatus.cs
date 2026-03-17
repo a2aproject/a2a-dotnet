@@ -6,14 +6,12 @@ using System.Text.Json.Serialization;
 public sealed class TaskStatus
 {
     /// <summary>Gets or sets the state of the task.</summary>
-    [JsonPropertyName("state"), JsonRequired]
+    [JsonRequired]
     public TaskState State { get; set; }
 
     /// <summary>Gets or sets the message associated with this status.</summary>
-    [JsonPropertyName("message")]
     public Message? Message { get; set; }
 
     /// <summary>Gets or sets the timestamp of this status.</summary>
-    [JsonPropertyName("timestamp")]
     public DateTimeOffset? Timestamp { get; set; }
 }
