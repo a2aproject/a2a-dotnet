@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFrameworks>net10.0;net8.0</TargetFrameworks>
+        <IsAotCompatible>true</IsAotCompatible>
+        <PackageId>A2A.V0_3Compat</PackageId>
+        <Description>Version compatibility layer providing automatic fallback from A2A v1.0 to v0.3 servers.</Description>
+        <PackageTags>Agent2Agent;a2a;agent;ai;llm;compat</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+    <ItemGroup>
+        <InternalsVisibleTo Include="A2A.V0_3Compat.UnitTests" Key="0024000004800000940000000602000000240000525341310004000001000100fdff21bdfb01242cffd857fcfe4fd1048248b80c2d5779adf1916ba0f2fdfb7d9f780ba2c7eb359d8b2c40be090f54d99f29ada7769f3b50d5db1e92e645577abc702cb53a9ccdae1ff5aaf4c413f9ba4fd26f298f8756d38d0c4c9c813b39dd6f760f29ed0094f55af0dd698df03c714dace31a70362a2970fd0fa5a5dc5ec1" />
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\A2A\A2A.csproj" />
+        <ProjectReference Include="..\A2A.V0_3\A2A.V0_3.csproj" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+        <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="Microsoft.Extensions.ExtraAnalyzers">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
+    <ItemGroup>
+        <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
+</Project>

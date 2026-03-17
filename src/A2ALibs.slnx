@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="A2A/A2A.csproj" />
     <Project Path="A2A.AspNetCore/A2A.AspNetCore.csproj" />
+    <Project Path="A2A.V0_3Compat/A2A.V0_3Compat.csproj" />
   </Folder>
    <Folder Name="/Solution Items/">
     <File Path="../.gitignore" />
