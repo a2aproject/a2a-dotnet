@@ -6,18 +6,17 @@ using System.Text.Json.Serialization;
 public sealed class DeviceCodeOAuthFlow
 {
     /// <summary>Gets or sets the device authorization URL.</summary>
-    [JsonPropertyName("deviceAuthorizationUrl"), JsonRequired]
+    [JsonRequired]
     public string DeviceAuthorizationUrl { get; set; } = string.Empty;
 
     /// <summary>Gets or sets the token URL.</summary>
-    [JsonPropertyName("tokenUrl"), JsonRequired]
+    [JsonRequired]
     public string TokenUrl { get; set; } = string.Empty;
 
     /// <summary>Gets or sets the refresh URL.</summary>
-    [JsonPropertyName("refreshUrl")]
     public string? RefreshUrl { get; set; }
 
     /// <summary>Gets or sets the available scopes.</summary>
-    [JsonPropertyName("scopes"), JsonRequired]
+    [JsonRequired]
     public Dictionary<string, string> Scopes { get; set; } = new();
 }

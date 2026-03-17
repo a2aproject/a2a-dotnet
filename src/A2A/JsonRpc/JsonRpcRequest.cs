@@ -25,19 +25,16 @@ public sealed class JsonRpcRequest
     /// <remarks>
     /// Numbers SHOULD NOT contain fractional parts.
     /// </remarks>
-    [JsonPropertyName("id")]
     public JsonRpcId Id { get; set; }
 
     /// <summary>
     /// Gets or sets the string containing the name of the method to be invoked.
     /// </summary>
-    [JsonPropertyName("method")]
     // [JsonRequired] - we have to reject this with a special payload
     public string Method { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the structured value that holds the parameter values to be used during the invocation of the method.
     /// </summary>
-    [JsonPropertyName("params")]
     public JsonElement? Params { get; set; }
 }

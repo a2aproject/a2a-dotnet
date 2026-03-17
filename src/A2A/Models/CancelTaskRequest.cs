@@ -7,14 +7,12 @@ using System.Text.Json.Serialization;
 public sealed class CancelTaskRequest
 {
     /// <summary>Gets or sets the tenant identifier.</summary>
-    [JsonPropertyName("tenant")]
     public string? Tenant { get; set; }
 
     /// <summary>Gets or sets the task identifier.</summary>
-    [JsonPropertyName("id"), JsonRequired]
+    [JsonRequired]
     public string Id { get; set; } = string.Empty;
 
     /// <summary>Gets or sets the metadata associated with this request.</summary>
-    [JsonPropertyName("metadata")]
     public Dictionary<string, JsonElement>? Metadata { get; set; }
 }

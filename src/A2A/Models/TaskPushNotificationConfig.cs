@@ -6,18 +6,17 @@ using System.Text.Json.Serialization;
 public sealed class TaskPushNotificationConfig
 {
     /// <summary>Gets or sets the configuration identifier.</summary>
-    [JsonPropertyName("id"), JsonRequired]
+    [JsonRequired]
     public string Id { get; set; } = string.Empty;
 
     /// <summary>Gets or sets the task identifier.</summary>
-    [JsonPropertyName("taskId"), JsonRequired]
+    [JsonRequired]
     public string TaskId { get; set; } = string.Empty;
 
     /// <summary>Gets or sets the push notification configuration.</summary>
-    [JsonPropertyName("pushNotificationConfig"), JsonRequired]
+    [JsonRequired]
     public PushNotificationConfig PushNotificationConfig { get; set; } = new();
 
     /// <summary>Gets or sets the tenant identifier.</summary>
-    [JsonPropertyName("tenant")]
     public string? Tenant { get; set; }
 }

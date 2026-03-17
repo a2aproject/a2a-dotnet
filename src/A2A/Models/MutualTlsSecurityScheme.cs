@@ -6,6 +6,5 @@ using System.Text.Json.Serialization;
 public sealed class MutualTlsSecurityScheme
 {
     /// <summary>Gets or sets the description of the mutual TLS scheme.</summary>
-    [JsonPropertyName("description")]
     public string? Description { get; set; }
 }

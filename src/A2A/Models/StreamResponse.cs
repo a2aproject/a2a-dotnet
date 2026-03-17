@@ -21,19 +21,15 @@ public enum StreamResponseCase
 public sealed class StreamResponse
 {
     /// <summary>Gets or sets the task result.</summary>
-    [JsonPropertyName("task")]
     public AgentTask? Task { get; set; }
 
     /// <summary>Gets or sets the message result.</summary>
-    [JsonPropertyName("message")]
     public Message? Message { get; set; }
 
     /// <summary>Gets or sets the task status update event.</summary>
-    [JsonPropertyName("statusUpdate")]
     public TaskStatusUpdateEvent? StatusUpdate { get; set; }
 
     /// <summary>Gets or sets the task artifact update event.</summary>
-    [JsonPropertyName("artifactUpdate")]
     public TaskArtifactUpdateEvent? ArtifactUpdate { get; set; }
 
     /// <summary>Gets which payload field is currently set.</summary>

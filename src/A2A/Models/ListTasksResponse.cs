@@ -6,18 +6,18 @@ using System.Text.Json.Serialization;
 public sealed class ListTasksResponse
 {
     /// <summary>List of tasks matching the query.</summary>
-    [JsonPropertyName("tasks"), JsonRequired]
+    [JsonRequired]
     public List<AgentTask> Tasks { get; set; } = [];
 
     /// <summary>Token for the next page. Empty string when no more results.</summary>
-    [JsonPropertyName("nextPageToken"), JsonRequired]
+    [JsonRequired]
     public string NextPageToken { get; set; } = string.Empty;
 
     /// <summary>Number of tasks in this page.</summary>
-    [JsonPropertyName("pageSize"), JsonRequired]
+    [JsonRequired]
     public int PageSize { get; set; }
 
     /// <summary>Total number of matching tasks across all pages.</summary>
-    [JsonPropertyName("totalSize"), JsonRequired]
+    [JsonRequired]
     public int TotalSize { get; set; }
 }

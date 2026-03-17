@@ -11,14 +11,12 @@ public class JsonRpcError
     /// <summary>
     /// Gets or sets the number that indicates the error type that occurred.
     /// </summary>
-    [JsonPropertyName("code")]
     [JsonRequired]
     public int Code { get; set; } = 0;
 
     /// <summary>
     /// Gets or sets the string providing a short description of the error.
     /// </summary>
-    [JsonPropertyName("message")]
     [JsonRequired]
     public string Message { get; set; } = string.Empty;
 
@@ -26,7 +24,6 @@ public class JsonRpcError
     /// Gets or sets the primitive or structured value that contains additional information about the error.
     /// This may be omitted.
     /// </summary>
-    [JsonPropertyName("data")]
     public JsonElement? Data { get; set; }
 
     /// <summary>

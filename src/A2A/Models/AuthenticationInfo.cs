@@ -6,10 +6,9 @@ using System.Text.Json.Serialization;
 public sealed class AuthenticationInfo
 {
     /// <summary>Gets or sets the authentication scheme.</summary>
-    [JsonPropertyName("scheme"), JsonRequired]
+    [JsonRequired]
     public string Scheme { get; set; } = string.Empty;
 
     /// <summary>Gets or sets the credentials.</summary>
-    [JsonPropertyName("credentials")]
     public string? Credentials { get; set; }
 }

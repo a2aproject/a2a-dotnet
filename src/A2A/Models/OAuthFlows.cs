@@ -23,23 +23,20 @@ public enum OAuthFlowCase
 public sealed class OAuthFlows
 {
     /// <summary>Gets or sets the authorization code flow.</summary>
-    [JsonPropertyName("authorizationCode")]
     public AuthorizationCodeOAuthFlow? AuthorizationCode { get; set; }
 
     /// <summary>Gets or sets the client credentials flow.</summary>
-    [JsonPropertyName("clientCredentials")]
     public ClientCredentialsOAuthFlow? ClientCredentials { get; set; }
 
     /// <summary>Gets or sets the implicit flow.</summary>
-    [JsonPropertyName("implicit"), Obsolete("Implicit flow is deprecated.")]
+    [Obsolete("Implicit flow is deprecated.")]
     public ImplicitOAuthFlow? Implicit { get; set; }
 
     /// <summary>Gets or sets the password flow.</summary>
-    [JsonPropertyName("password"), Obsolete("Password flow is deprecated.")]
+    [Obsolete("Password flow is deprecated.")]
     public PasswordOAuthFlow? Password { get; set; }
 
     /// <summary>Gets or sets the device code flow.</summary>
-    [JsonPropertyName("deviceCode")]
     public DeviceCodeOAuthFlow? DeviceCode { get; set; }
 
     /// <summary>Gets which OAuth flow is currently set.</summary>

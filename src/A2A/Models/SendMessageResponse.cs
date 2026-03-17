@@ -17,11 +17,9 @@ public enum SendMessageResponseCase
 public sealed class SendMessageResponse
 {
     /// <summary>Gets or sets the task result.</summary>
-    [JsonPropertyName("task")]
     public AgentTask? Task { get; set; }
 
     /// <summary>Gets or sets the message result.</summary>
-    [JsonPropertyName("message")]
     public Message? Message { get; set; }
 
     /// <summary>Gets which payload field is currently set.</summary>

@@ -22,19 +22,16 @@ public sealed class JsonRpcResponse
     /// <remarks>
     /// MUST contain a String, Number. Numbers SHOULD NOT contain fractional parts.
     /// </remarks>
-    [JsonPropertyName("id")]
     public JsonRpcId Id { get; set; }
 
     /// <summary>
     /// Gets or sets the result object on success.
     /// </summary>
-    [JsonPropertyName("result")]
     public JsonNode? Result { get; set; }
 
     /// <summary>
     /// Gets or sets the error object when an error occurs.
     /// </summary>
-    [JsonPropertyName("error")]
     public JsonRpcError? Error { get; set; }
 
     /// <summary>
