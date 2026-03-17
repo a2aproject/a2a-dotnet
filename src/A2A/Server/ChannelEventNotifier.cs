@@ -99,7 +99,13 @@ public sealed class ChannelEventNotifier
             sem.Release();
         }
     }
-    
+
+    private static bool IsTerminalEvent(StreamResponse streamEvent)
+    {
+        var state = streamEvent.StatusUpdate?.Status.State ?? streamEvent.Task?.Status.State;
+        return state?.IsTerminal() == true;
+    }
+
     private sealed class TaskLockRelease(SemaphoreSlim semaphore) : IDisposable
     {
         private int _disposed;
