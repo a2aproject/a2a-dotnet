@@ -418,7 +418,9 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
         {
             HttpStatusCode.NotFound => A2AErrorCode.TaskNotFound,
             HttpStatusCode.BadRequest => A2AErrorCode.InvalidRequest,
-            HttpStatusCode.UnprocessableEntity => A2AErrorCode.ContentTypeNotSupported,
+            HttpStatusCode.Conflict => A2AErrorCode.TaskNotCancelable,
+            HttpStatusCode.UnsupportedMediaType => A2AErrorCode.ContentTypeNotSupported,
+            HttpStatusCode.BadGateway => A2AErrorCode.InvalidAgentResponse,
             _ => A2AErrorCode.InternalError,
         };
 

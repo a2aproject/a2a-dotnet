@@ -1,6 +1,6 @@
 namespace A2A;
 
-/// <summary>Options for configuring how an <see cref="A2AClient"/> selects a protocol binding.</summary>
+/// <summary>Options for configuring how an <see cref="A2AClientFactory"/> selects a protocol binding.</summary>
 public sealed class A2AClientOptions
 {
     /// <summary>
