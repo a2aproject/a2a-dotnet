@@ -50,14 +50,17 @@ public sealed class JsonRpcStreamedResult : IResult
         {
             // Client disconnected — expected
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             // Stream error — response already started, cannot change status code.
             // Best effort: write an error event if the response body is still writable.
+            // Preserve A2AException error codes; fall back to -32603 for unexpected errors.
             try
             {
-                var errorResponse = JsonRpcResponse.InternalErrorResponse(
-                    _requestId, "An internal error occurred during streaming.");
+                var errorResponse = ex is A2AException a2aEx
+                    ? JsonRpcResponse.CreateJsonRpcErrorResponse(_requestId, a2aEx)
+                    : JsonRpcResponse.InternalErrorResponse(
+                        _requestId, "An internal error occurred during streaming.");
                 var errorJson = JsonSerializer.Serialize(errorResponse, responseTypeInfo);
                 var errorBytes = Encoding.UTF8.GetBytes($"data: {errorJson}\n\n");
                 await httpContext.Response.Body.WriteAsync(errorBytes, httpContext.RequestAborted);
