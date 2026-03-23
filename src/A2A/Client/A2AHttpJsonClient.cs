@@ -62,10 +62,12 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
     {
         var query = BuildQueryString(
             ("contextId", request.ContextId),
-            ("status", request.Status?.ToString()),
+            ("status", SerializeEnumValue(request.Status)),
             ("pageSize", request.PageSize?.ToString(System.Globalization.CultureInfo.InvariantCulture)),
             ("pageToken", request.PageToken),
-            ("historyLength", request.HistoryLength?.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            ("historyLength", request.HistoryLength?.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+            ("statusTimestampAfter", request.StatusTimestampAfter?.ToUniversalTime().ToString("o", System.Globalization.CultureInfo.InvariantCulture)),
+            ("includeArtifacts", request.IncludeArtifacts?.ToString(System.Globalization.CultureInfo.InvariantCulture).ToLowerInvariant()));
 
         return await GetJsonAsync<ListTasksResponse>(
             $"/tasks{query}", "ListTasks", cancellationToken).ConfigureAwait(false);
@@ -74,9 +76,17 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
     /// <inheritdoc />
     public async Task<AgentTask> CancelTaskAsync(CancelTaskRequest request, CancellationToken cancellationToken = default)
     {
+        var path = $"/tasks/{Uri.EscapeDataString(request.Id)}:cancel";
+
+        if (request.Metadata is not null)
+        {
+            return await PostJsonAsync<object, AgentTask>(
+                path, new { metadata = request.Metadata },
+                "CancelTask", cancellationToken).ConfigureAwait(false);
+        }
+
         return await PostEmptyAsync<AgentTask>(
-            $"/tasks/{Uri.EscapeDataString(request.Id)}:cancel",
-            "CancelTask", cancellationToken).ConfigureAwait(false);
+            path, "CancelTask", cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -145,6 +155,13 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
 
     // ---- HTTP primitives ----
 
+    private static HttpRequestMessage CreateRequestMessage(HttpMethod method, string url)
+    {
+        var request = new HttpRequestMessage(method, url);
+        request.Headers.TryAddWithoutValidation("A2A-Version", "1.0");
+        return request;
+    }
+
     [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "All types are registered in source-generated JsonContext.")]
     [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "All types are registered in source-generated JsonContext.")]
     private async Task<TResult> GetJsonAsync<TResult>(string path, string operationName, CancellationToken cancellationToken)
@@ -160,7 +177,8 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
         {
             A2ADiagnostics.ClientRequestCount.Add(1);
 
-            using var response = await _httpClient.GetAsync(url, cancellationToken).ConfigureAwait(false);
+            using var requestMessage = CreateRequestMessage(HttpMethod.Get, url);
+            using var response = await _httpClient.SendAsync(requestMessage, cancellationToken).ConfigureAwait(false);
             await EnsureSuccessOrThrowA2AExceptionAsync(response, cancellationToken).ConfigureAwait(false);
 
             using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
@@ -197,7 +215,9 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
 
             var json = JsonSerializer.Serialize(body, A2AJsonUtilities.DefaultOptions);
             using var content = new StringContent(json, Encoding.UTF8, "application/json");
-            using var response = await _httpClient.PostAsync(url, content, cancellationToken).ConfigureAwait(false);
+            using var requestMessage = CreateRequestMessage(HttpMethod.Post, url);
+            requestMessage.Content = content;
+            using var response = await _httpClient.SendAsync(requestMessage, cancellationToken).ConfigureAwait(false);
             await EnsureSuccessOrThrowA2AExceptionAsync(response, cancellationToken).ConfigureAwait(false);
 
             using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
@@ -232,7 +252,8 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
         {
             A2ADiagnostics.ClientRequestCount.Add(1);
 
-            using var response = await _httpClient.PostAsync(url, null, cancellationToken).ConfigureAwait(false);
+            using var requestMessage = CreateRequestMessage(HttpMethod.Post, url);
+            using var response = await _httpClient.SendAsync(requestMessage, cancellationToken).ConfigureAwait(false);
             await EnsureSuccessOrThrowA2AExceptionAsync(response, cancellationToken).ConfigureAwait(false);
 
             using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
@@ -265,7 +286,7 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
         {
             A2ADiagnostics.ClientRequestCount.Add(1);
 
-            using var requestMessage = new HttpRequestMessage(method, url);
+            using var requestMessage = CreateRequestMessage(method, url);
             using var response = await _httpClient.SendAsync(requestMessage, cancellationToken).ConfigureAwait(false);
             await EnsureSuccessOrThrowA2AExceptionAsync(response, cancellationToken).ConfigureAwait(false);
         }
@@ -288,62 +309,26 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
         string path, TBody body, string operationName,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        using var activity = A2ADiagnostics.Source.StartActivity($"A2AClient/{operationName}", ActivityKind.Client);
-        A2ADiagnostics.ClientRequestCount.Add(1);
-        int eventCount = 0;
+        var json = JsonSerializer.Serialize(body, A2AJsonUtilities.DefaultOptions);
+        var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-        var url = $"{_baseUrl}{path}";
-        activity?.SetTag("http.method", "POST");
-        activity?.SetTag("url.full", url);
-
-        HttpResponseMessage? response = null;
-        Stream? stream = null;
-
-        try
+        await foreach (var item in PostStreamingCoreAsync(path, content, operationName, cancellationToken).ConfigureAwait(false))
         {
-            var json = JsonSerializer.Serialize(body, A2AJsonUtilities.DefaultOptions);
-            using var content = new StringContent(json, Encoding.UTF8, "application/json");
-            using var requestMessage = new HttpRequestMessage(HttpMethod.Post, url) { Content = content };
-            requestMessage.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
-
-            response = await _httpClient.SendAsync(requestMessage, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-            await EnsureSuccessOrThrowA2AExceptionAsync(response, cancellationToken).ConfigureAwait(false);
-
-            stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+            yield return item;
         }
-        catch (A2AException)
-        {
-            response?.Dispose();
-            throw;
-        }
-        catch (Exception ex)
-        {
-            A2ADiagnostics.ClientErrorCount.Add(1);
-            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-            response?.Dispose();
-            throw;
-        }
+    }
 
-        using (response)
-        using (stream)
-        {
-            await foreach (var sseItem in SseParser.Create(stream).EnumerateAsync(cancellationToken).ConfigureAwait(false))
-            {
-                var result = JsonSerializer.Deserialize<StreamResponse>(sseItem.Data, A2AJsonUtilities.DefaultOptions)
-                    ?? throw new A2AException("Failed to deserialize streaming REST response.", A2AErrorCode.InternalError);
-
-                eventCount++;
-                yield return result;
-            }
-        }
-
-        A2ADiagnostics.ClientStreamEventCount.Record(eventCount);
+    private IAsyncEnumerable<StreamResponse> PostEmptyStreamingAsync(
+        string path, string operationName,
+        CancellationToken cancellationToken)
+    {
+        return PostStreamingCoreAsync(path, content: null, operationName, cancellationToken);
     }
 
     [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "All types are registered in source-generated JsonContext.")]
     [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "All types are registered in source-generated JsonContext.")]
-    private async IAsyncEnumerable<StreamResponse> PostEmptyStreamingAsync(
-        string path, string operationName,
+    private async IAsyncEnumerable<StreamResponse> PostStreamingCoreAsync(
+        string path, HttpContent? content, string operationName,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         using var activity = A2ADiagnostics.Source.StartActivity($"A2AClient/{operationName}", ActivityKind.Client);
@@ -359,7 +344,8 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
 
         try
         {
-            using var requestMessage = new HttpRequestMessage(HttpMethod.Post, url);
+            using var requestMessage = CreateRequestMessage(HttpMethod.Post, url);
+            requestMessage.Content = content;
             requestMessage.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
 
             response = await _httpClient.SendAsync(requestMessage, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
@@ -443,4 +429,9 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
 
         return parts.Count > 0 ? "?" + string.Join("&", parts) : string.Empty;
     }
+
+    [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "Enum types are registered in source-generated JsonContext.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Enum types are registered in source-generated JsonContext.")]
+    private static string? SerializeEnumValue<T>(T? value) where T : struct, Enum
+        => value.HasValue ? JsonSerializer.Serialize(value.Value, A2AJsonUtilities.DefaultOptions).Trim('"') : null;
 }

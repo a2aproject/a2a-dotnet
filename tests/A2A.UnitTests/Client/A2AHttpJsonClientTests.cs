@@ -122,7 +122,7 @@ public class A2AHttpJsonClientTests
         Assert.Equal(HttpMethod.Get, captured.Method);
         var uri = captured.RequestUri!.ToString();
         Assert.Contains("contextId=ctx-1", uri);
-        Assert.Contains("status=Completed", uri);
+        Assert.Contains("status=TASK_STATE_COMPLETED", uri);
         Assert.Contains("pageSize=10", uri);
         Assert.Contains("pageToken=abc", uri);
         Assert.Contains("historyLength=3", uri);
@@ -319,6 +319,137 @@ public class A2AHttpJsonClientTests
 
         Assert.Equal(A2AErrorCode.InternalError, ex.ErrorCode);
         Assert.Contains("500", ex.Message);
+    }
+
+    [Fact]
+    public async Task HttpError409_ThrowsA2AExceptionWithTaskNotCancelable()
+    {
+        var sut = CreateErrorClient(HttpStatusCode.Conflict, "Task not cancelable");
+
+        var ex = await Assert.ThrowsAsync<A2AException>(() =>
+            sut.CancelTaskAsync(new CancelTaskRequest { Id = "task-1" }));
+
+        Assert.Equal(A2AErrorCode.TaskNotCancelable, ex.ErrorCode);
+        Assert.Contains("409", ex.Message);
+    }
+
+    [Fact]
+    public async Task HttpError415_ThrowsA2AExceptionWithContentTypeNotSupported()
+    {
+        var sut = CreateErrorClient(HttpStatusCode.UnsupportedMediaType, "Unsupported media type");
+
+        var ex = await Assert.ThrowsAsync<A2AException>(() =>
+            sut.SendMessageAsync(new SendMessageRequest
+            {
+                Message = new Message { Parts = [], Role = Role.User, MessageId = "m" }
+            }));
+
+        Assert.Equal(A2AErrorCode.ContentTypeNotSupported, ex.ErrorCode);
+        Assert.Contains("415", ex.Message);
+    }
+
+    [Fact]
+    public async Task HttpError502_ThrowsA2AExceptionWithInvalidAgentResponse()
+    {
+        var sut = CreateErrorClient(HttpStatusCode.BadGateway, "Bad gateway");
+
+        var ex = await Assert.ThrowsAsync<A2AException>(() =>
+            sut.GetTaskAsync(new GetTaskRequest { Id = "task-1" }));
+
+        Assert.Equal(A2AErrorCode.InvalidAgentResponse, ex.ErrorCode);
+        Assert.Contains("502", ex.Message);
+    }
+
+    [Fact]
+    public async Task ListTasksAsync_SerializesTaskStateAsProtoJsonName()
+    {
+        HttpRequestMessage? captured = null;
+        var expected = new ListTasksResponse();
+        var sut = CreateClient(expected, req => captured = req);
+
+        await sut.ListTasksAsync(new ListTasksRequest { Status = TaskState.Working });
+
+        Assert.NotNull(captured);
+        Assert.Contains("status=TASK_STATE_WORKING", captured.RequestUri!.ToString());
+    }
+
+    [Fact]
+    public async Task ListTasksAsync_IncludesAllQueryParams()
+    {
+        HttpRequestMessage? captured = null;
+        var expected = new ListTasksResponse();
+        var sut = CreateClient(expected, req => captured = req);
+
+        await sut.ListTasksAsync(new ListTasksRequest
+        {
+            ContextId = "ctx-1",
+            Status = TaskState.Completed,
+            PageSize = 10,
+            PageToken = "tok",
+            HistoryLength = 5,
+            StatusTimestampAfter = new DateTimeOffset(2026, 1, 15, 12, 0, 0, TimeSpan.Zero),
+            IncludeArtifacts = true,
+        });
+
+        Assert.NotNull(captured);
+        var url = captured.RequestUri!.ToString();
+        Assert.Contains("contextId=ctx-1", url);
+        Assert.Contains("status=TASK_STATE_COMPLETED", url);
+        Assert.Contains("pageSize=10", url);
+        Assert.Contains("pageToken=tok", url);
+        Assert.Contains("historyLength=5", url);
+        Assert.Contains("statusTimestampAfter=", url);
+        Assert.Contains("includeArtifacts=true", url);
+    }
+
+    [Fact]
+    public async Task CancelTaskAsync_SendsMetadataWhenPresent()
+    {
+        HttpRequestMessage? captured = null;
+        string? capturedBody = null;
+        var expected = new AgentTask
+        {
+            Id = "task-1",
+            Status = new TaskStatus { State = TaskState.Canceled }
+        };
+        var sut = CreateClient(expected, req =>
+        {
+            captured = req;
+            capturedBody = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+        });
+
+        await sut.CancelTaskAsync(new CancelTaskRequest
+        {
+            Id = "task-1",
+            Metadata = new Dictionary<string, JsonElement>
+            {
+                ["reason"] = JsonSerializer.SerializeToElement("user requested")
+            }
+        });
+
+        Assert.NotNull(captured);
+        Assert.Equal(HttpMethod.Post, captured.Method);
+        Assert.Contains("/tasks/task-1:cancel", captured.RequestUri!.ToString());
+        Assert.NotNull(capturedBody);
+        Assert.Contains("metadata", capturedBody);
+        Assert.Contains("reason", capturedBody);
+    }
+
+    [Fact]
+    public async Task CancelTaskAsync_SendsEmptyBodyWhenNoMetadata()
+    {
+        HttpRequestMessage? captured = null;
+        var expected = new AgentTask
+        {
+            Id = "task-1",
+            Status = new TaskStatus { State = TaskState.Canceled }
+        };
+        var sut = CreateClient(expected, req => captured = req);
+
+        await sut.CancelTaskAsync(new CancelTaskRequest { Id = "task-1" });
+
+        Assert.NotNull(captured);
+        Assert.Null(captured.Content);
     }
 
     [Fact]
