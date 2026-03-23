@@ -1,9 +1,15 @@
 namespace A2A.V0_3Compat.UnitTests;
 
-public class A2AClientFactoryTests
+public class A2AClientFactoryTests : IDisposable
 {
+    public void Dispose()
+    {
+        A2AClientFactory.ClearFallback();
+        GC.SuppressFinalize(this);
+    }
+
     [Fact]
-    public void CreateFromAgentCard_WithV10Card_ReturnsA2AClient()
+    public void Create_WithV10Card_ReturnsA2AClient()
     {
         var cardJson = """
         {
@@ -18,13 +24,39 @@ public class A2AClientFactoryTests
         }
         """;
 
-        var client = VersionNegotiatingClientFactory.CreateFromAgentCard(cardJson, new Uri("http://localhost"));
+        var client = A2AClientFactory.Create(cardJson, new Uri("http://localhost"));
 
         Assert.IsType<A2A.A2AClient>(client);
     }
 
     [Fact]
-    public void CreateFromAgentCard_WithV03Card_ReturnsV03Adapter()
+    public void Create_WithV03Card_AndGlobalFallback_ReturnsV03Adapter()
+    {
+        V03FallbackRegistration.Register();
+
+        var cardJson = """
+        {
+            "name": "Legacy Agent",
+            "description": "A legacy agent",
+            "version": "1.0",
+            "url": "http://localhost/a2a",
+            "protocolVersion": "0.3.0",
+            "capabilities": { "streaming": true },
+            "skills": [],
+            "defaultInputModes": ["text"],
+            "defaultOutputModes": ["text"],
+            "preferredTransport": "jsonrpc"
+        }
+        """;
+
+        var client = A2AClientFactory.Create(cardJson, new Uri("http://localhost"));
+
+        Assert.IsNotType<A2A.A2AClient>(client);
+        Assert.IsAssignableFrom<A2A.IA2AClient>(client);
+    }
+
+    [Fact]
+    public void Create_WithV03Card_AndPerCallFallback_ReturnsV03Adapter()
     {
         var cardJson = """
         {
@@ -41,15 +73,19 @@ public class A2AClientFactoryTests
         }
         """;
 
-        var client = VersionNegotiatingClientFactory.CreateFromAgentCard(cardJson, new Uri("http://localhost"));
+        var options = new A2AClientOptions
+        {
+            FallbackFactory = V03FallbackRegistration.CreateV03Client,
+        };
 
-        // V03ClientAdapter is internal, so check it's NOT A2AClient but is IA2AClient
+        var client = A2AClientFactory.Create(cardJson, new Uri("http://localhost"), options: options);
+
         Assert.IsNotType<A2A.A2AClient>(client);
         Assert.IsAssignableFrom<A2A.IA2AClient>(client);
     }
 
     [Fact]
-    public void CreateFromAgentCard_WithV03Card_FallbackDisabled_Throws()
+    public void Create_WithV03Card_NoFallback_Throws()
     {
         var cardJson = """
         {
@@ -66,14 +102,12 @@ public class A2AClientFactoryTests
         }
         """;
 
-        var options = new VersionNegotiationOptions { AllowV03Fallback = false };
-
-        Assert.Throws<InvalidOperationException>(() =>
-            VersionNegotiatingClientFactory.CreateFromAgentCard(cardJson, new Uri("http://localhost"), options: options));
+        Assert.Throws<A2AException>(() =>
+            A2AClientFactory.Create(cardJson, new Uri("http://localhost")));
     }
 
     [Fact]
-    public void CreateFromAgentCard_WithV10Card_UsesInterfaceUrl()
+    public void Create_WithV10Card_UsesInterfaceUrl()
     {
         var cardJson = """
         {
@@ -86,13 +120,13 @@ public class A2AClientFactoryTests
         }
         """;
 
-        var client = VersionNegotiatingClientFactory.CreateFromAgentCard(cardJson, new Uri("http://fallback-host"));
+        var client = A2AClientFactory.Create(cardJson, new Uri("http://fallback-host"));
 
         Assert.IsType<A2A.A2AClient>(client);
     }
 
     [Fact]
-    public void CreateFromAgentCard_WithEmptySupportedInterfaces_FallsBackToV03()
+    public void Create_WithEmptySupportedInterfaces_UsesPerCallFallback()
     {
         var cardJson = """
         {
@@ -106,9 +140,13 @@ public class A2AClientFactoryTests
         }
         """;
 
-        var client = VersionNegotiatingClientFactory.CreateFromAgentCard(cardJson, new Uri("http://localhost"));
+        var options = new A2AClientOptions
+        {
+            FallbackFactory = V03FallbackRegistration.CreateV03Client,
+        };
 
-        // Empty supportedInterfaces should fall back to v0.3
+        var client = A2AClientFactory.Create(cardJson, new Uri("http://localhost"), options: options);
+
         Assert.IsNotType<A2A.A2AClient>(client);
         Assert.IsAssignableFrom<A2A.IA2AClient>(client);
     }

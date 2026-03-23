@@ -14,7 +14,7 @@
     <ItemGroup>
         <ProjectReference Include="..\A2A\A2A.csproj" />
         <ProjectReference Include="..\A2A.V0_3\A2A.V0_3.csproj" />
-        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+
         <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
