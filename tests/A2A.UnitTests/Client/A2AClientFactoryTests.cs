@@ -289,4 +289,78 @@ public class A2AClientFactoryTests
 
     private static HttpClient CreateCapturingHttpClient(HttpResponseMessage response, Action<HttpRequestMessage> capture) =>
         new(new MockHttpMessageHandler(response, capture));
+
+    // ---- Register tests ----
+
+    [Fact]
+    public void Register_CustomBinding_CreatesRegisteredClient()
+    {
+        var customClient = new A2AHttpJsonClient(new Uri("http://dummy"), null);
+        A2AClientFactory.Register("CUSTOM-TEST-1", (url, _) => customClient);
+
+        var card = CreateCard("CUSTOM-TEST-1", "http://agent/custom");
+        var options = new A2AClientOptions { PreferredBindings = ["CUSTOM-TEST-1"] };
+
+        var client = A2AClientFactory.Create(card, options: options);
+
+        Assert.Same(customClient, client);
+    }
+
+    [Fact]
+    public void Register_CustomBinding_MatchesCaseInsensitively()
+    {
+        var customClient = new A2AHttpJsonClient(new Uri("http://dummy"), null);
+        A2AClientFactory.Register("Custom-Test-2", (url, _) => customClient);
+
+        var card = CreateCard("custom-test-2", "http://agent/custom");
+        var options = new A2AClientOptions { PreferredBindings = ["CUSTOM-TEST-2"] };
+
+        var client = A2AClientFactory.Create(card, options: options);
+
+        Assert.Same(customClient, client);
+    }
+
+    [Fact]
+    public void Register_OverridesBuiltInBinding()
+    {
+        var customClient = new A2AHttpJsonClient(new Uri("http://dummy"), null);
+        A2AClientFactory.Register(ProtocolBindingNames.HttpJson, (url, _) => customClient);
+
+        try
+        {
+            var card = CreateCard(ProtocolBindingNames.HttpJson, "http://agent/http");
+            var client = A2AClientFactory.Create(card);
+            Assert.Same(customClient, client);
+        }
+        finally
+        {
+            // Restore the built-in binding
+            A2AClientFactory.Register(ProtocolBindingNames.HttpJson, (url, httpClient) => new A2AHttpJsonClient(url, httpClient));
+        }
+    }
+
+    [Fact]
+    public void Register_NullProtocolBinding_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => A2AClientFactory.Register(null!, (_, _) => null!));
+    }
+
+    [Fact]
+    public void Register_NullFactory_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => A2AClientFactory.Register("TEST", null!));
+    }
+
+    [Fact]
+    public void Create_UnregisteredBinding_ThrowsWithRegistrationGuidance()
+    {
+        var card = CreateCard("SOMEUNKNOWN", "http://agent/unknown");
+        var options = new A2AClientOptions { PreferredBindings = ["SOMEUNKNOWN"] };
+
+        var ex = Assert.Throws<A2AException>(() => A2AClientFactory.Create(card, options: options));
+
+        Assert.Equal(A2AErrorCode.InvalidRequest, ex.ErrorCode);
+        Assert.Contains("SOMEUNKNOWN", ex.Message);
+        Assert.Contains("Register", ex.Message);
+    }
 }

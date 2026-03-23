@@ -49,9 +49,8 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
     /// <inheritdoc />
     public async Task<AgentTask> GetTaskAsync(GetTaskRequest request, CancellationToken cancellationToken = default)
     {
-        var query = request.HistoryLength.HasValue
-            ? $"?historyLength={request.HistoryLength.Value}"
-            : string.Empty;
+        var query = BuildQueryString(
+            ("historyLength", request.HistoryLength?.ToString(System.Globalization.CultureInfo.InvariantCulture)));
 
         return await GetJsonAsync<AgentTask>(
             $"/tasks/{Uri.EscapeDataString(request.Id)}{query}",
@@ -139,9 +138,9 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
     }
 
     /// <inheritdoc />
+    /// <remarks>No-op. The <see cref="HttpClient"/> is either shared or externally owned.</remarks>
     public void Dispose()
     {
-        GC.SuppressFinalize(this);
     }
 
     // ---- HTTP primitives ----

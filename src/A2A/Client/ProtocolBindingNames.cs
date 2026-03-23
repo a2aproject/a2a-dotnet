@@ -8,4 +8,7 @@ public static class ProtocolBindingNames
 
     /// <summary>JSON-RPC over HTTP binding.</summary>
     public const string JsonRpc = "JSONRPC";
+
+    /// <summary>gRPC binding.</summary>
+    public const string Grpc = "GRPC";
 }
