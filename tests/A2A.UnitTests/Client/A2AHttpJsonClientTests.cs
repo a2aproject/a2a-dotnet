@@ -502,4 +502,174 @@ public class A2AHttpJsonClientTests
         var handler = new MockHttpMessageHandler(response);
         return new A2AHttpJsonClient(new Uri("http://localhost"), new HttpClient(handler));
     }
+
+    private static A2AHttpJsonClient CreateProblemDetailsClient(HttpStatusCode statusCode, string typeUri, string detail)
+    {
+        var errorJson = JsonSerializer.Serialize(new
+        {
+            error = new
+            {
+                code = (int)statusCode,
+                status = "ERROR",
+                message = detail,
+                details = new[]
+                {
+                    new
+                    {
+                        @type = "type.googleapis.com/google.rpc.ErrorInfo",
+                        reason = typeUri,
+                        domain = "a2a-protocol.org"
+                    }
+                }
+            }
+        });
+        var response = new HttpResponseMessage(statusCode)
+        {
+            Content = new StringContent(errorJson, Encoding.UTF8, "application/json")
+        };
+
+        var handler = new MockHttpMessageHandler(response);
+        return new A2AHttpJsonClient(new Uri("http://localhost"), new HttpClient(handler));
+    }
+}
+
+public class A2AHttpJsonClientErrorInfoTests
+{
+    [Fact]
+    public async Task ErrorInfo_TaskNotFound_ParsesReason()
+    {
+        var sut = CreateErrorInfoClient(HttpStatusCode.NotFound, "TASK_NOT_FOUND", "Task not found");
+
+        var ex = await Assert.ThrowsAsync<A2AException>(() =>
+            sut.GetTaskAsync(new GetTaskRequest { Id = "missing" }));
+
+        Assert.Equal(A2AErrorCode.TaskNotFound, ex.ErrorCode);
+        Assert.Contains("Task not found", ex.Message);
+    }
+
+    [Fact]
+    public async Task ErrorInfo_PushNotificationNotSupported_DistinguishesFrom400()
+    {
+        var sut = CreateErrorInfoClient(HttpStatusCode.BadRequest,
+            "PUSH_NOTIFICATION_NOT_SUPPORTED", "Push notifications not supported");
+
+        var ex = await Assert.ThrowsAsync<A2AException>(() =>
+            sut.CreateTaskPushNotificationConfigAsync(new CreateTaskPushNotificationConfigRequest
+            {
+                TaskId = "t-1",
+                Config = new PushNotificationConfig { Url = "http://callback" }
+            }));
+
+        Assert.Equal(A2AErrorCode.PushNotificationNotSupported, ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task ErrorInfo_UnsupportedOperation_DistinguishesFrom400()
+    {
+        var sut = CreateErrorInfoClient(HttpStatusCode.BadRequest,
+            "UNSUPPORTED_OPERATION", "Operation not supported");
+
+        var ex = await Assert.ThrowsAsync<A2AException>(() =>
+            sut.SendMessageAsync(new SendMessageRequest
+            {
+                Message = new Message { Parts = [], Role = Role.User, MessageId = "m" }
+            }));
+
+        Assert.Equal(A2AErrorCode.UnsupportedOperation, ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task ErrorInfo_VersionNotSupported_DistinguishesFrom400()
+    {
+        var sut = CreateErrorInfoClient(HttpStatusCode.BadRequest,
+            "VERSION_NOT_SUPPORTED", "Version 0.1 not supported");
+
+        var ex = await Assert.ThrowsAsync<A2AException>(() =>
+            sut.GetTaskAsync(new GetTaskRequest { Id = "task-1" }));
+
+        Assert.Equal(A2AErrorCode.VersionNotSupported, ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task ErrorInfo_TaskNotCancelable_409()
+    {
+        var sut = CreateErrorInfoClient(HttpStatusCode.Conflict,
+            "TASK_NOT_CANCELABLE", "Task already completed");
+
+        var ex = await Assert.ThrowsAsync<A2AException>(() =>
+            sut.CancelTaskAsync(new CancelTaskRequest { Id = "task-1" }));
+
+        Assert.Equal(A2AErrorCode.TaskNotCancelable, ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task ErrorInfo_InvalidAgentResponse_502()
+    {
+        var sut = CreateErrorInfoClient(HttpStatusCode.BadGateway,
+            "INVALID_AGENT_RESPONSE", "Upstream agent error");
+
+        var ex = await Assert.ThrowsAsync<A2AException>(() =>
+            sut.GetTaskAsync(new GetTaskRequest { Id = "task-1" }));
+
+        Assert.Equal(A2AErrorCode.InvalidAgentResponse, ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task ErrorInfo_UnknownReason_FallsBackToStatusCode()
+    {
+        var sut = CreateErrorInfoClient(HttpStatusCode.BadRequest,
+            "SOME_CUSTOM_ERROR", "Custom error");
+
+        var ex = await Assert.ThrowsAsync<A2AException>(() =>
+            sut.GetTaskAsync(new GetTaskRequest { Id = "task-1" }));
+
+        Assert.Equal(A2AErrorCode.InvalidRequest, ex.ErrorCode);
+        Assert.Contains("Custom error", ex.Message);
+    }
+
+    [Fact]
+    public async Task PlainTextError_StillWorksWithoutErrorInfo()
+    {
+        var response = new HttpResponseMessage(HttpStatusCode.NotFound)
+        {
+            Content = new StringContent("Not found", Encoding.UTF8, "text/plain")
+        };
+        var handler = new MockHttpMessageHandler(response);
+        var sut = new A2AHttpJsonClient(new Uri("http://localhost"), new HttpClient(handler));
+
+        var ex = await Assert.ThrowsAsync<A2AException>(() =>
+            sut.GetTaskAsync(new GetTaskRequest { Id = "missing" }));
+
+        Assert.Equal(A2AErrorCode.TaskNotFound, ex.ErrorCode);
+        Assert.Contains("404", ex.Message);
+    }
+
+    private static A2AHttpJsonClient CreateErrorInfoClient(HttpStatusCode statusCode, string reason, string message)
+    {
+        var errorJson = JsonSerializer.Serialize(new
+        {
+            error = new
+            {
+                code = (int)statusCode,
+                status = "ERROR",
+                message,
+                details = new[]
+                {
+                    new
+                    {
+                        @type = "type.googleapis.com/google.rpc.ErrorInfo",
+                        reason,
+                        domain = "a2a-protocol.org"
+                    }
+                }
+            }
+        });
+        var response = new HttpResponseMessage(statusCode)
+        {
+            Content = new StringContent(errorJson, Encoding.UTF8, "application/json")
+        };
+
+        var handler = new MockHttpMessageHandler(response);
+        return new A2AHttpJsonClient(new Uri("http://localhost"), new HttpClient(handler));
+    }
 }

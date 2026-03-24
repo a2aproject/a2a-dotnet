@@ -100,7 +100,7 @@ public static class A2ARouteBuilderExtensions
         var routeGroup = endpoints.MapGroup(path);
         var logger = endpoints.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("A2A.REST");
 
-        // Agent card
+        // Agent card (SDK convenience endpoint, not part of the A2A spec Section 11.3)
         routeGroup.MapGet("/card", (CancellationToken ct)
             => A2AHttpProcessor.GetAgentCardRestAsync(requestHandler, logger, agentCard, ct));
 

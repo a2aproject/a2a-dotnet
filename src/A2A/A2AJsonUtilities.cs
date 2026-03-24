@@ -117,6 +117,10 @@ public static partial class A2AJsonUtilities
     [JsonSerializable(typeof(AuthenticationInfo))]
     [JsonSerializable(typeof(TaskPushNotificationConfig))]
 
+    // Error handling
+    [JsonSerializable(typeof(A2AErrorResponse))]
+    [JsonSerializable(typeof(A2AErrorStatus))]
+    [JsonSerializable(typeof(A2AErrorDetail))]
     [JsonSourceGenerationOptions(JsonSerializerDefaults.Web,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         NumberHandling = JsonNumberHandling.AllowReadingFromString,

@@ -37,12 +37,28 @@ public class A2AClientFactoryTests
     }
 
     [Fact]
-    public void Create_PreferJsonRpc_ReturnsJsonRpcClientEvenIfHttpAvailable()
+    public void Create_PreferJsonRpc_ReturnsHttpWhenAgentListsHttpFirst()
     {
+        // Agent lists HTTP+JSON first — agent preference wins per spec Section 8.3
         var card = CreateCardWithBothBindings();
         var options = new A2AClientOptions
         {
             PreferredBindings = [ProtocolBindingNames.JsonRpc, ProtocolBindingNames.HttpJson]
+        };
+
+        var client = A2AClientFactory.Create(card, options: options);
+
+        // Agent's first mutually-supported binding wins
+        Assert.IsType<A2AHttpJsonClient>(client);
+    }
+
+    [Fact]
+    public void Create_ClientAcceptsOnlyJsonRpc_ReturnsJsonRpc()
+    {
+        var card = CreateCardWithBothBindings();
+        var options = new A2AClientOptions
+        {
+            PreferredBindings = [ProtocolBindingNames.JsonRpc]
         };
 
         var client = A2AClientFactory.Create(card, options: options);
@@ -196,7 +212,7 @@ public class A2AClientFactoryTests
     }
 
     [Fact]
-    public async Task Create_PreferJsonRpc_UsesRpcUrlNotRestUrl()
+    public async Task Create_ClientAcceptsOnlyJsonRpc_UsesRpcUrl()
     {
         HttpRequestMessage? captured = null;
         var card = new AgentCard
@@ -212,7 +228,8 @@ public class A2AClientFactoryTests
         };
         var options = new A2AClientOptions
         {
-            PreferredBindings = [ProtocolBindingNames.JsonRpc, ProtocolBindingNames.HttpJson]
+            // Client only accepts JSON-RPC, so agent's HTTP+JSON is filtered out
+            PreferredBindings = [ProtocolBindingNames.JsonRpc]
         };
         var rpcResponse = new JsonRpcResponse { Id = new JsonRpcId("1"), Result = JsonSerializer.SerializeToNode(
             new SendMessageResponse { Message = new Message { MessageId = "m-1", Role = Role.User, Parts = [] } },
@@ -220,6 +237,39 @@ public class A2AClientFactoryTests
         var httpClient = CreateCapturingHttpClient(CreateJsonResponse(rpcResponse), req => captured = req);
 
         var client = A2AClientFactory.Create(card, httpClient, options);
+
+        Assert.IsType<A2AClient>(client);
+        await client.SendMessageAsync(new SendMessageRequest
+        {
+            Message = new Message { Parts = [Part.FromText("hi")], Role = Role.User, MessageId = "m-1" }
+        });
+        Assert.NotNull(captured);
+        Assert.Equal("http://rpc-endpoint.example.com/rpc", captured.RequestUri!.ToString());
+    }
+
+    [Fact]
+    public async Task Create_AgentPrefersJsonRpc_UsesRpcUrlEvenIfClientAcceptsBoth()
+    {
+        HttpRequestMessage? captured = null;
+        var card = new AgentCard
+        {
+            Name = "test",
+            Description = "d",
+            Version = "1.0",
+            SupportedInterfaces =
+            [
+                // Agent lists JSON-RPC first — agent's declared preference
+                new AgentInterface { ProtocolBinding = ProtocolBindingNames.JsonRpc, Url = "http://rpc-endpoint.example.com/rpc" },
+                new AgentInterface { ProtocolBinding = ProtocolBindingNames.HttpJson, Url = "http://rest-endpoint.example.com/rest" }
+            ]
+        };
+        var rpcResponse = new JsonRpcResponse { Id = new JsonRpcId("1"), Result = JsonSerializer.SerializeToNode(
+            new SendMessageResponse { Message = new Message { MessageId = "m-1", Role = Role.User, Parts = [] } },
+            A2AJsonUtilities.DefaultOptions) };
+        var httpClient = CreateCapturingHttpClient(CreateJsonResponse(rpcResponse), req => captured = req);
+
+        // Default client preferences: [HTTP+JSON, JSONRPC] — but agent prefers JSONRPC
+        var client = A2AClientFactory.Create(card, httpClient);
 
         Assert.IsType<A2AClient>(client);
         await client.SendMessageAsync(new SendMessageRequest

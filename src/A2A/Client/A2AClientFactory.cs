@@ -54,30 +54,38 @@ public static class A2AClientFactory
     /// Thrown when no supported interface in the agent card matches the preferred bindings,
     /// or when a matched binding has no registered client factory.
     /// </exception>
+    /// <remarks>
+    /// Selection follows spec Section 8.3: the agent's <see cref="AgentCard.SupportedInterfaces"/>
+    /// order is respected (first entry is preferred), filtered to bindings listed in
+    /// <see cref="A2AClientOptions.PreferredBindings"/>. This means the agent's preference
+    /// wins when multiple bindings are mutually supported.
+    /// </remarks>
     public static IA2AClient Create(AgentCard agentCard, HttpClient? httpClient = null, A2AClientOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(agentCard);
 
         options ??= new A2AClientOptions();
+        var preferredSet = new HashSet<string>(options.PreferredBindings, StringComparer.OrdinalIgnoreCase);
 
-        foreach (var preferredBinding in options.PreferredBindings)
+        // Walk agent's interfaces in declared preference order (spec Section 8.3.1),
+        // selecting the first one the client also supports.
+        foreach (var agentInterface in agentCard.SupportedInterfaces)
         {
-            var matchingInterface = agentCard.SupportedInterfaces
-                .FirstOrDefault(i => string.Equals(i.ProtocolBinding, preferredBinding, StringComparison.OrdinalIgnoreCase));
-
-            if (matchingInterface is not null)
+            if (!preferredSet.Contains(agentInterface.ProtocolBinding))
             {
-                var url = new Uri(matchingInterface.Url);
-
-                if (s_bindings.TryGetValue(preferredBinding, out var factory))
-                {
-                    return factory(url, httpClient);
-                }
-
-                throw new A2AException(
-                    $"Protocol binding '{preferredBinding}' matched an agent interface but has no registered client factory. Call A2AClientFactory.Register to add one.",
-                    A2AErrorCode.InvalidRequest);
+                continue;
             }
+
+            var url = new Uri(agentInterface.Url);
+
+            if (s_bindings.TryGetValue(agentInterface.ProtocolBinding, out var factory))
+            {
+                return factory(url, httpClient);
+            }
+
+            throw new A2AException(
+                $"Protocol binding '{agentInterface.ProtocolBinding}' matched an agent interface but has no registered client factory. Call A2AClientFactory.Register to add one.",
+                A2AErrorCode.InvalidRequest);
         }
 
         var available = agentCard.SupportedInterfaces.Count > 0

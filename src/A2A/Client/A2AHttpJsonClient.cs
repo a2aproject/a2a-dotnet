@@ -382,6 +382,22 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
         A2ADiagnostics.ClientStreamEventCount.Record(eventCount);
     }
 
+    /// <summary>Maps google.rpc.ErrorInfo <c>reason</c> values to A2A error codes per spec Section 5.4.</summary>
+    private static readonly Dictionary<string, A2AErrorCode> s_reasonToErrorCode = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["TASK_NOT_FOUND"] = A2AErrorCode.TaskNotFound,
+        ["TASK_NOT_CANCELABLE"] = A2AErrorCode.TaskNotCancelable,
+        ["PUSH_NOTIFICATION_NOT_SUPPORTED"] = A2AErrorCode.PushNotificationNotSupported,
+        ["UNSUPPORTED_OPERATION"] = A2AErrorCode.UnsupportedOperation,
+        ["CONTENT_TYPE_NOT_SUPPORTED"] = A2AErrorCode.ContentTypeNotSupported,
+        ["INVALID_AGENT_RESPONSE"] = A2AErrorCode.InvalidAgentResponse,
+        ["EXTENDED_AGENT_CARD_NOT_CONFIGURED"] = A2AErrorCode.ExtendedAgentCardNotConfigured,
+        ["EXTENSION_SUPPORT_REQUIRED"] = A2AErrorCode.ExtensionSupportRequired,
+        ["VERSION_NOT_SUPPORTED"] = A2AErrorCode.VersionNotSupported,
+    };
+
+    [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "Error types are registered in source-generated JsonContext.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Error types are registered in source-generated JsonContext.")]
     private static async Task EnsureSuccessOrThrowA2AExceptionAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
         if (response.IsSuccessStatusCode)
@@ -390,16 +406,43 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
         }
 
         string? detail = null;
+        A2AErrorCode? reasonErrorCode = null;
+
         try
         {
-            detail = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            var contentType = response.Content.Headers.ContentType?.MediaType;
+
+            if (string.Equals(contentType, "application/json", StringComparison.OrdinalIgnoreCase))
+            {
+                // Parse AIP-193 / google.rpc.Status error response (spec Section 11.6)
+                using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+                var errorResponse = await JsonSerializer.DeserializeAsync<A2AErrorResponse>(stream, A2AJsonUtilities.DefaultOptions, cancellationToken).ConfigureAwait(false);
+
+                if (errorResponse?.Error is { } error)
+                {
+                    detail = error.Message;
+
+                    // Extract reason from google.rpc.ErrorInfo in the details array
+                    var errorInfo = error.Details?.FirstOrDefault(d =>
+                        string.Equals(d.Domain, "a2a-protocol.org", StringComparison.OrdinalIgnoreCase));
+
+                    if (errorInfo?.Reason is not null && s_reasonToErrorCode.TryGetValue(errorInfo.Reason, out var mapped))
+                    {
+                        reasonErrorCode = mapped;
+                    }
+                }
+            }
+            else
+            {
+                detail = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            }
         }
         catch
         {
             // Best-effort body read
         }
 
-        var errorCode = response.StatusCode switch
+        var errorCode = reasonErrorCode ?? response.StatusCode switch
         {
             HttpStatusCode.NotFound => A2AErrorCode.TaskNotFound,
             HttpStatusCode.BadRequest => A2AErrorCode.InvalidRequest,
