@@ -132,7 +132,9 @@ public sealed class A2AClient : IA2AClient, IDisposable
             A2ADiagnostics.ClientRequestCount.Add(1);
 
             using var content = new JsonRpcContent(rpcRequest);
-            using var response = await _httpClient.PostAsync(_url, content, cancellationToken).ConfigureAwait(false);
+            using var requestMessage = new HttpRequestMessage(HttpMethod.Post, _url) { Content = content };
+            requestMessage.Headers.TryAddWithoutValidation("A2A-Version", "1.0");
+            using var response = await _httpClient.SendAsync(requestMessage, cancellationToken).ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
 
             using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
@@ -189,6 +191,7 @@ public sealed class A2AClient : IA2AClient, IDisposable
             {
                 Content = content,
             };
+            requestMessage.Headers.TryAddWithoutValidation("A2A-Version", "1.0");
             requestMessage.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("text/event-stream"));
 
             response = await _httpClient.SendAsync(requestMessage, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
