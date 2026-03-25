@@ -14,6 +14,6 @@ public sealed class SendMessageConfiguration
     /// <summary>Gets or sets the history length to include.</summary>
     public int? HistoryLength { get; set; }
 
-    /// <summary>Gets or sets whether the request is blocking.</summary>
-    public bool Blocking { get; set; }
+    /// <summary>Gets or sets whether to return immediately without waiting for task completion.</summary>
+    public bool ReturnImmediately { get; set; }
 }

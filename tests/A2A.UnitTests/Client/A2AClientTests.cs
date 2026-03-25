@@ -35,7 +35,7 @@ public class A2AClientTests
                 AcceptedOutputModes = ["mode1"],
                 PushNotificationConfig = new PushNotificationConfig { Url = "http://push" },
                 HistoryLength = 5,
-                Blocking = true
+                ReturnImmediately = true
             },
             Metadata = new Dictionary<string, JsonElement> { { "baz", JsonDocument.Parse("\"qux\"").RootElement } }
         };
