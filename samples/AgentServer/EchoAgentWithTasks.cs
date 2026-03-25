@@ -26,6 +26,9 @@ public sealed class EchoAgentWithTasks : IAgentHandler
         // Transition to the target state (defaults to Completed)
         switch (targetState)
         {
+            case TaskState.Working:
+                await updater.StartWorkAsync(cancellationToken: cancellationToken);
+                break;
             case TaskState.Failed:
                 await updater.FailAsync(cancellationToken: cancellationToken);
                 break;

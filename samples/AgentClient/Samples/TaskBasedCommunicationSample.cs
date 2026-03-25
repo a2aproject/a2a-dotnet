@@ -105,7 +105,7 @@ internal sealed class TaskBasedCommunicationSample
             {
                 // Tweaking the agent behavior to simulate a long-running task;
                 // otherwise the agent will echo with Completed task.
-                { "task-target-state", JsonSerializer.SerializeToElement(TaskState.Working) }
+                { "task-target-state", JsonSerializer.SerializeToElement("Working") }
             }
         };
 

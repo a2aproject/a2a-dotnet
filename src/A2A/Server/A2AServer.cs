@@ -43,22 +43,15 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
     /// <summary>Cancels and awaits all background return-immediately drain tasks.</summary>
     public async ValueTask DisposeAsync()
     {
-        // Signal all background work to stop.
-        // Don't dispose CTS entries here — each drain's finally block owns its disposal.
-        foreach (var kvp in _backgroundCancellations)
+        // Cancel all background work. Each drain's finally block owns its own
+        // dictionary removal and CTS disposal, so no cleanup needed here.
+        foreach (var cts in _backgroundCancellations.Values.ToArray())
         {
-            if (_backgroundCancellations.TryRemove(kvp.Key, out var cts))
-            {
-                await cts.CancelAsync().ConfigureAwait(false);
-            }
+            try { await cts.CancelAsync().ConfigureAwait(false); }
+            catch (ObjectDisposedException) { }
         }
 
-        // Await all drain tasks so they finish cleanup (including CTS disposal).
-        var tasks = _backgroundTasks.Values.ToArray();
-        if (tasks.Length > 0)
-        {
-            await Task.WhenAll(tasks).ConfigureAwait(false);
-        }
+        await Task.WhenAll(_backgroundTasks.Values.ToArray()).ConfigureAwait(false);
 
         GC.SuppressFinalize(this);
     }
@@ -90,14 +83,32 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
             bool returnImmediately = request.Configuration?.ReturnImmediately == true;
 
             var eventQueue = new AgentEventQueue();
-            // For return-immediately, create a long-lived CTS that outlives the HTTP request
+            // For return-immediately, use a long-lived CTS that outlives the HTTP request
             // but can be cancelled by a subsequent tasks/cancel call.
+            // For continuations, reuse the existing CTS so one cancel kills all handlers.
             CancellationToken executionCancellationToken;
             if (returnImmediately)
             {
-                backgroundCts = new CancellationTokenSource();
-                _backgroundCancellations[context.TaskId] = backgroundCts;
-                executionCancellationToken = backgroundCts.Token;
+                if (_backgroundCancellations.TryGetValue(context.TaskId, out var existingCts))
+                {
+                    try
+                    {
+                        executionCancellationToken = existingCts.Token;
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        // CTS was disposed by a concurrent drain completion — create a fresh one
+                        backgroundCts = new CancellationTokenSource();
+                        _backgroundCancellations[context.TaskId] = backgroundCts;
+                        executionCancellationToken = backgroundCts.Token;
+                    }
+                }
+                else
+                {
+                    backgroundCts = new CancellationTokenSource();
+                    _backgroundCancellations[context.TaskId] = backgroundCts;
+                    executionCancellationToken = backgroundCts.Token;
+                }
             }
             else
             {
@@ -119,7 +130,8 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
             if (returnImmediately)
             {
                 return await MaterializeReturnImmediatelyResponseAsync(
-                    eventQueue, agentTask, context, backgroundCts!, cancellationToken).ConfigureAwait(false);
+                    eventQueue, agentTask, context,
+                    backgroundCts, executionCancellationToken, cancellationToken).ConfigureAwait(false);
             }
 
             var result = await MaterializeResponseAsync(eventQueue, context, cancellationToken).ConfigureAwait(false);
@@ -461,11 +473,13 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
     /// <param name="eventQueue">The event queue produced by the agent handler.</param>
     /// <param name="agentTask">The background task running the agent handler.</param>
     /// <param name="context">The request context for the current operation.</param>
-    /// <param name="backgroundCts">The CancellationTokenSource for background work, disposed on completion.</param>
+    /// <param name="ownedBackgroundCts">The CTS to dispose on completion, or null if reusing an existing CTS owned by a prior drain.</param>
+    /// <param name="backgroundCancellationToken">Token for cancelling the background drain (from shared or new CTS).</param>
     /// <param name="cancellationToken">Token for cancelling the initial read.</param>
     private async Task<SendMessageResponse> MaterializeReturnImmediatelyResponseAsync(
         AgentEventQueue eventQueue, Task agentTask, RequestContext context,
-        CancellationTokenSource backgroundCts, CancellationToken cancellationToken)
+        CancellationTokenSource? ownedBackgroundCts,
+        CancellationToken backgroundCancellationToken, CancellationToken cancellationToken)
     {
         SendMessageResponse? result = null;
 
@@ -496,7 +510,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
             {
                 try
                 {
-                    await foreach (var response in eventQueue.WithCancellation(backgroundCts.Token).ConfigureAwait(false))
+                    await foreach (var response in eventQueue.WithCancellation(backgroundCancellationToken).ConfigureAwait(false))
                     {
                         await ApplyEventAsync(response, context, CancellationToken.None).ConfigureAwait(false);
                     }
@@ -515,9 +529,15 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
                 }
                 finally
                 {
-                    _backgroundCancellations.TryRemove(context.TaskId, out _);
                     _backgroundTasks.TryRemove(context.TaskId, out _);
-                    backgroundCts.Dispose();
+
+                    // Only clean up the CTS if this drain owns it (i.e., it was created
+                    // for this request, not reused from an earlier return-immediately call).
+                    if (ownedBackgroundCts is not null)
+                    {
+                        _backgroundCancellations.TryRemove(context.TaskId, out _);
+                        ownedBackgroundCts.Dispose();
+                    }
                 }
             }, CancellationToken.None);
 
