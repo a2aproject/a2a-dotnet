@@ -29,6 +29,11 @@ public static class V03ServerProcessor
         ArgumentNullException.ThrowIfNull(requestHandler);
         ArgumentNullException.ThrowIfNull(request);
 
+        // Delegate pre-flight checks to A2AJsonRpcProcessor — single source of truth.
+        // Any new protocol-level checks added there automatically apply here.
+        var preflightResult = A2AJsonRpcProcessor.CheckPreflight(request);
+        if (preflightResult != null) return preflightResult;
+
         // Parse body once to peek at "method" and route v0.3 vs v1.0 before full validation.
         // V03.JsonRpcRequestConverter rejects v1.0 method names, so we must detect them early.
         JsonDocument doc;
