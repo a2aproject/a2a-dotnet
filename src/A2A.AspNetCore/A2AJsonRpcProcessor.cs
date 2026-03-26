@@ -16,6 +16,7 @@ public static class A2AJsonRpcProcessor
     /// or <c>null</c> if the request may proceed.
     /// Call this at the top of any request processor that wraps or extends this class.
     /// </summary>
+    /// <param name="request">The incoming HTTP request.</param>
     public static IResult? CheckPreflight(HttpRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
