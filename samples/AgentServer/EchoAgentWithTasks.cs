@@ -11,6 +11,10 @@ public sealed class EchoAgentWithTasks : IAgentHandler
         var updater = new TaskUpdater(eventQueue, context.TaskId, context.ContextId);
 
         await updater.SubmitAsync(cancellationToken);
+
+        await updater.StartWorkAsync(cancellationToken: cancellationToken);
+        await Task.Delay(3000, cancellationToken); // simulate slow work
+
         await updater.AddArtifactAsync(
             [Part.FromText($"Echo: {context.UserText}")], cancellationToken: cancellationToken);
 

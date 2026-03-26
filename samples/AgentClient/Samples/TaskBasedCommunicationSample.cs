@@ -58,13 +58,102 @@ internal sealed class TaskBasedCommunicationSample
         AgentCard echoAgentCard = await cardResolver.GetAgentCardAsync();
 
         // 3. Create an A2A client to communicate with the echotasks agent using the URL from the agent card
-        A2AClient agentClient = new(new Uri(echoAgentCard.SupportedInterfaces[0].Url));
+        A2AClient agentClient = new(new Uri("http://localhost:5101/echotasks"));
 
-        // 4. Demo a short-lived task
-        await DemoShortLivedTaskAsync(agentClient);
+        // 4. Demonstrate stream reconnection issues
+        await Repro_StreamReconnectionHangsIndefinitelyAsync(agentClient);
+        await Repro_StreamReconnectionFailsForTerminatedTaskAsync(agentClient);
+    }
 
-        // 5. Demo a long-running task
-        await DemoLongRunningTaskAsync(agentClient);
+    /// <summary>
+    /// Issue: Reconnecting to a task stream hangs indefinitely.
+    /// </summary>
+    /// <remarks>
+    /// After a simulated stream disconnection, the client reconnects using
+    /// <see cref="A2AClient.SubscribeToTaskAsync"/>. The stream never completes,
+    /// so execution hangs and never reaches past the <c>await foreach</c> loop.
+    /// </remarks>
+    private static async Task Repro_StreamReconnectionHangsIndefinitelyAsync(A2AClient agentClient)
+    {
+        Console.WriteLine("\nStream Reconnection Demo");
+
+        Message userMessage = new()
+        {
+            Parts = [Part.FromText("Hello from a stream reconnection demo!")],
+            Role = Role.User,
+            MessageId = Guid.NewGuid().ToString("N")
+        };
+
+        string? taskId = null;
+
+        // Receive streaming updates and simulate a stream interruption after the first update
+        await foreach (var response in agentClient.SendStreamingMessageAsync(new SendMessageRequest { Message = userMessage }))
+        {
+            taskId = response.Task!.Id;
+
+            // Simulate stream disconnection by breaking out of the loop
+            break;
+        }
+
+        // Reconnect to the stream to resume receiving updates for the same task
+        await foreach (var response in agentClient.SubscribeToTaskAsync(new SubscribeToTaskRequest { Id = taskId! }))
+        {
+            Console.WriteLine($" Received task update after reconnection: ID={response.Task!.Id}, Status={response.Task.Status.State}, Artifact={response.Task.Artifacts?[0].Parts?[0].Text}");
+        }
+
+        // Note: execution never reaches here because the stream remains open indefinitely
+    }
+
+    /// <summary>
+    /// Issue: Reconnecting to a completed task's stream throws instead of returning the final state.
+    /// </summary>
+    /// <remarks>
+    /// After a simulated stream disconnection, if the task reaches a terminal state
+    /// (Completed/Failed/Canceled) before the client reconnects, <see cref="A2AClient.SubscribeToTaskAsync"/>
+    /// throws an <see cref="A2AException"/> with <see cref="A2AErrorCode.UnsupportedOperation"/>.
+    /// The client must catch the exception and fall back to <see cref="A2AClient.GetTaskAsync"/>
+    /// to retrieve the final task state.
+    /// </remarks>
+    private static async Task Repro_StreamReconnectionFailsForTerminatedTaskAsync(A2AClient agentClient)
+    {
+        Message userMessage = new()
+        {
+            Parts = [Part.FromText("Hello from a stream reconnection demo!")],
+            Role = Role.User,
+            MessageId = Guid.NewGuid().ToString("N")
+        };
+
+        string? taskId = null;
+
+        // Receive streaming updates and simulate a stream interruption after the first update
+        await foreach (var response in agentClient.SendStreamingMessageAsync(new SendMessageRequest { Message = userMessage }))
+        {
+            taskId = response.Task!.Id;
+
+            // Simulate stream disconnection by breaking out of the loop
+            break;
+        }
+
+        // Simulate a delay before reconnecting. During this time, the task may reach a terminal
+        // state (Completed/Failed/Canceled) while the client is unaware due to the disconnection.
+        await Task.Delay(5000);
+
+        try
+        {
+            // Attempt to reconnect to the task stream. If the task has already reached a terminal
+            // state, the server rejects the subscription with an UnsupportedOperation error.
+            await foreach (var response in agentClient.SubscribeToTaskAsync(new SubscribeToTaskRequest { Id = taskId! }))
+            {
+                Console.WriteLine($" Received task update after reconnection: ID={response.Task!.Id}, Status={response.Task.Status.State}, Artifact={response.Task.Artifacts?[0].Parts?[0].Text}");
+            }
+        }
+        catch (A2AException ex) when (ex.ErrorCode == A2AErrorCode.UnsupportedOperation)
+        {
+            // Expected: "Task is in a terminal state and cannot be subscribed to."
+            // Fall back to GetTaskAsync to retrieve the final task state.
+        }
+
+        AgentTask finalTaskState = await agentClient.GetTaskAsync(new GetTaskRequest { Id = taskId! });
     }
 
     /// <summary>

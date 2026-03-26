@@ -80,12 +80,8 @@ var path = agentType.ToLowerInvariant() switch
 
 app.MapA2A(path);
 
-// For spec compliance, also map at root for well-known agent card discovery
-if (agentType.Equals("speccompliance", StringComparison.OrdinalIgnoreCase))
-{
-    var card = app.Services.GetRequiredService<AgentCard>();
-    app.MapWellKnownAgentCard(card);
-}
+var card = app.Services.GetRequiredService<AgentCard>();
+app.MapWellKnownAgentCard(card);
 
 app.Run();
 
