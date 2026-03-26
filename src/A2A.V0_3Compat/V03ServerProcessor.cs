@@ -1,7 +1,9 @@
 namespace A2A.V0_3Compat;
 
+using A2A.AspNetCore;
 using Microsoft.AspNetCore.Http;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 using V03 = A2A.V0_3;
 
@@ -27,40 +29,113 @@ public static class V03ServerProcessor
         ArgumentNullException.ThrowIfNull(requestHandler);
         ArgumentNullException.ThrowIfNull(request);
 
-        V03.JsonRpcRequest? rpcRequest = null;
-
+        // Parse body once to peek at "method" and route v0.3 vs v1.0 before full validation.
+        // V03.JsonRpcRequestConverter rejects v1.0 method names, so we must detect them early.
+        JsonDocument doc;
         try
         {
-            rpcRequest = (V03.JsonRpcRequest?)await JsonSerializer.DeserializeAsync(
-                request.Body,
-                V03.A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(V03.JsonRpcRequest)),
-                cancellationToken).ConfigureAwait(false);
-
-            if (rpcRequest is null)
-            {
-                return MakeErrorResult(default, V03.JsonRpcResponse.ParseErrorResponse);
-            }
-
-            if (V03.A2AMethods.IsStreamingMethod(rpcRequest.Method))
-            {
-                return HandleStreaming(requestHandler, rpcRequest, cancellationToken);
-            }
-
-            return await HandleSingleAsync(requestHandler, rpcRequest, cancellationToken).ConfigureAwait(false);
-        }
-        catch (A2AException ex)
-        {
-            var id = rpcRequest?.Id ?? default;
-            return MakeV03ErrorResult(id, ex);
+            doc = await JsonDocument.ParseAsync(request.Body, cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
         }
         catch (JsonException)
         {
             return MakeErrorResult(default, V03.JsonRpcResponse.ParseErrorResponse);
         }
+
+        using (doc)
+        {
+            var root = doc.RootElement;
+
+            if (!root.TryGetProperty("method", out var methodProp) ||
+                methodProp.ValueKind != JsonValueKind.String)
+            {
+                return MakeErrorResult(default, V03.JsonRpcResponse.ParseErrorResponse);
+            }
+
+            var method = methodProp.GetString() ?? string.Empty;
+
+            // v1.0 method names: bypass V03 validator, delegate directly to v1.0 processor.
+            if (!V03.A2AMethods.IsValidMethod(method))
+            {
+                return await HandleV1RequestAsync(requestHandler, root, method, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            // v0.3 method names: deserialize with full V03 validation.
+            V03.JsonRpcRequest? rpcRequest = null;
+            try
+            {
+                var typeInfo = (JsonTypeInfo<V03.JsonRpcRequest>)V03.A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(V03.JsonRpcRequest));
+                rpcRequest = JsonSerializer.Deserialize(root, typeInfo);
+
+                if (rpcRequest is null)
+                {
+                    return MakeErrorResult(default, V03.JsonRpcResponse.ParseErrorResponse);
+                }
+
+                if (V03.A2AMethods.IsStreamingMethod(rpcRequest.Method))
+                {
+                    return HandleStreaming(requestHandler, rpcRequest, cancellationToken);
+                }
+
+                return await HandleSingleAsync(requestHandler, rpcRequest, cancellationToken).ConfigureAwait(false);
+            }
+            catch (A2AException ex)
+            {
+                var id = rpcRequest?.Id ?? default;
+                return MakeV03ErrorResult(id, ex);
+            }
+            catch (JsonException)
+            {
+                return MakeErrorResult(default, V03.JsonRpcResponse.ParseErrorResponse);
+            }
+            catch (Exception)
+            {
+                var id = rpcRequest?.Id ?? default;
+                return MakeErrorResult(id, V03.JsonRpcResponse.InternalErrorResponse);
+            }
+        }
+    }
+
+    // Handles v1.0 method names routed directly from ProcessRequestAsync.
+    // Extracts id and params from the already-parsed JsonElement and delegates to the v1.0 processor.
+    private static async Task<IResult> HandleV1RequestAsync(
+        IA2ARequestHandler handler,
+        JsonElement root,
+        string method,
+        CancellationToken ct)
+    {
+        var id = root.TryGetProperty("id", out var idEl)
+            ? idEl.ValueKind switch
+            {
+                JsonValueKind.String => new JsonRpcId(idEl.GetString()),
+                JsonValueKind.Number when idEl.TryGetInt64(out var n) => new JsonRpcId(n),
+                _ => new JsonRpcId((string?)null)
+            }
+            : new JsonRpcId((string?)null);
+
+        JsonElement? paramsEl = null;
+        if (root.TryGetProperty("params", out var p) && p.ValueKind == JsonValueKind.Object)
+        {
+            paramsEl = p.Clone();
+        }
+
+        try
+        {
+            if (A2AMethods.IsStreamingMethod(method))
+            {
+                return A2AJsonRpcProcessor.StreamResponse(handler, id, method, paramsEl, ct);
+            }
+            return await A2AJsonRpcProcessor.SingleResponseAsync(handler, id, method, paramsEl, ct)
+                .ConfigureAwait(false);
+        }
+        catch (A2AException ex)
+        {
+            return new JsonRpcResponseResult(JsonRpcResponse.CreateJsonRpcErrorResponse(id, ex));
+        }
         catch (Exception)
         {
-            var id = rpcRequest?.Id ?? default;
-            return MakeErrorResult(id, V03.JsonRpcResponse.InternalErrorResponse);
+            return new JsonRpcResponseResult(JsonRpcResponse.InternalErrorResponse(id, "An internal error occurred."));
         }
     }
 
@@ -136,7 +211,16 @@ public static class V03ServerProcessor
             }
 
             default:
-                return MakeErrorResult(rpcRequest.Id, V03.JsonRpcResponse.MethodNotFoundResponse);
+            {
+                // Unrecognized v0.3 method — delegate to v1.0 processor.
+                // This handles v1.0 clients sending v1.0 method names (e.g. "SendMessage").
+                var v1Id = ToV1Id(rpcRequest.Id);
+                if (A2AMethods.IsStreamingMethod(rpcRequest.Method))
+                {
+                    return A2AJsonRpcProcessor.StreamResponse(handler, v1Id, rpcRequest.Method, rpcRequest.Params, ct);
+                }
+                return await A2AJsonRpcProcessor.SingleResponseAsync(handler, v1Id, rpcRequest.Method, rpcRequest.Params, ct).ConfigureAwait(false);
+            }
         }
     }
 
@@ -201,4 +285,9 @@ public static class V03ServerProcessor
     private static V03JsonRpcResponseResult MakeV03ErrorResult(V03.JsonRpcId id, A2AException ex)
         => new(V03.JsonRpcResponse.CreateJsonRpcErrorResponse(id,
             new V03.A2AException(ex.Message, (V03.A2AErrorCode)(int)ex.ErrorCode)));
+
+    private static JsonRpcId ToV1Id(V03.JsonRpcId v03Id) =>
+        v03Id.IsString ? new JsonRpcId(v03Id.AsString()) :
+        v03Id.IsNumber ? new JsonRpcId(v03Id.AsNumber()!.Value) :
+        new JsonRpcId((string?)null);
 }
