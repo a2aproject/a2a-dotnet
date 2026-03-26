@@ -8,9 +8,9 @@ internal static class Program
     {
         try
         {
-            await GetAgentDetailsSample.RunAsync();
+            //await GetAgentDetailsSample.RunAsync();
 
-            await MessageBasedCommunicationSample.RunAsync();
+            //await MessageBasedCommunicationSample.RunAsync();
 
             await TaskBasedCommunicationSample.RunAsync();
         }
