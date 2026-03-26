@@ -40,4 +40,66 @@ public static class V03ServerCompatEndpointExtensions
 
         return routeGroup;
     }
+
+    /// <summary>
+    /// Maps agent card discovery endpoints that serve the agent card in v0.3 or v1.0 format
+    /// based on the <c>A2A-Version</c> request header, supporting both client versions simultaneously.
+    /// Registers both <c>GET {path}/</c> and <c>GET {path}/.well-known/agent-card.json</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>Format negotiation is based on the <c>A2A-Version</c> request header:</para>
+    /// <list type="bullet">
+    /// <item><description>
+    /// <c>GET {path}/</c>: returns v1.0 by default; returns v0.3 only when <c>A2A-Version: 0.3</c> is present.
+    /// </description></item>
+    /// <item><description>
+    /// <c>GET {path}/.well-known/agent-card.json</c>: returns v0.3 by default (backward compatibility for
+    /// v0.3 clients that do not send the header); returns v1.0 when <c>A2A-Version: 1.0</c> is present
+    /// (as sent by <see cref="A2AClientFactory.CreateAsync"/>).
+    /// </description></item>
+    /// </list>
+    /// <para>Use this instead of the host's v1.0 agent card method during a v0.3-to-v1.0 migration
+    /// period. Once all clients have upgraded to v1.0, replace this call with the host's v1.0
+    /// equivalent to remove the header-based negotiation.</para>
+    /// </remarks>
+    /// <param name="endpoints">The endpoint route builder.</param>
+    /// <param name="getAgentCardAsync">A factory that returns the v1.0 agent card to serve or convert.</param>
+    /// <param name="path">The route prefix for the agent card endpoints.</param>
+    /// <returns>An endpoint convention builder for further configuration.</returns>
+    [RequiresDynamicCode("MapAgentCardGetWithV03Compat uses runtime reflection for route binding. For AOT-compatible usage, use a source-generated host.")]
+    [RequiresUnreferencedCode("MapAgentCardGetWithV03Compat may perform reflection on types that are not preserved by trimming.")]
+    public static IEndpointConventionBuilder MapAgentCardGetWithV03Compat(
+        this IEndpointRouteBuilder endpoints,
+        Func<Task<AgentCard>> getAgentCardAsync,
+        [StringSyntax("Route")] string path = "")
+    {
+        ArgumentNullException.ThrowIfNull(endpoints);
+        ArgumentNullException.ThrowIfNull(getAgentCardAsync);
+
+        var routeGroup = endpoints.MapGroup(path);
+
+        // v1.0 clients use GET / — negotiate format via A2A-Version header
+        routeGroup.MapGet(string.Empty, async (HttpRequest request) =>
+        {
+            var v1Card = await getAgentCardAsync();
+            var version = request.Headers["A2A-Version"].FirstOrDefault();
+            return version == "0.3"
+                ? Results.Ok(V03TypeConverter.ToV03AgentCard(v1Card))
+                : Results.Ok(v1Card);
+        });
+
+        // Both v0.3 and v1.0 clients use GET .well-known/agent-card.json.
+        // v1.0 clients (A2AClientFactory.CreateAsync) send A2A-Version: 1.0; return v1.0 format.
+        // v0.3 clients send no header; default to v0.3 format for backward compatibility.
+        routeGroup.MapGet(".well-known/agent-card.json", async (HttpRequest request, CancellationToken ct) =>
+        {
+            var v1Card = await getAgentCardAsync();
+            var version = request.Headers["A2A-Version"].FirstOrDefault();
+            return version == "1.0"
+                ? Results.Ok(v1Card)
+                : Results.Ok(V03TypeConverter.ToV03AgentCard(v1Card));
+        });
+
+        return routeGroup;
+    }
 }

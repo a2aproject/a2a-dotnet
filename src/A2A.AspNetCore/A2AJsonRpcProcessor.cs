@@ -55,7 +55,16 @@ public static class A2AJsonRpcProcessor
         }
     }
 
-    internal static async Task<JsonRpcResponseResult> SingleResponseAsync(IA2ARequestHandler requestHandler, JsonRpcId requestId, string method, JsonElement? parameters, CancellationToken cancellationToken)
+    /// <summary>
+    /// Handles a single (non-streaming) JSON-RPC request with a v1.0 method name and parameters.
+    /// </summary>
+    /// <param name="requestHandler">The v1.0 A2A request handler.</param>
+    /// <param name="requestId">The JSON-RPC request ID.</param>
+    /// <param name="method">The JSON-RPC method name.</param>
+    /// <param name="parameters">The JSON-RPC parameters element.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A <see cref="JsonRpcResponseResult"/> containing the response.</returns>
+    public static async Task<JsonRpcResponseResult> SingleResponseAsync(IA2ARequestHandler requestHandler, JsonRpcId requestId, string method, JsonElement? parameters, CancellationToken cancellationToken)
     {
         using var activity = A2AAspNetCoreDiagnostics.Source.StartActivity($"SingleResponse/{method}", ActivityKind.Server);
         activity?.SetTag("request.id", requestId.ToString());
@@ -186,7 +195,16 @@ public static class A2AJsonRpcProcessor
         return parms;
     }
 
-    internal static IResult StreamResponse(IA2ARequestHandler requestHandler, JsonRpcId requestId, string method, JsonElement? parameters, CancellationToken cancellationToken)
+    /// <summary>
+    /// Handles a streaming JSON-RPC request with a v1.0 method name and parameters.
+    /// </summary>
+    /// <param name="requestHandler">The v1.0 A2A request handler.</param>
+    /// <param name="requestId">The JSON-RPC request ID.</param>
+    /// <param name="method">The JSON-RPC method name.</param>
+    /// <param name="parameters">The JSON-RPC parameters element.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>An <see cref="IResult"/> that streams the response events.</returns>
+    public static IResult StreamResponse(IA2ARequestHandler requestHandler, JsonRpcId requestId, string method, JsonElement? parameters, CancellationToken cancellationToken)
     {
         using var activity = A2AAspNetCoreDiagnostics.Source.StartActivity("StreamResponse", ActivityKind.Server);
         activity?.SetTag("request.id", requestId.ToString());

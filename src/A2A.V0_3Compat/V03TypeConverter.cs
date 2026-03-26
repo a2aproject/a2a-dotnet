@@ -7,6 +7,58 @@ using V03 = A2A.V0_3;
 /// <summary>Bidirectional type conversion between A2A v1.0 and v0.3 models.</summary>
 internal static class V03TypeConverter
 {
+    // ──── v1.0 AgentCard → v0.3 AgentCard ────
+
+    /// <summary>Converts a v1.0 AgentCard to a v0.3 AgentCard for serving to v0.3 clients.</summary>
+    /// <param name="v1Card">The v1.0 agent card to convert.</param>
+    /// <returns>A v0.3 agent card that v0.3 clients can parse.</returns>
+    internal static V03.AgentCard ToV03AgentCard(A2A.AgentCard v1Card)
+    {
+        // The v0.3 AgentCard requires a top-level URL; extract it from the first supported interface.
+        var primaryInterface = v1Card.SupportedInterfaces.FirstOrDefault();
+        var url = primaryInterface?.Url ?? string.Empty;
+        var transport = primaryInterface?.ProtocolBinding is { } binding
+            ? new V03.AgentTransport(binding)
+            : V03.AgentTransport.JsonRpc;
+
+        return new V03.AgentCard
+        {
+            Name = v1Card.Name,
+            Description = v1Card.Description,
+            Version = v1Card.Version,
+            Url = url,
+            ProtocolVersion = "0.3.0",
+            PreferredTransport = transport,
+            DocumentationUrl = v1Card.DocumentationUrl,
+            IconUrl = v1Card.IconUrl,
+            Provider = v1Card.Provider is { } p ? new V03.AgentProvider
+            {
+                Organization = p.Organization,
+                Url = p.Url,
+            } : null,
+            Capabilities = new V03.AgentCapabilities
+            {
+                Streaming = v1Card.Capabilities.Streaming ?? false,
+                PushNotifications = v1Card.Capabilities.PushNotifications ?? false,
+            },
+            DefaultInputModes = v1Card.DefaultInputModes,
+            DefaultOutputModes = v1Card.DefaultOutputModes,
+            Skills = v1Card.Skills.Select(ToV03AgentSkill).ToList(),
+            SupportsAuthenticatedExtendedCard = v1Card.Capabilities.ExtendedAgentCard ?? false,
+        };
+    }
+
+    private static V03.AgentSkill ToV03AgentSkill(A2A.AgentSkill skill) => new()
+    {
+        Id = skill.Id,
+        Name = skill.Name,
+        Description = skill.Description,
+        Tags = skill.Tags,
+        Examples = skill.Examples,
+        InputModes = skill.InputModes,
+        OutputModes = skill.OutputModes,
+    };
+
     // ──── v1.0 → v0.3 (request conversion) ────
 
     /// <summary>Converts a v1.0 send message request to v0.3 message send params.</summary>
