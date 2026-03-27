@@ -13,6 +13,8 @@ internal static class Program
             await MessageBasedCommunicationSample.RunAsync();
 
             await TaskBasedCommunicationSample.RunAsync();
+
+            await StreamingArtifactSample.RunAsync();
         }
         finally
         {
