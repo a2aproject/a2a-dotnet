@@ -20,6 +20,9 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
     private readonly ChannelEventNotifier _notifier;
     private readonly ILogger<A2AServer> _logger;
     private readonly A2AServerOptions _options;
+    // NOTE: Concurrent SendMessage requests for the same TaskId is not a supported
+    // scenario by the A2A protocol or this SDK. The atomic GetOrAdd/AddOrUpdate
+    // patterns used below are defense-in-depth to prevent silent resource leaks.
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _backgroundCancellations = new();
     private readonly ConcurrentDictionary<string, Task> _backgroundTasks = new();
 
@@ -89,25 +92,49 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
             CancellationToken executionCancellationToken;
             if (returnImmediately)
             {
-                if (_backgroundCancellations.TryGetValue(context.TaskId, out var existingCts))
+                // NOTE: Concurrent SendMessage requests for the same TaskId is not a
+                // supported scenario by either the A2A protocol or this SDK. The atomic
+                // GetOrAdd pattern below is defense-in-depth — it prevents silent CTS
+                // orphaning if the unsupported scenario occurs, rather than enabling it.
+                var newCts = new CancellationTokenSource();
+                var cts = _backgroundCancellations.GetOrAdd(context.TaskId, newCts);
+
+                if (ReferenceEquals(cts, newCts))
                 {
-                    try
-                    {
-                        executionCancellationToken = existingCts.Token;
-                    }
-                    catch (ObjectDisposedException)
-                    {
-                        // CTS was disposed by a concurrent drain completion — create a fresh one
-                        backgroundCts = new CancellationTokenSource();
-                        _backgroundCancellations[context.TaskId] = backgroundCts;
-                        executionCancellationToken = backgroundCts.Token;
-                    }
+                    // We won the race — this drain will own CTS disposal.
+                    backgroundCts = newCts;
                 }
                 else
                 {
+                    // Another request already registered a CTS — reuse it.
+                    newCts.Dispose();
+                }
+
+                try
+                {
+                    executionCancellationToken = cts.Token;
+                }
+                catch (ObjectDisposedException)
+                {
+                    // The existing CTS was disposed by a completing drain — replace atomically.
                     backgroundCts = new CancellationTokenSource();
-                    _backgroundCancellations[context.TaskId] = backgroundCts;
-                    executionCancellationToken = backgroundCts.Token;
+                    if (_backgroundCancellations.TryAdd(context.TaskId, backgroundCts))
+                    {
+                        executionCancellationToken = backgroundCts.Token;
+                    }
+                    else if (_backgroundCancellations.TryGetValue(context.TaskId, out var current))
+                    {
+                        // Another thread inserted a fresh CTS — reuse it.
+                        backgroundCts.Dispose();
+                        backgroundCts = null;
+                        executionCancellationToken = current.Token;
+                    }
+                    else
+                    {
+                        // Entry was removed between TryAdd and TryGetValue — use ours.
+                        _backgroundCancellations.TryAdd(context.TaskId, backgroundCts);
+                        executionCancellationToken = backgroundCts.Token;
+                    }
                 }
             }
             else
@@ -541,7 +568,12 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
                 }
             }, CancellationToken.None);
 
-            _backgroundTasks[context.TaskId] = drainTask;
+#pragma warning disable CS4014, VSTHRD003 // Fire-and-forget by design; combined task is tracked for DisposeAsync
+            _backgroundTasks.AddOrUpdate(
+                context.TaskId,
+                drainTask,
+                (_, existingDrain) => Task.WhenAll(existingDrain, drainTask));
+#pragma warning restore CS4014, VSTHRD003
 
             // Re-fetch from store to return the current persisted state
             result.Task = await _taskStore.GetTaskAsync(context.TaskId, CancellationToken.None).ConfigureAwait(false)
