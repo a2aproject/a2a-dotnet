@@ -32,9 +32,6 @@ public static class A2ARouteBuilderExtensions
         routeGroup.MapPost(path, (HttpRequest request, CancellationToken cancellationToken)
             => A2AJsonRpcProcessor.ProcessRequestAsync(handler, request, cancellationToken));
 
-        var wellKnown = endpoints.MapGroup(path);
-        wellKnown.MapGet(".well-known/agent-card.json", () => Results.Ok(agentCard));
-
         return routeGroup;
     }
 

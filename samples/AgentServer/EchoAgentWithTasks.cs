@@ -11,12 +11,24 @@ public sealed class EchoAgentWithTasks : IAgentHandler
         var updater = new TaskUpdater(eventQueue, context.TaskId, context.ContextId);
 
         await updater.SubmitAsync(cancellationToken);
+
+        // When the client requests return-immediately, simulate slow work so
+        // the server returns the in-progress task before processing completes.
+        if (context.Configuration?.ReturnImmediately == true)
+        {
+            await updater.StartWorkAsync(cancellationToken: cancellationToken);
+            await Task.Delay(3000, cancellationToken); // simulate slow work
+        }
+
         await updater.AddArtifactAsync(
             [Part.FromText($"Echo: {context.UserText}")], cancellationToken: cancellationToken);
 
         // Transition to the target state (defaults to Completed)
         switch (targetState)
         {
+            case TaskState.Working:
+                await updater.StartWorkAsync(cancellationToken: cancellationToken);
+                break;
             case TaskState.Failed:
                 await updater.FailAsync(cancellationToken: cancellationToken);
                 break;
