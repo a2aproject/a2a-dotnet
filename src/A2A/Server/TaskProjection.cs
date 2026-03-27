@@ -66,11 +66,37 @@ public static class TaskProjection
         }
         else
         {
-            // append=true: extend existing artifact's parts list, or add if not found
+            // append=true: extend existing artifact's parts, metadata, extensions, name, description
             var existing = current.Artifacts.FirstOrDefault(a => a.ArtifactId == artifactId);
             if (existing is not null)
             {
+                // Parts: append
                 existing.Parts.AddRange(au.Artifact.Parts);
+
+                // Metadata: upsert
+                if (au.Artifact.Metadata is not null)
+                {
+                    existing.Metadata ??= new();
+                    foreach (var kvp in au.Artifact.Metadata)
+                        existing.Metadata[kvp.Key] = kvp.Value;
+                }
+
+                // Extensions: deduplicated append
+                if (au.Artifact.Extensions is not null)
+                {
+                    existing.Extensions ??= [];
+                    foreach (var ext in au.Artifact.Extensions)
+                    {
+                        if (!existing.Extensions.Contains(ext))
+                            existing.Extensions.Add(ext);
+                    }
+                }
+
+                // Name/Description: update if provided
+                if (!string.IsNullOrEmpty(au.Artifact.Name))
+                    existing.Name = au.Artifact.Name;
+                if (!string.IsNullOrEmpty(au.Artifact.Description))
+                    existing.Description = au.Artifact.Description;
             }
             else
             {
