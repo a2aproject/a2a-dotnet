@@ -876,4 +876,195 @@ public class A2AServerTests
         await handlerEnded.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.True(wasCancelled, "Background handler should have been cancelled on dispose");
     }
+
+    [Fact]
+    public async Task GivenStreamDisconnect_WhenReconnectWithSubscribe_ThenReceivesRemainingEvents()
+    {
+        // Arrange — handler waits for a signal before completing, so we control timing precisely
+        var (server, store, handler) = CreateServer();
+        var handlerStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var proceedToComplete = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var handlerCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        handler.OnExecute = async (ctx, eq, ct) =>
+        {
+            var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
+            await updater.SubmitAsync(ct);
+            await updater.StartWorkAsync(cancellationToken: ct);
+            handlerStarted.TrySetResult();
+            await proceedToComplete.Task.WaitAsync(CancellationToken.None);
+            await updater.CompleteAsync(cancellationToken: CancellationToken.None);
+            handlerCompleted.TrySetResult();
+        };
+
+        var request = new SendMessageRequest
+        {
+            Message = new Message { MessageId = "u1", Parts = [Part.FromText("Hello!")], Role = Role.User }
+        };
+
+        // Act — stream and disconnect after first event
+        string? taskId = null;
+        await foreach (var response in server.SendStreamingMessageAsync(request))
+        {
+            if (response.Task is not null)
+            {
+                taskId = response.Task.Id;
+                break; // Simulate client disconnect
+            }
+        }
+
+        Assert.NotNull(taskId);
+        await handlerStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        // Release handler to complete, then wait for the background drain to finish
+        proceedToComplete.TrySetResult();
+        await handlerCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        // Allow background drain to persist the final event
+        var persisted = await WaitForTaskStateAsync(store, taskId!, TaskState.Completed);
+
+        Assert.NotNull(persisted);
+        Assert.Equal(TaskState.Completed, persisted!.Status.State);
+
+        // Verify final state via GetTaskAsync (SubscribeToTaskAsync throws for terminal tasks per spec)
+        var finalTask = await server.GetTaskAsync(new GetTaskRequest { Id = taskId! });
+        Assert.Equal(TaskState.Completed, finalTask.Status.State);
+    }
+
+    [Fact]
+    public async Task GivenStreamDisconnect_BackgroundDrainPersistsAllEvents()
+    {
+        // Arrange — handler waits for a signal before completing
+        var (server, store, handler) = CreateServer();
+        var proceedToComplete = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var handlerCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        handler.OnExecute = async (ctx, eq, ct) =>
+        {
+            var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
+            await updater.SubmitAsync(ct);
+            await updater.StartWorkAsync(cancellationToken: ct);
+            await updater.AddArtifactAsync(
+                [Part.FromText("result data")],
+                artifactId: "a1",
+                cancellationToken: ct);
+            await proceedToComplete.Task.WaitAsync(CancellationToken.None);
+            await updater.CompleteAsync(cancellationToken: CancellationToken.None);
+            handlerCompleted.TrySetResult();
+        };
+
+        var request = new SendMessageRequest
+        {
+            Message = new Message { MessageId = "u1", Parts = [Part.FromText("Hello!")], Role = Role.User }
+        };
+
+        // Act — read first event then disconnect
+        string? taskId = null;
+        await foreach (var response in server.SendStreamingMessageAsync(request))
+        {
+            if (response.Task is not null)
+            {
+                taskId = response.Task.Id;
+                break;
+            }
+        }
+
+        Assert.NotNull(taskId);
+
+        // Release handler to complete, then wait for it
+        proceedToComplete.TrySetResult();
+        await handlerCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        // The background drain applies events asynchronously after the handler finishes.
+        // Poll briefly — the drain is in-memory so it resolves within a few yields.
+        var persisted = await WaitForTaskStateAsync(store, taskId!, TaskState.Completed);
+
+        // Assert — all events were persisted including artifacts
+        Assert.NotNull(persisted);
+        Assert.Equal(TaskState.Completed, persisted!.Status.State);
+        Assert.NotNull(persisted.Artifacts);
+        Assert.Contains(persisted.Artifacts!, a => a.ArtifactId == "a1");
+    }
+
+    [Fact]
+    public async Task GivenStreamDisconnect_WhenSubscribeDuringProcessing_ThenReceivesLiveEvents()
+    {
+        // Arrange — handler waits for a signal, letting us subscribe before it completes
+        var (server, store, handler) = CreateServer();
+        var handlerReachedWait = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var proceedToComplete = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        handler.OnExecute = async (ctx, eq, ct) =>
+        {
+            var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
+            await updater.SubmitAsync(ct);
+            await updater.StartWorkAsync(cancellationToken: ct);
+            handlerReachedWait.TrySetResult();
+            await proceedToComplete.Task.WaitAsync(CancellationToken.None);
+            await updater.CompleteAsync(cancellationToken: CancellationToken.None);
+        };
+
+        var request = new SendMessageRequest
+        {
+            Message = new Message { MessageId = "u1", Parts = [Part.FromText("Hello!")], Role = Role.User }
+        };
+
+        // Act — stream and disconnect after first event
+        string? taskId = null;
+        await foreach (var response in server.SendStreamingMessageAsync(request))
+        {
+            if (response.Task is not null)
+            {
+                taskId = response.Task.Id;
+                break;
+            }
+        }
+
+        Assert.NotNull(taskId);
+
+        // Wait for handler to reach the pause point (task is Working, not yet Completed)
+        await handlerReachedWait.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        // Reconnect while task is still in progress — set up subscriber BEFORE releasing handler
+        using var subscribeCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var events = new List<StreamResponse>();
+        var snapshotReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var subscribeTask = Task.Run(async () =>
+        {
+            await foreach (var e in server.SubscribeToTaskAsync(new SubscribeToTaskRequest { Id = taskId! }, subscribeCts.Token))
+            {
+                events.Add(e);
+                if (events.Count == 1) snapshotReceived.TrySetResult();
+                if (e.StatusUpdate?.Status.State.IsTerminal() == true) break;
+            }
+        }, subscribeCts.Token);
+
+        // Wait until subscriber channel is registered (snapshot proves it)
+        await snapshotReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        // Now release the handler — subscriber channel will receive live Completed event
+        proceedToComplete.TrySetResult();
+        await subscribeTask;
+
+        // Assert — received task snapshot + Completed status update
+        Assert.True(events.Count >= 2, $"Expected at least 2 events but got {events.Count}");
+        Assert.NotNull(events[0].Task); // snapshot
+        Assert.Contains(events, e => e.StatusUpdate?.Status.State == TaskState.Completed);
+    }
+
+    /// <summary>
+    /// Polls the task store for a task reaching the expected state.
+    /// Background drain is async so a brief yield is needed between checks.
+    /// </summary>
+    private static async Task<AgentTask?> WaitForTaskStateAsync(
+        InMemoryTaskStore store, string taskId, TaskState expected, int maxAttempts = 50)
+    {
+        for (var i = 0; i < maxAttempts; i++)
+        {
+            var task = await store.GetTaskAsync(taskId);
+            if (task?.Status.State == expected) return task;
+            await Task.Delay(1); // Minimal yield for background drain to acquire task lock
+        }
+        return await store.GetTaskAsync(taskId);
+    }
 }

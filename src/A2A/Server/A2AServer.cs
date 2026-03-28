@@ -197,7 +197,10 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
         RequestContext? context = null;
         AgentEventQueue? eventQueue = null;
         Task? agentTask = null;
+        CancellationTokenSource? backgroundCts = null;
+        CancellationToken backgroundCancellationToken = default;
         int eventCount = 0;
+        bool streamFullyConsumed = false;
 
         try
         {
@@ -212,21 +215,65 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
                     context, cancellationToken).ConfigureAwait(false);
             }
 
+            // Decouple handler lifetime from the HTTP connection: use a background CTS
+            // that survives client disconnects and is cancellable via CancelTaskAsync.
+            var newCts = new CancellationTokenSource();
+            var cts = _backgroundCancellations.GetOrAdd(context.TaskId, newCts);
+
+            if (ReferenceEquals(cts, newCts))
+            {
+                backgroundCts = newCts;
+            }
+            else
+            {
+                newCts.Dispose();
+            }
+
+            try
+            {
+                backgroundCancellationToken = cts.Token;
+            }
+            catch (ObjectDisposedException)
+            {
+                backgroundCts = new CancellationTokenSource();
+                if (_backgroundCancellations.TryAdd(context.TaskId, backgroundCts))
+                {
+                    backgroundCancellationToken = backgroundCts.Token;
+                }
+                else if (_backgroundCancellations.TryGetValue(context.TaskId, out var current))
+                {
+                    backgroundCts.Dispose();
+                    backgroundCts = null;
+                    backgroundCancellationToken = current.Token;
+                }
+                else
+                {
+                    _backgroundCancellations.TryAdd(context.TaskId, backgroundCts);
+                    backgroundCancellationToken = backgroundCts.Token;
+                }
+            }
+
             eventQueue = new AgentEventQueue();
             agentTask = Task.Run(async () =>
             {
                 try
                 {
-                    await _handler.ExecuteAsync(context, eventQueue, cancellationToken).ConfigureAwait(false);
+                    await _handler.ExecuteAsync(context, eventQueue, backgroundCancellationToken).ConfigureAwait(false);
                 }
                 finally
                 {
                     eventQueue.Complete();
                 }
-            }, cancellationToken);
+            }, backgroundCancellationToken);
         }
         catch (Exception ex)
         {
+            if (backgroundCts is not null && context is not null &&
+                _backgroundCancellations.TryRemove(context.TaskId, out _))
+            {
+                backgroundCts.Dispose();
+            }
+
             A2ADiagnostics.ErrorCount.Add(1);
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             RecordException(activity, ex);
@@ -253,12 +300,73 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
                 yield return response;
             }
 
-            // Surface any agent exceptions
+            // All events consumed — surface handler exceptions
             await agentTask!.ConfigureAwait(false);
+            streamFullyConsumed = true;
         }
         finally
         {
             A2ADiagnostics.StreamEventCount.Record(eventCount);
+
+            // If the stream ended before the handler/queue completed (client disconnect
+            // or ApplyEventAsync error), drain remaining events in the background so
+            // they're persisted and notified to any SubscribeToTaskAsync channels.
+            if (!streamFullyConsumed && context is not null && agentTask is not null)
+            {
+                var capturedContext = context;
+                var capturedEventQueue = eventQueue!;
+                var capturedAgentTask = agentTask;
+                var ownedBackgroundCts = backgroundCts;
+                var drainCancellationToken = backgroundCancellationToken;
+
+                var drainTask = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await foreach (var response in capturedEventQueue
+                            .WithCancellation(drainCancellationToken).ConfigureAwait(false))
+                        {
+                            await ApplyEventAsync(response, capturedContext, CancellationToken.None)
+                                .ConfigureAwait(false);
+                        }
+
+#pragma warning disable VSTHRD003 // Intentional: agentTask runs the agent handler in the background
+                        await capturedAgentTask.ConfigureAwait(false);
+#pragma warning restore VSTHRD003
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // Expected when tasks/cancel triggers the background CTS
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.BackgroundEventProcessingFailed(ex, capturedContext.TaskId);
+                    }
+                    finally
+                    {
+                        _backgroundTasks.TryRemove(capturedContext.TaskId, out _);
+
+                        if (ownedBackgroundCts is not null)
+                        {
+                            _backgroundCancellations.TryRemove(capturedContext.TaskId, out _);
+                            ownedBackgroundCts.Dispose();
+                        }
+                    }
+                }, CancellationToken.None);
+
+#pragma warning disable CS4014, VSTHRD003 // Fire-and-forget by design; combined task is tracked for DisposeAsync
+                _backgroundTasks.AddOrUpdate(
+                    context.TaskId,
+                    drainTask,
+                    (_, existingDrain) => Task.WhenAll(existingDrain, drainTask));
+#pragma warning restore CS4014, VSTHRD003
+            }
+            else if (backgroundCts is not null && context is not null)
+            {
+                // Stream completed normally — clean up background CTS
+                _backgroundCancellations.TryRemove(context.TaskId, out _);
+                backgroundCts.Dispose();
+            }
         }
     }
 
