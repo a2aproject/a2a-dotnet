@@ -117,23 +117,27 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
                 catch (ObjectDisposedException)
                 {
                     // The existing CTS was disposed by a completing drain — replace atomically.
+                    // Retry loop handles the race where an entry is added and removed between
+                    // our TryAdd and TryGetValue calls (same pattern as AcquireTaskLockAsync).
                     backgroundCts = new CancellationTokenSource();
-                    if (_backgroundCancellations.TryAdd(context.TaskId, backgroundCts))
+                    while (true)
                     {
-                        executionCancellationToken = backgroundCts.Token;
-                    }
-                    else if (_backgroundCancellations.TryGetValue(context.TaskId, out var current))
-                    {
-                        // Another thread inserted a fresh CTS — reuse it.
-                        backgroundCts.Dispose();
-                        backgroundCts = null;
-                        executionCancellationToken = current.Token;
-                    }
-                    else
-                    {
-                        // Entry was removed between TryAdd and TryGetValue — use ours.
-                        _backgroundCancellations.TryAdd(context.TaskId, backgroundCts);
-                        executionCancellationToken = backgroundCts.Token;
+                        if (_backgroundCancellations.TryAdd(context.TaskId, backgroundCts))
+                        {
+                            executionCancellationToken = backgroundCts.Token;
+                            break;
+                        }
+
+                        if (_backgroundCancellations.TryGetValue(context.TaskId, out var current))
+                        {
+                            // Another thread inserted a fresh CTS — reuse it.
+                            backgroundCts.Dispose();
+                            backgroundCts = null;
+                            executionCancellationToken = current.Token;
+                            break;
+                        }
+
+                        // Both failed — entry was added and removed between our calls. Retry.
                     }
                 }
             }
@@ -235,21 +239,28 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
             }
             catch (ObjectDisposedException)
             {
+                // The existing CTS was disposed by a completing drain — replace atomically.
+                // Retry loop handles the race where an entry is added and removed between
+                // our TryAdd and TryGetValue calls (same pattern as AcquireTaskLockAsync).
                 backgroundCts = new CancellationTokenSource();
-                if (_backgroundCancellations.TryAdd(context.TaskId, backgroundCts))
+                while (true)
                 {
-                    backgroundCancellationToken = backgroundCts.Token;
-                }
-                else if (_backgroundCancellations.TryGetValue(context.TaskId, out var current))
-                {
-                    backgroundCts.Dispose();
-                    backgroundCts = null;
-                    backgroundCancellationToken = current.Token;
-                }
-                else
-                {
-                    _backgroundCancellations.TryAdd(context.TaskId, backgroundCts);
-                    backgroundCancellationToken = backgroundCts.Token;
+                    if (_backgroundCancellations.TryAdd(context.TaskId, backgroundCts))
+                    {
+                        backgroundCancellationToken = backgroundCts.Token;
+                        break;
+                    }
+
+                    if (_backgroundCancellations.TryGetValue(context.TaskId, out var current))
+                    {
+                        // Another thread inserted a fresh CTS — reuse it.
+                        backgroundCts.Dispose();
+                        backgroundCts = null;
+                        backgroundCancellationToken = current.Token;
+                        break;
+                    }
+
+                    // Both failed — entry was added and removed between our calls. Retry.
                 }
             }
 
