@@ -26,7 +26,7 @@ internal static class V03TypeConverter
             {
                 AcceptedOutputModes = config.AcceptedOutputModes ?? [],
                 HistoryLength = config.HistoryLength,
-                Blocking = config.Blocking,
+                Blocking = !config.ReturnImmediately,
             };
 
             if (config.PushNotificationConfig is { } pushConfig)
