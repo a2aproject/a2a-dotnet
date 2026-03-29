@@ -30,6 +30,9 @@ public sealed class RequestContext
     /// <summary>Whether the response will be streamed (SSE) vs returned synchronously.</summary>
     public required bool StreamingResponse { get; init; }
 
+    /// <summary>Client-provided configuration for the send message request, if any.</summary>
+    public SendMessageConfiguration? Configuration { get; init; }
+
     /// <summary>Original request metadata.</summary>
     public Dictionary<string, JsonElement>? Metadata { get; init; }
 

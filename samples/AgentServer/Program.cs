@@ -9,7 +9,9 @@ var builder = WebApplication.CreateBuilder(args);
 // Get the agent type and store type from command line arguments
 var agentType = GetArgValue(args, "--agent", "-a") ?? "echo";
 var storeType = GetArgValue(args, "--store", "-s");
-var baseUrl = "http://localhost:5048";
+
+// Derive base URL from --urls arg so agent cards match the actual listening address
+var baseUrl = GetArgValue(args, "--urls", "--urls") ?? "http://localhost:5048";
 
 // Register file-backed task store if requested (before AddA2AAgent so TryAddSingleton picks it up)
 if (storeType?.Equals("file", StringComparison.OrdinalIgnoreCase) == true)
@@ -80,12 +82,9 @@ var path = agentType.ToLowerInvariant() switch
 
 app.MapA2A(path);
 
-// For spec compliance, also map at root for well-known agent card discovery
-if (agentType.Equals("speccompliance", StringComparison.OrdinalIgnoreCase))
-{
-    var card = app.Services.GetRequiredService<AgentCard>();
-    app.MapWellKnownAgentCard(card);
-}
+// Map well-known agent card at root for spec-compliant discovery (Section 8.2)
+var card = app.Services.GetRequiredService<AgentCard>();
+app.MapWellKnownAgentCard(card);
 
 app.Run();
 

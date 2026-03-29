@@ -65,6 +65,9 @@ internal sealed class TaskBasedCommunicationSample
 
         // 5. Demo a long-running task
         await DemoLongRunningTaskAsync(agentClient);
+
+        // 6. Demo return-immediately (non-blocking) task
+        await DemoReturnImmediatelyAsync(agentClient);
     }
 
     /// <summary>
@@ -102,7 +105,7 @@ internal sealed class TaskBasedCommunicationSample
             {
                 // Tweaking the agent behavior to simulate a long-running task;
                 // otherwise the agent will echo with Completed task.
-                { "task-target-state", JsonSerializer.SerializeToElement(TaskState.Working) }
+                { "task-target-state", JsonSerializer.SerializeToElement("Working") }
             }
         };
 
@@ -128,6 +131,49 @@ internal sealed class TaskBasedCommunicationSample
         Console.WriteLine(" Received task details:");
         Console.WriteLine($"  ID: {agentResponse.Id}");
         Console.WriteLine($"  Status: {agentResponse.Status.State}");
-        Console.WriteLine($"  Artifact: {agentResponse.Artifacts?[0].Parts?[0].Text}");
+        Console.WriteLine($"  Artifact: {agentResponse.Artifacts?.FirstOrDefault()?.Parts?.FirstOrDefault()?.Text}");
+    }
+
+    /// <summary>
+    /// Demonstrates return-immediately (non-blocking) communication with an agent.
+    /// The client sends a request with <c>ReturnImmediately = true</c>, gets an immediate
+    /// response with an in-progress task, then polls until the agent finishes.
+    /// </summary>
+    private static async Task DemoReturnImmediatelyAsync(A2AClient agentClient)
+    {
+        Console.WriteLine("\nReturn-Immediately Task");
+
+        Message userMessage = new()
+        {
+            Parts = [Part.FromText("Hello from the return-immediately sample!")],
+            Role = Role.User,
+            MessageId = Guid.NewGuid().ToString("N")
+        };
+
+        // 1. Send with ReturnImmediately = true — server returns before agent finishes
+        Console.WriteLine($" Sending message with ReturnImmediately=true: {userMessage.Parts[0].Text}");
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        SendMessageResponse response = await agentClient.SendMessageAsync(new SendMessageRequest
+        {
+            Message = userMessage,
+            Configuration = new SendMessageConfiguration { ReturnImmediately = true },
+        });
+        sw.Stop();
+
+        AgentTask task = response.Task!;
+        Console.WriteLine($" Got immediate response in {sw.ElapsedMilliseconds}ms:");
+        DisplayTaskDetails(task);
+
+        // 2. Poll until the task reaches a terminal state
+        Console.WriteLine(" Polling for completion...");
+        while (!task.Status.State.IsTerminal())
+        {
+            await Task.Delay(200);
+            task = await agentClient.GetTaskAsync(new GetTaskRequest { Id = task.Id });
+            Console.WriteLine($"  Poll: {task.Status.State}");
+        }
+
+        Console.WriteLine(" Task completed:");
+        DisplayTaskDetails(task);
     }
 }

@@ -602,4 +602,278 @@ public class A2AServerTests
         Assert.True(events.Count >= 2); // snapshot + at least terminal
         Assert.Contains(events, e => e.StatusUpdate?.Status.State == TaskState.Failed);
     }
+
+    [Fact]
+    public async Task GivenReturnImmediately_WhenHandlerIsSlowAndReturnsTask_ThenReturnsImmediatelyWithWorkingState()
+    {
+        // Arrange
+        var (server, store, handler) = CreateServer();
+        var handlerCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        handler.OnExecute = async (ctx, eq, ct) =>
+        {
+            var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
+            await updater.SubmitAsync(ct);
+            await updater.StartWorkAsync(cancellationToken: ct);
+            await Task.Delay(5000, CancellationToken.None); // slow work
+            await updater.CompleteAsync(cancellationToken: CancellationToken.None);
+            handlerCompleted.TrySetResult();
+        };
+
+        var request = new SendMessageRequest
+        {
+            Message = new Message { MessageId = "u1", Parts = [Part.FromText("Hello!")], Role = Role.User },
+            Configuration = new SendMessageConfiguration { ReturnImmediately = true },
+        };
+
+        // Act — should return well before the 5s delay
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var result = await server.SendMessageAsync(request, cts.Token);
+
+        // Assert — returned with non-terminal state
+        Assert.NotNull(result);
+        Assert.NotNull(result.Task);
+        Assert.False(result.Task!.Status.State.IsTerminal(),
+            $"Expected non-terminal state but got {result.Task.Status.State}");
+
+        // Wait for background processing to finish and verify final state
+        await handlerCompleted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        AgentTask? persisted = null;
+        for (var i = 0; i < 100; i++)
+        {
+            persisted = await store.GetTaskAsync(result.Task.Id);
+            if (persisted?.Status.State == TaskState.Completed) break;
+            await Task.Delay(50);
+        }
+        Assert.NotNull(persisted);
+        Assert.Equal(TaskState.Completed, persisted!.Status.State);
+    }
+
+    [Fact]
+    public async Task GivenReturnImmediately_WhenHandlerReturnsMessage_ThenReturnsMessageNormally()
+    {
+        // Arrange
+        var (server, _, handler) = CreateServer();
+        handler.OnExecute = async (ctx, eq, ct) =>
+        {
+            await eq.EnqueueMessageAsync(new Message
+            {
+                Role = Role.Agent,
+                MessageId = "m1",
+                ContextId = ctx.ContextId,
+                Parts = [Part.FromText("Quick reply")],
+            }, ct);
+            eq.Complete();
+        };
+
+        var request = new SendMessageRequest
+        {
+            Message = new Message { MessageId = "u1", Parts = [Part.FromText("Hello!")], Role = Role.User },
+            Configuration = new SendMessageConfiguration { ReturnImmediately = true },
+        };
+
+        // Act
+        var result = await server.SendMessageAsync(request);
+
+        // Assert — Message responses are unaffected by returnImmediately
+        Assert.NotNull(result);
+        Assert.NotNull(result.Message);
+        Assert.Null(result.Task);
+        Assert.Equal("Quick reply", result.Message!.Parts[0].Text);
+    }
+
+    [Fact]
+    public async Task GivenReturnImmediately_WhenHandlerCompletes_ThenBackgroundProcessingFinishes()
+    {
+        // Arrange
+        var (server, store, handler) = CreateServer();
+        var handlerCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        string? capturedTaskId = null;
+
+        handler.OnExecute = async (ctx, eq, ct) =>
+        {
+            capturedTaskId = ctx.TaskId;
+            var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
+            await updater.SubmitAsync(ct);
+            await updater.StartWorkAsync(cancellationToken: ct);
+            await updater.AddArtifactAsync(
+                [Part.FromText("result data")],
+                artifactId: "a1",
+                cancellationToken: ct);
+            await Task.Delay(1000, CancellationToken.None); // simulate work
+            await updater.CompleteAsync(cancellationToken: CancellationToken.None);
+            handlerCompleted.TrySetResult();
+        };
+
+        var request = new SendMessageRequest
+        {
+            Message = new Message { MessageId = "u1", Parts = [Part.FromText("Hello!")], Role = Role.User },
+            Configuration = new SendMessageConfiguration { ReturnImmediately = true },
+        };
+
+        // Act — returns quickly
+        var result = await server.SendMessageAsync(request);
+
+        Assert.NotNull(result);
+        Assert.NotNull(result.Task);
+
+        // Wait for background processing to complete
+        await handlerCompleted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.NotNull(capturedTaskId);
+        AgentTask? persisted = null;
+        for (var i = 0; i < 100; i++)
+        {
+            persisted = await store.GetTaskAsync(capturedTaskId!);
+            if (persisted?.Status.State == TaskState.Completed) break;
+            await Task.Delay(50);
+        }
+
+        // Assert — final state and artifacts are persisted
+        Assert.NotNull(persisted);
+        Assert.Equal(TaskState.Completed, persisted!.Status.State);
+        Assert.NotNull(persisted.Artifacts);
+        Assert.Contains(persisted.Artifacts!, a => a.ArtifactId == "a1");
+    }
+
+    [Fact]
+    public async Task GivenBlockingMode_WhenHandlerReturnsTask_ThenWaitsForCompletion()
+    {
+        // Arrange — explicit ReturnImmediately=false (default blocking behavior)
+        var (server, _, handler) = CreateServer();
+        handler.OnExecute = async (ctx, eq, ct) =>
+        {
+            var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
+            await updater.SubmitAsync(ct);
+            await updater.StartWorkAsync(cancellationToken: ct);
+            await Task.Delay(200, ct); // some work
+            await updater.CompleteAsync(cancellationToken: ct);
+        };
+
+        var request = new SendMessageRequest
+        {
+            Message = new Message { MessageId = "u1", Parts = [Part.FromText("Hello!")], Role = Role.User },
+            Configuration = new SendMessageConfiguration { ReturnImmediately = false },
+        };
+
+        // Act
+        var result = await server.SendMessageAsync(request);
+
+        // Assert — blocks until terminal state
+        Assert.NotNull(result);
+        Assert.NotNull(result.Task);
+        Assert.Equal(TaskState.Completed, result.Task!.Status.State);
+    }
+
+    [Fact]
+    public async Task GivenReturnImmediately_WhenCancelTask_ThenBackgroundHandlerIsCancelled()
+    {
+        // Arrange — handler blocks until its CancellationToken fires
+        var (server, store, handler) = CreateServer();
+        var handlerStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var handlerEnded = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        bool wasCancelled = false;
+
+        handler.OnExecute = async (ctx, eq, ct) =>
+        {
+            var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
+            await updater.SubmitAsync(ct);
+            await updater.StartWorkAsync(cancellationToken: ct);
+            handlerStarted.TrySetResult();
+
+            try
+            {
+                // Simulate long-running work that respects cancellation
+                await Task.Delay(Timeout.Infinite, ct);
+            }
+            catch (OperationCanceledException)
+            {
+                wasCancelled = true;
+            }
+            finally
+            {
+                handlerEnded.TrySetResult();
+            }
+        };
+
+        handler.OnCancel = async (ctx, eq, ct) =>
+        {
+            var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
+            await updater.CancelAsync(ct);
+        };
+
+        var request = new SendMessageRequest
+        {
+            Message = new Message { MessageId = "u1", Parts = [Part.FromText("Hello!")], Role = Role.User },
+            Configuration = new SendMessageConfiguration { ReturnImmediately = true },
+        };
+
+        // Act — send with return-immediately, then cancel
+        var result = await server.SendMessageAsync(request);
+        Assert.NotNull(result.Task);
+        var taskId = result.Task!.Id;
+
+        // Wait for handler to reach the long-running work
+        await handlerStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        // Cancel the task
+        var cancelResult = await server.CancelTaskAsync(new CancelTaskRequest { Id = taskId });
+
+        // Wait for background handler to observe cancellation
+        await handlerEnded.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        // Assert — handler received cancellation and task is canceled in store
+        Assert.True(wasCancelled, "Background handler should have received cancellation");
+        Assert.Equal(TaskState.Canceled, cancelResult.Status.State);
+
+        var persisted = await store.GetTaskAsync(taskId);
+        Assert.NotNull(persisted);
+        Assert.Equal(TaskState.Canceled, persisted!.Status.State);
+    }
+
+    [Fact]
+    public async Task GivenReturnImmediately_WhenDispose_ThenBackgroundWorkIsCancelled()
+    {
+        // Arrange — handler blocks until cancelled
+        var (server, _, handler) = CreateServer();
+        var handlerStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var handlerEnded = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        bool wasCancelled = false;
+
+        handler.OnExecute = async (ctx, eq, ct) =>
+        {
+            var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
+            await updater.SubmitAsync(ct);
+            await updater.StartWorkAsync(cancellationToken: ct);
+            handlerStarted.TrySetResult();
+
+            try
+            {
+                await Task.Delay(Timeout.Infinite, ct);
+            }
+            catch (OperationCanceledException)
+            {
+                wasCancelled = true;
+            }
+            finally
+            {
+                handlerEnded.TrySetResult();
+            }
+        };
+
+        var request = new SendMessageRequest
+        {
+            Message = new Message { MessageId = "u1", Parts = [Part.FromText("Hello!")], Role = Role.User },
+            Configuration = new SendMessageConfiguration { ReturnImmediately = true },
+        };
+
+        // Act — send with return-immediately, then dispose the server
+        await server.SendMessageAsync(request);
+        await handlerStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await server.DisposeAsync();
+
+        // Assert — handler received cancellation
+        await handlerEnded.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(wasCancelled, "Background handler should have been cancelled on dispose");
+    }
 }
