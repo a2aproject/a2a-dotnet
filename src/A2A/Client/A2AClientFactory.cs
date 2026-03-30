@@ -172,9 +172,8 @@ public static class A2AClientFactory
 
         // Legacy card without supportedInterfaces — synthesize an interface
         // from the card's url, protocolVersion, and preferredTransport fields.
-        var agentUrl = root.TryGetProperty("url", out var urlProp) && urlProp.ValueKind == JsonValueKind.String
-            ? urlProp.GetString() ?? baseUrl.ToString()
-            : baseUrl.ToString();
+        var agentUrl = (root.TryGetProperty("url", out var urlProp) && urlProp.ValueKind == JsonValueKind.String
+            ? urlProp.GetString() : null) ?? baseUrl.ToString();
 
         var version = root.TryGetProperty("protocolVersion", out var verProp) && verProp.ValueKind == JsonValueKind.String
             ? NormalizeMajorMinor(verProp.GetString() ?? "0.3")
@@ -229,9 +228,14 @@ public static class A2AClientFactory
     /// <summary>
     /// Normalizes a version string to major.minor format (e.g. "0.3.0" → "0.3", "1.0" → "1.0").
     /// </summary>
-    /// <param name="version">The version string to normalize.</param>
-    private static string NormalizeMajorMinor(string version)
+    /// <param name="version">The version string to normalize, or <see langword="null"/>.</param>
+    private static string NormalizeMajorMinor(string? version)
     {
+        if (string.IsNullOrEmpty(version))
+        {
+            return string.Empty;
+        }
+
         var dotIndex = version.IndexOf('.');
         if (dotIndex < 0)
         {
@@ -267,7 +271,8 @@ public static class A2AClientFactory
         {
             agentCard.SupportedInterfaces.Add(new AgentInterface
             {
-                Url = iface.TryGetProperty("url", out var urlProp) ? urlProp.GetString() ?? baseUrl.ToString() : baseUrl.ToString(),
+                Url = (iface.TryGetProperty("url", out var urlProp) && urlProp.ValueKind == JsonValueKind.String
+                    ? urlProp.GetString() : null) ?? baseUrl.ToString(),
                 ProtocolBinding = iface.TryGetProperty("protocolBinding", out var bindingProp) ? bindingProp.GetString() ?? "" : "",
                 ProtocolVersion = iface.TryGetProperty("protocolVersion", out var verProp) ? verProp.GetString() ?? "" : "",
             });
