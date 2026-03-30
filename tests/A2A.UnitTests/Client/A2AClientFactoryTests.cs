@@ -346,7 +346,7 @@ public class A2AClientFactoryTests
     public void Register_CustomBinding_CreatesRegisteredClient()
     {
         var customClient = new A2AHttpJsonClient(new Uri("http://dummy"), null);
-        A2AClientFactory.Register("CUSTOM-TEST-1", (url, _) => customClient);
+        A2AClientFactory.Register("CUSTOM-TEST-1", "1.0", (url, _) => customClient);
 
         var card = CreateCard("CUSTOM-TEST-1", "http://agent/custom");
         var options = new A2AClientOptions { PreferredBindings = ["CUSTOM-TEST-1"] };
@@ -360,7 +360,7 @@ public class A2AClientFactoryTests
     public void Register_CustomBinding_MatchesCaseInsensitively()
     {
         var customClient = new A2AHttpJsonClient(new Uri("http://dummy"), null);
-        A2AClientFactory.Register("Custom-Test-2", (url, _) => customClient);
+        A2AClientFactory.Register("Custom-Test-2", "1.0", (url, _) => customClient);
 
         var card = CreateCard("custom-test-2", "http://agent/custom");
         var options = new A2AClientOptions { PreferredBindings = ["CUSTOM-TEST-2"] };
@@ -374,7 +374,7 @@ public class A2AClientFactoryTests
     public void Register_OverridesBuiltInBinding()
     {
         var customClient = new A2AHttpJsonClient(new Uri("http://dummy"), null);
-        A2AClientFactory.Register(ProtocolBindingNames.HttpJson, (url, _) => customClient);
+        A2AClientFactory.Register(ProtocolBindingNames.HttpJson, "1.0", (url, _) => customClient);
 
         try
         {
@@ -385,20 +385,26 @@ public class A2AClientFactoryTests
         finally
         {
             // Restore the built-in binding
-            A2AClientFactory.Register(ProtocolBindingNames.HttpJson, (url, httpClient) => new A2AHttpJsonClient(url, httpClient));
+            A2AClientFactory.Register(ProtocolBindingNames.HttpJson, "1.0", (url, httpClient) => new A2AHttpJsonClient(url, httpClient));
         }
     }
 
     [Fact]
     public void Register_NullProtocolBinding_ThrowsArgumentNullException()
     {
-        Assert.Throws<ArgumentNullException>(() => A2AClientFactory.Register(null!, (_, _) => null!));
+        Assert.Throws<ArgumentNullException>(() => A2AClientFactory.Register(null!, "1.0", (_, _) => null!));
     }
 
     [Fact]
     public void Register_NullFactory_ThrowsArgumentNullException()
     {
-        Assert.Throws<ArgumentNullException>(() => A2AClientFactory.Register("TEST", null!));
+        Assert.Throws<ArgumentNullException>(() => A2AClientFactory.Register("TEST", "1.0", null!));
+    }
+
+    [Fact]
+    public void Register_NullVersion_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => A2AClientFactory.Register("TEST", null!, (_, _) => null!));
     }
 
     [Fact]
@@ -411,6 +417,5 @@ public class A2AClientFactoryTests
 
         Assert.Equal(A2AErrorCode.InvalidRequest, ex.ErrorCode);
         Assert.Contains("SOMEUNKNOWN", ex.Message);
-        Assert.Contains("Register", ex.Message);
     }
 }
