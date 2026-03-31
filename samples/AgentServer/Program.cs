@@ -6,6 +6,17 @@ using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Configure CORS for browser-based clients (common local dev server ports)
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.WithOrigins("http://localhost:3000", "http://localhost:5000", "http://localhost:5173")
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+});
+
 // Get the agent type and store type from command line arguments
 var agentType = GetArgValue(args, "--agent", "-a") ?? "echo";
 var storeType = GetArgValue(args, "--store", "-s");
@@ -41,6 +52,10 @@ switch (agentType.ToLowerInvariant())
         builder.Services.AddA2AAgent<SpecComplianceAgent>(SpecComplianceAgent.GetAgentCard($"{baseUrl}/speccompliance"));
         break;
 
+    case "streamingartifact":
+        builder.Services.AddA2AAgent<StreamingArtifactAgent>(StreamingArtifactAgent.GetAgentCard($"{baseUrl}/streamingartifact"));
+        break;
+
     default:
         Console.WriteLine($"Unknown agent type: {agentType}");
         Environment.Exit(1);
@@ -65,6 +80,7 @@ builder.Services.AddOpenTelemetry()
 
 var app = builder.Build();
 
+app.UseCors();
 app.UseHttpsRedirection();
 
 // Add health endpoint
@@ -77,6 +93,7 @@ var path = agentType.ToLowerInvariant() switch
     "echotasks" => "/echotasks",
     "researcher" => "/researcher",
     "speccompliance" => "/speccompliance",
+    "streamingartifact" => "/streamingartifact",
     _ => "/agent",
 };
 
