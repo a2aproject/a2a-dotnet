@@ -121,12 +121,11 @@ public class V03ServerProcessorTests
     [Fact]
     public async Task ProcessRequestAsync_V1MethodName_RoutesDirectlyToV1Processor()
     {
-        // Tests commit 49d5f02: v1.0 method names must bypass the V03 deserializer
-        // (which rejects them) and route via HandleV1RequestAsync to the v1.0 processor.
-        // Without the fix this returns -32601 (method not found) or a deserialization error.
+        // v1.0 clients send A2A-Version: 1.0; the processor routes to HandleV1RequestAsync.
         var handler = CreateRequestHandler();
         var request = CreateHttpRequest(
-            """{"jsonrpc":"2.0","method":"SendMessage","id":1,"params":{"message":{"messageId":"m1","role":"ROLE_USER","parts":[{"text":"hi"}]}}}""");
+            """{"jsonrpc":"2.0","method":"SendMessage","id":1,"params":{"message":{"messageId":"m1","role":"ROLE_USER","parts":[{"text":"hi"}]}}}""",
+            version: "1.0");
 
         var result = await V03ServerProcessor.ProcessRequestAsync(handler, request, CancellationToken.None);
 
@@ -142,7 +141,8 @@ public class V03ServerProcessorTests
     {
         var handler = CreateRequestHandler();
         var request = CreateHttpRequest(
-            """{"jsonrpc":"2.0","method":"GetTask","id":1,"params":{"id":"nonexistent-task"}}""");
+            """{"jsonrpc":"2.0","method":"GetTask","id":1,"params":{"id":"nonexistent-task"}}""",
+            version: "1.0");
 
         var result = await V03ServerProcessor.ProcessRequestAsync(handler, request, CancellationToken.None);
 
