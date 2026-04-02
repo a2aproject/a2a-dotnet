@@ -34,12 +34,44 @@ public static class V03ServerProcessor
         var preflightResult = A2AJsonRpcProcessor.CheckPreflight(request);
         if (preflightResult != null) return preflightResult;
 
-        // Parse body once to peek at "method" and route v0.3 vs v1.0 before full validation.
-        // V03.JsonRpcRequestConverter rejects v1.0 method names, so we must detect them early.
-        JsonDocument doc;
+        // Route by A2A-Version header: per spec, v1.0 clients MUST send this header;
+        // absent header indicates a v0.3 client.
+        var version = request.Headers["A2A-Version"].FirstOrDefault();
+        if (!string.IsNullOrEmpty(version) && version != "0.3")
+        {
+            // v1.0 request: parse body and delegate directly to v1.0 processor.
+            JsonDocument doc;
+            try
+            {
+                doc = await JsonDocument.ParseAsync(request.Body, cancellationToken: cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (JsonException)
+            {
+                return MakeErrorResult(default, V03.JsonRpcResponse.ParseErrorResponse);
+            }
+
+            using (doc)
+            {
+                var root = doc.RootElement;
+                if (!root.TryGetProperty("method", out var methodProp) ||
+                    methodProp.ValueKind != JsonValueKind.String)
+                {
+                    return MakeErrorResult(default, V03.JsonRpcResponse.ParseErrorResponse);
+                }
+
+                var method = methodProp.GetString() ?? string.Empty;
+                return await HandleV1RequestAsync(requestHandler, root, method, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+        }
+
+        // v0.3 request: peek at method name first — V03.JsonRpcRequestConverter may throw
+        // for method names it doesn't recognise, so validate before attempting full deserialization.
+        JsonDocument v03Doc;
         try
         {
-            doc = await JsonDocument.ParseAsync(request.Body, cancellationToken: cancellationToken)
+            v03Doc = await JsonDocument.ParseAsync(request.Body, cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (JsonException)
@@ -47,10 +79,9 @@ public static class V03ServerProcessor
             return MakeErrorResult(default, V03.JsonRpcResponse.ParseErrorResponse);
         }
 
-        using (doc)
+        using (v03Doc)
         {
-            var root = doc.RootElement;
-
+            var root = v03Doc.RootElement;
             if (!root.TryGetProperty("method", out var methodProp) ||
                 methodProp.ValueKind != JsonValueKind.String)
             {
@@ -58,15 +89,11 @@ public static class V03ServerProcessor
             }
 
             var method = methodProp.GetString() ?? string.Empty;
-
-            // v1.0 method names: bypass V03 validator, delegate directly to v1.0 processor.
             if (!V03.A2AMethods.IsValidMethod(method))
             {
-                return await HandleV1RequestAsync(requestHandler, root, method, cancellationToken)
-                    .ConfigureAwait(false);
+                return MakeErrorResult(default, V03.JsonRpcResponse.MethodNotFoundResponse);
             }
 
-            // v0.3 method names: deserialize with full V03 validation.
             V03.JsonRpcRequest? rpcRequest = null;
             try
             {
@@ -216,16 +243,9 @@ public static class V03ServerProcessor
             }
 
             default:
-            {
-                // Unrecognized v0.3 method — delegate to v1.0 processor.
-                // This handles v1.0 clients sending v1.0 method names (e.g. "SendMessage").
-                var v1Id = ToV1Id(rpcRequest.Id);
-                if (A2AMethods.IsStreamingMethod(rpcRequest.Method))
-                {
-                    return A2AJsonRpcProcessor.StreamResponse(handler, v1Id, rpcRequest.Method, rpcRequest.Params, ct);
-                }
-                return await A2AJsonRpcProcessor.SingleResponseAsync(handler, v1Id, rpcRequest.Method, rpcRequest.Params, ct).ConfigureAwait(false);
-            }
+                // Unrecognized v0.3 method name. v1.0 clients are routed via the
+                // A2A-Version header before reaching here, so this is a genuine v0.3 unknown method.
+                return MakeErrorResult(rpcRequest.Id, V03.JsonRpcResponse.MethodNotFoundResponse);
         }
     }
 
