@@ -50,7 +50,8 @@ public static class V03ServerCompatEndpointExtensions
     /// <para>Format negotiation is based on the <c>A2A-Version</c> request header:</para>
     /// <list type="bullet">
     /// <item><description>
-    /// <c>GET {path}/</c>: returns v1.0 by default; returns v0.3 only when <c>A2A-Version: 0.3</c> is present.
+    /// <c>GET {path}/</c>: returns v0.3 by default (absent header indicates a v0.3 client per spec);
+    /// returns v1.0 when <c>A2A-Version: 1.0</c> is present.
     /// </description></item>
     /// <item><description>
     /// <c>GET {path}/.well-known/agent-card.json</c>: returns v0.3 by default (backward compatibility for
@@ -65,38 +66,57 @@ public static class V03ServerCompatEndpointExtensions
     /// <param name="endpoints">The endpoint route builder.</param>
     /// <param name="getAgentCardAsync">A factory that returns the v1.0 agent card to serve or convert.</param>
     /// <param name="path">The route prefix for the agent card endpoints.</param>
+    /// <param name="blendedCard">
+    /// When <c>true</c> (default), the v0.3 response includes both v0.3 fields and the v1.0
+    /// <c>supportedInterfaces</c> property side-by-side. This allows v1.0 clients to read the card
+    /// even when no <c>A2A-Version</c> header is sent. Set to <c>false</c> to return a strict v0.3
+    /// card with no v1.0 properties, for clients whose deserializers reject unknown fields.
+    /// </param>
     /// <returns>An endpoint convention builder for further configuration.</returns>
     [RequiresDynamicCode("MapAgentCardGetWithV03Compat uses runtime reflection for route binding. For AOT-compatible usage, use a source-generated host.")]
     [RequiresUnreferencedCode("MapAgentCardGetWithV03Compat may perform reflection on types that are not preserved by trimming.")]
     public static IEndpointConventionBuilder MapAgentCardGetWithV03Compat(
         this IEndpointRouteBuilder endpoints,
         Func<Task<AgentCard>> getAgentCardAsync,
-        [StringSyntax("Route")] string path = "")
+        [StringSyntax("Route")] string path = "",
+        bool blendedCard = true)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(getAgentCardAsync);
 
         var routeGroup = endpoints.MapGroup(path);
 
-        // v1.0 clients use GET / — negotiate format via A2A-Version header
+        // Negotiate format via A2A-Version header.
+        // Per spec, v1.0 clients MUST send A2A-Version; absent header indicates a v0.3 client.
+        // Explicit A2A-Version: 0.3 always returns strict v0.3; blendedCard only applies when
+        // no header is present (client version unknown).
         routeGroup.MapGet(string.Empty, async (HttpRequest request) =>
         {
             var v1Card = await getAgentCardAsync();
             var version = request.Headers["A2A-Version"].FirstOrDefault();
-            return version == "0.3"
-                ? Results.Ok(V03TypeConverter.ToV03AgentCard(v1Card))
-                : Results.Ok(v1Card);
+            if (version == "1.0")
+                return Results.Ok(v1Card);
+            if (version == "0.3")
+                return Results.Ok(V03TypeConverter.ToV03AgentCard(v1Card));
+            return blendedCard
+                ? Results.Json(V03TypeConverter.ToBlendedAgentCard(v1Card))
+                : Results.Ok(V03TypeConverter.ToV03AgentCard(v1Card));
         });
 
         // Both v0.3 and v1.0 clients use GET .well-known/agent-card.json.
         // v1.0 clients (A2AClientFactory.CreateAsync) send A2A-Version: 1.0; return v1.0 format.
-        // v0.3 clients send no header; default to v0.3 format for backward compatibility.
+        // Explicit A2A-Version: 0.3 returns strict v0.3; absent header defaults to blended or strict
+        // depending on blendedCard.
         routeGroup.MapGet(".well-known/agent-card.json", async (HttpRequest request, CancellationToken ct) =>
         {
             var v1Card = await getAgentCardAsync();
             var version = request.Headers["A2A-Version"].FirstOrDefault();
-            return version == "1.0"
-                ? Results.Ok(v1Card)
+            if (version == "1.0")
+                return Results.Ok(v1Card);
+            if (version == "0.3")
+                return Results.Ok(V03TypeConverter.ToV03AgentCard(v1Card));
+            return blendedCard
+                ? Results.Json(V03TypeConverter.ToBlendedAgentCard(v1Card))
                 : Results.Ok(V03TypeConverter.ToV03AgentCard(v1Card));
         });
 

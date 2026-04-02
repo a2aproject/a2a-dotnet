@@ -1,6 +1,8 @@
 namespace A2A.V0_3Compat;
 
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.Json.Serialization.Metadata;
 
 using V03 = A2A.V0_3;
 
@@ -46,6 +48,29 @@ internal static class V03TypeConverter
             Skills = v1Card.Skills.Select(ToV03AgentSkill).ToList(),
             SupportsAuthenticatedExtendedCard = v1Card.Capabilities.ExtendedAgentCard ?? false,
         };
+    }
+
+    /// <summary>
+    /// Returns a blended AgentCard containing both v1.0 properties and v0.3 backward-compat fields.
+    /// v0.3 clients read the familiar fields and ignore unknown ones; v1.0 clients use supportedInterfaces.
+    /// Use <see cref="ToV03AgentCard"/> instead if the v0.3 client's deserializer is strict.
+    /// </summary>
+    /// <param name="v1Card">The v1.0 agent card to convert.</param>
+    internal static JsonObject ToBlendedAgentCard(A2A.AgentCard v1Card)
+    {
+        // Serialize v0.3 card as base so all v0.3 backward-compat fields are present.
+        var v03Card = ToV03AgentCard(v1Card);
+        var v03TypeInfo = (JsonTypeInfo<V03.AgentCard>)V03.A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(V03.AgentCard));
+        var blended = JsonSerializer.SerializeToNode(v03Card, v03TypeInfo)!.AsObject();
+
+        // Extract supportedInterfaces from the v1.0 card and add to the blended response
+        // so v1.0 clients can also read the card.
+        var v1TypeInfo = (JsonTypeInfo<AgentCard>)A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(AgentCard));
+        var v1Json = JsonSerializer.SerializeToNode(v1Card, v1TypeInfo)!.AsObject();
+        if (v1Json.TryGetPropertyValue("supportedInterfaces", out var interfaces))
+            blended["supportedInterfaces"] = interfaces?.DeepClone();
+
+        return blended;
     }
 
     private static V03.AgentSkill ToV03AgentSkill(A2A.AgentSkill skill) => new()
