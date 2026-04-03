@@ -13,4 +13,11 @@ public sealed class A2AClientOptions
     /// The default preference is HTTP+JSON first, with JSON-RPC as fallback.
     /// </remarks>
     public IList<string> PreferredBindings { get; set; } = [ProtocolBindingNames.HttpJson, ProtocolBindingNames.JsonRpc];
+
+    /// <summary>
+    /// Gets or sets the path used to fetch the agent card.
+    /// Default is <c>/.well-known/agent-card.json</c>.
+    /// Only used by <see cref="A2AClientFactory.CreateAsync"/>.
+    /// </summary>
+    public string AgentCardPath { get; set; } = "/.well-known/agent-card.json";
 }
