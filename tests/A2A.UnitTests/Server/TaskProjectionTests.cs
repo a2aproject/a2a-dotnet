@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace A2A.UnitTests.Server;
 
 public class TaskProjectionTests
@@ -213,6 +215,242 @@ public class TaskProjectionTests
         Assert.Equal(2, result!.Artifacts!.Count);
         Assert.Equal("a1", result.Artifacts[0].ArtifactId);
         Assert.Equal("a-new", result.Artifacts[1].ArtifactId);
+    }
+
+    [Fact]
+    public void Apply_WithArtifactUpdate_AppendUpsertsMetadata()
+    {
+        // Arrange
+        var current = new AgentTask
+        {
+            Id = "t1",
+            ContextId = "ctx-1",
+            Status = new TaskStatus { State = TaskState.Working },
+            Artifacts =
+            [
+                new Artifact
+                {
+                    ArtifactId = "a1",
+                    Parts = [Part.FromText("data")],
+                    Metadata = new Dictionary<string, JsonElement>
+                    {
+                        ["key1"] = JsonSerializer.SerializeToElement("old_value"),
+                    },
+                },
+            ],
+        };
+        var evt = new StreamResponse
+        {
+            ArtifactUpdate = new TaskArtifactUpdateEvent
+            {
+                TaskId = "t1",
+                ContextId = "ctx-1",
+                Append = true,
+                Artifact = new Artifact
+                {
+                    ArtifactId = "a1",
+                    Parts = [],
+                    Metadata = new Dictionary<string, JsonElement>
+                    {
+                        ["key1"] = JsonSerializer.SerializeToElement("new_value"),
+                        ["key2"] = JsonSerializer.SerializeToElement("added"),
+                    },
+                },
+            }
+        };
+
+        // Act
+        var result = TaskProjection.Apply(current, evt);
+
+        // Assert
+        Assert.NotNull(result);
+        var metadata = result!.Artifacts![0].Metadata!;
+        Assert.Equal(2, metadata.Count);
+        Assert.Equal("new_value", metadata["key1"].GetString());
+        Assert.Equal("added", metadata["key2"].GetString());
+    }
+
+    [Fact]
+    public void Apply_WithArtifactUpdate_AppendDeduplicatesExtensions()
+    {
+        // Arrange
+        var current = new AgentTask
+        {
+            Id = "t1",
+            ContextId = "ctx-1",
+            Status = new TaskStatus { State = TaskState.Working },
+            Artifacts =
+            [
+                new Artifact
+                {
+                    ArtifactId = "a1",
+                    Parts = [Part.FromText("data")],
+                    Extensions = ["ext1", "ext2"],
+                },
+            ],
+        };
+        var evt = new StreamResponse
+        {
+            ArtifactUpdate = new TaskArtifactUpdateEvent
+            {
+                TaskId = "t1",
+                ContextId = "ctx-1",
+                Append = true,
+                Artifact = new Artifact
+                {
+                    ArtifactId = "a1",
+                    Parts = [],
+                    Extensions = ["ext2", "ext3"],
+                },
+            }
+        };
+
+        // Act
+        var result = TaskProjection.Apply(current, evt);
+
+        // Assert
+        Assert.NotNull(result);
+        var extensions = result!.Artifacts![0].Extensions!;
+        Assert.Equal(3, extensions.Count);
+        Assert.Equal(["ext1", "ext2", "ext3"], extensions);
+    }
+
+    [Fact]
+    public void Apply_WithArtifactUpdate_AppendUpdatesNameAndDescription()
+    {
+        // Arrange
+        var current = new AgentTask
+        {
+            Id = "t1",
+            ContextId = "ctx-1",
+            Status = new TaskStatus { State = TaskState.Working },
+            Artifacts =
+            [
+                new Artifact
+                {
+                    ArtifactId = "a1",
+                    Parts = [Part.FromText("data")],
+                    Name = "Original",
+                },
+            ],
+        };
+        var evt = new StreamResponse
+        {
+            ArtifactUpdate = new TaskArtifactUpdateEvent
+            {
+                TaskId = "t1",
+                ContextId = "ctx-1",
+                Append = true,
+                Artifact = new Artifact
+                {
+                    ArtifactId = "a1",
+                    Parts = [],
+                    Name = "Updated",
+                    Description = "New desc",
+                },
+            }
+        };
+
+        // Act
+        var result = TaskProjection.Apply(current, evt);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("Updated", result!.Artifacts![0].Name);
+        Assert.Equal("New desc", result.Artifacts[0].Description);
+    }
+
+    [Fact]
+    public void Apply_WithArtifactUpdate_AppendPreservesNameWhenIncomingEmpty()
+    {
+        // Arrange
+        var current = new AgentTask
+        {
+            Id = "t1",
+            ContextId = "ctx-1",
+            Status = new TaskStatus { State = TaskState.Working },
+            Artifacts =
+            [
+                new Artifact
+                {
+                    ArtifactId = "a1",
+                    Parts = [Part.FromText("data")],
+                    Name = "Keep This",
+                    Description = "Keep Desc",
+                },
+            ],
+        };
+        var evt = new StreamResponse
+        {
+            ArtifactUpdate = new TaskArtifactUpdateEvent
+            {
+                TaskId = "t1",
+                ContextId = "ctx-1",
+                Append = true,
+                Artifact = new Artifact
+                {
+                    ArtifactId = "a1",
+                    Parts = [],
+                },
+            }
+        };
+
+        // Act
+        var result = TaskProjection.Apply(current, evt);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("Keep This", result!.Artifacts![0].Name);
+        Assert.Equal("Keep Desc", result.Artifacts[0].Description);
+    }
+
+    [Fact]
+    public void Apply_WithArtifactUpdate_AppendInitializesMetadataWhenNull()
+    {
+        // Arrange
+        var current = new AgentTask
+        {
+            Id = "t1",
+            ContextId = "ctx-1",
+            Status = new TaskStatus { State = TaskState.Working },
+            Artifacts =
+            [
+                new Artifact
+                {
+                    ArtifactId = "a1",
+                    Parts = [Part.FromText("data")],
+                    Metadata = null,
+                },
+            ],
+        };
+        var evt = new StreamResponse
+        {
+            ArtifactUpdate = new TaskArtifactUpdateEvent
+            {
+                TaskId = "t1",
+                ContextId = "ctx-1",
+                Append = true,
+                Artifact = new Artifact
+                {
+                    ArtifactId = "a1",
+                    Parts = [],
+                    Metadata = new Dictionary<string, JsonElement>
+                    {
+                        ["key1"] = JsonSerializer.SerializeToElement("value1"),
+                    },
+                },
+            }
+        };
+
+        // Act
+        var result = TaskProjection.Apply(current, evt);
+
+        // Assert
+        Assert.NotNull(result);
+        var metadata = result!.Artifacts![0].Metadata;
+        Assert.NotNull(metadata);
+        Assert.Single(metadata!);
+        Assert.Equal("value1", metadata["key1"].GetString());
     }
 
     [Fact]
