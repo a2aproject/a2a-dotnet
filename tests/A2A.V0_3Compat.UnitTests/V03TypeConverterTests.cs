@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 using V03 = A2A.V0_3;
 
@@ -474,5 +475,109 @@ public class V03TypeConverterTests
 
         // ReturnImmediately=false (wait) → Blocking=true (wait)
         Assert.True(v03Params.Configuration!.Blocking);
+    }
+
+    // ── ToV03AgentCard ───────────────────────────────────────────────────────
+
+    [Fact]
+    public void ToV03AgentCard_PrefersJsonRpcInterface_OverFirstInterface()
+    {
+        // If the first interface is HTTP+JSON but a later one is JSONRPC, the JSONRPC URL must be used
+        // because v0.3 only supports JSON-RPC.
+        var v1Card = new A2A.AgentCard
+        {
+            Name = "Test",
+            Description = "",
+            SupportedInterfaces =
+            [
+                new A2A.AgentInterface { Url = "http://host/rest", ProtocolBinding = "HTTP+JSON", ProtocolVersion = "1.0" },
+                new A2A.AgentInterface { Url = "http://host/jsonrpc", ProtocolBinding = "JSONRPC", ProtocolVersion = "1.0" },
+            ],
+            Skills = [],
+            DefaultInputModes = [],
+            DefaultOutputModes = [],
+            Capabilities = new A2A.AgentCapabilities(),
+        };
+
+        var v03Card = V03TypeConverter.ToV03AgentCard(v1Card);
+
+        Assert.Equal("http://host/jsonrpc", v03Card.Url);
+    }
+
+    [Fact]
+    public void ToV03AgentCard_FallsBackToFirstInterface_WhenNoJsonRpc()
+    {
+        var v1Card = new A2A.AgentCard
+        {
+            Name = "Test",
+            Description = "",
+            SupportedInterfaces =
+            [
+                new A2A.AgentInterface { Url = "http://host/grpc", ProtocolBinding = "GRPC", ProtocolVersion = "1.0" },
+            ],
+            Skills = [],
+            DefaultInputModes = [],
+            DefaultOutputModes = [],
+            Capabilities = new A2A.AgentCapabilities(),
+        };
+
+        var v03Card = V03TypeConverter.ToV03AgentCard(v1Card);
+
+        Assert.Equal("http://host/grpc", v03Card.Url);
+    }
+
+    // ── ToBlendedAgentCard ───────────────────────────────────────────────────
+
+    [Fact]
+    public void ToBlendedAgentCard_ContainsBothV03FieldsAndSupportedInterfaces()
+    {
+        // MapAgentCardGetWithV03Compat without A2A-Version header serves a blended card.
+        // It must contain v0.3 fields (url, protocolVersion) AND the v1.0 supportedInterfaces
+        // array so both client versions can read it.
+        var v1Card = new A2A.AgentCard
+        {
+            Name = "Blended Agent",
+            Description = "desc",
+            SupportedInterfaces =
+            [
+                new A2A.AgentInterface { Url = "http://host/jsonrpc", ProtocolBinding = "JSONRPC", ProtocolVersion = "1.0" },
+            ],
+            Skills = [],
+            DefaultInputModes = [],
+            DefaultOutputModes = [],
+            Capabilities = new A2A.AgentCapabilities(),
+        };
+
+        var blended = V03TypeConverter.ToBlendedAgentCard(v1Card);
+
+        // v0.3 backward-compat fields
+        Assert.True(blended.ContainsKey("url"), "blended card must contain v0.3 'url' field");
+        Assert.True(blended.ContainsKey("protocolVersion"), "blended card must contain v0.3 'protocolVersion' field");
+        // v1.0 field for v1.0 clients
+        Assert.True(blended.ContainsKey("supportedInterfaces"), "blended card must contain v1.0 'supportedInterfaces' field");
+    }
+
+    [Fact]
+    public void ToBlendedAgentCard_SupportedInterfacesMatchesV1Card()
+    {
+        var v1Card = new A2A.AgentCard
+        {
+            Name = "Test",
+            Description = "",
+            SupportedInterfaces =
+            [
+                new A2A.AgentInterface { Url = "http://host/jsonrpc", ProtocolBinding = "JSONRPC", ProtocolVersion = "1.0" },
+            ],
+            Skills = [],
+            DefaultInputModes = [],
+            DefaultOutputModes = [],
+            Capabilities = new A2A.AgentCapabilities(),
+        };
+
+        var blended = V03TypeConverter.ToBlendedAgentCard(v1Card);
+
+        var interfaces = blended["supportedInterfaces"]!.AsArray();
+        Assert.Single(interfaces);
+        Assert.Equal("http://host/jsonrpc", interfaces[0]!["url"]!.GetValue<string>());
     }
 }

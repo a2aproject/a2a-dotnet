@@ -16,8 +16,11 @@ internal static class V03TypeConverter
     /// <returns>A v0.3 agent card that v0.3 clients can parse.</returns>
     internal static V03.AgentCard ToV03AgentCard(A2A.AgentCard v1Card)
     {
-        // The v0.3 AgentCard requires a top-level URL; extract it from the first supported interface.
-        var primaryInterface = v1Card.SupportedInterfaces.FirstOrDefault();
+        // The v0.3 AgentCard requires a top-level URL; extract it from the first JSONRPC interface
+        // (v0.3 only supports JSON-RPC). Fall back to the first interface of any binding if none is JSONRPC.
+        var primaryInterface = v1Card.SupportedInterfaces
+            .FirstOrDefault(i => string.Equals(i.ProtocolBinding, ProtocolBindingNames.JsonRpc, StringComparison.OrdinalIgnoreCase))
+            ?? v1Card.SupportedInterfaces.FirstOrDefault();
         var url = primaryInterface?.Url ?? string.Empty;
         var transport = primaryInterface?.ProtocolBinding is { } binding
             ? new V03.AgentTransport(binding)

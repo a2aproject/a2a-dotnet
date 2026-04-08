@@ -62,7 +62,8 @@ public static class V03ServerProcessor
                 if (!root.TryGetProperty("method", out var methodProp) ||
                     methodProp.ValueKind != JsonValueKind.String)
                 {
-                    return MakeErrorResult(default, V03.JsonRpcResponse.ParseErrorResponse);
+                    // JSON is valid but request object is missing the required "method" field → InvalidRequest.
+                    return MakeErrorResult(default, V03.JsonRpcResponse.InvalidRequestResponse);
                 }
 
                 var method = methodProp.GetString() ?? string.Empty;
@@ -90,7 +91,8 @@ public static class V03ServerProcessor
             if (!root.TryGetProperty("method", out var methodProp) ||
                 methodProp.ValueKind != JsonValueKind.String)
             {
-                return MakeErrorResult(default, V03.JsonRpcResponse.ParseErrorResponse);
+                // JSON is valid but request object is missing the required "method" field → InvalidRequest.
+                return MakeErrorResult(default, V03.JsonRpcResponse.InvalidRequestResponse);
             }
 
             var method = methodProp.GetString() ?? string.Empty;

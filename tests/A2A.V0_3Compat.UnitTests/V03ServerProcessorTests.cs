@@ -169,16 +169,31 @@ public class V03ServerProcessorTests
     }
 
     [Fact]
-    public async Task ProcessRequestAsync_MissingMethodField_ReturnsParseError()
+    public async Task ProcessRequestAsync_MissingMethodField_ReturnsInvalidRequest()
     {
+        // JSON is valid but "method" field is absent → InvalidRequest (-32600), not ParseError (-32700).
         var handler = CreateRequestHandler();
         var request = CreateHttpRequest("""{"jsonrpc":"2.0","id":1,"params":{}}""");
 
         var result = await V03ServerProcessor.ProcessRequestAsync(handler, request, CancellationToken.None);
 
         using var body = await ExecuteAndParseJson(result);
-        Assert.True(body.RootElement.TryGetProperty("error", out _),
-            "Request missing 'method' field must return an error");
+        Assert.True(body.RootElement.TryGetProperty("error", out var errorEl));
+        Assert.Equal(-32600, errorEl.GetProperty("code").GetInt32()); // InvalidRequest, not ParseError
+    }
+
+    [Fact]
+    public async Task ProcessRequestAsync_V1Path_MissingMethodField_ReturnsInvalidRequest()
+    {
+        // v1.0 request with valid JSON but missing "method" → InvalidRequest (-32600).
+        var handler = CreateRequestHandler();
+        var request = CreateHttpRequest("""{"jsonrpc":"2.0","id":1,"params":{}}""", version: "1.0");
+
+        var result = await V03ServerProcessor.ProcessRequestAsync(handler, request, CancellationToken.None);
+
+        using var body = await ExecuteAndParseJson(result);
+        Assert.True(body.RootElement.TryGetProperty("error", out var errorEl));
+        Assert.Equal(-32600, errorEl.GetProperty("code").GetInt32()); // InvalidRequest, not ParseError
     }
 
     [Fact]
