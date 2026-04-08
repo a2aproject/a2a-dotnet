@@ -339,6 +339,8 @@ public static class V03ServerProcessor
             {
                 var v03Params = DeserializeParams<V03.MessageSendParams>(rpcRequest.Params.Value);
                 var v1Request = V03TypeConverter.ToV1SendMessageRequest(v03Params);
+                if (v1Request.Message.Parts.Count == 0)
+                    return MakeErrorResult(rpcRequest.Id, V03.JsonRpcResponse.InvalidParamsResponse);
                 var v1Response = await handler.SendMessageAsync(v1Request, ct).ConfigureAwait(false);
                 var v03Response = V03TypeConverter.ToV03Response(v1Response);
                 return MakeSuccessResult(rpcRequest.Id, v03Response, typeof(V03.A2AResponse));
@@ -417,6 +419,8 @@ public static class V03ServerProcessor
             {
                 var v03Params = DeserializeParams<V03.MessageSendParams>(rpcRequest.Params.Value);
                 var v1Request = V03TypeConverter.ToV1SendMessageRequest(v03Params);
+                if (v1Request.Message.Parts.Count == 0)
+                    return MakeErrorResult(rpcRequest.Id, V03.JsonRpcResponse.InvalidParamsResponse);
                 var v1Events = handler.SendStreamingMessageAsync(v1Request, ct);
                 return new V03JsonRpcStreamedResult(v1Events.Select(V03TypeConverter.ToV03Event), rpcRequest.Id);
             }

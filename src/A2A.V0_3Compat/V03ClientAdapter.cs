@@ -47,6 +47,8 @@ internal sealed class V03ClientAdapter : A2A.IA2AClient, IDisposable
         A2A.GetTaskRequest request,
         CancellationToken cancellationToken = default)
     {
+        // request.HistoryLength is not forwarded — v0.3's GetTaskAsync only accepts (taskId, CancellationToken).
+        // HistoryLength is a v1.0-only feature; the full history is always returned when talking to a v0.3 server.
         var v03Task = await _v03Client.GetTaskAsync(request.Id, cancellationToken).ConfigureAwait(false);
         return V03TypeConverter.ToV1Task(v03Task);
     }
