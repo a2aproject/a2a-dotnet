@@ -56,7 +56,7 @@ public static class V03ServerCompatEndpointExtensions
     /// <item><description>
     /// <c>GET {path}/.well-known/agent-card.json</c>: returns v0.3 by default (backward compatibility for
     /// v0.3 clients that do not send the header); returns v1.0 when <c>A2A-Version: 1.0</c> is present
-    /// (as sent by <see cref="A2AClientFactory.CreateAsync"/>).
+    /// (as sent by v1.0 clients that set the <c>A2A-Version: 1.0</c> header).
     /// </description></item>
     /// </list>
     /// <para>Use this instead of the host's v1.0 agent card method during a v0.3-to-v1.0 migration
@@ -104,7 +104,7 @@ public static class V03ServerCompatEndpointExtensions
         });
 
         // Both v0.3 and v1.0 clients use GET .well-known/agent-card.json.
-        // v1.0 clients (A2AClientFactory.CreateAsync) send A2A-Version: 1.0; return v1.0 format.
+        // v1.0 clients send A2A-Version: 1.0; return v1.0 format.
         // Explicit A2A-Version: 0.3 returns strict v0.3; absent header defaults to blended or strict
         // depending on blendedCard.
         routeGroup.MapGet(".well-known/agent-card.json", async (HttpRequest request, CancellationToken ct) =>

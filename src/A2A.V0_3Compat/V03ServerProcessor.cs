@@ -29,10 +29,15 @@ public static class V03ServerProcessor
         ArgumentNullException.ThrowIfNull(requestHandler);
         ArgumentNullException.ThrowIfNull(request);
 
-        // Delegate pre-flight checks to A2AJsonRpcProcessor — single source of truth.
-        // Any new protocol-level checks added there automatically apply here.
-        var preflightResult = A2AJsonRpcProcessor.CheckPreflight(request);
-        if (preflightResult != null) return preflightResult;
+        // Version preflight: reject headers that are neither 1.0 nor 0.3.
+        // Per spec, valid values are "0.3" and "1.0"; absent header is treated as v0.3.
+        var preflightVersion = request.Headers["A2A-Version"].FirstOrDefault();
+        if (!string.IsNullOrEmpty(preflightVersion) && preflightVersion != "1.0" && preflightVersion != "0.3")
+        {
+            return MakeV03ErrorResult(default, new A2AException(
+                $"Protocol version '{preflightVersion}' is not supported. Supported versions: 0.3, 1.0",
+                A2AErrorCode.VersionNotSupported));
+        }
 
         // Route by A2A-Version header: per spec, v1.0 clients MUST send this header;
         // absent header indicates a v0.3 client.
@@ -130,7 +135,7 @@ public static class V03ServerProcessor
     }
 
     // Handles v1.0 method names routed directly from ProcessRequestAsync.
-    // Extracts id and params from the already-parsed JsonElement and delegates to the v1.0 processor.
+    // Extracts id and params from the already-parsed JsonElement and dispatches directly to the handler.
     private static async Task<IResult> HandleV1RequestAsync(
         IA2ARequestHandler handler,
         JsonElement root,
@@ -156,10 +161,9 @@ public static class V03ServerProcessor
         {
             if (A2AMethods.IsStreamingMethod(method))
             {
-                return A2AJsonRpcProcessor.StreamResponse(handler, id, method, paramsEl, ct);
+                return DispatchV1Streaming(handler, id, method, paramsEl, ct);
             }
-            return await A2AJsonRpcProcessor.SingleResponseAsync(handler, id, method, paramsEl, ct)
-                .ConfigureAwait(false);
+            return await DispatchV1SingleAsync(handler, id, method, paramsEl, ct).ConfigureAwait(false);
         }
         catch (A2AException ex)
         {
@@ -169,6 +173,152 @@ public static class V03ServerProcessor
         {
             return new JsonRpcResponseResult(JsonRpcResponse.InternalErrorResponse(id, "An internal error occurred."));
         }
+    }
+
+    // Dispatches a v1.0 non-streaming request directly to the handler.
+    private static async Task<IResult> DispatchV1SingleAsync(
+        IA2ARequestHandler handler,
+        JsonRpcId id,
+        string method,
+        JsonElement? paramsEl,
+        CancellationToken ct)
+    {
+        if (paramsEl is null)
+        {
+            return new JsonRpcResponseResult(JsonRpcResponse.InvalidParamsResponse(id));
+        }
+
+        // For push notification methods, probe support before deserializing params.
+        if (A2AMethods.IsPushNotificationMethod(method))
+        {
+            try { await handler.GetTaskPushNotificationConfigAsync(null!, ct).ConfigureAwait(false); }
+            catch (A2AException ex) when (ex.ErrorCode == A2AErrorCode.PushNotificationNotSupported) { throw; }
+            catch { /* any other exception means push is supported; continue */ }
+        }
+
+        JsonRpcResponse? response;
+        switch (method)
+        {
+            case A2AMethods.SendMessage:
+            {
+                var req = DeserializeV1Params<SendMessageRequest>(paramsEl.Value, id);
+                response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.SendMessageAsync(req, ct).ConfigureAwait(false));
+                break;
+            }
+            case A2AMethods.GetTask:
+            {
+                var req = DeserializeV1Params<GetTaskRequest>(paramsEl.Value, id);
+                response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.GetTaskAsync(req, ct).ConfigureAwait(false));
+                break;
+            }
+            case A2AMethods.ListTasks:
+            {
+                var req = DeserializeV1Params<ListTasksRequest>(paramsEl.Value, id);
+                if (req.PageSize is { } ps && (ps <= 0 || ps > 100))
+                    throw new A2AException($"Invalid pageSize: {ps}. Must be between 1 and 100.", A2AErrorCode.InvalidParams);
+                if (req.HistoryLength is { } hl && hl < 0)
+                    throw new A2AException($"Invalid historyLength: {hl}. Must be non-negative.", A2AErrorCode.InvalidParams);
+                response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.ListTasksAsync(req, ct).ConfigureAwait(false));
+                break;
+            }
+            case A2AMethods.CancelTask:
+            {
+                var req = DeserializeV1Params<CancelTaskRequest>(paramsEl.Value, id);
+                response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.CancelTaskAsync(req, ct).ConfigureAwait(false));
+                break;
+            }
+            case A2AMethods.CreateTaskPushNotificationConfig:
+            {
+                var req = DeserializeV1Params<CreateTaskPushNotificationConfigRequest>(paramsEl.Value, id);
+                response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.CreateTaskPushNotificationConfigAsync(req, ct).ConfigureAwait(false));
+                break;
+            }
+            case A2AMethods.GetTaskPushNotificationConfig:
+            {
+                var req = DeserializeV1Params<GetTaskPushNotificationConfigRequest>(paramsEl.Value, id);
+                response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.GetTaskPushNotificationConfigAsync(req, ct).ConfigureAwait(false));
+                break;
+            }
+            case A2AMethods.ListTaskPushNotificationConfig:
+            {
+                var req = DeserializeV1Params<ListTaskPushNotificationConfigRequest>(paramsEl.Value, id);
+                response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.ListTaskPushNotificationConfigAsync(req, ct).ConfigureAwait(false));
+                break;
+            }
+            case A2AMethods.DeleteTaskPushNotificationConfig:
+            {
+                var req = DeserializeV1Params<DeleteTaskPushNotificationConfigRequest>(paramsEl.Value, id);
+                await handler.DeleteTaskPushNotificationConfigAsync(req, ct).ConfigureAwait(false);
+                response = JsonRpcResponse.CreateJsonRpcResponse(id, (object?)null);
+                break;
+            }
+            case A2AMethods.GetExtendedAgentCard:
+            {
+                var req = DeserializeV1Params<GetExtendedAgentCardRequest>(paramsEl.Value, id);
+                response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.GetExtendedAgentCardAsync(req, ct).ConfigureAwait(false));
+                break;
+            }
+            default:
+                response = JsonRpcResponse.MethodNotFoundResponse(id);
+                break;
+        }
+
+        return new JsonRpcResponseResult(response);
+    }
+
+    // Dispatches a v1.0 streaming request directly to the handler.
+    private static IResult DispatchV1Streaming(
+        IA2ARequestHandler handler,
+        JsonRpcId id,
+        string method,
+        JsonElement? paramsEl,
+        CancellationToken ct)
+    {
+        if (paramsEl is null)
+        {
+            return new JsonRpcResponseResult(JsonRpcResponse.InvalidParamsResponse(id));
+        }
+
+        switch (method)
+        {
+            case A2AMethods.SubscribeToTask:
+            {
+                var req = DeserializeV1Params<SubscribeToTaskRequest>(paramsEl.Value, id);
+                return new JsonRpcStreamedResult(handler.SubscribeToTaskAsync(req, ct), id);
+            }
+            case A2AMethods.SendStreamingMessage:
+            {
+                var req = DeserializeV1Params<SendMessageRequest>(paramsEl.Value, id);
+                return new JsonRpcStreamedResult(handler.SendStreamingMessageAsync(req, ct), id);
+            }
+            default:
+                return new JsonRpcResponseResult(JsonRpcResponse.MethodNotFoundResponse(id));
+        }
+    }
+
+    private static T DeserializeV1Params<T>(JsonElement element, JsonRpcId id) where T : class
+    {
+        T? result;
+        try
+        {
+            result = (T?)element.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(T)));
+        }
+        catch (JsonException ex)
+        {
+            throw new A2AException($"Invalid parameters: {ex.Message}", A2AErrorCode.InvalidParams);
+        }
+
+        if (result is null)
+        {
+            throw new A2AException($"Parameters could not be deserialized as {typeof(T).Name}", A2AErrorCode.InvalidParams);
+        }
+
+        if (result is SendMessageRequest sendMsg && sendMsg.Message.Parts.Count == 0)
+        {
+            throw new A2AException("Message parts cannot be empty", A2AErrorCode.InvalidParams);
+        }
+
+        return result;
     }
 
     private static async Task<IResult> HandleSingleAsync(

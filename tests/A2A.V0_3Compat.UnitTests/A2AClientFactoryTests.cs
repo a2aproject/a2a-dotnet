@@ -1,141 +1,45 @@
 namespace A2A.V0_3Compat.UnitTests;
 
-public class A2AClientFactoryTests
+public class V03CompatClientFactoryTests
 {
     [Fact]
-    public void Create_WithV10Card_ReturnsA2AClient()
+    public void Create_WithUrl_ReturnsV03Adapter()
     {
-        var cardJson = """
-        {
-            "name": "Test Agent",
-            "description": "A test agent",
-            "version": "1.0",
-            "supportedInterfaces": [{ "url": "http://localhost/a2a", "protocolBinding": "JSONRPC", "protocolVersion": "1.0" }],
-            "capabilities": { "streaming": true },
-            "skills": [],
-            "defaultInputModes": ["text"],
-            "defaultOutputModes": ["text"]
-        }
-        """;
+        var client = V03CompatClientFactory.Create(new Uri("http://localhost/a2a"));
 
-        var client = A2AClientFactory.Create(cardJson, new Uri("http://localhost"));
-
-        Assert.IsType<A2A.A2AClient>(client);
-    }
-
-    [Fact]
-    public void Create_WithV03Card_AndRegisteredBinding_ReturnsV03Adapter()
-    {
-        V03FallbackRegistration.Register();
-
-        var cardJson = """
-        {
-            "name": "Legacy Agent",
-            "description": "A legacy agent",
-            "version": "1.0",
-            "url": "http://localhost/a2a",
-            "protocolVersion": "0.3.0",
-            "capabilities": { "streaming": true },
-            "skills": [],
-            "defaultInputModes": ["text"],
-            "defaultOutputModes": ["text"],
-            "preferredTransport": "jsonrpc"
-        }
-        """;
-
-        var client = A2AClientFactory.Create(cardJson, new Uri("http://localhost"));
-
+        Assert.IsAssignableFrom<IA2AClient>(client);
         Assert.IsNotType<A2A.A2AClient>(client);
-        Assert.IsAssignableFrom<A2A.IA2AClient>(client);
     }
 
     [Fact]
-    public void Create_WithV03Card_NoRegisteredBinding_Throws()
+    public void Create_WithJson_UsesUrlFromCard()
     {
-        // Ensure no v0.3 binding is registered
-        A2AClientFactory.Unregister("JSONRPC", "0.3");
-
         var cardJson = """
         {
             "name": "Legacy Agent",
-            "description": "A legacy agent",
-            "version": "1.0",
-            "url": "http://localhost/a2a",
-            "protocolVersion": "0.3.0",
-            "capabilities": {},
-            "skills": [],
-            "defaultInputModes": ["text"],
-            "defaultOutputModes": ["text"],
-            "preferredTransport": "jsonrpc"
+            "url": "http://agent-host/a2a",
+            "protocolVersion": "0.3"
         }
         """;
 
-        Assert.Throws<A2AException>(() =>
-            A2AClientFactory.Create(cardJson, new Uri("http://localhost")));
-    }
+        var client = V03CompatClientFactory.Create(cardJson, new Uri("http://fallback-host"));
 
-    [Fact]
-    public void Create_WithV10Card_UsesInterfaceUrl()
-    {
-        var cardJson = """
-        {
-            "name": "Test Agent",
-            "description": "An agent with interface URL",
-            "version": "1.0",
-            "supportedInterfaces": [{ "url": "http://specific-host/a2a", "protocolBinding": "JSONRPC", "protocolVersion": "1.0" }],
-            "capabilities": {},
-            "skills": []
-        }
-        """;
-
-        var client = A2AClientFactory.Create(cardJson, new Uri("http://fallback-host"));
-
-        Assert.IsType<A2A.A2AClient>(client);
-    }
-
-    [Fact]
-    public void Create_WithEmptySupportedInterfaces_AndRegisteredV03_ReturnsAdapter()
-    {
-        V03FallbackRegistration.Register();
-
-        var cardJson = """
-        {
-            "name": "Ambiguous Agent",
-            "description": "An agent with empty supportedInterfaces",
-            "version": "1.0",
-            "supportedInterfaces": [],
-            "url": "http://localhost/a2a",
-            "protocolVersion": "0.3",
-            "capabilities": {},
-            "skills": []
-        }
-        """;
-
-        var client = A2AClientFactory.Create(cardJson, new Uri("http://localhost"));
-
+        Assert.IsAssignableFrom<IA2AClient>(client);
         Assert.IsNotType<A2A.A2AClient>(client);
-        Assert.IsAssignableFrom<A2A.IA2AClient>(client);
     }
 
     [Fact]
-    public void Create_V03Card_NormalizesVersionWithPatch()
+    public void Create_WithJson_NoUrlInCard_UsesBaseUrl()
     {
-        V03FallbackRegistration.Register();
-
-        // protocolVersion "0.3.0" should normalize to "0.3" and match
         var cardJson = """
         {
             "name": "Legacy Agent",
-            "description": "A legacy agent",
-            "url": "http://localhost/a2a",
-            "protocolVersion": "0.3.0",
-            "capabilities": {},
-            "skills": []
+            "protocolVersion": "0.3"
         }
         """;
 
-        var client = A2AClientFactory.Create(cardJson, new Uri("http://localhost"));
+        var client = V03CompatClientFactory.Create(cardJson, new Uri("http://fallback-host/a2a"));
 
-        Assert.IsAssignableFrom<A2A.IA2AClient>(client);
+        Assert.IsAssignableFrom<IA2AClient>(client);
     }
 }
