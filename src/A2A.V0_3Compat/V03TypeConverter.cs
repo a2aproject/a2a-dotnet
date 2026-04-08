@@ -47,6 +47,17 @@ internal static class V03TypeConverter
             DefaultOutputModes = v1Card.DefaultOutputModes,
             Skills = v1Card.Skills.Select(ToV03AgentSkill).ToList(),
             SupportsAuthenticatedExtendedCard = v1Card.Capabilities.ExtendedAgentCard ?? false,
+            SecuritySchemes = v1Card.SecuritySchemes is { Count: > 0 }
+                ? v1Card.SecuritySchemes
+                    .Select(kvp => (kvp.Key, scheme: ToV03SecurityScheme(kvp.Value)))
+                    .Where(t => t.scheme is not null)
+                    .ToDictionary(t => t.Key, t => t.scheme!)
+                : null,
+            Security = v1Card.SecurityRequirements?.Select(req =>
+                req.Schemes?.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value.List.ToArray())
+                ?? new Dictionary<string, string[]>()).ToList(),
         };
     }
 
@@ -83,6 +94,80 @@ internal static class V03TypeConverter
         InputModes = skill.InputModes,
         OutputModes = skill.OutputModes,
     };
+
+    /// <summary>
+    /// Converts a v1.0 SecurityScheme (field-presence) to the matching v0.3 SecurityScheme subclass.
+    /// Returns null for scheme types with no v0.3 equivalent.
+    /// </summary>
+    /// <param name="v1">The v1.0 security scheme to convert.</param>
+    private static V03.SecurityScheme? ToV03SecurityScheme(A2A.SecurityScheme v1)
+    {
+        return v1.SchemeCase switch
+        {
+            A2A.SecuritySchemeCase.ApiKey when v1.ApiKeySecurityScheme is { } ak =>
+                new V03.ApiKeySecurityScheme(ak.Name, ak.Location, ak.Description),
+
+            A2A.SecuritySchemeCase.HttpAuth when v1.HttpAuthSecurityScheme is { } http =>
+                new V03.HttpAuthSecurityScheme(http.Scheme, http.BearerFormat, http.Description),
+
+            A2A.SecuritySchemeCase.OAuth2 when v1.OAuth2SecurityScheme is { } oauth =>
+                new V03.OAuth2SecurityScheme(ToV03OAuthFlows(oauth.Flows), oauth.Description),
+
+            A2A.SecuritySchemeCase.OpenIdConnect when v1.OpenIdConnectSecurityScheme is { } oidc
+                && Uri.TryCreate(oidc.OpenIdConnectUrl, UriKind.Absolute, out var oidcUri) =>
+                new V03.OpenIdConnectSecurityScheme(oidcUri, oidc.Description),
+
+            A2A.SecuritySchemeCase.Mtls when v1.MtlsSecurityScheme is { } mtls =>
+                new V03.MutualTlsSecurityScheme(mtls.Description),
+
+            _ => null,
+        };
+    }
+
+    /// <summary>
+    /// Converts v1.0 OAuthFlows to v0.3 OAuthFlows.
+    /// DeviceCode flow has no v0.3 equivalent and is silently dropped.
+    /// PkceRequired on AuthorizationCode has no v0.3 equivalent and is silently dropped.
+    /// Password and Implicit flows are deprecated in v0.3 but are mapped for round-trip fidelity.
+    /// </summary>
+    /// <param name="v1">The v1.0 OAuth flows to convert.</param>
+#pragma warning disable CS0618 // Password and Implicit are [Obsolete] in v0.3 OAuthFlows — intentional compat mapping.
+    private static V03.OAuthFlows ToV03OAuthFlows(A2A.OAuthFlows v1)
+    {
+        return new V03.OAuthFlows
+        {
+            AuthorizationCode = v1.AuthorizationCode is { } ac
+                && Uri.TryCreate(ac.AuthorizationUrl, UriKind.Absolute, out var authUri)
+                && Uri.TryCreate(ac.TokenUrl, UriKind.Absolute, out var tokenUri)
+                ? new V03.AuthorizationCodeOAuthFlow(
+                    authUri, tokenUri, ac.Scopes,
+                    Uri.TryCreate(ac.RefreshUrl, UriKind.Absolute, out var acRefresh) ? acRefresh : null)
+                : null,
+
+            ClientCredentials = v1.ClientCredentials is { } cc
+                && Uri.TryCreate(cc.TokenUrl, UriKind.Absolute, out var ccTokenUri)
+                ? new V03.ClientCredentialsOAuthFlow(
+                    ccTokenUri, cc.Scopes,
+                    Uri.TryCreate(cc.RefreshUrl, UriKind.Absolute, out var ccRefresh) ? ccRefresh : null)
+                : null,
+
+            Password = v1.Password is { } pw
+                && Uri.TryCreate(pw.TokenUrl, UriKind.Absolute, out var pwTokenUri)
+                ? new V03.PasswordOAuthFlow(
+                    pwTokenUri, pw.Scopes,
+                    Uri.TryCreate(pw.RefreshUrl, UriKind.Absolute, out var pwRefresh) ? pwRefresh : null)
+                : null,
+
+            Implicit = v1.Implicit is { } imp
+                && Uri.TryCreate(imp.AuthorizationUrl, UriKind.Absolute, out var impAuthUri)
+                ? new V03.ImplicitOAuthFlow(
+                    impAuthUri, imp.Scopes,
+                    Uri.TryCreate(imp.RefreshUrl, UriKind.Absolute, out var impRefresh) ? impRefresh : null)
+                : null,
+            // DeviceCode has no v0.3 equivalent — silently dropped.
+        };
+    }
+#pragma warning restore CS0618
 
     // ──── v1.0 → v0.3 (request conversion) ────
 
