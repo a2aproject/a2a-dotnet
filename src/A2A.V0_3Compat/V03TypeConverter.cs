@@ -459,6 +459,8 @@ internal static class V03TypeConverter
 
         if (config.Authentication is { } auth && auth.Schemes.Count > 0)
         {
+            // v0.3 PushNotificationAuthenticationInfo.Schemes is a list; v1.0 AuthenticationInfo.Scheme
+            // is a single string. Only the first scheme is preserved — multi-scheme configs lose data here.
             result.Authentication = new A2A.AuthenticationInfo
             {
                 Scheme = auth.Schemes[0],
