@@ -410,4 +410,69 @@ public class V03TypeConverterTests
         Assert.True(v1Stream.ArtifactUpdate.Append);
         Assert.False(v1Stream.ArtifactUpdate.LastChunk);
     }
+
+    // ──── Blocking / ReturnImmediately semantic inversion ────
+    // v0.3 Blocking=true  means "server should WAIT"   (blocking)
+    // v1.0 ReturnImmediately=true means "server should NOT WAIT" (non-blocking)
+    // The two fields are inverses: Blocking == !ReturnImmediately
+
+    [Fact]
+    public void ToV1SendMessageRequest_BlockingTrue_SetsReturnImmediatelyFalse()
+    {
+        var v03Request = new V03.MessageSendParams
+        {
+            Message = new V03.AgentMessage { Role = V03.MessageRole.User, Parts = [] },
+            Configuration = new V03.MessageSendConfiguration { Blocking = true },
+        };
+
+        var v1Request = V03TypeConverter.ToV1SendMessageRequest(v03Request);
+
+        // Blocking=true (wait) → ReturnImmediately=false (wait)
+        Assert.False(v1Request.Configuration!.ReturnImmediately);
+    }
+
+    [Fact]
+    public void ToV1SendMessageRequest_BlockingFalse_SetsReturnImmediatelyTrue()
+    {
+        var v03Request = new V03.MessageSendParams
+        {
+            Message = new V03.AgentMessage { Role = V03.MessageRole.User, Parts = [] },
+            Configuration = new V03.MessageSendConfiguration { Blocking = false },
+        };
+
+        var v1Request = V03TypeConverter.ToV1SendMessageRequest(v03Request);
+
+        // Blocking=false (don't wait) → ReturnImmediately=true (don't wait)
+        Assert.True(v1Request.Configuration!.ReturnImmediately);
+    }
+
+    [Fact]
+    public void ToV03_ReturnImmediatelyTrue_SetsBlockingFalse()
+    {
+        var v1Request = new A2A.SendMessageRequest
+        {
+            Message = new A2A.Message { Role = A2A.Role.User, Parts = [] },
+            Configuration = new A2A.SendMessageConfiguration { ReturnImmediately = true },
+        };
+
+        var v03Params = V03TypeConverter.ToV03(v1Request);
+
+        // ReturnImmediately=true (don't wait) → Blocking=false (don't wait)
+        Assert.False(v03Params.Configuration!.Blocking);
+    }
+
+    [Fact]
+    public void ToV03_ReturnImmediatelyFalse_SetsBlockingTrue()
+    {
+        var v1Request = new A2A.SendMessageRequest
+        {
+            Message = new A2A.Message { Role = A2A.Role.User, Parts = [] },
+            Configuration = new A2A.SendMessageConfiguration { ReturnImmediately = false },
+        };
+
+        var v03Params = V03TypeConverter.ToV03(v1Request);
+
+        // ReturnImmediately=false (wait) → Blocking=true (wait)
+        Assert.True(v03Params.Configuration!.Blocking);
+    }
 }

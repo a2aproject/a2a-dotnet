@@ -103,7 +103,7 @@ internal static class V03TypeConverter
             {
                 AcceptedOutputModes = config.AcceptedOutputModes ?? [],
                 HistoryLength = config.HistoryLength,
-                Blocking = config.ReturnImmediately,
+                Blocking = !config.ReturnImmediately,
             };
 
             if (config.PushNotificationConfig is { } pushConfig)
@@ -407,7 +407,7 @@ internal static class V03TypeConverter
             {
                 AcceptedOutputModes = cfg.AcceptedOutputModes,
                 HistoryLength = cfg.HistoryLength,
-                ReturnImmediately = cfg.Blocking,
+                ReturnImmediately = !cfg.Blocking,
                 PushNotificationConfig = cfg.PushNotification is { } pn
                     ? ToV1PushNotificationConfig(pn)
                     : null,
