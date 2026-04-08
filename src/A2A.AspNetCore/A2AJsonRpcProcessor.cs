@@ -10,9 +10,9 @@ namespace A2A.AspNetCore;
 /// </summary>
 public static class A2AJsonRpcProcessor
 {
-    internal static async Task<IResult> ProcessRequestAsync(IA2ARequestHandler requestHandler, HttpRequest request, CancellationToken cancellationToken)
+    internal static IResult? CheckPreflight(HttpRequest request)
     {
-        // Version negotiation: check A2A-Version header
+        ArgumentNullException.ThrowIfNull(request);
         var version = request.Headers["A2A-Version"].FirstOrDefault();
         if (!string.IsNullOrEmpty(version) && version != "1.0" && version != "0.3")
         {
@@ -22,6 +22,13 @@ public static class A2AJsonRpcProcessor
                     $"Protocol version '{version}' is not supported. Supported versions: 0.3, 1.0",
                     A2AErrorCode.VersionNotSupported)));
         }
+        return null;
+    }
+
+    internal static async Task<IResult> ProcessRequestAsync(IA2ARequestHandler requestHandler, HttpRequest request, CancellationToken cancellationToken)
+    {
+        var preflightResult = CheckPreflight(request);
+        if (preflightResult != null) return preflightResult;
 
         using var activity = A2AAspNetCoreDiagnostics.Source.StartActivity("HandleA2ARequest", ActivityKind.Server);
 

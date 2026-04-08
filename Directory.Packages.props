@@ -14,6 +14,7 @@
         <PackageVersion Include="System.Linq.AsyncEnumerable" Version="10.0.5" />
         <PackageVersion Include="System.Net.ServerSentEvents" Version="10.0.5" />
         <!-- Testing / samples dependencies -->
+        <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.5" />
         <PackageVersion Include="JsonSchema.Net" Version="9.1.4" />
         <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.4.1" />
         <PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.9" />
