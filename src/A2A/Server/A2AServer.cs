@@ -347,7 +347,13 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
                     }
                     catch (OperationCanceledException)
                     {
-                        // Expected when tasks/cancel triggers the background CTS
+                        // Expected when tasks/cancel triggers the background CTS.
+                        // Await the handler so it can observe the cancellation before
+                        // the finally block disposes the CTS.
+#pragma warning disable VSTHRD003 // Intentional: agentTask runs the agent handler in the background
+                        try { await capturedAgentTask.ConfigureAwait(false); }
+                        catch { /* Handler may propagate OperationCanceledException */ }
+#pragma warning restore VSTHRD003
                     }
                     catch (Exception ex)
                     {
@@ -667,7 +673,13 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
                 }
                 catch (OperationCanceledException)
                 {
-                    // Expected when tasks/cancel triggers the backgroundCts
+                    // Expected when tasks/cancel triggers the backgroundCts.
+                    // Await the handler so it can observe the cancellation before
+                    // the finally block disposes the CTS.
+#pragma warning disable VSTHRD003 // Intentional: agentTask runs the agent handler in the background
+                    try { await agentTask.ConfigureAwait(false); }
+                    catch { /* Handler may propagate OperationCanceledException */ }
+#pragma warning restore VSTHRD003
                 }
                 catch (Exception ex)
                 {
