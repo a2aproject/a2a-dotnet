@@ -33,8 +33,8 @@ internal sealed class StreamingArtifactSample
         // 1. Start the local agent server hosting the streaming artifact agent
         await AgentServerUtils.StartLocalAgentServerAsync(agentName: "streamingartifact", port: 5102);
 
-        // 2. Get the agent card (served under the mapped path)
-        A2ACardResolver cardResolver = new(new Uri("http://localhost:5102/"), agentCardPath: "/streamingartifact/.well-known/agent-card.json");
+        // 2. Get the agent card (served under the well-known path)
+        A2ACardResolver cardResolver = new(new Uri("http://localhost:5102/"));
         AgentCard agentCard = await cardResolver.GetAgentCardAsync();
         Console.WriteLine($" Connected to: {agentCard.Name}");
 
