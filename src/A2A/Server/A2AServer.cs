@@ -358,6 +358,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
                     catch (Exception ex)
                     {
                         _logger.BackgroundEventProcessingFailed(ex, capturedContext.TaskId);
+                        await TryTransitionToFailedAsync(capturedContext).ConfigureAwait(false);
                     }
                     finally
                     {
@@ -551,6 +552,40 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
 
     // ─── Private Helpers ───
 
+    /// <summary>
+    /// Attempts to transition a task to <see cref="TaskState.Failed"/> after a background
+    /// processing error. Guards against overwriting an already-terminal state.
+    /// </summary>
+    /// <param name="context">The request context identifying the task to transition.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    private async Task TryTransitionToFailedAsync(RequestContext context, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var task = await _taskStore.GetTaskAsync(context.TaskId, cancellationToken).ConfigureAwait(false);
+            if (task is not null && !task.Status.State.IsTerminal())
+            {
+                await ApplyEventAsync(new StreamResponse
+                {
+                    StatusUpdate = new TaskStatusUpdateEvent
+                    {
+                        TaskId = context.TaskId,
+                        ContextId = context.ContextId,
+                        Status = new TaskStatus
+                        {
+                            State = TaskState.Failed,
+                            Timestamp = DateTimeOffset.UtcNow,
+                        },
+                    },
+                }, context, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (Exception innerEx)
+        {
+            _logger.FailedToMarkTaskAsFailed(innerEx, context.TaskId);
+        }
+    }
+
     private async Task<RequestContext> ResolveContextAsync(
         SendMessageRequest request, bool streamingResponse, CancellationToken cancellationToken)
     {
@@ -684,6 +719,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
                 catch (Exception ex)
                 {
                     _logger.BackgroundEventProcessingFailed(ex, context.TaskId);
+                    await TryTransitionToFailedAsync(context).ConfigureAwait(false);
                 }
                 finally
                 {

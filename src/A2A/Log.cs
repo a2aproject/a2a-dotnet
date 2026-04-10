@@ -19,5 +19,8 @@ namespace A2A
 
         [LoggerMessage(3, LogLevel.Error, "Background event processing failed for task {TaskId}")]
         internal static partial void BackgroundEventProcessingFailed(this ILogger logger, Exception exception, string TaskId);
+
+        [LoggerMessage(4, LogLevel.Error, "Failed to transition task {TaskId} to Failed state after background processing error")]
+        internal static partial void FailedToMarkTaskAsFailed(this ILogger logger, Exception exception, string TaskId);
     }
 }
