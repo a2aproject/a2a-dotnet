@@ -831,6 +831,48 @@ public class A2AServerTests
     }
 
     [Fact]
+    public async Task GivenReturnImmediately_WhenHandlerThrows_ThenTaskTransitionsToFailed()
+    {
+        // Arrange — handler emits Submitted + Working then throws
+        var (server, store, handler) = CreateServer();
+        var handlerStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        handler.OnExecute = async (ctx, eq, ct) =>
+        {
+            var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
+            await updater.SubmitAsync(ct);
+            await updater.StartWorkAsync(cancellationToken: ct);
+            handlerStarted.TrySetResult();
+
+            // Simulate unhandled failure in the handler
+            throw new InvalidOperationException("Simulated handler failure");
+        };
+
+        var request = new SendMessageRequest
+        {
+            Message = new Message { MessageId = "u1", Parts = [Part.FromText("Hello!")], Role = Role.User },
+            Configuration = new SendMessageConfiguration { ReturnImmediately = true },
+        };
+
+        // Act — send with return-immediately
+        var result = await server.SendMessageAsync(request);
+        Assert.NotNull(result.Task);
+        var taskId = result.Task!.Id;
+
+        // Wait for handler to have started (and thrown)
+        await handlerStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        // DisposeAsync awaits all background drain tasks, guaranteeing the
+        // Failed transition has been applied before we read the store.
+        await server.DisposeAsync();
+
+        // Assert — task should have transitioned to Failed, not remain as Working (zombie)
+        var persisted = await store.GetTaskAsync(taskId);
+        Assert.NotNull(persisted);
+        Assert.Equal(TaskState.Failed, persisted!.Status.State);
+    }
+
+    [Fact]
     public async Task GivenReturnImmediately_WhenDispose_ThenBackgroundWorkIsCancelled()
     {
         // Arrange — handler blocks until cancelled
