@@ -165,7 +165,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
                     backgroundCts, executionCancellationToken, cancellationToken).ConfigureAwait(false);
             }
 
-            var result = await MaterializeResponseAsync(eventQueue, context, cancellationToken).ConfigureAwait(false);
+            var result = await MaterializeResponseAsync(eventQueue, agentTask, context, cancellationToken).ConfigureAwait(false);
             await agentTask.ConfigureAwait(false); // surface handler exceptions
 
             return result;
@@ -724,7 +724,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
     }
 
     private async Task<SendMessageResponse> MaterializeResponseAsync(
-        AgentEventQueue eventQueue, RequestContext context, CancellationToken cancellationToken)
+        AgentEventQueue eventQueue, Task agentTask, RequestContext context, CancellationToken cancellationToken)
     {
         SendMessageResponse? result = null;
 
@@ -754,7 +754,18 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
                 ?? throw new A2AException($"Task '{context.TaskId}' not found after processing.", A2AErrorCode.TaskNotFound);
         }
 
-        return result ?? throw new A2AException(
+        if (result is not null)
+        {
+            return result;
+        }
+
+        // No events were produced. Await the handler first so its exception
+        // (if any) propagates instead of the generic "no events" error.
+#pragma warning disable VSTHRD003 // Intentional: agentTask runs the agent handler on a background thread
+        await agentTask.ConfigureAwait(false);
+#pragma warning restore VSTHRD003
+
+        throw new A2AException(
             "Agent handler did not produce any response events.",
             A2AErrorCode.InvalidAgentResponse);
     }

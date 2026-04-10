@@ -878,6 +878,27 @@ public class A2AServerTests
     }
 
     [Fact]
+    public async Task GivenBlockingMode_WhenHandlerThrowsWithoutEvents_ThenOriginalExceptionSurfaces()
+    {
+        // Arrange — handler throws immediately without emitting any events
+        var (server, _, handler) = CreateServer();
+
+        handler.OnExecute = (ctx, eq, ct) =>
+            throw new InvalidOperationException("External API unavailable");
+
+        var request = new SendMessageRequest
+        {
+            Message = new Message { MessageId = "u1", Parts = [Part.FromText("Hello!")], Role = Role.User },
+        };
+
+        // Act & Assert — the handler's original exception should propagate,
+        // not a generic "Agent handler did not produce any response events."
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => server.SendMessageAsync(request));
+        Assert.Equal("External API unavailable", ex.Message);
+    }
+
+    [Fact]
     public async Task GivenStreamDisconnect_WhenReconnectWithSubscribe_ThenReceivesRemainingEvents()
     {
         // Arrange — handler waits for a signal before completing, so we control timing precisely
