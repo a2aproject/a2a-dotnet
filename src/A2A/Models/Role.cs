@@ -3,7 +3,7 @@ namespace A2A;
 using System.Text.Json.Serialization;
 
 /// <summary>Represents the role of a message sender in the A2A protocol.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<Role>))]
+[JsonConverter(typeof(RoleConverter))]
 public enum Role
 {
     /// <summary>Unspecified role.</summary>

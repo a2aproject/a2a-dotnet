@@ -198,4 +198,40 @@ public class ParsingTests
         // Assert
         Assert.Contains("ROLE_USER", json);
     }
+
+    [Theory]
+    [InlineData("\"submitted\"", TaskState.Submitted)]
+    [InlineData("\"working\"", TaskState.Working)]
+    [InlineData("\"completed\"", TaskState.Completed)]
+    [InlineData("\"failed\"", TaskState.Failed)]
+    [InlineData("\"canceled\"", TaskState.Canceled)]
+    [InlineData("\"input-required\"", TaskState.InputRequired)]
+    [InlineData("\"rejected\"", TaskState.Rejected)]
+    [InlineData("\"auth-required\"", TaskState.AuthRequired)]
+    public void TaskState_DeserializesSpecCompliantNames(string json, TaskState expected)
+    {
+        var result = JsonSerializer.Deserialize<TaskState>(json, A2AJsonUtilities.DefaultOptions);
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void SendMessageRequest_DeserializesWithSpecCompliantEnums()
+    {
+        const string json = """{"message":{"messageId":"123","role":"user","parts":[{"text":"hello"}]}}""";
+        var request = JsonSerializer.Deserialize<SendMessageRequest>(json, A2AJsonUtilities.DefaultOptions);
+
+        Assert.NotNull(request);
+        Assert.Equal(Role.User, request.Message.Role);
+        Assert.Equal("hello", request.Message.Parts[0].Text);
+    }
+
+    [Fact]
+    public void TaskStatus_DeserializesWithSpecCompliantState()
+    {
+        const string json = """{"state":"completed"}""";
+        var status = JsonSerializer.Deserialize<TaskStatus>(json, A2AJsonUtilities.DefaultOptions);
+
+        Assert.NotNull(status);
+        Assert.Equal(TaskState.Completed, status.State);
+    }
 }

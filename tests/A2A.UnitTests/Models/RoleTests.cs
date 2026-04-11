@@ -39,4 +39,24 @@ public sealed class RoleTests
         Assert.Equal(Role.Agent, agent);
         Assert.Equal(Role.Unspecified, unspecified);
     }
+
+    [Theory]
+    [InlineData("\"user\"", Role.User)]
+    [InlineData("\"agent\"", Role.Agent)]
+    [InlineData("\"unspecified\"", Role.Unspecified)]
+    public void Deserialize_SpecCompliantNames_ParsesCorrectly(string json, Role expected)
+    {
+        var result = JsonSerializer.Deserialize<Role>(json, A2AJsonUtilities.DefaultOptions);
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void Deserialize_SpecCompliantMessage_ParsesRole()
+    {
+        const string json = """{"messageId":"123","role":"user","parts":[{"text":"hello"}]}""";
+        var message = JsonSerializer.Deserialize<Message>(json, A2AJsonUtilities.DefaultOptions);
+
+        Assert.NotNull(message);
+        Assert.Equal(Role.User, message.Role);
+    }
 }

@@ -3,7 +3,7 @@ namespace A2A;
 using System.Text.Json.Serialization;
 
 /// <summary>Represents the state of a task in the A2A protocol.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<TaskState>))]
+[JsonConverter(typeof(TaskStateConverter))]
 public enum TaskState
 {
     /// <summary>Unspecified task state.</summary>
