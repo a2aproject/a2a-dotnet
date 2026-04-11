@@ -214,6 +214,21 @@ public class ParsingTests
         Assert.Equal(expected, result);
     }
 
+    [Theory]
+    [InlineData(1, TaskState.Submitted)]
+    [InlineData(2, TaskState.Working)]
+    [InlineData(3, TaskState.Completed)]
+    [InlineData(4, TaskState.Failed)]
+    [InlineData(5, TaskState.Canceled)]
+    [InlineData(6, TaskState.InputRequired)]
+    [InlineData(7, TaskState.Rejected)]
+    [InlineData(8, TaskState.AuthRequired)]
+    public void TaskState_DeserializesNumericValues(int numeric, TaskState expected)
+    {
+        var result = JsonSerializer.Deserialize<TaskState>(numeric.ToString(System.Globalization.CultureInfo.InvariantCulture), A2AJsonUtilities.DefaultOptions);
+        Assert.Equal(expected, result);
+    }
+
     [Fact]
     public void SendMessageRequest_DeserializesWithSpecCompliantEnums()
     {

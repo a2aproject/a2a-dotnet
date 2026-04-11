@@ -50,6 +50,16 @@ public sealed class RoleTests
         Assert.Equal(expected, result);
     }
 
+    [Theory]
+    [InlineData(0, Role.Unspecified)]
+    [InlineData(1, Role.User)]
+    [InlineData(2, Role.Agent)]
+    public void Deserialize_NumericValues_ParsesCorrectly(int numeric, Role expected)
+    {
+        var result = JsonSerializer.Deserialize<Role>(numeric.ToString(System.Globalization.CultureInfo.InvariantCulture), A2AJsonUtilities.DefaultOptions);
+        Assert.Equal(expected, result);
+    }
+
     [Fact]
     public void Deserialize_SpecCompliantMessage_ParsesRole()
     {

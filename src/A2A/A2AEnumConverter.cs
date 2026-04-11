@@ -46,18 +46,26 @@ internal abstract class A2AEnumConverter<[DynamicallyAccessedMembers(Dynamically
 
     public override TEnum Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        if (reader.TokenType != JsonTokenType.String)
+        if (reader.TokenType == JsonTokenType.String)
         {
-            throw new JsonException($"Expected string for {typeof(TEnum).Name}, got {reader.TokenType}.");
+            var value = reader.GetString()!;
+            if (_readMap.TryGetValue(value, out var result))
+            {
+                return result;
+            }
+
+            throw new JsonException($"Unable to convert \"{value}\" to {typeof(TEnum).Name}.");
         }
 
-        var value = reader.GetString()!;
-        if (_readMap.TryGetValue(value, out var result))
+        if (reader.TokenType == JsonTokenType.Number)
         {
-            return result;
+            if (reader.TryGetInt32(out int intValue))
+            {
+                return (TEnum)Enum.ToObject(typeof(TEnum), intValue);
+            }
         }
 
-        throw new JsonException($"Unable to convert \"{value}\" to {typeof(TEnum).Name}.");
+        throw new JsonException($"Expected string or number for {typeof(TEnum).Name}, got {reader.TokenType}.");
     }
 
     public override void Write(Utf8JsonWriter writer, TEnum value, JsonSerializerOptions options)
