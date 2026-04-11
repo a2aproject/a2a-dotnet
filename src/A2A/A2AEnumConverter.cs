@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -8,20 +10,37 @@ namespace A2A;
 /// names (e.g., "ROLE_USER") and spec-compliant lowercase names (e.g., "user") during
 /// deserialization. Serialization always produces proto3-style names.
 /// </summary>
-internal abstract class A2AEnumConverter<TEnum> : JsonConverter<TEnum> where TEnum : struct, Enum
+/// <remarks>
+/// Proto3 names are read from <see cref="JsonStringEnumMemberNameAttribute"/> on each enum member.
+/// Spec-compliant names are derived by stripping the proto3 prefix from the proto3
+/// name, converting to lowercase, and replacing underscores with hyphens.
+/// </remarks>
+internal abstract class A2AEnumConverter<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicFields)] TEnum> : JsonConverter<TEnum> where TEnum : struct, Enum
 {
     private readonly Dictionary<string, TEnum> _readMap;
     private readonly Dictionary<TEnum, string> _writeMap;
 
-    protected A2AEnumConverter((TEnum Value, string Proto3Name, string SpecName)[] mappings)
+    protected A2AEnumConverter(string proto3Prefix)
     {
-        _readMap = new(mappings.Length * 2, StringComparer.OrdinalIgnoreCase);
-        _writeMap = new(mappings.Length);
-        foreach (var (value, proto3Name, specName) in mappings)
+        var fields = typeof(TEnum).GetFields(BindingFlags.Public | BindingFlags.Static);
+        _readMap = new(fields.Length * 2, StringComparer.OrdinalIgnoreCase);
+        _writeMap = new(fields.Length);
+
+        foreach (var field in fields)
         {
+            var value = (TEnum)field.GetValue(null)!;
+            var attr = field.GetCustomAttribute<JsonStringEnumMemberNameAttribute>();
+            var proto3Name = attr?.Name ?? field.Name;
+
             _readMap[proto3Name] = value;
-            _readMap[specName] = value;
             _writeMap[value] = proto3Name;
+
+            // Derive spec name: strip prefix, lowercase, replace _ with -
+            var specName = proto3Name.StartsWith(proto3Prefix, StringComparison.Ordinal)
+                ? proto3Name[proto3Prefix.Length..]
+                : proto3Name;
+            specName = specName.ToLowerInvariant().Replace('_', '-');
+            _readMap[specName] = value;
         }
     }
 
@@ -54,23 +73,7 @@ internal abstract class A2AEnumConverter<TEnum> : JsonConverter<TEnum> where TEn
 }
 
 /// <summary>JSON converter for <see cref="Role"/> that accepts both proto3 and spec-compliant names.</summary>
-internal sealed class RoleConverter() : A2AEnumConverter<Role>(
-[
-    (Role.Unspecified, "ROLE_UNSPECIFIED", "unspecified"),
-    (Role.User, "ROLE_USER", "user"),
-    (Role.Agent, "ROLE_AGENT", "agent"),
-]);
+internal sealed class RoleConverter() : A2AEnumConverter<Role>("ROLE_");
 
 /// <summary>JSON converter for <see cref="TaskState"/> that accepts both proto3 and spec-compliant names.</summary>
-internal sealed class TaskStateConverter() : A2AEnumConverter<TaskState>(
-[
-    (TaskState.Unspecified, "TASK_STATE_UNSPECIFIED", "unspecified"),
-    (TaskState.Submitted, "TASK_STATE_SUBMITTED", "submitted"),
-    (TaskState.Working, "TASK_STATE_WORKING", "working"),
-    (TaskState.Completed, "TASK_STATE_COMPLETED", "completed"),
-    (TaskState.Failed, "TASK_STATE_FAILED", "failed"),
-    (TaskState.Canceled, "TASK_STATE_CANCELED", "canceled"),
-    (TaskState.InputRequired, "TASK_STATE_INPUT_REQUIRED", "input-required"),
-    (TaskState.Rejected, "TASK_STATE_REJECTED", "rejected"),
-    (TaskState.AuthRequired, "TASK_STATE_AUTH_REQUIRED", "auth-required"),
-]);
+internal sealed class TaskStateConverter() : A2AEnumConverter<TaskState>("TASK_STATE_");
