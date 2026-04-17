@@ -13,6 +13,8 @@
     <Project Path="samples/A2ACli/A2ACli.csproj" />
     <Project Path="samples/AgentClient/AgentClient.csproj" />
     <Project Path="samples/AgentServer/AgentServer.csproj" />
+    <Project Path="samples/MultiAgentClient/MultiAgentClient.csproj" />
+    <Project Path="samples/MultiAgentHost/MultiAgentHost.csproj" />
     <Project Path="samples/SemanticKernelAgent/SemanticKernelAgent.csproj" />
   </Folder>
   <Folder Name="/src/">
