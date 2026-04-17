@@ -36,7 +36,8 @@ factory.Register(new AgentRegistration(
     [
         new AgentSkill { Id = "add-appointment", Name = "Add Appointment", Description = "Schedule a new appointment.", Tags = ["scheduling"] },
         new AgentSkill { Id = "cancel-appointment", Name = "Cancel Appointment", Description = "Cancel an existing appointment.", Tags = ["scheduling"] },
-    ]));
+    ],
+    Handler: new NamedEchoAgent("Scheduler Agent")));
 
 factory.Register(new AgentRegistration(
     Subdomain: "research",
@@ -46,7 +47,8 @@ factory.Register(new AgentRegistration(
     [
         new AgentSkill { Id = "match-trial", Name = "Match Trial", Description = "Match patients to clinical trials.", Tags = ["clinical", "research"] },
         new AgentSkill { Id = "read-patient", Name = "Read Patient Data", Description = "Read patient information.", Tags = ["clinical", "data"] },
-    ]));
+    ],
+    Handler: new NamedEchoAgent("Clinical Trials Agent")));
 
 // The base domain used to extract subdomains from Host header.
 // e.g., "scheduler.platform.local" with baseDomain ".platform.local" → "scheduler"

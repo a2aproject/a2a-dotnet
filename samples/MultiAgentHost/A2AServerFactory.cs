@@ -7,7 +7,7 @@ namespace MultiAgentHost;
 /// <summary>
 /// Describes an agent hosted on the platform, identified by its subdomain.
 /// </summary>
-public sealed record AgentRegistration(string Subdomain, string AgentName, string Description, AgentSkill[] Skills);
+public sealed record AgentRegistration(string Subdomain, string AgentName, string Description, AgentSkill[] Skills, IAgentHandler Handler);
 
 /// <summary>
 /// Factory that creates and caches <see cref="A2AServer"/> instances per subdomain.
@@ -44,9 +44,8 @@ public sealed class A2AServerFactory : IAsyncDisposable
         {
             var store = new InMemoryTaskStore();
             var notifier = new ChannelEventNotifier();
-            var handler = new NamedEchoAgent(reg.AgentName);
             var logger = _loggerFactory.CreateLogger<A2AServer>();
-            return new A2AServer(handler, store, notifier, logger);
+            return new A2AServer(reg.Handler, store, notifier, logger);
         });
     }
 
