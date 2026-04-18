@@ -269,52 +269,86 @@ public static class A2ARouteBuilderExtensions
         var logger = endpoints.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("A2A.REST");
 
         // Agent card
-        routeGroup.MapGet("/card", (HttpContext httpContext, CancellationToken ct)
-            => A2AHttpProcessor.GetAgentCardRestAsync(handlerFactory(httpContext), logger, agentCardFactory(httpContext), ct));
+        routeGroup.MapGet("/card", async (HttpContext httpContext, CancellationToken ct) =>
+        {
+            try { return await A2AHttpProcessor.GetAgentCardRestAsync(handlerFactory(httpContext), logger, agentCardFactory(httpContext), ct); }
+            catch (A2AException ex) { return A2AHttpProcessor.MapA2AExceptionToHttpResult(ex); }
+        });
 
         // Task operations
-        routeGroup.MapGet("/tasks/{id}", (HttpContext httpContext, string id, [FromQuery] int? historyLength, CancellationToken ct)
-            => A2AHttpProcessor.GetTaskRestAsync(handlerFactory(httpContext), logger, id, historyLength, ct));
+        routeGroup.MapGet("/tasks/{id}", async (HttpContext httpContext, string id, [FromQuery] int? historyLength, CancellationToken ct) =>
+        {
+            try { return await A2AHttpProcessor.GetTaskRestAsync(handlerFactory(httpContext), logger, id, historyLength, ct); }
+            catch (A2AException ex) { return A2AHttpProcessor.MapA2AExceptionToHttpResult(ex); }
+        });
 
-        routeGroup.MapPost("/tasks/{id}:cancel", (HttpContext httpContext, string id, CancellationToken ct)
-            => A2AHttpProcessor.CancelTaskRestAsync(handlerFactory(httpContext), logger, id, ct));
+        routeGroup.MapPost("/tasks/{id}:cancel", async (HttpContext httpContext, string id, CancellationToken ct) =>
+        {
+            try { return await A2AHttpProcessor.CancelTaskRestAsync(handlerFactory(httpContext), logger, id, ct); }
+            catch (A2AException ex) { return A2AHttpProcessor.MapA2AExceptionToHttpResult(ex); }
+        });
 
-        routeGroup.MapPost("/tasks/{id}:subscribe", (HttpContext httpContext, string id, CancellationToken ct)
-            => A2AHttpProcessor.SubscribeToTaskRest(handlerFactory(httpContext), logger, id, ct));
+        routeGroup.MapPost("/tasks/{id}:subscribe", (HttpContext httpContext, string id, CancellationToken ct) =>
+        {
+            try { return A2AHttpProcessor.SubscribeToTaskRest(handlerFactory(httpContext), logger, id, ct); }
+            catch (A2AException ex) { return A2AHttpProcessor.MapA2AExceptionToHttpResult(ex); }
+        });
 
-        routeGroup.MapGet("/tasks", (HttpContext httpContext, [FromQuery] string? contextId, [FromQuery] string? status,
-            [FromQuery] int? pageSize, [FromQuery] string? pageToken, [FromQuery] int? historyLength,
-            CancellationToken ct)
-            => A2AHttpProcessor.ListTasksRestAsync(handlerFactory(httpContext), logger, contextId, status, pageSize, pageToken,
-                historyLength, ct));
+        routeGroup.MapGet("/tasks", async (HttpContext httpContext, [FromQuery] string? contextId, [FromQuery] string? status,
+            [FromQuery] int? pageSize, [FromQuery] string? pageToken, [FromQuery] int? historyLength, CancellationToken ct) =>
+        {
+            try { return await A2AHttpProcessor.ListTasksRestAsync(handlerFactory(httpContext), logger, contextId, status, pageSize, pageToken, historyLength, ct); }
+            catch (A2AException ex) { return A2AHttpProcessor.MapA2AExceptionToHttpResult(ex); }
+        });
 
         // Message operations
-        routeGroup.MapPost("/message:send", (HttpContext httpContext, [FromBody] SendMessageRequest request, CancellationToken ct)
-            => A2AHttpProcessor.SendMessageRestAsync(handlerFactory(httpContext), logger, request, ct));
+        routeGroup.MapPost("/message:send", async (HttpContext httpContext, [FromBody] SendMessageRequest request, CancellationToken ct) =>
+        {
+            try { return await A2AHttpProcessor.SendMessageRestAsync(handlerFactory(httpContext), logger, request, ct); }
+            catch (A2AException ex) { return A2AHttpProcessor.MapA2AExceptionToHttpResult(ex); }
+        });
 
-        routeGroup.MapPost("/message:stream", (HttpContext httpContext, [FromBody] SendMessageRequest request, CancellationToken ct)
-            => A2AHttpProcessor.SendMessageStreamRest(handlerFactory(httpContext), logger, request, ct));
+        routeGroup.MapPost("/message:stream", (HttpContext httpContext, [FromBody] SendMessageRequest request, CancellationToken ct) =>
+        {
+            try { return A2AHttpProcessor.SendMessageStreamRest(handlerFactory(httpContext), logger, request, ct); }
+            catch (A2AException ex) { return A2AHttpProcessor.MapA2AExceptionToHttpResult(ex); }
+        });
 
         // Push notification config operations
         routeGroup.MapPost("/tasks/{id}/pushNotificationConfigs",
-            (HttpContext httpContext, string id, [FromBody] PushNotificationConfig config, CancellationToken ct)
-            => A2AHttpProcessor.CreatePushNotificationConfigRestAsync(handlerFactory(httpContext), logger, id, config, ct));
+            async (HttpContext httpContext, string id, [FromBody] PushNotificationConfig config, CancellationToken ct) =>
+        {
+            try { return await A2AHttpProcessor.CreatePushNotificationConfigRestAsync(handlerFactory(httpContext), logger, id, config, ct); }
+            catch (A2AException ex) { return A2AHttpProcessor.MapA2AExceptionToHttpResult(ex); }
+        });
 
         routeGroup.MapGet("/tasks/{id}/pushNotificationConfigs",
-            (HttpContext httpContext, string id, [FromQuery] int? pageSize, [FromQuery] string? pageToken, CancellationToken ct)
-            => A2AHttpProcessor.ListPushNotificationConfigRestAsync(handlerFactory(httpContext), logger, id, pageSize, pageToken, ct));
+            async (HttpContext httpContext, string id, [FromQuery] int? pageSize, [FromQuery] string? pageToken, CancellationToken ct) =>
+        {
+            try { return await A2AHttpProcessor.ListPushNotificationConfigRestAsync(handlerFactory(httpContext), logger, id, pageSize, pageToken, ct); }
+            catch (A2AException ex) { return A2AHttpProcessor.MapA2AExceptionToHttpResult(ex); }
+        });
 
         routeGroup.MapGet("/tasks/{id}/pushNotificationConfigs/{configId}",
-            (HttpContext httpContext, string id, string configId, CancellationToken ct)
-            => A2AHttpProcessor.GetPushNotificationConfigRestAsync(handlerFactory(httpContext), logger, id, configId, ct));
+            async (HttpContext httpContext, string id, string configId, CancellationToken ct) =>
+        {
+            try { return await A2AHttpProcessor.GetPushNotificationConfigRestAsync(handlerFactory(httpContext), logger, id, configId, ct); }
+            catch (A2AException ex) { return A2AHttpProcessor.MapA2AExceptionToHttpResult(ex); }
+        });
 
         routeGroup.MapDelete("/tasks/{id}/pushNotificationConfigs/{configId}",
-            (HttpContext httpContext, string id, string configId, CancellationToken ct)
-            => A2AHttpProcessor.DeletePushNotificationConfigRestAsync(handlerFactory(httpContext), logger, id, configId, ct));
+            async (HttpContext httpContext, string id, string configId, CancellationToken ct) =>
+        {
+            try { return await A2AHttpProcessor.DeletePushNotificationConfigRestAsync(handlerFactory(httpContext), logger, id, configId, ct); }
+            catch (A2AException ex) { return A2AHttpProcessor.MapA2AExceptionToHttpResult(ex); }
+        });
 
         // Extended agent card
-        routeGroup.MapGet("/extendedAgentCard", (HttpContext httpContext, CancellationToken ct)
-            => A2AHttpProcessor.GetExtendedAgentCardRestAsync(handlerFactory(httpContext), logger, ct));
+        routeGroup.MapGet("/extendedAgentCard", async (HttpContext httpContext, CancellationToken ct) =>
+        {
+            try { return await A2AHttpProcessor.GetExtendedAgentCardRestAsync(handlerFactory(httpContext), logger, ct); }
+            catch (A2AException ex) { return A2AHttpProcessor.MapA2AExceptionToHttpResult(ex); }
+        });
 
         return routeGroup;
     }
