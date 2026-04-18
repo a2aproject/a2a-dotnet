@@ -103,7 +103,7 @@ internal static class A2AHttpProcessor
         }
     }
 
-    private static IResult MapA2AExceptionToHttpResult(A2AException exception)
+    internal static IResult MapA2AExceptionToHttpResult(A2AException exception)
     {
         return exception.ErrorCode switch
         {

@@ -25,7 +25,18 @@ public static class A2AJsonRpcProcessor
         return null;
     }
 
-    internal static async Task<IResult> ProcessRequestAsync(IA2ARequestHandler requestHandler, HttpRequest request, CancellationToken cancellationToken)
+    /// <summary>
+    /// Processes an A2A JSON-RPC request, routing it to the appropriate handler method.
+    /// </summary>
+    /// <remarks>
+    /// Use this method directly for advanced scenarios such as custom per-request handler
+    /// routing or multi-agent middleware where the built-in <c>MapA2A</c> overloads are insufficient.
+    /// </remarks>
+    /// <param name="requestHandler">The handler to process the request.</param>
+    /// <param name="request">The incoming HTTP request containing the JSON-RPC payload.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>An <see cref="IResult"/> containing the JSON-RPC response.</returns>
+    public static async Task<IResult> ProcessRequestAsync(IA2ARequestHandler requestHandler, HttpRequest request, CancellationToken cancellationToken)
     {
         var preflightResult = CheckPreflight(request);
         if (preflightResult != null) return preflightResult;

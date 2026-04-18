@@ -53,6 +53,78 @@ public static class A2ARouteBuilderExtensions
         return routeGroup;
     }
 
+    /// <summary>Enables JSON-RPC A2A endpoints with per-request handler resolution.</summary>
+    /// <param name="endpoints">The endpoint route builder.</param>
+    /// <param name="handlerFactory">Factory that resolves an <see cref="IA2ARequestHandler"/> per request from the <see cref="HttpContext"/>.</param>
+    /// <param name="path">The route path for the A2A endpoint.</param>
+    /// <returns>An endpoint convention builder for further configuration.</returns>
+    public static IEndpointConventionBuilder MapA2A(
+        this IEndpointRouteBuilder endpoints,
+        Func<HttpContext, IA2ARequestHandler> handlerFactory,
+        [StringSyntax("Route")] string path)
+    {
+        ArgumentNullException.ThrowIfNull(endpoints);
+        ArgumentNullException.ThrowIfNull(handlerFactory);
+        ArgumentException.ThrowIfNullOrEmpty(path);
+
+        var routeGroup = endpoints.MapGroup("");
+        routeGroup.MapPost(path, async (HttpContext httpContext, CancellationToken cancellationToken) =>
+        {
+            IA2ARequestHandler handler;
+            try
+            {
+                handler = handlerFactory(httpContext);
+            }
+            catch (A2AException ex)
+            {
+                return new JsonRpcResponseResult(JsonRpcResponse.CreateJsonRpcErrorResponse(new JsonRpcId((string?)null), ex));
+            }
+
+            return await A2AJsonRpcProcessor.ProcessRequestAsync(handler, httpContext.Request, cancellationToken);
+        });
+
+        return routeGroup;
+    }
+
+    /// <summary>Enables JSON-RPC A2A endpoints and well-known agent card with per-request resolution.</summary>
+    /// <param name="endpoints">The endpoint route builder.</param>
+    /// <param name="handlerFactory">Factory that resolves an <see cref="IA2ARequestHandler"/> per request from the <see cref="HttpContext"/>.</param>
+    /// <param name="agentCardFactory">Factory that resolves an <see cref="AgentCard"/> per request from the <see cref="HttpContext"/>.</param>
+    /// <param name="path">The route path for the A2A JSON-RPC endpoint.</param>
+    /// <returns>An endpoint convention builder for further configuration.</returns>
+    public static IEndpointConventionBuilder MapA2A(
+        this IEndpointRouteBuilder endpoints,
+        Func<HttpContext, IA2ARequestHandler> handlerFactory,
+        Func<HttpContext, AgentCard> agentCardFactory,
+        [StringSyntax("Route")] string path)
+    {
+        ArgumentNullException.ThrowIfNull(endpoints);
+        ArgumentNullException.ThrowIfNull(handlerFactory);
+        ArgumentNullException.ThrowIfNull(agentCardFactory);
+        ArgumentException.ThrowIfNullOrEmpty(path);
+
+        var routeGroup = endpoints.MapGroup("");
+
+        routeGroup.MapPost(path, async (HttpContext httpContext, CancellationToken cancellationToken) =>
+        {
+            IA2ARequestHandler handler;
+            try
+            {
+                handler = handlerFactory(httpContext);
+            }
+            catch (A2AException ex)
+            {
+                return new JsonRpcResponseResult(JsonRpcResponse.CreateJsonRpcErrorResponse(new JsonRpcId((string?)null), ex));
+            }
+
+            return await A2AJsonRpcProcessor.ProcessRequestAsync(handler, httpContext.Request, cancellationToken);
+        });
+
+        routeGroup.MapGet(".well-known/agent-card.json", (HttpContext httpContext) => Results.Ok(agentCardFactory(httpContext)));
+
+        return routeGroup;
+    }
+
     /// <summary>Enables the well-known agent card endpoint for agent discovery.</summary>
     /// <param name="endpoints">The endpoint route builder.</param>
     /// <param name="agentCard">The agent card to serve.</param>
@@ -66,6 +138,25 @@ public static class A2ARouteBuilderExtensions
         var routeGroup = endpoints.MapGroup(path);
 
         routeGroup.MapGet(".well-known/agent-card.json", () => Results.Ok(agentCard));
+
+        return routeGroup;
+    }
+
+    /// <summary>Enables the well-known agent card endpoint with per-request card resolution.</summary>
+    /// <param name="endpoints">The endpoint route builder.</param>
+    /// <param name="agentCardFactory">Factory that resolves an <see cref="AgentCard"/> per request from the <see cref="HttpContext"/>.</param>
+    /// <param name="path">An optional route prefix.</param>
+    /// <returns>An endpoint convention builder for further configuration.</returns>
+    public static IEndpointConventionBuilder MapWellKnownAgentCard(
+        this IEndpointRouteBuilder endpoints,
+        Func<HttpContext, AgentCard> agentCardFactory,
+        [StringSyntax("Route")] string path = "")
+    {
+        ArgumentNullException.ThrowIfNull(endpoints);
+        ArgumentNullException.ThrowIfNull(agentCardFactory);
+
+        var routeGroup = endpoints.MapGroup(path);
+        routeGroup.MapGet(".well-known/agent-card.json", (HttpContext httpContext) => Results.Ok(agentCardFactory(httpContext)));
 
         return routeGroup;
     }
@@ -144,6 +235,120 @@ public static class A2ARouteBuilderExtensions
         // Extended agent card
         routeGroup.MapGet("/extendedAgentCard", (CancellationToken ct)
             => A2AHttpProcessor.GetExtendedAgentCardRestAsync(requestHandler, logger, ct));
+
+        return routeGroup;
+    }
+
+    /// <summary>
+    /// Maps HTTP+JSON REST API endpoints for A2A with per-request handler and agent card resolution.
+    /// </summary>
+    /// <remarks>
+    /// <para>Use this overload for multi-agent hosting scenarios where the handler and agent card
+    /// vary per request (e.g., based on subdomain, authentication, or tenant context).</para>
+    /// <para><strong>Limitation:</strong> Multi-tenant route variants
+    /// (<c>/{tenant}/tasks/{id}</c>) defined in the A2A specification are not currently
+    /// supported. The <c>Tenant</c> field on request types will always be <c>null</c>
+    /// for REST API calls.</para>
+    /// </remarks>
+    /// <param name="endpoints">The endpoint route builder.</param>
+    /// <param name="handlerFactory">Factory that resolves an <see cref="IA2ARequestHandler"/> per request.</param>
+    /// <param name="agentCardFactory">Factory that resolves an <see cref="AgentCard"/> per request.</param>
+    /// <param name="path">The route prefix for all REST endpoints.</param>
+    /// <returns>An endpoint convention builder for further configuration.</returns>
+    public static IEndpointConventionBuilder MapHttpA2A(
+        this IEndpointRouteBuilder endpoints,
+        Func<HttpContext, IA2ARequestHandler> handlerFactory,
+        Func<HttpContext, AgentCard> agentCardFactory,
+        [StringSyntax("Route")] string path = "")
+    {
+        ArgumentNullException.ThrowIfNull(endpoints);
+        ArgumentNullException.ThrowIfNull(handlerFactory);
+        ArgumentNullException.ThrowIfNull(agentCardFactory);
+
+        var routeGroup = endpoints.MapGroup(path);
+        var logger = endpoints.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("A2A.REST");
+
+        // Agent card
+        routeGroup.MapGet("/card", async (HttpContext httpContext, CancellationToken ct) =>
+        {
+            try { return await A2AHttpProcessor.GetAgentCardRestAsync(handlerFactory(httpContext), logger, agentCardFactory(httpContext), ct); }
+            catch (A2AException ex) { return A2AHttpProcessor.MapA2AExceptionToHttpResult(ex); }
+        });
+
+        // Task operations
+        routeGroup.MapGet("/tasks/{id}", async (HttpContext httpContext, string id, [FromQuery] int? historyLength, CancellationToken ct) =>
+        {
+            try { return await A2AHttpProcessor.GetTaskRestAsync(handlerFactory(httpContext), logger, id, historyLength, ct); }
+            catch (A2AException ex) { return A2AHttpProcessor.MapA2AExceptionToHttpResult(ex); }
+        });
+
+        routeGroup.MapPost("/tasks/{id}:cancel", async (HttpContext httpContext, string id, CancellationToken ct) =>
+        {
+            try { return await A2AHttpProcessor.CancelTaskRestAsync(handlerFactory(httpContext), logger, id, ct); }
+            catch (A2AException ex) { return A2AHttpProcessor.MapA2AExceptionToHttpResult(ex); }
+        });
+
+        routeGroup.MapPost("/tasks/{id}:subscribe", (HttpContext httpContext, string id, CancellationToken ct) =>
+        {
+            try { return A2AHttpProcessor.SubscribeToTaskRest(handlerFactory(httpContext), logger, id, ct); }
+            catch (A2AException ex) { return A2AHttpProcessor.MapA2AExceptionToHttpResult(ex); }
+        });
+
+        routeGroup.MapGet("/tasks", async (HttpContext httpContext, [FromQuery] string? contextId, [FromQuery] string? status,
+            [FromQuery] int? pageSize, [FromQuery] string? pageToken, [FromQuery] int? historyLength, CancellationToken ct) =>
+        {
+            try { return await A2AHttpProcessor.ListTasksRestAsync(handlerFactory(httpContext), logger, contextId, status, pageSize, pageToken, historyLength, ct); }
+            catch (A2AException ex) { return A2AHttpProcessor.MapA2AExceptionToHttpResult(ex); }
+        });
+
+        // Message operations
+        routeGroup.MapPost("/message:send", async (HttpContext httpContext, [FromBody] SendMessageRequest request, CancellationToken ct) =>
+        {
+            try { return await A2AHttpProcessor.SendMessageRestAsync(handlerFactory(httpContext), logger, request, ct); }
+            catch (A2AException ex) { return A2AHttpProcessor.MapA2AExceptionToHttpResult(ex); }
+        });
+
+        routeGroup.MapPost("/message:stream", (HttpContext httpContext, [FromBody] SendMessageRequest request, CancellationToken ct) =>
+        {
+            try { return A2AHttpProcessor.SendMessageStreamRest(handlerFactory(httpContext), logger, request, ct); }
+            catch (A2AException ex) { return A2AHttpProcessor.MapA2AExceptionToHttpResult(ex); }
+        });
+
+        // Push notification config operations
+        routeGroup.MapPost("/tasks/{id}/pushNotificationConfigs",
+            async (HttpContext httpContext, string id, [FromBody] PushNotificationConfig config, CancellationToken ct) =>
+        {
+            try { return await A2AHttpProcessor.CreatePushNotificationConfigRestAsync(handlerFactory(httpContext), logger, id, config, ct); }
+            catch (A2AException ex) { return A2AHttpProcessor.MapA2AExceptionToHttpResult(ex); }
+        });
+
+        routeGroup.MapGet("/tasks/{id}/pushNotificationConfigs",
+            async (HttpContext httpContext, string id, [FromQuery] int? pageSize, [FromQuery] string? pageToken, CancellationToken ct) =>
+        {
+            try { return await A2AHttpProcessor.ListPushNotificationConfigRestAsync(handlerFactory(httpContext), logger, id, pageSize, pageToken, ct); }
+            catch (A2AException ex) { return A2AHttpProcessor.MapA2AExceptionToHttpResult(ex); }
+        });
+
+        routeGroup.MapGet("/tasks/{id}/pushNotificationConfigs/{configId}",
+            async (HttpContext httpContext, string id, string configId, CancellationToken ct) =>
+        {
+            try { return await A2AHttpProcessor.GetPushNotificationConfigRestAsync(handlerFactory(httpContext), logger, id, configId, ct); }
+            catch (A2AException ex) { return A2AHttpProcessor.MapA2AExceptionToHttpResult(ex); }
+        });
+
+        routeGroup.MapDelete("/tasks/{id}/pushNotificationConfigs/{configId}",
+            async (HttpContext httpContext, string id, string configId, CancellationToken ct) =>
+        {
+            try { return await A2AHttpProcessor.DeletePushNotificationConfigRestAsync(handlerFactory(httpContext), logger, id, configId, ct); }
+            catch (A2AException ex) { return A2AHttpProcessor.MapA2AExceptionToHttpResult(ex); }
+        });
+
+        // Extended agent card
+        routeGroup.MapGet("/extendedAgentCard", async (HttpContext httpContext, CancellationToken ct) =>
+        {
+            try { return await A2AHttpProcessor.GetExtendedAgentCardRestAsync(handlerFactory(httpContext), logger, ct); }
+            catch (A2AException ex) { return A2AHttpProcessor.MapA2AExceptionToHttpResult(ex); }
+        });
 
         return routeGroup;
     }
