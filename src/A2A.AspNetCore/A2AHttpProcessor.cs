@@ -128,12 +128,6 @@ internal static class A2AHttpProcessor
 
     // ======= REST API handler methods =======
 
-    // REST handler: Get agent card
-    internal static Task<IResult> GetAgentCardRestAsync(
-        IA2ARequestHandler requestHandler, ILogger logger, AgentCard agentCard, CancellationToken cancellationToken)
-        => WithExceptionHandlingAsync(logger, "REST.GetAgentCard", ct =>
-            Task.FromResult<IResult>(new A2AResponseResult(agentCard)), cancellationToken: cancellationToken);
-
     // REST handler: Get task by ID
     internal static Task<IResult> GetTaskRestAsync(
         IA2ARequestHandler requestHandler, ILogger logger, string id, int? historyLength, CancellationToken cancellationToken)
