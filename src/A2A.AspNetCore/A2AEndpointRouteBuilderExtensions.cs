@@ -90,6 +90,7 @@ public static class A2ARouteBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(requestHandler);
+        ArgumentNullException.ThrowIfNull(path);
 
         var routeGroup = endpoints.MapGroup(path);
         var logger = endpoints.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("A2A.REST");
