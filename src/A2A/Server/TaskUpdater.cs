@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace A2A;
 
 /// <summary>
@@ -18,8 +20,9 @@ public sealed class TaskUpdater(AgentEventQueue eventQueue, string taskId, strin
     public string ContextId => contextId;
 
     /// <summary>Emit the initial task with Submitted status.</summary>
+    /// <param name="metadata">Optional metadata to attach to the task.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public ValueTask SubmitAsync(CancellationToken cancellationToken = default)
+    public ValueTask SubmitAsync(Dictionary<string, JsonElement>? metadata = null, CancellationToken cancellationToken = default)
         => eventQueue.EnqueueTaskAsync(new AgentTask
         {
             Id = taskId,
@@ -29,12 +32,14 @@ public sealed class TaskUpdater(AgentEventQueue eventQueue, string taskId, strin
                 State = TaskState.Submitted,
                 Timestamp = DateTimeOffset.UtcNow,
             },
+            Metadata = metadata,
         }, cancellationToken);
 
     /// <summary>Transition task to Working state with an optional status message.</summary>
     /// <param name="message">Optional message describing the current work.</param>
+    /// <param name="metadata">Optional metadata to attach to the status update event.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public ValueTask StartWorkAsync(Message? message = null, CancellationToken cancellationToken = default)
+    public ValueTask StartWorkAsync(Message? message = null, Dictionary<string, JsonElement>? metadata = null, CancellationToken cancellationToken = default)
         => eventQueue.EnqueueStatusUpdateAsync(new TaskStatusUpdateEvent
         {
             TaskId = taskId,
@@ -45,6 +50,7 @@ public sealed class TaskUpdater(AgentEventQueue eventQueue, string taskId, strin
                 Timestamp = DateTimeOffset.UtcNow,
                 Message = message,
             },
+            Metadata = metadata,
         }, cancellationToken);
 
     /// <summary>Add an artifact to the task.</summary>
@@ -54,6 +60,7 @@ public sealed class TaskUpdater(AgentEventQueue eventQueue, string taskId, strin
     /// <param name="description">Optional artifact description.</param>
     /// <param name="lastChunk">Whether this is the final chunk for this artifact.</param>
     /// <param name="append">Whether to append to an existing artifact with the same ID.</param>
+    /// <param name="metadata">Optional metadata to attach to the artifact.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     public ValueTask AddArtifactAsync(
         IReadOnlyList<Part> parts,
@@ -62,6 +69,7 @@ public sealed class TaskUpdater(AgentEventQueue eventQueue, string taskId, strin
         string? description = null,
         bool lastChunk = true,
         bool append = false,
+        Dictionary<string, JsonElement>? metadata = null,
         CancellationToken cancellationToken = default)
         => eventQueue.EnqueueArtifactUpdateAsync(new TaskArtifactUpdateEvent
         {
@@ -73,6 +81,7 @@ public sealed class TaskUpdater(AgentEventQueue eventQueue, string taskId, strin
                 Name = name,
                 Description = description,
                 Parts = [.. parts],
+                Metadata = metadata,
             },
             Append = append,
             LastChunk = lastChunk,
@@ -80,8 +89,9 @@ public sealed class TaskUpdater(AgentEventQueue eventQueue, string taskId, strin
 
     /// <summary>Complete the task with an optional final message.</summary>
     /// <param name="message">Optional completion message.</param>
+    /// <param name="metadata">Optional metadata to attach to the status update event.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async ValueTask CompleteAsync(Message? message = null, CancellationToken cancellationToken = default)
+    public async ValueTask CompleteAsync(Message? message = null, Dictionary<string, JsonElement>? metadata = null, CancellationToken cancellationToken = default)
     {
         await eventQueue.EnqueueStatusUpdateAsync(new TaskStatusUpdateEvent
         {
@@ -93,14 +103,16 @@ public sealed class TaskUpdater(AgentEventQueue eventQueue, string taskId, strin
                 Timestamp = DateTimeOffset.UtcNow,
                 Message = message,
             },
+            Metadata = metadata,
         }, cancellationToken);
         eventQueue.Complete();
     }
 
     /// <summary>Fail the task with an optional error message.</summary>
     /// <param name="message">Optional error message.</param>
+    /// <param name="metadata">Optional metadata to attach to the status update event.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async ValueTask FailAsync(Message? message = null, CancellationToken cancellationToken = default)
+    public async ValueTask FailAsync(Message? message = null, Dictionary<string, JsonElement>? metadata = null, CancellationToken cancellationToken = default)
     {
         await eventQueue.EnqueueStatusUpdateAsync(new TaskStatusUpdateEvent
         {
@@ -112,13 +124,15 @@ public sealed class TaskUpdater(AgentEventQueue eventQueue, string taskId, strin
                 Timestamp = DateTimeOffset.UtcNow,
                 Message = message,
             },
+            Metadata = metadata,
         }, cancellationToken);
         eventQueue.Complete();
     }
 
     /// <summary>Cancel the task.</summary>
+    /// <param name="metadata">Optional metadata to attach to the status update event.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async ValueTask CancelAsync(CancellationToken cancellationToken = default)
+    public async ValueTask CancelAsync(Dictionary<string, JsonElement>? metadata = null, CancellationToken cancellationToken = default)
     {
         await eventQueue.EnqueueStatusUpdateAsync(new TaskStatusUpdateEvent
         {
@@ -129,14 +143,16 @@ public sealed class TaskUpdater(AgentEventQueue eventQueue, string taskId, strin
                 State = TaskState.Canceled,
                 Timestamp = DateTimeOffset.UtcNow,
             },
+            Metadata = metadata,
         }, cancellationToken);
         eventQueue.Complete();
     }
 
     /// <summary>Reject the task with an optional reason message.</summary>
     /// <param name="message">Optional rejection reason.</param>
+    /// <param name="metadata">Optional metadata to attach to the status update event.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async ValueTask RejectAsync(Message? message = null, CancellationToken cancellationToken = default)
+    public async ValueTask RejectAsync(Message? message = null, Dictionary<string, JsonElement>? metadata = null, CancellationToken cancellationToken = default)
     {
         await eventQueue.EnqueueStatusUpdateAsync(new TaskStatusUpdateEvent
         {
@@ -148,14 +164,16 @@ public sealed class TaskUpdater(AgentEventQueue eventQueue, string taskId, strin
                 Timestamp = DateTimeOffset.UtcNow,
                 Message = message,
             },
+            Metadata = metadata,
         }, cancellationToken);
         eventQueue.Complete();
     }
 
     /// <summary>Request additional input from the client.</summary>
     /// <param name="message">Message describing what input is needed.</param>
+    /// <param name="metadata">Optional metadata to attach to the status update event.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async ValueTask RequireInputAsync(Message message, CancellationToken cancellationToken = default)
+    public async ValueTask RequireInputAsync(Message message, Dictionary<string, JsonElement>? metadata = null, CancellationToken cancellationToken = default)
     {
         await eventQueue.EnqueueStatusUpdateAsync(new TaskStatusUpdateEvent
         {
@@ -167,14 +185,16 @@ public sealed class TaskUpdater(AgentEventQueue eventQueue, string taskId, strin
                 Timestamp = DateTimeOffset.UtcNow,
                 Message = message,
             },
+            Metadata = metadata,
         }, cancellationToken);
         eventQueue.Complete();
     }
 
     /// <summary>Request authentication from the client.</summary>
     /// <param name="message">Optional message describing the auth requirement.</param>
+    /// <param name="metadata">Optional metadata to attach to the status update event.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async ValueTask RequireAuthAsync(Message? message = null, CancellationToken cancellationToken = default)
+    public async ValueTask RequireAuthAsync(Message? message = null, Dictionary<string, JsonElement>? metadata = null, CancellationToken cancellationToken = default)
     {
         await eventQueue.EnqueueStatusUpdateAsync(new TaskStatusUpdateEvent
         {
@@ -186,6 +206,7 @@ public sealed class TaskUpdater(AgentEventQueue eventQueue, string taskId, strin
                 Timestamp = DateTimeOffset.UtcNow,
                 Message = message,
             },
+            Metadata = metadata,
         }, cancellationToken);
         eventQueue.Complete();
     }

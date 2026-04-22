@@ -33,7 +33,7 @@ public class A2AHttpProcessorTests
         public async Task CancelAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
         {
             var updater = new TaskUpdater(eventQueue, context.TaskId, context.ContextId);
-            await updater.CancelAsync(cancellationToken);
+            await updater.CancelAsync(cancellationToken: cancellationToken);
         }
     }
 
