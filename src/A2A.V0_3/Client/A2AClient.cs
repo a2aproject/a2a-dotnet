@@ -13,13 +13,18 @@ public sealed class A2AClient : IA2AClient
     internal static readonly HttpClient s_sharedClient = new();
     private readonly HttpClient _httpClient;
     private readonly Uri _baseUri;
+    private readonly Func<HttpRequestMessage, CancellationToken, Task>? _configureRequest;
 
     /// <summary>
     /// Initializes a new instance of <see cref="A2AClient"/>.
     /// </summary>
     /// <param name="baseUrl">The base url of the agent's hosting service.</param>
     /// <param name="httpClient">The HTTP client to use for requests.</param>
-    public A2AClient(Uri baseUrl, HttpClient? httpClient = null)
+    /// <param name="configureRequest">
+    /// An optional callback invoked for every outgoing <see cref="HttpRequestMessage"/> before it is sent.
+    /// Use this to add authentication headers or other per-request customizations.
+    /// </param>
+    public A2AClient(Uri baseUrl, HttpClient? httpClient = null, Func<HttpRequestMessage, CancellationToken, Task>? configureRequest = null)
     {
         if (baseUrl is null)
         {
@@ -29,6 +34,7 @@ public sealed class A2AClient : IA2AClient
         _baseUri = baseUrl;
 
         _httpClient = httpClient ?? s_sharedClient;
+        _configureRequest = configureRequest;
     }
 
     /// <inheritdoc />
@@ -168,7 +174,7 @@ public sealed class A2AClient : IA2AClient
         string expectedContentType,
         CancellationToken cancellationToken)
     {
-        var response = await _httpClient.SendAsync(new(HttpMethod.Post, _baseUri)
+        var request = new HttpRequestMessage(HttpMethod.Post, _baseUri)
         {
             Content = new JsonRpcContent(new JsonRpcRequest()
             {
@@ -176,7 +182,14 @@ public sealed class A2AClient : IA2AClient
                 Method = method,
                 Params = JsonSerializer.SerializeToElement(jsonRpcParams, inputTypeInfo),
             })
-        }, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+        };
+
+        if (_configureRequest is not null)
+        {
+            await _configureRequest(request, cancellationToken).ConfigureAwait(false);
+        }
+
+        var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
 
         try
         {

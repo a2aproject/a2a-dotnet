@@ -12,11 +12,16 @@ public sealed class A2AClient : IA2AClient, IDisposable
     internal static readonly HttpClient s_sharedClient = new();
     private readonly HttpClient _httpClient;
     private readonly string _url;
+    private readonly Func<HttpRequestMessage, CancellationToken, Task>? _configureRequest;
 
     /// <summary>Initializes a new instance of the <see cref="A2AClient"/> class.</summary>
     /// <param name="baseUrl">The base url of the agent's hosting service.</param>
     /// <param name="httpClient">The HTTP client to use for requests.</param>
-    public A2AClient(Uri baseUrl, HttpClient? httpClient = null)
+    /// <param name="configureRequest">
+    /// An optional callback invoked for every outgoing <see cref="HttpRequestMessage"/> before it is sent.
+    /// Use this to add authentication headers or other per-request customizations.
+    /// </param>
+    public A2AClient(Uri baseUrl, HttpClient? httpClient = null, Func<HttpRequestMessage, CancellationToken, Task>? configureRequest = null)
     {
         if (baseUrl is null)
         {
@@ -25,6 +30,7 @@ public sealed class A2AClient : IA2AClient, IDisposable
 
         _url = baseUrl.ToString();
         _httpClient = httpClient ?? s_sharedClient;
+        _configureRequest = configureRequest;
     }
 
     /// <inheritdoc />
@@ -134,6 +140,12 @@ public sealed class A2AClient : IA2AClient, IDisposable
             using var content = new JsonRpcContent(rpcRequest);
             using var requestMessage = new HttpRequestMessage(HttpMethod.Post, _url) { Content = content };
             requestMessage.Headers.TryAddWithoutValidation("A2A-Version", "1.0");
+
+            if (_configureRequest is not null)
+            {
+                await _configureRequest(requestMessage, cancellationToken).ConfigureAwait(false);
+            }
+
             using var response = await _httpClient.SendAsync(requestMessage, cancellationToken).ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
 
@@ -193,6 +205,11 @@ public sealed class A2AClient : IA2AClient, IDisposable
             };
             requestMessage.Headers.TryAddWithoutValidation("A2A-Version", "1.0");
             requestMessage.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("text/event-stream"));
+
+            if (_configureRequest is not null)
+            {
+                await _configureRequest(requestMessage, cancellationToken).ConfigureAwait(false);
+            }
 
             response = await _httpClient.SendAsync(requestMessage, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
             response.EnsureSuccessStatusCode();

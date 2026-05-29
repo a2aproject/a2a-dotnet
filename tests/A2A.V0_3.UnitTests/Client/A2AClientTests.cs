@@ -617,7 +617,104 @@ public class A2AClientTests
         Assert.Contains("Method not found", exception.Message);
     }
 
-    private static A2AClient CreateA2AClient(object result, Action<HttpRequestMessage>? onRequest = null, bool isSse = false)
+    [Fact]
+    public async Task ConfigureRequest_IsInvokedAndCanMutateRequest()
+    {
+        // Arrange
+        HttpRequestMessage? capturedRequest = null;
+        var callbackInvoked = false;
+
+        Func<HttpRequestMessage, CancellationToken, Task> configureRequest = (req, _) =>
+        {
+            callbackInvoked = true;
+            req.Headers.TryAddWithoutValidation("X-Test-Header", "test-value");
+            return Task.CompletedTask;
+        };
+
+        var sut = CreateA2AClient(
+            new AgentMessage { MessageId = "id-1", Role = MessageRole.Agent, Parts = [] },
+            req => capturedRequest = req,
+            configureRequest: configureRequest);
+
+        var sendParams = new MessageSendParams
+        {
+            Message = new AgentMessage { Parts = [], Role = MessageRole.User, MessageId = "msg-1" }
+        };
+
+        // Act
+        await sut.SendMessageAsync(sendParams);
+
+        // Assert
+        Assert.True(callbackInvoked);
+        Assert.NotNull(capturedRequest);
+        Assert.True(capturedRequest.Headers.TryGetValues("X-Test-Header", out var values));
+        Assert.Equal("test-value", values.Single());
+    }
+
+    [Fact]
+    public async Task ConfigureRequest_IsInvokedForStreamingRequests()
+    {
+        // Arrange
+        HttpRequestMessage? capturedRequest = null;
+        var callbackInvocations = 0;
+
+        Func<HttpRequestMessage, CancellationToken, Task> configureRequest = (req, _) =>
+        {
+            callbackInvocations++;
+            req.Headers.TryAddWithoutValidation("X-Stream-Auth", "bearer-token");
+            return Task.CompletedTask;
+        };
+
+        var sut = CreateA2AClient(
+            new AgentMessage { MessageId = "id-1", Role = MessageRole.Agent, Parts = [] },
+            req => capturedRequest = req,
+            isSse: true,
+            configureRequest: configureRequest);
+
+        var sendParams = new MessageSendParams
+        {
+            Message = new AgentMessage { Parts = [], Role = MessageRole.User, MessageId = "msg-1" }
+        };
+
+        // Act
+        await foreach (var _ in sut.SendMessageStreamingAsync(sendParams))
+        {
+            break;
+        }
+
+        // Assert
+        Assert.Equal(1, callbackInvocations);
+        Assert.NotNull(capturedRequest);
+        Assert.True(capturedRequest.Headers.TryGetValues("X-Stream-Auth", out var values));
+        Assert.Equal("bearer-token", values.Single());
+    }
+
+    [Fact]
+    public async Task ConfigureRequest_PropagatesExceptionAndDoesNotSendRequest()
+    {
+        // Arrange
+        var requestSent = false;
+
+        Func<HttpRequestMessage, CancellationToken, Task> configureRequest = (_, _) =>
+            throw new InvalidOperationException("configure failed");
+
+        var sut = CreateA2AClient(
+            new AgentMessage { MessageId = "id-1", Role = MessageRole.Agent, Parts = [] },
+            _ => requestSent = true,
+            configureRequest: configureRequest);
+
+        var sendParams = new MessageSendParams
+        {
+            Message = new AgentMessage { Parts = [], Role = MessageRole.User, MessageId = "msg-1" }
+        };
+
+        // Act + Assert
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.SendMessageAsync(sendParams));
+        Assert.Equal("configure failed", ex.Message);
+        Assert.False(requestSent);
+    }
+
+    private static A2AClient CreateA2AClient(object result, Action<HttpRequestMessage>? onRequest = null, bool isSse = false, Func<HttpRequestMessage, CancellationToken, Task>? configureRequest = null)
     {
         var response = new JsonRpcResponse
         {
@@ -625,10 +722,10 @@ public class A2AClientTests
             Result = JsonSerializer.SerializeToNode(result)
         };
 
-        return CreateA2AClient(response, onRequest, isSse);
+        return CreateA2AClient(response, onRequest, isSse, configureRequest);
     }
 
-    private static A2AClient CreateA2AClient(JsonRpcResponse jsonResponse, Action<HttpRequestMessage>? onRequest = null, bool isSse = false)
+    private static A2AClient CreateA2AClient(JsonRpcResponse jsonResponse, Action<HttpRequestMessage>? onRequest = null, bool isSse = false, Func<HttpRequestMessage, CancellationToken, Task>? configureRequest = null)
     {
         var responseContent = JsonSerializer.Serialize(jsonResponse);
 
@@ -644,6 +741,6 @@ public class A2AClientTests
 
         var httpClient = new HttpClient(handler);
 
-        return new A2AClient(new Uri("http://localhost"), httpClient);
+        return new A2AClient(new Uri("http://localhost"), httpClient, configureRequest);
     }
 }
