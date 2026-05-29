@@ -174,15 +174,13 @@ public sealed class A2AClient : IA2AClient
         string expectedContentType,
         CancellationToken cancellationToken)
     {
-        var request = new HttpRequestMessage(HttpMethod.Post, _baseUri)
+        using var request = new HttpRequestMessage(HttpMethod.Post, _baseUri);
+        request.Content = new JsonRpcContent(new JsonRpcRequest
         {
-            Content = new JsonRpcContent(new JsonRpcRequest()
-            {
-                Id = Guid.NewGuid().ToString(),
-                Method = method,
-                Params = JsonSerializer.SerializeToElement(jsonRpcParams, inputTypeInfo),
-            })
-        };
+            Id = Guid.NewGuid().ToString(),
+            Method = method,
+            Params = JsonSerializer.SerializeToElement(jsonRpcParams, inputTypeInfo)
+        });
 
         if (_configureRequest is not null)
         {
