@@ -74,7 +74,7 @@ internal static class A2AHttpProcessor
         catch (Exception ex)
         {
             logger.UnexpectedErrorInActivityName(ex, activityName);
-            return Results.Problem(detail: "An internal error occurred.", statusCode: StatusCodes.Status500InternalServerError);
+            return new A2AErrorResult(new A2AException("An internal error occurred.", A2AErrorCode.InternalError));
         }
     }
 
@@ -99,32 +99,12 @@ internal static class A2AHttpProcessor
         catch (Exception ex)
         {
             logger.UnexpectedErrorInActivityName(ex, activityName);
-            return Results.Problem(detail: "An internal error occurred.", statusCode: StatusCodes.Status500InternalServerError);
+            return new A2AErrorResult(new A2AException("An internal error occurred.", A2AErrorCode.InternalError));
         }
     }
 
-    private static IResult MapA2AExceptionToHttpResult(A2AException exception)
-    {
-        return exception.ErrorCode switch
-        {
-            A2AErrorCode.TaskNotFound or
-            A2AErrorCode.MethodNotFound => Results.NotFound(exception.Message),
-
-            A2AErrorCode.TaskNotCancelable or
-            A2AErrorCode.UnsupportedOperation or
-            A2AErrorCode.InvalidRequest or
-            A2AErrorCode.InvalidParams or
-            A2AErrorCode.ParseError => Results.Problem(detail: exception.Message, statusCode: StatusCodes.Status400BadRequest),
-
-            A2AErrorCode.PushNotificationNotSupported => Results.Problem(detail: exception.Message, statusCode: StatusCodes.Status400BadRequest),
-
-            A2AErrorCode.ContentTypeNotSupported => Results.Problem(detail: exception.Message, statusCode: StatusCodes.Status422UnprocessableEntity),
-
-            A2AErrorCode.InternalError => Results.Problem(detail: exception.Message, statusCode: StatusCodes.Status500InternalServerError),
-
-            _ => Results.Problem(detail: exception.Message, statusCode: StatusCodes.Status500InternalServerError)
-        };
-    }
+    private static A2AErrorResult MapA2AExceptionToHttpResult(A2AException exception) =>
+        new A2AErrorResult(exception);
 
     // ======= REST API handler methods =======
 
