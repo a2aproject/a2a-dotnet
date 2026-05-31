@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 
@@ -19,11 +20,12 @@ public class A2AJsonRpcProcessorTests
     {
         // Arrange
         var requestHandler = CreateTestServer();
+        var idJson = Convert.ToString(idValue, CultureInfo.InvariantCulture);
         var jsonRequest = $$"""
         {
             "jsonrpc": "2.0",
             "method": "{{A2AMethods.SendMessage}}",
-            "id": {{idValue}},
+            "id": {{idJson}},
             "params": {
                 "message": {
                     "messageId": "test-message-id",
