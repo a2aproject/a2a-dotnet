@@ -50,9 +50,14 @@ This library contains the core A2A protocol implementation. It includes the foll
 - **`A2ACardResolver`**: Resolves agent card information from A2A-compatible endpoints to discover agent capabilities and metadata.
 
 ### Server Classes  
-- **`TaskManager`**: Manages the complete lifecycle of agent tasks including creation, updates, cancellation, and event streaming. Handles both message-based and task-based communication patterns.
-- **`ITaskStore`**: An interface for abstracting the storage of tasks.
-- **`InMemoryTaskStore`**: Simple in-memory implementation of `ITaskStore` suitable for development and testing scenarios.
+- **`A2AServer`**: Core server that handles A2A JSON-RPC requests, manages task lifecycle via `TaskProjection`, and coordinates streaming/non-streaming responses. Implements `IA2ARequestHandler`.
+- **`IAgentHandler`**: Interface that agents implement. Provides `ExecuteAsync()` for message handling and `CancelAsync()` for task cancellation.
+- **`TaskUpdater`**: Convenience API for emitting task lifecycle events (Submit, StartWork, AddArtifact, Complete, Fail, Cancel, RequireInput).
+- **`MessageResponder`**: Convenience API for stateless message replies without task lifecycle.
+- **`RequestContext`**: Pre-resolved context provided to agents, containing the incoming message, task ID, context ID, and helper properties like `UserText` and `IsContinuation`.
+- **`AgentEventQueue`**: Channel-backed queue that agents write events to. The SDK reads from it to build responses.
+- **`ITaskStore`**: Interface for task persistence with simple CRUD methods (Get, Save, Delete, List).
+- **`InMemoryTaskStore`**: In-memory implementation of `ITaskStore` suitable for development and testing.
 
 ### Core Models
 - **`AgentTask`**: Represents a task with its status, history, artifacts, and metadata.
@@ -63,7 +68,8 @@ This library contains the core A2A protocol implementation. It includes the foll
 This library provides ASP.NET Core integration for hosting A2A agents. It includes the following key classes:
 
 ### Extension Methods
-- **`A2ARouteBuilderExtensions`**: Provides `MapA2A()` and `MapHttpA2A()` extension methods for configuring A2A endpoints in ASP.NET Core applications.
+- **`A2AServiceCollectionExtensions`**: Provides `AddA2AAgent<THandler>()` for registering an agent, its card, and all A2A services with dependency injection.
+- **`A2ARouteBuilderExtensions`**: Provides `MapA2A()` for JSON-RPC endpoints, `MapHttpA2A()` for HTTP REST endpoints, and `MapWellKnownAgentCard()` for agent card discovery.
 
 ## Getting Started
 
@@ -74,51 +80,56 @@ using A2A;
 using A2A.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Register the echo agent with DI — this sets up A2AServer, ITaskStore, and all middleware
+builder.Services.AddA2AAgent<EchoAgent>(EchoAgent.GetAgentCard("http://localhost:5000/echo"));
+
 var app = builder.Build();
 
-var store = new InMemoryTaskStore();
-var taskManager = new TaskManager(store);
+// Map JSON-RPC endpoint for A2A communication
+app.MapA2A("/echo");
 
-taskManager.OnSendMessage = async (request, ct) =>
-{
-    var text = request.Message.Parts.FirstOrDefault()?.Text ?? "";
-    return new SendMessageResponse
-    {
-        Message = new Message
-        {
-            MessageId = Guid.NewGuid().ToString("N"),
-            Role = Role.Agent,
-            Parts = [Part.FromText($"Echo: {text}")]
-        }
-    };
-};
+// Map well-known agent card for discovery
+var card = app.Services.GetRequiredService<AgentCard>();
+app.MapWellKnownAgentCard(card);
 
-var agentCard = new AgentCard
-{
-    Name = "Echo Agent",
-    Description = "Echoes messages back to the user",
-    Version = "1.0.0",
-    SupportedInterfaces = [new AgentInterface
-    {
-        Url = "http://localhost:5000/echo",
-        ProtocolBinding = "JSONRPC",
-        ProtocolVersion = "1.0"
-    }],
-    DefaultInputModes = ["text/plain"],
-    DefaultOutputModes = ["text/plain"],
-    Capabilities = new AgentCapabilities { Streaming = false },
-    Skills = [new AgentSkill
-    {
-        Id = "echo",
-        Name = "Echo",
-        Description = "Echoes back user messages",
-        Tags = ["echo"]
-    }],
-};
-
-app.MapA2A(taskManager, "/echo");
-app.MapWellKnownAgentCard(agentCard);
 app.Run();
+
+// Define the agent — implement IAgentHandler
+public sealed class EchoAgent : IAgentHandler
+{
+    public async Task ExecuteAsync(
+        RequestContext context,
+        AgentEventQueue eventQueue,
+        CancellationToken cancellationToken)
+    {
+        var responder = new MessageResponder(eventQueue, context.ContextId);
+        await responder.ReplyAsync($"Echo: {context.UserText}", cancellationToken);
+    }
+
+    public static AgentCard GetAgentCard(string url) => new()
+    {
+        Name = "Echo Agent",
+        Description = "Echoes messages back to the user",
+        Version = "1.0.0",
+        SupportedInterfaces = [new AgentInterface
+        {
+            Url = url,
+            ProtocolBinding = "JSONRPC",
+            ProtocolVersion = "1.0"
+        }],
+        DefaultInputModes = ["text/plain"],
+        DefaultOutputModes = ["text/plain"],
+        Capabilities = new AgentCapabilities { Streaming = false },
+        Skills = [new AgentSkill
+        {
+            Id = "echo",
+            Name = "Echo",
+            Description = "Echoes back user messages",
+            Tags = ["echo"]
+        }],
+    };
+}
 ```
 
 ### 2. Connect with A2AClient
