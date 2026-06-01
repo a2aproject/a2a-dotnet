@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 
@@ -19,11 +20,12 @@ public class A2AJsonRpcProcessorTests
     {
         // Arrange
         var requestHandler = CreateTestServer();
+        var idJson = Convert.ToString(idValue, CultureInfo.InvariantCulture);
         var jsonRequest = $$"""
         {
             "jsonrpc": "2.0",
             "method": "{{A2AMethods.SendMessage}}",
-            "id": {{idValue}},
+            "id": {{idJson}},
             "params": {
                 "message": {
                     "messageId": "test-message-id",
@@ -409,6 +411,30 @@ public class A2AJsonRpcProcessorTests
         Assert.Equal("Invalid parameters", BodyContent.Error.Message);
     }
 
+    [Theory]
+    [InlineData("{invalid json", "completely malformed JSON")]
+    [InlineData("not json at all", "plain text")]
+    [InlineData("{\"jsonrpc\": \"2.0\", \"method\":", "truncated JSON")]
+    public async Task ProcessRequestAsync_GivenInvalidJson_ReturnsParseError(string body, string scenario)
+    {
+        _ = scenario; // used only for test display name
+        // Arrange
+        var requestHandler = CreateTestServer();
+        var httpRequest = CreateHttpRequestFromJson(body);
+
+        // Act
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
+
+        // Assert — should return -32700 (Parse error), not -32603 (Internal error)
+        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
+        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+
+        Assert.Equal(StatusCodes.Status200OK, StatusCode);
+        Assert.Equal("application/json", ContentType);
+        Assert.NotNull(BodyContent.Error);
+        Assert.Equal(-32700, BodyContent.Error!.Code); // Parse error per JSON-RPC 2.0 spec
+    }
+
     /// <summary>Creates a test A2AServer with in-memory store and default callbacks.</summary>
     private static IA2ARequestHandler CreateTestServer()
     {
@@ -444,7 +470,7 @@ public class A2AJsonRpcProcessorTests
         public async Task CancelAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
         {
             var updater = new TaskUpdater(eventQueue, context.TaskId, context.ContextId);
-            await updater.CancelAsync(cancellationToken);
+            await updater.CancelAsync(cancellationToken: cancellationToken);
         }
     }
 

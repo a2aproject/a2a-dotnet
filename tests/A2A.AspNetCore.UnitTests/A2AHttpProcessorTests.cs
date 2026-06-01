@@ -33,7 +33,7 @@ public class A2AHttpProcessorTests
         public async Task CancelAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
         {
             var updater = new TaskUpdater(eventQueue, context.TaskId, context.ContextId);
-            await updater.CancelAsync(cancellationToken);
+            await updater.CancelAsync(cancellationToken: cancellationToken);
         }
     }
 
@@ -129,7 +129,11 @@ public class A2AHttpProcessorTests
     [InlineData(A2AErrorCode.UnsupportedOperation, StatusCodes.Status400BadRequest)]
     [InlineData(A2AErrorCode.ParseError, StatusCodes.Status400BadRequest)]
     [InlineData(A2AErrorCode.PushNotificationNotSupported, StatusCodes.Status400BadRequest)]
-    [InlineData(A2AErrorCode.ContentTypeNotSupported, StatusCodes.Status422UnprocessableEntity)]
+    [InlineData(A2AErrorCode.ContentTypeNotSupported, StatusCodes.Status400BadRequest)]
+    [InlineData(A2AErrorCode.ExtendedAgentCardNotConfigured, StatusCodes.Status400BadRequest)]
+    [InlineData(A2AErrorCode.ExtensionSupportRequired, StatusCodes.Status400BadRequest)]
+    [InlineData(A2AErrorCode.VersionNotSupported, StatusCodes.Status400BadRequest)]
+    [InlineData(A2AErrorCode.InvalidAgentResponse, StatusCodes.Status500InternalServerError)]
     [InlineData(A2AErrorCode.InternalError, StatusCodes.Status500InternalServerError)]
     public async Task GetTask_WithA2AException_ShouldMapToCorrectHttpStatusCode(A2AErrorCode errorCode, int expectedStatusCode)
     {
