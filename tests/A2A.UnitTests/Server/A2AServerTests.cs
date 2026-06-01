@@ -68,7 +68,7 @@ public class A2AServerTests
         handler.OnExecute = async (ctx, eq, ct) =>
         {
             var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
-            await updater.SubmitAsync(ct);
+            await updater.SubmitAsync(cancellationToken: ct);
             await updater.CompleteAsync(cancellationToken: ct);
         };
 
