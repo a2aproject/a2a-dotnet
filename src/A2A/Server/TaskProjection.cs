@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace A2A;
 
 /// <summary>
@@ -5,9 +7,16 @@ namespace A2A;
 /// from a stream of <see cref="StreamResponse"/> events.
 /// </summary>
 /// <remarks>
-/// <see cref="A2AServer"/> uses <see cref="Apply"/> to mutate task state before
-/// persisting via <see cref="ITaskStore.SaveTaskAsync"/>. Store implementors do
-/// not need to call this directly.
+/// <para>
+/// <see cref="Apply"/> always returns a new <see cref="AgentTask"/> instance (or null).
+/// The incoming task is never mutated, making the projection inherently safe regardless
+/// of whether <see cref="ITaskStore"/> implementations clone on read.
+/// </para>
+/// <para>
+/// Sub-objects such as <see cref="Artifact"/> instances are also replaced rather than
+/// mutated in-place, so concurrent readers holding references to prior artifacts or
+/// history lists see consistent snapshots.
+/// </para>
 /// </remarks>
 public static class TaskProjection
 {
@@ -24,18 +33,34 @@ public static class TaskProjection
         if (current is null)
             return current;
 
+        // Shallow copy so the caller's AgentTask reference is never mutated.
+        // Artifacts list is copied because ApplyArtifact mutates it (Add/index-set).
+        // History is not copied — every branch that touches it replaces the reference entirely.
+        var result = new AgentTask
+        {
+            Id = current.Id,
+            ContextId = current.ContextId,
+            Status = current.Status,
+            History = current.History,
+            Artifacts = current.Artifacts is not null ? [.. current.Artifacts] : null,
+            Metadata = current.Metadata,
+        };
+
         if (streamEvent.StatusUpdate is { } su)
-            return ApplyStatus(current, su);
+            return ApplyStatus(result, su);
 
         if (streamEvent.ArtifactUpdate is { } au)
-            return ApplyArtifact(current, au);
+            return ApplyArtifact(result, au);
 
         if (streamEvent.Message is { } msg)
-        {
-            (current.History ??= []).Add(msg);
-            return current;
-        }
+            return ApplyMessage(result, msg);
 
+        return result;
+    }
+
+    private static AgentTask ApplyMessage(AgentTask current, Message msg)
+    {
+        current.History = [.. (current.History ?? []), msg];
         return current;
     }
 
@@ -44,7 +69,7 @@ public static class TaskProjection
         // Move superseded status.message to history (aligned with Python SDK behavior).
         if (current.Status.Message is not null)
         {
-            (current.History ??= []).Add(current.Status.Message);
+            current.History = [.. (current.History ?? []), current.Status.Message];
         }
         current.Status = su.Status;
         return current;
@@ -66,37 +91,23 @@ public static class TaskProjection
         }
         else
         {
-            // append=true: extend existing artifact's parts, metadata, extensions, name, description
+            // append=true: build new artifact with merged data — never mutate existing
             var existing = current.Artifacts.FirstOrDefault(a => a.ArtifactId == artifactId);
             if (existing is not null)
             {
-                // Parts: append
-                existing.Parts.AddRange(au.Artifact.Parts);
-
-                // Metadata: upsert
-                if (au.Artifact.Metadata is not null)
+                var merged = new Artifact
                 {
-                    existing.Metadata ??= new();
-                    foreach (var kvp in au.Artifact.Metadata)
-                        existing.Metadata[kvp.Key] = kvp.Value;
-                }
+                    ArtifactId = existing.ArtifactId,
+                    Name = !string.IsNullOrEmpty(au.Artifact.Name) ? au.Artifact.Name : existing.Name,
+                    Description = !string.IsNullOrEmpty(au.Artifact.Description)
+                        ? au.Artifact.Description : existing.Description,
+                    Parts = [.. existing.Parts, .. au.Artifact.Parts],
+                    Metadata = MergeMetadata(existing.Metadata, au.Artifact.Metadata),
+                    Extensions = MergeExtensions(existing.Extensions, au.Artifact.Extensions),
+                };
 
-                // Extensions: deduplicated append
-                if (au.Artifact.Extensions is not null)
-                {
-                    existing.Extensions ??= [];
-                    foreach (var ext in au.Artifact.Extensions)
-                    {
-                        if (!existing.Extensions.Contains(ext))
-                            existing.Extensions.Add(ext);
-                    }
-                }
-
-                // Name/Description: update if provided
-                if (!string.IsNullOrEmpty(au.Artifact.Name))
-                    existing.Name = au.Artifact.Name;
-                if (!string.IsNullOrEmpty(au.Artifact.Description))
-                    existing.Description = au.Artifact.Description;
+                var idx = current.Artifacts.IndexOf(existing);
+                current.Artifacts[idx] = merged;
             }
             else
             {
@@ -104,5 +115,29 @@ public static class TaskProjection
             }
         }
         return current;
+    }
+
+    private static Dictionary<string, JsonElement>? MergeMetadata(
+        Dictionary<string, JsonElement>? existing, Dictionary<string, JsonElement>? incoming)
+    {
+        if (incoming is null) return existing;
+        var result = existing is not null ? new Dictionary<string, JsonElement>(existing) : new();
+        foreach (var kvp in incoming)
+            result[kvp.Key] = kvp.Value;
+        return result;
+    }
+
+    private static List<string>? MergeExtensions(List<string>? existing, List<string>? incoming)
+    {
+        if (incoming is null) return existing;
+        if (existing is null) return [.. incoming];
+        var seen = new HashSet<string>(existing);
+        var result = new List<string>(existing);
+        foreach (var ext in incoming)
+        {
+            if (seen.Add(ext))
+                result.Add(ext);
+        }
+        return result;
     }
 }

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 
 namespace A2A.UnitTests.JsonRpc;
@@ -56,6 +57,65 @@ public class JsonRpcErrorResponseTests
         Assert.NotNull(response.Error);
         Assert.Equal((int)errorCode, response.Error.Code);
         Assert.Equal(errorMessage, response.Error.Message);
+        Assert.Null(response.Error.Data);
+    }
+
+    [Fact]
+    public void CreateJsonRpcErrorResponse_WithA2ASpecificError_PopulatesDataWithErrorInfo()
+    {
+        // Arrange
+        const string requestId = "test-request-456";
+        const string errorMessage = "Task not found";
+        const A2AErrorCode errorCode = A2AErrorCode.TaskNotFound;
+        var exception = new A2AException(errorMessage, errorCode);
+
+        // Act
+        var response = JsonRpcResponse.CreateJsonRpcErrorResponse(requestId, exception);
+
+        // Assert
+        Assert.NotNull(response.Error);
+        Assert.NotNull(response.Error.Data);
+        AssertErrorInfoData(response.Error.Data.Value, "TASK_NOT_FOUND");
+    }
+
+    [Fact]
+    public void CreateJsonRpcErrorResponse_WithStandardError_LeavesDataNull()
+    {
+        // Arrange
+        const string requestId = "test-request-789";
+        const string errorMessage = "Internal error";
+        const A2AErrorCode errorCode = A2AErrorCode.InternalError;
+        var exception = new A2AException(errorMessage, errorCode);
+
+        // Act
+        var response = JsonRpcResponse.CreateJsonRpcErrorResponse(requestId, exception);
+
+        // Assert
+        Assert.NotNull(response.Error);
+        Assert.Null(response.Error.Data);
+    }
+
+    [Fact]
+    public void TaskNotFoundResponse_PopulatesDataWithErrorInfo()
+    {
+        // Act
+        var response = JsonRpcResponse.TaskNotFoundResponse("req-1");
+
+        // Assert
+        Assert.NotNull(response.Error);
+        Assert.NotNull(response.Error.Data);
+        AssertErrorInfoData(response.Error.Data.Value, "TASK_NOT_FOUND");
+    }
+
+    [Fact]
+    public void InternalErrorResponse_LeavesDataNull()
+    {
+        // Act
+        var response = JsonRpcResponse.InternalErrorResponse("req-2");
+
+        // Assert
+        Assert.NotNull(response.Error);
+        Assert.Null(response.Error.Data);
     }
 
     [Fact]
@@ -76,5 +136,16 @@ public class JsonRpcErrorResponseTests
         Assert.NotNull(response.Error);
         Assert.Equal((int)errorCode, response.Error.Code);
         Assert.Equal(errorMessage, response.Error.Message);
+    }
+
+    private static void AssertErrorInfoData(JsonElement data, string expectedReason)
+    {
+        Assert.Equal(JsonValueKind.Array, data.ValueKind);
+        Assert.Equal(1, data.GetArrayLength());
+
+        var element = data[0];
+        Assert.Equal("type.googleapis.com/google.rpc.ErrorInfo", element.GetProperty("@type").GetString());
+        Assert.Equal(expectedReason, element.GetProperty("reason").GetString());
+        Assert.Equal("a2a-protocol.org", element.GetProperty("domain").GetString());
     }
 }
