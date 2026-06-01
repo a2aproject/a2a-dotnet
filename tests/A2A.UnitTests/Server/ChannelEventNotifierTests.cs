@@ -150,33 +150,20 @@ public class ChannelEventNotifierTests
     {
         // Arrange
         var notifier = new ChannelEventNotifier();
-        var lockAcquired = false;
-        var lockReleased = false;
 
         // Act — acquire lock, verify second acquire blocks until first released
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var firstLock = await notifier.AcquireTaskLockAsync("t1", cts.Token);
+        var secondLockTask = notifier.AcquireTaskLockAsync("t1", cts.Token);
 
-        var secondLockTask = Task.Run(async () =>
-        {
-            lockAcquired = true;
-            using var secondLock = await notifier.AcquireTaskLockAsync("t1", cts.Token);
-            lockReleased = true;
-        }, cts.Token);
-
-        // Allow time for the second lock attempt to start waiting
-        await Task.Delay(200, cts.Token);
-
-        // Assert — second lock should be waiting (lockReleased still false)
-        Assert.True(lockAcquired);
-        Assert.False(lockReleased);
+        // Assert — second lock acquisition should still be waiting
+        Assert.False(secondLockTask.IsCompleted);
 
         // Release first lock
         firstLock.Dispose();
-        await secondLockTask;
+        using var secondLock = await secondLockTask;
 
-        // Assert — second lock was acquired and released
-        Assert.True(lockReleased);
+        Assert.NotNull(secondLock);
     }
 
     [Fact]
