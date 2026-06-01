@@ -113,6 +113,17 @@ public class ChannelEventNotifierTests
     }
 
     [Fact]
+    public void RemoveChannel_WhenSetMissing_DoesNotThrow()
+    {
+        var notifier = new ChannelEventNotifier();
+        var ch = Channel.CreateUnbounded<StreamResponse>();
+
+        var ex = Record.Exception(() => notifier.RemoveChannel("missing-task", ch));
+
+        Assert.Null(ex);
+    }
+
+    [Fact]
     public void Notify_AfterRemoveChannel_DoesNotPushToRemoved()
     {
         // Arrange
