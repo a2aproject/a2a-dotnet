@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace A2A.UnitTests.Server;
 
 public class MessageResponderTests
@@ -55,6 +57,49 @@ public class MessageResponderTests
         var events = await CollectEventsAsync(queue);
         Assert.Equal(2, events.Count);
         Assert.NotEqual(events[0].Message!.MessageId, events[1].Message!.MessageId);
+    }
+
+    [Fact]
+    public async Task ReplyAsync_TextWithMetadata_SetsMetadataOnMessage()
+    {
+        var queue = new AgentEventQueue();
+        var responder = new MessageResponder(queue, "ctx-1");
+        var metadata = new Dictionary<string, JsonElement>
+        {
+            ["source"] = JsonDocument.Parse("\"agent-v2\"").RootElement,
+        };
+
+        await responder.ReplyAsync("hello", metadata: metadata);
+
+        queue.Complete();
+        var events = await CollectEventsAsync(queue);
+        Assert.Single(events);
+        var msg = events[0].Message;
+        Assert.NotNull(msg);
+        Assert.NotNull(msg!.Metadata);
+        Assert.Equal("agent-v2", msg.Metadata!["source"].GetString());
+    }
+
+    [Fact]
+    public async Task ReplyAsync_PartsWithMetadata_SetsMetadataOnMessage()
+    {
+        var queue = new AgentEventQueue();
+        var responder = new MessageResponder(queue, "ctx-2");
+        var parts = new List<Part> { Part.FromText("a") };
+        var metadata = new Dictionary<string, JsonElement>
+        {
+            ["tag"] = JsonDocument.Parse("\"important\"").RootElement,
+        };
+
+        await responder.ReplyAsync(parts, metadata: metadata);
+
+        queue.Complete();
+        var events = await CollectEventsAsync(queue);
+        Assert.Single(events);
+        var msg = events[0].Message;
+        Assert.NotNull(msg);
+        Assert.NotNull(msg!.Metadata);
+        Assert.Equal("important", msg.Metadata!["tag"].GetString());
     }
 
     private static async Task<List<StreamResponse>> CollectEventsAsync(AgentEventQueue queue)

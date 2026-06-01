@@ -56,10 +56,7 @@ public sealed class ChannelEventNotifier
     {
         if (!_subscribers.TryGetValue(taskId, out var set))
         {
-            throw new InvalidOperationException(
-                $"No subscriber set found for task '{taskId}'. " +
-                "This indicates a bug: RemoveChannel was called without a matching CreateChannel, " +
-                "or the subscriber set was evicted by a concurrent call.");
+            return;
         }
 
         lock (set)

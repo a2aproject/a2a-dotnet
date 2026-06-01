@@ -11,7 +11,7 @@ public sealed class ResearcherAgent : IAgentHandler
         if (!context.IsContinuation)
         {
             // New task: planning phase — ask for confirmation
-            await updater.SubmitAsync(cancellationToken);
+            await updater.SubmitAsync(cancellationToken: cancellationToken);
             await updater.AddArtifactAsync(
                 [Part.FromText($"{context.UserText} received.")],
                 cancellationToken: cancellationToken);
@@ -24,7 +24,7 @@ public sealed class ResearcherAgent : IAgentHandler
                 MessageId = Guid.NewGuid().ToString("N"),
                 ContextId = updater.ContextId,
                 Parts = [Part.FromText("When ready say go ahead")],
-            }, cancellationToken);
+            }, cancellationToken: cancellationToken);
             return;
         }
 
@@ -43,7 +43,7 @@ public sealed class ResearcherAgent : IAgentHandler
                     MessageId = Guid.NewGuid().ToString("N"),
                     Parts = [Part.FromText("Task completed successfully")],
                 },
-                cancellationToken);
+                cancellationToken: cancellationToken);
         }
         else
         {
@@ -58,7 +58,7 @@ public sealed class ResearcherAgent : IAgentHandler
                 MessageId = Guid.NewGuid().ToString("N"),
                 ContextId = updater.ContextId,
                 Parts = [Part.FromText("When ready say go ahead")],
-            }, cancellationToken);
+            }, cancellationToken: cancellationToken);
         }
     }
 
