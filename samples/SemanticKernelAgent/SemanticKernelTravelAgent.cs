@@ -135,7 +135,7 @@ public sealed class SemanticKernelTravelAgent : IAgentHandler, IDisposable
     public async Task ExecuteAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
     {
         var updater = new TaskUpdater(eventQueue, context.TaskId, context.ContextId);
-        await updater.SubmitAsync(cancellationToken);
+        await updater.SubmitAsync(cancellationToken: cancellationToken);
         await updater.StartWorkAsync(cancellationToken: cancellationToken);
 
         // Get the response from the Semantic Kernel agent

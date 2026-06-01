@@ -8,7 +8,7 @@ public sealed class StreamingArtifactAgent : IAgentHandler
     {
         var updater = new TaskUpdater(eventQueue, context.TaskId, context.ContextId);
 
-        await updater.SubmitAsync(cancellationToken);
+        await updater.SubmitAsync(cancellationToken: cancellationToken);
         await updater.StartWorkAsync(cancellationToken: cancellationToken);
 
         var artifactId = Guid.NewGuid().ToString("N");

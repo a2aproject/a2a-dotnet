@@ -16,7 +16,7 @@ public class A2AServerTests
 
         public Task CancelAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
             => OnCancel?.Invoke(context, eventQueue, cancellationToken)
-               ?? new TaskUpdater(eventQueue, context.TaskId, context.ContextId).CancelAsync(cancellationToken).AsTask();
+               ?? new TaskUpdater(eventQueue, context.TaskId, context.ContextId).CancelAsync(cancellationToken: cancellationToken).AsTask();
     }
 
     private static (A2AServer server, InMemoryTaskStore store, TestAgentHandler handler)
@@ -96,7 +96,7 @@ public class A2AServerTests
         {
             capturedTaskId = ctx.TaskId;
             var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
-            await updater.SubmitAsync(ct);
+            await updater.SubmitAsync(cancellationToken: ct);
             await updater.CompleteAsync(cancellationToken: ct);
         };
 
@@ -229,7 +229,7 @@ public class A2AServerTests
         {
             cancelCalled = true;
             var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
-            await updater.CancelAsync(ct);
+            await updater.CancelAsync(cancellationToken: ct);
         };
 
         // Act
@@ -257,7 +257,7 @@ public class A2AServerTests
         {
             capturedMetadata = ctx.Metadata;
             var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
-            await updater.CancelAsync(ct);
+            await updater.CancelAsync(cancellationToken: ct);
         };
 
         var metadata = new Dictionary<string, System.Text.Json.JsonElement>
@@ -470,7 +470,7 @@ public class A2AServerTests
         handler.OnExecute = async (ctx, eq, ct) =>
         {
             var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
-            await updater.SubmitAsync(ct);
+            await updater.SubmitAsync(cancellationToken: ct);
             await updater.CompleteAsync(cancellationToken: ct);
         };
 
@@ -572,7 +572,7 @@ public class A2AServerTests
         handler.OnExecute = async (ctx, eq, ct) =>
         {
             var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
-            await updater.SubmitAsync(ct);
+            await updater.SubmitAsync(cancellationToken: ct);
             await updater.FailAsync(cancellationToken: ct);
         };
 
@@ -613,7 +613,7 @@ public class A2AServerTests
         handler.OnExecute = async (ctx, eq, ct) =>
         {
             var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
-            await updater.SubmitAsync(ct);
+            await updater.SubmitAsync(cancellationToken: ct);
             await updater.StartWorkAsync(cancellationToken: ct);
             await Task.Delay(5000, CancellationToken.None); // slow work
             await updater.CompleteAsync(cancellationToken: CancellationToken.None);
@@ -694,7 +694,7 @@ public class A2AServerTests
         {
             capturedTaskId = ctx.TaskId;
             var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
-            await updater.SubmitAsync(ct);
+            await updater.SubmitAsync(cancellationToken: ct);
             await updater.StartWorkAsync(cancellationToken: ct);
             await updater.AddArtifactAsync(
                 [Part.FromText("result data")],
@@ -743,7 +743,7 @@ public class A2AServerTests
         handler.OnExecute = async (ctx, eq, ct) =>
         {
             var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
-            await updater.SubmitAsync(ct);
+            await updater.SubmitAsync(cancellationToken: ct);
             await updater.StartWorkAsync(cancellationToken: ct);
             await Task.Delay(200, ct); // some work
             await updater.CompleteAsync(cancellationToken: ct);
@@ -776,7 +776,7 @@ public class A2AServerTests
         handler.OnExecute = async (ctx, eq, ct) =>
         {
             var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
-            await updater.SubmitAsync(ct);
+            await updater.SubmitAsync(cancellationToken: ct);
             await updater.StartWorkAsync(cancellationToken: ct);
             handlerStarted.TrySetResult();
 
@@ -798,7 +798,7 @@ public class A2AServerTests
         handler.OnCancel = async (ctx, eq, ct) =>
         {
             var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
-            await updater.CancelAsync(ct);
+            await updater.CancelAsync(cancellationToken: ct);
         };
 
         var request = new SendMessageRequest
@@ -884,7 +884,7 @@ public class A2AServerTests
         handler.OnExecute = async (ctx, eq, ct) =>
         {
             var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
-            await updater.SubmitAsync(ct);
+            await updater.SubmitAsync(cancellationToken: ct);
             await updater.StartWorkAsync(cancellationToken: ct);
             handlerStarted.TrySetResult();
 
@@ -952,7 +952,7 @@ public class A2AServerTests
         handler.OnExecute = async (ctx, eq, ct) =>
         {
             var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
-            await updater.SubmitAsync(ct);
+            await updater.SubmitAsync(cancellationToken: ct);
             await updater.StartWorkAsync(cancellationToken: ct);
             handlerStarted.TrySetResult();
             await proceedToComplete.Task.WaitAsync(CancellationToken.None);
@@ -1005,7 +1005,7 @@ public class A2AServerTests
         handler.OnExecute = async (ctx, eq, ct) =>
         {
             var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
-            await updater.SubmitAsync(ct);
+            await updater.SubmitAsync(cancellationToken: ct);
             await updater.StartWorkAsync(cancellationToken: ct);
             await updater.AddArtifactAsync(
                 [Part.FromText("result data")],
@@ -1060,7 +1060,7 @@ public class A2AServerTests
         handler.OnExecute = async (ctx, eq, ct) =>
         {
             var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
-            await updater.SubmitAsync(ct);
+            await updater.SubmitAsync(cancellationToken: ct);
             await updater.StartWorkAsync(cancellationToken: ct);
             handlerReachedWait.TrySetResult();
             await proceedToComplete.Task.WaitAsync(CancellationToken.None);
