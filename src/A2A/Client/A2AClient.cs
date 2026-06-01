@@ -19,7 +19,10 @@ public sealed class A2AClient : IA2AClient, IDisposable
     /// <param name="httpClient">The HTTP client to use for requests.</param>
     /// <param name="configureRequest">
     /// An optional callback invoked for every outgoing <see cref="HttpRequestMessage"/> before it is sent.
-    /// Use this to add authentication headers or other per-request customizations.
+    /// Use this to add or override request headers such as authentication headers or other per-request customizations.
+    /// Default headers set by the library (e.g. <c>A2A-Version</c>) are already present when the callback runs;
+    /// to replace one, call <c>request.Headers.Remove(name)</c> before adding a new value, since
+    /// <c>TryAddWithoutValidation</c> appends to multi-valued headers rather than replacing them.
     /// </param>
     public A2AClient(Uri baseUrl, HttpClient? httpClient = null, Func<HttpRequestMessage, CancellationToken, Task>? configureRequest = null)
     {
