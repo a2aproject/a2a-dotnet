@@ -480,4 +480,169 @@ public class TaskProjectionTests
         Assert.Single(result.History);
         Assert.Equal("m1", result.History[0].MessageId);
     }
+
+    [Fact]
+    public void Apply_WithArtifactAppend_DoesNotMutateOriginalArtifact()
+    {
+        // Arrange
+        var originalParts = new List<Part> { Part.FromText("original") };
+        var originalMetadata = new Dictionary<string, JsonElement>
+        {
+            ["key"] = JsonSerializer.SerializeToElement("val")
+        };
+        var original = new Artifact
+        {
+            ArtifactId = "a1",
+            Parts = originalParts,
+            Metadata = originalMetadata,
+            Extensions = ["ext1"]
+        };
+        var task = new AgentTask
+        {
+            Id = "t1",
+            ContextId = "c1",
+            Status = new TaskStatus { State = TaskState.Working },
+            Artifacts = [original]
+        };
+
+        var partsCount = original.Parts.Count;
+        var metaCount = original.Metadata.Count;
+        var extCount = original.Extensions!.Count;
+
+        // Act
+        var result = TaskProjection.Apply(task, new StreamResponse
+        {
+            ArtifactUpdate = new TaskArtifactUpdateEvent
+            {
+                Artifact = new Artifact
+                {
+                    ArtifactId = "a1",
+                    Parts = [Part.FromText("appended")],
+                    Metadata = new() { ["new"] = JsonSerializer.SerializeToElement("new-val") },
+                    Extensions = ["ext2"]
+                },
+                Append = true
+            }
+        });
+
+        // Assert — original artifact object is untouched
+        Assert.Equal(partsCount, original.Parts.Count);
+        Assert.Equal(metaCount, original.Metadata.Count);
+        Assert.Equal(extCount, original.Extensions!.Count);
+
+        // Assert — merged artifact is a new instance with combined data
+        var merged = result!.Artifacts![0];
+        Assert.NotSame(original, merged);
+        Assert.Equal(2, merged.Parts.Count);
+        Assert.Equal(2, merged.Metadata!.Count);
+        Assert.Equal(2, merged.Extensions!.Count);
+    }
+
+    [Fact]
+    public void Apply_WithStatusUpdate_DoesNotMutateOriginalHistory()
+    {
+        // Arrange
+        var originalHistory = new List<Message>
+        {
+            new() { Role = Role.Agent, Parts = [Part.FromText("old")] }
+        };
+        var task = new AgentTask
+        {
+            Id = "t1",
+            ContextId = "c1",
+            Status = new TaskStatus
+            {
+                State = TaskState.Working,
+                Message = new Message { Role = Role.Agent, Parts = [Part.FromText("superseded")] }
+            },
+            History = originalHistory
+        };
+
+        var historyCount = originalHistory.Count;
+
+        // Act
+        var result = TaskProjection.Apply(task, new StreamResponse
+        {
+            StatusUpdate = new TaskStatusUpdateEvent
+            {
+                Status = new TaskStatus { State = TaskState.Completed }
+            }
+        });
+
+        // Assert — original history list is unchanged
+        Assert.Equal(historyCount, originalHistory.Count);
+        // Assert — result has new history with superseded message appended
+        Assert.NotSame(originalHistory, result!.History);
+        Assert.Equal(historyCount + 1, result.History!.Count);
+    }
+
+    [Fact]
+    public void Apply_WithMessage_DoesNotMutateOriginalHistory()
+    {
+        // Arrange
+        var originalHistory = new List<Message>
+        {
+            new() { Role = Role.Agent, Parts = [Part.FromText("existing")] }
+        };
+        var task = new AgentTask
+        {
+            Id = "t1",
+            ContextId = "c1",
+            Status = new TaskStatus { State = TaskState.Working },
+            History = originalHistory
+        };
+
+        var historyCount = originalHistory.Count;
+
+        // Act
+        var result = TaskProjection.Apply(task, new StreamResponse
+        {
+            Message = new Message { Role = Role.Agent, Parts = [Part.FromText("new message")] }
+        });
+
+        // Assert — original history list is unchanged
+        Assert.Equal(historyCount, originalHistory.Count);
+        // Assert — result has new history with message appended
+        Assert.NotSame(originalHistory, result!.History);
+        Assert.Equal(historyCount + 1, result.History!.Count);
+    }
+
+    [Fact]
+    public void Apply_ReturnsNewAgentTaskInstance_OriginalUnmutated()
+    {
+        // Arrange
+        var original = new AgentTask
+        {
+            Id = "t1",
+            ContextId = "c1",
+            Status = new TaskStatus { State = TaskState.Working },
+            History = [new Message { Role = Role.Agent, Parts = [Part.FromText("old")] }],
+            Artifacts = [new Artifact { ArtifactId = "a1", Parts = [Part.FromText("part")] }],
+        };
+
+        var originalStatus = original.Status;
+        var originalHistory = original.History;
+        var originalArtifacts = original.Artifacts;
+
+        // Act
+        var result = TaskProjection.Apply(original, new StreamResponse
+        {
+            StatusUpdate = new TaskStatusUpdateEvent
+            {
+                Status = new TaskStatus { State = TaskState.Completed }
+            }
+        });
+
+        // Assert — result is a different AgentTask instance
+        Assert.NotSame(original, result);
+
+        // Assert — original AgentTask is completely untouched
+        Assert.Same(originalStatus, original.Status);
+        Assert.Same(originalHistory, original.History);
+        Assert.Same(originalArtifacts, original.Artifacts);
+        Assert.Equal(TaskState.Working, original.Status.State);
+
+        // Assert — result has the updated state
+        Assert.Equal(TaskState.Completed, result!.Status.State);
+    }
 }

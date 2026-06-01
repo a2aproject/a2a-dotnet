@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace A2A;
 
 /// <summary>
@@ -13,19 +15,22 @@ public sealed class MessageResponder(AgentEventQueue eventQueue, string contextI
 
     /// <summary>Send a text reply.</summary>
     /// <param name="text">The text content of the reply.</param>
+    /// <param name="metadata">Optional metadata to attach to the message.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public ValueTask ReplyAsync(string text, CancellationToken cancellationToken = default)
-        => ReplyAsync([Part.FromText(text)], cancellationToken);
+    public ValueTask ReplyAsync(string text, Dictionary<string, JsonElement>? metadata = null, CancellationToken cancellationToken = default)
+        => ReplyAsync([Part.FromText(text)], metadata, cancellationToken);
 
     /// <summary>Send a reply with the specified parts.</summary>
     /// <param name="parts">The content parts of the reply.</param>
+    /// <param name="metadata">Optional metadata to attach to the message.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public ValueTask ReplyAsync(List<Part> parts, CancellationToken cancellationToken = default)
+    public ValueTask ReplyAsync(List<Part> parts, Dictionary<string, JsonElement>? metadata = null, CancellationToken cancellationToken = default)
         => eventQueue.EnqueueMessageAsync(new Message
         {
             Role = Role.Agent,
             MessageId = Guid.NewGuid().ToString("N"),
             ContextId = contextId,
             Parts = parts,
+            Metadata = metadata,
         }, cancellationToken);
 }
