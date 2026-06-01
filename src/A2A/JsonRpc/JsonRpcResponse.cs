@@ -61,6 +61,17 @@ public sealed class JsonRpcResponse
     /// <returns>A JSON-RPC error response.</returns>
     public static JsonRpcResponse CreateJsonRpcErrorResponse(JsonRpcId requestId, A2AException exception)
     {
+        JsonElement? data = null;
+
+        if (A2AErrorCodeMapping.IsA2ASpecificError(exception.ErrorCode))
+        {
+            var reason = A2AErrorCodeMapping.GetReasonString(exception.ErrorCode);
+            if (reason is not null)
+            {
+                data = CreateErrorInfoData(reason);
+            }
+        }
+
         return new JsonRpcResponse()
         {
             Id = requestId,
@@ -68,8 +79,27 @@ public sealed class JsonRpcResponse
             {
                 Code = (int)exception.ErrorCode,
                 Message = exception.Message,
+                Data = data,
             }
         };
+    }
+
+    private static JsonElement CreateErrorInfoData(string reason)
+    {
+        using var buffer = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(buffer))
+        {
+            writer.WriteStartArray();
+            writer.WriteStartObject();
+            writer.WriteString("@type", "type.googleapis.com/google.rpc.ErrorInfo");
+            writer.WriteString("reason", reason);
+            writer.WriteString("domain", "a2a-protocol.org");
+            writer.WriteEndObject();
+            writer.WriteEndArray();
+        }
+
+        using var doc = JsonDocument.Parse(buffer.ToArray());
+        return doc.RootElement.Clone();
     }
 
     /// <summary>
@@ -117,6 +147,7 @@ public sealed class JsonRpcResponse
         {
             Code = (int)A2AErrorCode.TaskNotFound,
             Message = message ?? "Task not found",
+            Data = CreateErrorInfoData("TASK_NOT_FOUND"),
         },
     };
 
@@ -133,6 +164,7 @@ public sealed class JsonRpcResponse
         {
             Code = (int)A2AErrorCode.TaskNotCancelable,
             Message = message ?? "Task cannot be canceled",
+            Data = CreateErrorInfoData("TASK_NOT_CANCELABLE"),
         },
     };
 
@@ -165,6 +197,7 @@ public sealed class JsonRpcResponse
         {
             Code = (int)A2AErrorCode.PushNotificationNotSupported,
             Message = message ?? "Push notification not supported",
+            Data = CreateErrorInfoData("PUSH_NOTIFICATION_NOT_SUPPORTED"),
         },
     };
 
@@ -213,6 +246,7 @@ public sealed class JsonRpcResponse
         {
             Code = (int)A2AErrorCode.UnsupportedOperation,
             Message = message ?? "Unsupported operation",
+            Data = CreateErrorInfoData("UNSUPPORTED_OPERATION"),
         },
     };
 
@@ -229,6 +263,7 @@ public sealed class JsonRpcResponse
         {
             Code = (int)A2AErrorCode.ContentTypeNotSupported,
             Message = message ?? "Content type not supported",
+            Data = CreateErrorInfoData("CONTENT_TYPE_NOT_SUPPORTED"),
         },
     };
 }
