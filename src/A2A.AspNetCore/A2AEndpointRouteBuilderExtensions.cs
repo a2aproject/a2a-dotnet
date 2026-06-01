@@ -26,7 +26,6 @@ public static class A2ARouteBuilderExtensions
         ArgumentException.ThrowIfNullOrEmpty(path);
 
         var handler = endpoints.ServiceProvider.GetRequiredService<IA2ARequestHandler>();
-        var agentCard = endpoints.ServiceProvider.GetRequiredService<AgentCard>();
 
         var routeGroup = endpoints.MapGroup("");
         routeGroup.MapPost(path, (HttpRequest request, CancellationToken cancellationToken)
@@ -84,22 +83,17 @@ public static class A2ARouteBuilderExtensions
     /// </remarks>
     /// <param name="endpoints">The endpoint route builder.</param>
     /// <param name="requestHandler">The A2A request handler.</param>
-    /// <param name="agentCard">The agent card to serve at the /card endpoint.</param>
     /// <param name="path">The route prefix for all REST endpoints.</param>
     /// <returns>An endpoint convention builder for further configuration.</returns>
     public static IEndpointConventionBuilder MapHttpA2A(
-        this IEndpointRouteBuilder endpoints, IA2ARequestHandler requestHandler, AgentCard agentCard, [StringSyntax("Route")] string path = "")
+        this IEndpointRouteBuilder endpoints, IA2ARequestHandler requestHandler, [StringSyntax("Route")] string path = "")
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(requestHandler);
-        ArgumentNullException.ThrowIfNull(agentCard);
+        ArgumentNullException.ThrowIfNull(path);
 
         var routeGroup = endpoints.MapGroup(path);
         var logger = endpoints.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("A2A.REST");
-
-        // Agent card (SDK convenience endpoint, not part of the A2A spec Section 11.3)
-        routeGroup.MapGet("/card", (CancellationToken ct)
-            => A2AHttpProcessor.GetAgentCardRestAsync(requestHandler, logger, agentCard, ct));
 
         // Task operations
         routeGroup.MapGet("/tasks/{id}", (string id, [FromQuery] int? historyLength, CancellationToken ct)

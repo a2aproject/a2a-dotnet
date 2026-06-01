@@ -242,13 +242,13 @@ file sealed class DemoAgent : IAgentHandler
     public async Task ExecuteAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken ct)
     {
         var updater = new TaskUpdater(eventQueue, context.TaskId, context.ContextId);
-        await updater.SubmitAsync(ct);
+        await updater.SubmitAsync(cancellationToken: ct);
         await updater.StartWorkAsync(cancellationToken: ct);
 
         // Echo back with a response
         var userText = context.Message.Parts?.FirstOrDefault()?.Text ?? "no input";
         var responder = new MessageResponder(eventQueue, updater.ContextId);
-        await responder.ReplyAsync($"Acknowledged: {userText}", ct);
+        await responder.ReplyAsync($"Acknowledged: {userText}", cancellationToken: ct);
 
         await updater.CompleteAsync(cancellationToken: ct);
     }
@@ -256,6 +256,6 @@ file sealed class DemoAgent : IAgentHandler
     public async Task CancelAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken ct)
     {
         var updater = new TaskUpdater(eventQueue, context.TaskId, context.ContextId);
-        await updater.CancelAsync(ct);
+        await updater.CancelAsync(cancellationToken: ct);
     }
 }

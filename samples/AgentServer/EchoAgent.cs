@@ -7,7 +7,7 @@ public sealed class EchoAgent : IAgentHandler
     public async Task ExecuteAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
     {
         var responder = new MessageResponder(eventQueue, context.ContextId);
-        await responder.ReplyAsync($"Echo: {context.UserText}", cancellationToken);
+        await responder.ReplyAsync($"Echo: {context.UserText}", cancellationToken: cancellationToken);
     }
 
     public static AgentCard GetAgentCard(string agentUrl) =>
