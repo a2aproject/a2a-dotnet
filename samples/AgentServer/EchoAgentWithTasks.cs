@@ -10,7 +10,7 @@ public sealed class EchoAgentWithTasks : IAgentHandler
         var targetState = GetTargetStateFromMetadata(context.Message.Metadata);
         var updater = new TaskUpdater(eventQueue, context.TaskId, context.ContextId);
 
-        await updater.SubmitAsync(cancellationToken);
+        await updater.SubmitAsync(cancellationToken: cancellationToken);
 
         // When the client requests return-immediately, simulate slow work so
         // the server returns the in-progress task before processing completes.
@@ -33,12 +33,12 @@ public sealed class EchoAgentWithTasks : IAgentHandler
                 await updater.FailAsync(cancellationToken: cancellationToken);
                 break;
             case TaskState.Canceled:
-                await updater.CancelAsync(cancellationToken);
+                await updater.CancelAsync(cancellationToken: cancellationToken);
                 break;
             case TaskState.InputRequired:
                 await updater.RequireInputAsync(
                     new Message { Role = Role.Agent, MessageId = Guid.NewGuid().ToString("N"), Parts = [Part.FromText("Need input")] },
-                    cancellationToken);
+                    cancellationToken: cancellationToken);
                 break;
             default:
                 await updater.CompleteAsync(cancellationToken: cancellationToken);
