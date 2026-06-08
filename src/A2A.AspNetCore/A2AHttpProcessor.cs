@@ -201,9 +201,14 @@ internal static class A2AHttpProcessor
         {
             var request = new CreateTaskPushNotificationConfigRequest
             {
-                TaskId = taskId,
-                Config = config,
-                ConfigId = config.Id ?? string.Empty,
+                Config = new TaskPushNotificationConfig
+                {
+                    Id = config.Id ?? string.Empty,
+                    TaskId = taskId,
+                    Url = config.Url,
+                    Token = config.Token,
+                    Authentication = config.Authentication,
+                },
             };
             var result = await requestHandler.CreateTaskPushNotificationConfigAsync(request, ct).ConfigureAwait(false);
             return new A2AResponseResult(result);

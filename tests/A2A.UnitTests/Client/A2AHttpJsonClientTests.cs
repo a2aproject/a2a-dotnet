@@ -193,16 +193,14 @@ public class A2AHttpJsonClientTests
         {
             Id = "cfg-1",
             TaskId = "t-1",
-            PushNotificationConfig = new PushNotificationConfig { Url = "http://callback" }
+            Url = "http://callback"
         };
 
         var sut = CreateClient(expected, req => captured = req);
 
         await sut.CreateTaskPushNotificationConfigAsync(new CreateTaskPushNotificationConfigRequest
         {
-            TaskId = "t-1",
-            ConfigId = "cfg-1",
-            Config = new PushNotificationConfig { Url = "http://callback" }
+            Config = new TaskPushNotificationConfig { Id = "cfg-1", TaskId = "t-1", Url = "http://callback" }
         });
 
         Assert.NotNull(captured);
@@ -218,7 +216,7 @@ public class A2AHttpJsonClientTests
         {
             Id = "cfg-1",
             TaskId = "t-1",
-            PushNotificationConfig = new PushNotificationConfig { Url = "http://callback" }
+            Url = "http://callback"
         };
 
         var sut = CreateClient(expected, req => captured = req);
@@ -556,8 +554,7 @@ public class A2AHttpJsonClientErrorInfoTests
         var ex = await Assert.ThrowsAsync<A2AException>(() =>
             sut.CreateTaskPushNotificationConfigAsync(new CreateTaskPushNotificationConfigRequest
             {
-                TaskId = "t-1",
-                Config = new PushNotificationConfig { Url = "http://callback" }
+                Config = new TaskPushNotificationConfig { Id = "cfg-1", TaskId = "t-1", Url = "http://callback" }
             }));
 
         Assert.Equal(A2AErrorCode.PushNotificationNotSupported, ex.ErrorCode);

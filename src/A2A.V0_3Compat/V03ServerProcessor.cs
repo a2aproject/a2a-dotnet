@@ -367,14 +367,13 @@ public static class V03ServerProcessor
                 var v03Config = DeserializeParams<V03.TaskPushNotificationConfig>(rpcRequest.Params.Value);
                 var v1Request = new CreateTaskPushNotificationConfigRequest
                 {
-                    TaskId = v03Config.TaskId,
-                    Config = V03TypeConverter.ToV1PushNotificationConfig(v03Config.PushNotificationConfig),
+                    Config = V03TypeConverter.ToV1TaskPushNotificationConfig(v03Config),
                 };
                 var v1Result = await handler.CreateTaskPushNotificationConfigAsync(v1Request, ct).ConfigureAwait(false);
                 var v03Result = new V03.TaskPushNotificationConfig
                 {
-                    TaskId = v1Result.TaskId,
-                    PushNotificationConfig = V03TypeConverter.ToV03PushNotificationConfig(v1Result.PushNotificationConfig),
+                    TaskId = v1Result.TaskId ?? string.Empty,
+                    PushNotificationConfig = V03TypeConverter.ToV03PushNotificationConfigFromTask(v1Result),
                 };
                 return MakeSuccessResult(rpcRequest.Id, v03Result, typeof(V03.TaskPushNotificationConfig));
             }
@@ -390,8 +389,8 @@ public static class V03ServerProcessor
                 var v1Result = await handler.GetTaskPushNotificationConfigAsync(v1Request, ct).ConfigureAwait(false);
                 var v03Result = new V03.TaskPushNotificationConfig
                 {
-                    TaskId = v1Result.TaskId,
-                    PushNotificationConfig = V03TypeConverter.ToV03PushNotificationConfig(v1Result.PushNotificationConfig),
+                    TaskId = v1Result.TaskId ?? string.Empty,
+                    PushNotificationConfig = V03TypeConverter.ToV03PushNotificationConfigFromTask(v1Result),
                 };
                 return MakeSuccessResult(rpcRequest.Id, v03Result, typeof(V03.TaskPushNotificationConfig));
             }

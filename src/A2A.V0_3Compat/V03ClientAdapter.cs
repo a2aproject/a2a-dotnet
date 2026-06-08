@@ -94,8 +94,8 @@ internal sealed class V03ClientAdapter : A2A.IA2AClient, IDisposable
     {
         var v03Config = new V03.TaskPushNotificationConfig
         {
-            TaskId = request.TaskId,
-            PushNotificationConfig = V03TypeConverter.ToV03PushNotificationConfig(request.Config),
+            TaskId = request.Config.TaskId ?? string.Empty,
+            PushNotificationConfig = V03TypeConverter.ToV03PushNotificationConfigFromTask(request.Config),
         };
         var v03Result = await _v03Client.SetPushNotificationAsync(v03Config, cancellationToken).ConfigureAwait(false);
         return V03TypeConverter.ToV1TaskPushNotificationConfig(v03Result);

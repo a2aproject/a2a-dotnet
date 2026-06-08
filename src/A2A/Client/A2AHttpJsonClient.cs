@@ -104,8 +104,8 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
     public async Task<TaskPushNotificationConfig> CreateTaskPushNotificationConfigAsync(
         CreateTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default)
     {
-        return await PostJsonAsync<PushNotificationConfig, TaskPushNotificationConfig>(
-            $"/tasks/{Uri.EscapeDataString(request.TaskId)}/pushNotificationConfigs",
+        return await PostJsonAsync<TaskPushNotificationConfig, TaskPushNotificationConfig>(
+            $"/tasks/{Uri.EscapeDataString(request.Config.TaskId ?? string.Empty)}/pushNotificationConfigs",
             request.Config, "CreateTaskPushNotificationConfig", cancellationToken).ConfigureAwait(false);
     }
 
