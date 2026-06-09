@@ -11,9 +11,9 @@ public class A2AClientTests
     public async Task SendMessageAsync_MapsRequestParamsCorrectly()
     {
         // Arrange
-        HttpRequestMessage? capturedRequest = null;
+        string? capturedBody = null;
 
-        var sut = CreateA2AClient(new AgentMessage() { MessageId = "id-1", Role = MessageRole.User, Parts = [] }, req => capturedRequest = req);
+        var sut = CreateA2AClient(new AgentMessage() { MessageId = "id-1", Role = MessageRole.User, Parts = [] }, (_, body) => capturedBody = body);
 
         var sendParams = new MessageSendParams
         {
@@ -41,9 +41,9 @@ public class A2AClientTests
         await sut.SendMessageAsync(sendParams);
 
         // Assert
-        Assert.NotNull(capturedRequest);
+        Assert.NotNull(capturedBody);
 
-        var requestJson = JsonDocument.Parse(await capturedRequest.Content!.ReadAsStringAsync());
+        var requestJson = JsonDocument.Parse(capturedBody);
         Assert.Equal("message/send", requestJson.RootElement.GetProperty("method").GetString());
         Assert.True(Guid.TryParse(requestJson.RootElement.GetProperty("id").GetString(), out _));
 
@@ -113,9 +113,9 @@ public class A2AClientTests
     public async Task GetTaskAsync_MapsRequestParamsCorrectly()
     {
         // Arrange
-        HttpRequestMessage? capturedRequest = null;
+        string? capturedBody = null;
 
-        var sut = CreateA2AClient(new AgentTask { Id = "id-1", ContextId = "ctx-1" }, req => capturedRequest = req);
+        var sut = CreateA2AClient(new AgentTask { Id = "id-1", ContextId = "ctx-1" }, (_, body) => capturedBody = body);
 
         var taskId = "task-1";
 
@@ -123,9 +123,9 @@ public class A2AClientTests
         await sut.GetTaskAsync(taskId);
 
         // Assert
-        Assert.NotNull(capturedRequest);
+        Assert.NotNull(capturedBody);
 
-        var requestJson = JsonDocument.Parse(await capturedRequest.Content!.ReadAsStringAsync());
+        var requestJson = JsonDocument.Parse(capturedBody);
         Assert.Equal("tasks/get", requestJson.RootElement.GetProperty("method").GetString());
         Assert.True(Guid.TryParse(requestJson.RootElement.GetProperty("id").GetString(), out _));
 
@@ -168,9 +168,9 @@ public class A2AClientTests
     public async Task CancelTaskAsync_MapsRequestParamsCorrectly()
     {
         // Arrange
-        HttpRequestMessage? capturedRequest = null;
+        string? capturedBody = null;
 
-        var sut = CreateA2AClient(new AgentTask { Id = "task-2" }, req => capturedRequest = req);
+        var sut = CreateA2AClient(new AgentTask { Id = "task-2" }, (_, body) => capturedBody = body);
 
         var taskIdParams = new TaskIdParams
         {
@@ -182,9 +182,9 @@ public class A2AClientTests
         await sut.CancelTaskAsync(taskIdParams);
 
         // Assert
-        Assert.NotNull(capturedRequest);
+        Assert.NotNull(capturedBody);
 
-        var requestJson = JsonDocument.Parse(await capturedRequest.Content!.ReadAsStringAsync());
+        var requestJson = JsonDocument.Parse(capturedBody);
         Assert.Equal("tasks/cancel", requestJson.RootElement.GetProperty("method").GetString());
         Assert.True(Guid.TryParse(requestJson.RootElement.GetProperty("id").GetString(), out _));
 
@@ -230,9 +230,9 @@ public class A2AClientTests
     public async Task SetPushNotificationAsync_MapsRequestParamsCorrectly()
     {
         // Arrange
-        HttpRequestMessage? capturedRequest = null;
+        string? capturedBody = null;
 
-        var sut = CreateA2AClient(new TaskPushNotificationConfig() { TaskId = "id-1", PushNotificationConfig = new PushNotificationConfig() { Url = "url-1" } }, req => capturedRequest = req);
+        var sut = CreateA2AClient(new TaskPushNotificationConfig() { TaskId = "id-1", PushNotificationConfig = new PushNotificationConfig() { Url = "url-1" } }, (_, body) => capturedBody = body);
 
         var pushConfig = new TaskPushNotificationConfig
         {
@@ -253,9 +253,9 @@ public class A2AClientTests
         await sut.SetPushNotificationAsync(pushConfig);
 
         // Assert
-        Assert.NotNull(capturedRequest);
+        Assert.NotNull(capturedBody);
 
-        var requestJson = JsonDocument.Parse(await capturedRequest.Content!.ReadAsStringAsync());
+        var requestJson = JsonDocument.Parse(capturedBody);
         Assert.Equal("tasks/pushNotificationConfig/set", requestJson.RootElement.GetProperty("method").GetString());
         Assert.True(Guid.TryParse(requestJson.RootElement.GetProperty("id").GetString(), out _));
 
@@ -304,11 +304,11 @@ public class A2AClientTests
     public async Task GetPushNotificationAsync_MapsRequestParamsCorrectly()
     {
         // Arrange
-        HttpRequestMessage? capturedRequest = null;
+        string? capturedBody = null;
 
         var config = new TaskPushNotificationConfig { TaskId = "task-4", PushNotificationConfig = new PushNotificationConfig { Url = "url-1" } };
 
-        var sut = CreateA2AClient(config, req => capturedRequest = req);
+        var sut = CreateA2AClient(config, (_, body) => capturedBody = body);
 
         var notificationConfigParams = new GetTaskPushNotificationConfigParams
         {
@@ -321,9 +321,9 @@ public class A2AClientTests
         await sut.GetPushNotificationAsync(notificationConfigParams);
 
         // Assert
-        Assert.NotNull(capturedRequest);
+        Assert.NotNull(capturedBody);
 
-        var requestJson = JsonDocument.Parse(await capturedRequest.Content!.ReadAsStringAsync());
+        var requestJson = JsonDocument.Parse(capturedBody);
         Assert.Equal("tasks/pushNotificationConfig/get", requestJson.RootElement.GetProperty("method").GetString());
         Assert.True(Guid.TryParse(requestJson.RootElement.GetProperty("id").GetString(), out _));
 
@@ -371,11 +371,11 @@ public class A2AClientTests
     public async Task GetPushNotificationAsync_WithPushNotificationConfigId_MapsRequestCorrectly()
     {
         // Arrange
-        HttpRequestMessage? capturedRequest = null;
+        string? capturedBody = null;
 
         var config = new TaskPushNotificationConfig { TaskId = "task-5", PushNotificationConfig = new PushNotificationConfig { Url = "url-1" } };
 
-        var sut = CreateA2AClient(config, req => capturedRequest = req);
+        var sut = CreateA2AClient(config, (_, body) => capturedBody = body);
 
         var notificationConfigParams = new GetTaskPushNotificationConfigParams
         {
@@ -387,9 +387,9 @@ public class A2AClientTests
         await sut.GetPushNotificationAsync(notificationConfigParams);
 
         // Assert
-        Assert.NotNull(capturedRequest);
+        Assert.NotNull(capturedBody);
 
-        var requestJson = JsonDocument.Parse(await capturedRequest.Content!.ReadAsStringAsync());
+        var requestJson = JsonDocument.Parse(capturedBody);
         var parameters = requestJson.RootElement.GetProperty("params").Deserialize<GetTaskPushNotificationConfigParams>();
         Assert.NotNull(parameters);
         Assert.Equal(notificationConfigParams.Id, parameters.Id);
@@ -401,9 +401,9 @@ public class A2AClientTests
     public async Task SendMessageStreamingAsync_MapsRequestParamsCorrectly()
     {
         // Arrange
-        HttpRequestMessage? capturedRequest = null;
+        string? capturedBody = null;
 
-        var sut = CreateA2AClient(new AgentMessage() { MessageId = "id-1", Role = MessageRole.User, Parts = [] }, req => capturedRequest = req, isSse: true);
+        var sut = CreateA2AClient(new AgentMessage() { MessageId = "id-1", Role = MessageRole.User, Parts = [] }, (_, body) => capturedBody = body, isSse: true);
 
         var sendParams = new MessageSendParams
         {
@@ -434,9 +434,9 @@ public class A2AClientTests
         }
 
         // Assert
-        Assert.NotNull(capturedRequest);
+        Assert.NotNull(capturedBody);
 
-        var requestJson = JsonDocument.Parse(await capturedRequest.Content!.ReadAsStringAsync());
+        var requestJson = JsonDocument.Parse(capturedBody);
         Assert.Equal("message/stream", requestJson.RootElement.GetProperty("method").GetString());
         Assert.True(Guid.TryParse(requestJson.RootElement.GetProperty("id").GetString(), out _));
 
@@ -509,9 +509,9 @@ public class A2AClientTests
     public async Task SubscribeToTaskAsync_MapsRequestParamsCorrectly()
     {
         // Arrange
-        HttpRequestMessage? capturedRequest = null;
+        string? capturedBody = null;
 
-        var sut = CreateA2AClient(new AgentMessage() { MessageId = "id-1", Role = MessageRole.User, Parts = [] }, req => capturedRequest = req, isSse: true);
+        var sut = CreateA2AClient(new AgentMessage() { MessageId = "id-1", Role = MessageRole.User, Parts = [] }, (_, body) => capturedBody = body, isSse: true);
 
         var taskId = "task-123";
 
@@ -522,9 +522,9 @@ public class A2AClientTests
         }
 
         // Assert
-        Assert.NotNull(capturedRequest);
+        Assert.NotNull(capturedBody);
 
-        var requestJson = JsonDocument.Parse(await capturedRequest.Content!.ReadAsStringAsync());
+        var requestJson = JsonDocument.Parse(capturedBody);
         Assert.Equal("tasks/resubscribe", requestJson.RootElement.GetProperty("method").GetString());
         Assert.True(Guid.TryParse(requestJson.RootElement.GetProperty("id").GetString(), out _));
 
@@ -617,7 +617,104 @@ public class A2AClientTests
         Assert.Contains("Method not found", exception.Message);
     }
 
-    private static A2AClient CreateA2AClient(object result, Action<HttpRequestMessage>? onRequest = null, bool isSse = false)
+    [Fact]
+    public async Task ConfigureRequest_IsInvokedAndCanMutateRequest()
+    {
+        // Arrange
+        HttpRequestMessage? capturedRequest = null;
+        var callbackInvoked = false;
+
+        Func<HttpRequestMessage, CancellationToken, Task> configureRequest = (req, _) =>
+        {
+            callbackInvoked = true;
+            req.Headers.TryAddWithoutValidation("X-Test-Header", "test-value");
+            return Task.CompletedTask;
+        };
+
+        var sut = CreateA2AClient(
+            new AgentMessage { MessageId = "id-1", Role = MessageRole.Agent, Parts = [] },
+            (req, _) => capturedRequest = req,
+            configureRequest: configureRequest);
+
+        var sendParams = new MessageSendParams
+        {
+            Message = new AgentMessage { Parts = [], Role = MessageRole.User, MessageId = "msg-1" }
+        };
+
+        // Act
+        await sut.SendMessageAsync(sendParams);
+
+        // Assert
+        Assert.True(callbackInvoked);
+        Assert.NotNull(capturedRequest);
+        Assert.True(capturedRequest.Headers.TryGetValues("X-Test-Header", out var values));
+        Assert.Equal("test-value", values.Single());
+    }
+
+    [Fact]
+    public async Task ConfigureRequest_IsInvokedForStreamingRequests()
+    {
+        // Arrange
+        HttpRequestMessage? capturedRequest = null;
+        var callbackInvocations = 0;
+
+        Func<HttpRequestMessage, CancellationToken, Task> configureRequest = (req, _) =>
+        {
+            callbackInvocations++;
+            req.Headers.TryAddWithoutValidation("X-Stream-Auth", "bearer-token");
+            return Task.CompletedTask;
+        };
+
+        var sut = CreateA2AClient(
+            new AgentMessage { MessageId = "id-1", Role = MessageRole.Agent, Parts = [] },
+            (req, _) => capturedRequest = req,
+            isSse: true,
+            configureRequest: configureRequest);
+
+        var sendParams = new MessageSendParams
+        {
+            Message = new AgentMessage { Parts = [], Role = MessageRole.User, MessageId = "msg-1" }
+        };
+
+        // Act
+        await foreach (var _ in sut.SendMessageStreamingAsync(sendParams))
+        {
+            break;
+        }
+
+        // Assert
+        Assert.Equal(1, callbackInvocations);
+        Assert.NotNull(capturedRequest);
+        Assert.True(capturedRequest.Headers.TryGetValues("X-Stream-Auth", out var values));
+        Assert.Equal("bearer-token", values.Single());
+    }
+
+    [Fact]
+    public async Task ConfigureRequest_PropagatesExceptionAndDoesNotSendRequest()
+    {
+        // Arrange
+        var requestSent = false;
+
+        Func<HttpRequestMessage, CancellationToken, Task> configureRequest = (_, _) =>
+            throw new InvalidOperationException("configure failed");
+
+        var sut = CreateA2AClient(
+            new AgentMessage { MessageId = "id-1", Role = MessageRole.Agent, Parts = [] },
+            (_, _) => requestSent = true,
+            configureRequest: configureRequest);
+
+        var sendParams = new MessageSendParams
+        {
+            Message = new AgentMessage { Parts = [], Role = MessageRole.User, MessageId = "msg-1" }
+        };
+
+        // Act + Assert
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.SendMessageAsync(sendParams));
+        Assert.Equal("configure failed", ex.Message);
+        Assert.False(requestSent);
+    }
+
+    private static A2AClient CreateA2AClient(object result, Action<HttpRequestMessage, string?>? onRequest = null, bool isSse = false, Func<HttpRequestMessage, CancellationToken, Task>? configureRequest = null)
     {
         var response = new JsonRpcResponse
         {
@@ -625,10 +722,10 @@ public class A2AClientTests
             Result = JsonSerializer.SerializeToNode(result)
         };
 
-        return CreateA2AClient(response, onRequest, isSse);
+        return CreateA2AClient(response, onRequest, isSse, configureRequest);
     }
 
-    private static A2AClient CreateA2AClient(JsonRpcResponse jsonResponse, Action<HttpRequestMessage>? onRequest = null, bool isSse = false)
+    private static A2AClient CreateA2AClient(JsonRpcResponse jsonResponse, Action<HttpRequestMessage, string?>? onRequest = null, bool isSse = false, Func<HttpRequestMessage, CancellationToken, Task>? configureRequest = null)
     {
         var responseContent = JsonSerializer.Serialize(jsonResponse);
 
@@ -644,6 +741,6 @@ public class A2AClientTests
 
         var httpClient = new HttpClient(handler);
 
-        return new A2AClient(new Uri("http://localhost"), httpClient);
+        return new A2AClient(new Uri("http://localhost"), httpClient, configureRequest);
     }
 }
