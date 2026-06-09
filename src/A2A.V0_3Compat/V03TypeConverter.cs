@@ -462,12 +462,12 @@ internal static class V03TypeConverter
             Token = config.Token,
         };
 
-        if (config.Authentication is { } auth && auth.Schemes.Count > 0)
+        if (config.Authentication is { Schemes: { Count: > 0 } schemes })
         {
             result.Authentication = new A2A.AuthenticationInfo
             {
-                Scheme = auth.Schemes[0],
-                Credentials = auth.Credentials,
+                Scheme = schemes[0],
+                Credentials = config.Authentication.Credentials,
             };
         }
 
@@ -510,14 +510,14 @@ internal static class V03TypeConverter
             Token = config.Token,
         };
 
-        if (config.Authentication is { } auth && auth.Schemes.Count > 0)
+        if (config.Authentication is { Schemes: { Count: > 0 } schemes })
         {
             // v0.3 PushNotificationAuthenticationInfo.Schemes is a list; v1.0 AuthenticationInfo.Scheme
             // is a single string. Only the first scheme is preserved — multi-scheme configs lose data here.
             result.Authentication = new A2A.AuthenticationInfo
             {
-                Scheme = auth.Schemes[0],
-                Credentials = auth.Credentials,
+                Scheme = schemes[0],
+                Credentials = config.Authentication.Credentials,
             };
         }
 
@@ -537,12 +537,12 @@ internal static class V03TypeConverter
             Token = config.PushNotificationConfig.Token,
         };
 
-        if (config.PushNotificationConfig.Authentication is { } auth && auth.Schemes.Count > 0)
+        if (config.PushNotificationConfig.Authentication is { Schemes: { Count: > 0 } schemes })
         {
             result.Authentication = new A2A.AuthenticationInfo
             {
-                Scheme = auth.Schemes[0],
-                Credentials = auth.Credentials,
+                Scheme = schemes[0],
+                Credentials = config.PushNotificationConfig.Authentication.Credentials,
             };
         }
 
