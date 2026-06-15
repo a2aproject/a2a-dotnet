@@ -15,7 +15,7 @@
         <PackageVersion Include="System.Net.ServerSentEvents" Version="10.0.8" />
         <!-- Testing / samples dependencies -->
         <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.5" />
-        <PackageVersion Include="JsonSchema.Net" Version="9.2.1" />
+        <PackageVersion Include="JsonSchema.Net" Version="9.2.2" />
         <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.6.0" />
         <PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.9" />
         <PackageVersion Include="Microsoft.SemanticKernel.Agents.Core" Version="1.77.0" />
