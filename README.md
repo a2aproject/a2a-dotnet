@@ -17,7 +17,7 @@ Key features include:
 
 ## Protocol Compatibility
 
-This library implements the [A2A v1.0 specification](https://a2a-protocol.org). It provides full support for the JSON-RPC binding and HTTP+JSON REST binding, including streaming via Server-Sent Events.
+This library implements the [A2A v1.0 specification](https://a2a-protocol.org). It provides full support for the JSON-RPC binding, the HTTP+JSON REST binding (including streaming via Server-Sent Events), and the gRPC binding (including server-streaming). All three bindings share the same `IA2AClient` contract and `IA2ARequestHandler` server pipeline.
 
 If you're upgrading from the v0.3 SDK, see the **[Migration Guide](docs/migration-guide-v1.md)** for a comprehensive list of breaking changes and before/after code examples. A backward-compatible `A2A.V0_3` NuGet package is available during the transition:
 
@@ -37,6 +37,15 @@ dotnet add package A2A
 
 ```bash
 dotnet add package A2A.AspNetCore
+```
+
+### gRPC Binding
+
+The gRPC binding ships as two optional packages so core consumers are not forced to depend on `Grpc.*`. Add the client package for a gRPC `IA2AClient`, and the ASP.NET Core package to host a gRPC server:
+
+```bash
+dotnet add package A2A.Grpc            # gRPC client + protocol mapping
+dotnet add package A2A.Grpc.AspNetCore # gRPC server host (MapGrpcA2A)
 ```
 
 ## Overview
@@ -70,6 +79,16 @@ This library provides ASP.NET Core integration for hosting A2A agents. It includ
 ### Extension Methods
 - **`A2AServiceCollectionExtensions`**: Provides `AddA2AAgent<THandler>()` for registering an agent, its card, and all A2A services with dependency injection.
 - **`A2ARouteBuilderExtensions`**: Provides `MapA2A()` for JSON-RPC endpoints, `MapHttpA2A()` for HTTP REST endpoints, and `MapWellKnownAgentCard()` for agent card discovery.
+
+## Library: A2A.Grpc and A2A.Grpc.AspNetCore
+These optional libraries add the gRPC binding on top of the same client contract and server pipeline.
+
+### A2A.Grpc (client)
+- **`A2AGrpcClient`**: An `IA2AClient` implementation over gRPC with parity for all unary and server-streaming operations. gRPC faults are surfaced as `A2AException` with the correct `A2AErrorCode`.
+- **`A2AGrpcClientRegistration.Register()`**: Registers the `GRPC` binding with `A2AClientFactory`, so `A2AClientFactory.Create(agentCard)` resolves a gRPC client for agent interfaces advertising `GRPC`.
+
+### A2A.Grpc.AspNetCore (server)
+- **`GrpcA2ARouteBuilderExtensions`**: Provides `AddA2AGrpc()` to register gRPC services and `MapGrpcA2A()` to map the A2A gRPC service onto the shared `IA2ARequestHandler` — mirroring `MapA2A` / `MapHttpA2A`.
 
 ## Getting Started
 
@@ -164,6 +183,53 @@ switch (response.PayloadCase)
     case SendMessageResponseCase.Task:
         Console.WriteLine($"Task created: {response.Task!.Id}");
         break;
+}
+```
+
+### 3. Using the gRPC binding
+
+Host a gRPC endpoint alongside (or instead of) the JSON-RPC/HTTP endpoints. The gRPC service reuses the same agent registration and `IA2ARequestHandler` pipeline:
+
+```csharp
+using A2A;
+using A2A.AspNetCore;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddA2AAgent<EchoAgent>(EchoAgent.GetAgentCard("https://localhost:5001"));
+builder.Services.AddA2AGrpc(); // registers ASP.NET Core gRPC services
+
+var app = builder.Build();
+app.MapGrpcA2A(); // maps the A2A gRPC service
+app.Run();
+```
+
+Connect with the gRPC client — either directly or via `A2AClientFactory` when the agent card advertises a `GRPC` interface:
+
+```csharp
+using A2A;
+using A2A.Grpc;
+
+// Direct construction
+using var client = new A2AGrpcClient(new Uri("https://localhost:5001"));
+
+// Or resolve from the agent card by binding preference
+A2AGrpcClientRegistration.Register();
+var resolved = A2AClientFactory.Create(
+    agentCard,
+    options: new A2AClientOptions { PreferredBindings = [ProtocolBindingNames.Grpc] });
+
+await foreach (var evt in client.SendStreamingMessageAsync(new SendMessageRequest
+{
+    Message = new Message
+    {
+        MessageId = Guid.NewGuid().ToString("N"),
+        Role = Role.User,
+        Parts = [Part.FromText("Hello over gRPC!")]
+    }
+}))
+{
+    Console.WriteLine(evt.PayloadCase);
 }
 ```
 
