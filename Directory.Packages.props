@@ -10,6 +10,7 @@
         <PackageVersion Include="Microsoft.Extensions.ExtraAnalyzers" Version="8.0.0-rc.2.23510.2" />
         <PackageVersion Include="System.Text.Json" Version="10.0.8" />
         <!-- gRPC binding dependencies -->
+        <PackageVersion Include="Google.Api.CommonProtos" Version="2.17.0" />
         <PackageVersion Include="Google.Protobuf" Version="3.35.1" />
         <PackageVersion Include="Grpc.Net.Client" Version="2.80.0" />
         <PackageVersion Include="Grpc.AspNetCore" Version="2.80.0" />

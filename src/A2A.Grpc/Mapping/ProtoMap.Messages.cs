@@ -670,7 +670,8 @@ internal static partial class ProtoMap
         Tenant = NullIfEmpty(request.Tenant),
         ContextId = NullIfEmpty(request.ContextId),
         Status = request.Status == Protos.TaskState.Unspecified ? null : (TaskState)(int)request.Status,
-        PageSize = request.HasPageSize ? request.PageSize : null,
+        // page_size has a minimum of 1; treat 0 (or unset) as "unspecified" so the server applies its default.
+        PageSize = request.HasPageSize && request.PageSize > 0 ? request.PageSize : null,
         PageToken = NullIfEmpty(request.PageToken),
         HistoryLength = request.HasHistoryLength ? request.HistoryLength : null,
         StatusTimestampAfter = request.StatusTimestampAfter?.ToDateTimeOffset(),
