@@ -45,7 +45,9 @@ public static class TaskProjection
             Status = current.Status,
             History = current.History,
             Artifacts = current.Artifacts is not null ? [.. current.Artifacts] : null,
-            Metadata = current.Metadata is not null ? new Dictionary<string, JsonElement>(current.Metadata) : null,
+            Metadata = current.Metadata is not null
+                ? new Dictionary<string, JsonElement>(current.Metadata, current.Metadata.Comparer)
+                : null,
         };
 
         if (streamEvent.StatusUpdate is { } su)
