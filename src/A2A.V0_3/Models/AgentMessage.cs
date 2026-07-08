@@ -50,17 +50,24 @@ public sealed class AgentMessage() : A2AResponse(A2AEventKind.Message)
     [JsonPropertyName("referenceTaskIds")]
     public List<string>? ReferenceTaskIds { get; set; }
 
+    private string? _messageId;
+
     /// <summary>
     /// Identifier created by the message creator.
     /// </summary>
     /// <remarks>
     /// Not <c>[JsonRequired]</c>: some v0.3 producers omit it (a discrepancy between the
-    /// <c>.proto</c> and JSON Schema definitions of v0.3). Defaults to a freshly generated id
+    /// <c>.proto</c> and JSON Schema definitions of v0.3). Falls back to a lazily generated id
     /// rather than an empty string, so a message deserialized without one still has a usable,
-    /// unique identifier.
+    /// unique identifier. Lazy so a message whose JSON already carries a messageId never
+    /// allocates a discarded id on construction.
     /// </remarks>
     [JsonPropertyName("messageId")]
-    public string MessageId { get; set; } = Guid.NewGuid().ToString();
+    public string MessageId
+    {
+        get => _messageId ??= Guid.NewGuid().ToString();
+        set => _messageId = value;
+    }
 
     /// <summary>
     /// Identifier of task the message is related to.
