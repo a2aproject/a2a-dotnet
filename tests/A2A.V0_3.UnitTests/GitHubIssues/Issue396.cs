@@ -43,5 +43,38 @@ namespace A2A.V0_3.UnitTests.GitHubIssues
             Assert.Equal(MessageRole.Agent, task.Status.Message.Role);
             Assert.Single(task.Status.Message.Parts);
         }
+
+        [Fact]
+        public void MessageId_WhenNotSet_IsLazyAndUniquePerInstance()
+        {
+            var first = new AgentMessage { Role = MessageRole.Agent };
+            var second = new AgentMessage { Role = MessageRole.Agent };
+
+            // Each unset instance gets its own generated id, not a shared/cached one.
+            Assert.False(string.IsNullOrEmpty(first.MessageId));
+            Assert.False(string.IsNullOrEmpty(second.MessageId));
+            Assert.NotEqual(first.MessageId, second.MessageId);
+
+            // Reading it twice on the same instance returns the same cached value.
+            Assert.Equal(first.MessageId, first.MessageId);
+        }
+
+        [Fact]
+        public void MessageId_WhenSetFromJson_IsPreservedExactly()
+        {
+            const string json = """
+            {
+                "kind": "message",
+                "role": "user",
+                "messageId": "explicit-id",
+                "parts": []
+            }
+            """;
+
+            var message = JsonSerializer.Deserialize<AgentMessage>(json, A2AJsonUtilities.DefaultOptions);
+
+            Assert.NotNull(message);
+            Assert.Equal("explicit-id", message.MessageId);
+        }
     }
 }
