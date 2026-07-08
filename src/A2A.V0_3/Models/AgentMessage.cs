@@ -53,9 +53,14 @@ public sealed class AgentMessage() : A2AResponse(A2AEventKind.Message)
     /// <summary>
     /// Identifier created by the message creator.
     /// </summary>
+    /// <remarks>
+    /// Not <c>[JsonRequired]</c>: some v0.3 producers omit it (a discrepancy between the
+    /// <c>.proto</c> and JSON Schema definitions of v0.3). Defaults to a freshly generated id
+    /// rather than an empty string, so a message deserialized without one still has a usable,
+    /// unique identifier.
+    /// </remarks>
     [JsonPropertyName("messageId")]
-    [JsonRequired]
-    public string MessageId { get; set; } = string.Empty;
+    public string MessageId { get; set; } = Guid.NewGuid().ToString();
 
     /// <summary>
     /// Identifier of task the message is related to.
