@@ -54,11 +54,16 @@ internal static class GrpcErrorMapping
 
     /// <summary>Maps a gRPC <see cref="StatusCode"/> to a representative <see cref="A2AErrorCode"/> (coarse fallback).</summary>
     /// <param name="code">The gRPC status code to map.</param>
+    /// <remarks>
+    /// Used only when a peer omits the <see cref="ErrorInfo"/> detail. Several A2A errors share
+    /// <see cref="StatusCode.FailedPrecondition"/>; <see cref="A2AErrorCode.TaskNotCancelable"/> is the
+    /// most common case and matches the reverse-mapping the other A2A SDKs use for detail-less errors.
+    /// </remarks>
     public static A2AErrorCode FromStatusCode(StatusCode code) => code switch
     {
         StatusCode.NotFound => A2AErrorCode.TaskNotFound,
         StatusCode.InvalidArgument => A2AErrorCode.InvalidRequest,
-        StatusCode.FailedPrecondition => A2AErrorCode.UnsupportedOperation,
+        StatusCode.FailedPrecondition => A2AErrorCode.TaskNotCancelable,
         StatusCode.Unimplemented => A2AErrorCode.MethodNotFound,
         _ => A2AErrorCode.InternalError,
     };
