@@ -207,6 +207,33 @@ namespace A2A.UnitTests.Models
             Assert.Equal("application/custom", part.MediaType);
         }
 
+        [Theory]
+        [InlineData("application/json")]
+        [InlineData("Application/Json; charset=utf-8")]
+        [InlineData("application/problem+json")]
+        public void ToPart_ConvertsJsonDataContentToStructuredData(string mediaType)
+        {
+            var payload = JsonSerializer.SerializeToUtf8Bytes(new { key = "value" });
+            var content = new DataContent(payload, mediaType);
+
+            var part = content.ToPart();
+
+            Assert.NotNull(part);
+            Assert.Null(part!.Raw);
+            Assert.Equal(PartContentCase.Data, part.ContentCase);
+            Assert.Equal("value", part.Data!.Value.GetProperty("key").GetString());
+            Assert.Equal(mediaType, part.MediaType);
+        }
+
+        [Fact]
+        public void ToPart_ThrowsForInvalidJsonDataContent()
+        {
+            var payload = "not json"u8.ToArray();
+            var content = new DataContent(payload, "application/json");
+
+            Assert.ThrowsAny<JsonException>(() => content.ToPart());
+        }
+
         [Fact]
         public void ToPart_TransfersAdditionalPropertiesToMetadata()
         {
