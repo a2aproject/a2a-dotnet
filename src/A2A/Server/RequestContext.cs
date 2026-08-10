@@ -8,6 +8,12 @@ namespace A2A;
 /// </summary>
 public sealed class RequestContext
 {
+    /// <summary>
+    /// Default owner scope used when no tenant/owner identity is available (unauthenticated requests).
+    /// All unauthenticated callers share this scope, preserving backward compatibility.
+    /// </summary>
+    public const string DefaultOwner = "";
+
     /// <summary>The incoming client message.</summary>
     public required Message Message { get; init; }
 
@@ -19,6 +25,13 @@ public sealed class RequestContext
 
     /// <summary>The context ID — client-provided, inherited from existing task, or SDK-generated.</summary>
     public required string ContextId { get; init; }
+
+    /// <summary>
+    /// Owner/tenant scope for the current request. Defaults to <see cref="DefaultOwner"/>
+    /// for unauthenticated requests. The SDK scopes all task store CRUD by this value,
+    /// so tasks created under one owner are not visible to another owner.
+    /// </summary>
+    public string Owner { get; init; } = DefaultOwner;
 
     /// <summary>
     /// Whether <see cref="ContextId"/> was provided by the client (or inherited from an existing task)

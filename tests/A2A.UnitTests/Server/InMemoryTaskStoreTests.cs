@@ -297,4 +297,102 @@ public class InMemoryTaskStoreTests
 
         await Task.WhenAll(tasks); // Should not throw, corrupt, or deadlock
     }
+
+    [Fact]
+    public async Task GetTaskAsync_IsIsolatedByOwner()
+    {
+        // Arrange — task saved under owner "alice"
+        var sut = new InMemoryTaskStore();
+        await sut.SaveTaskAsync("t1", new AgentTask
+        {
+            Id = "t1",
+            ContextId = "ctx-1",
+            Status = new TaskStatus { State = TaskState.Submitted },
+        }, owner: "alice");
+
+        // Act & Assert — same taskId, different owner → not visible (IDOR fix)
+        var otherOwner = await sut.GetTaskAsync("t1", owner: "bob");
+        Assert.Null(otherOwner);
+
+        var sameOwner = await sut.GetTaskAsync("t1", owner: "alice");
+        Assert.NotNull(sameOwner);
+        Assert.Equal("t1", sameOwner!.Id);
+    }
+
+    [Fact]
+    public async Task SaveTaskAsync_SameTaskIdDifferentOwners_AreIndependent()
+    {
+        // Arrange
+        var sut = new InMemoryTaskStore();
+        await sut.SaveTaskAsync("t1", new AgentTask
+        {
+            Id = "t1", ContextId = "ctx-a",
+            Status = new TaskStatus { State = TaskState.Submitted },
+        }, owner: "alice");
+        await sut.SaveTaskAsync("t1", new AgentTask
+        {
+            Id = "t1", ContextId = "ctx-b",
+            Status = new TaskStatus { State = TaskState.Working },
+        }, owner: "bob");
+
+        // Act
+        var aliceTask = await sut.GetTaskAsync("t1", owner: "alice");
+        var bobTask = await sut.GetTaskAsync("t1", owner: "bob");
+
+        // Assert — each owner sees their own snapshot, no cross-talk
+        Assert.NotNull(aliceTask);
+        Assert.Equal(TaskState.Submitted, aliceTask!.Status.State);
+        Assert.NotNull(bobTask);
+        Assert.Equal(TaskState.Working, bobTask!.Status.State);
+    }
+
+    [Fact]
+    public async Task ListTasksAsync_OnlyReturnsTasksForOwner()
+    {
+        // Arrange
+        var sut = new InMemoryTaskStore();
+        await sut.SaveTaskAsync("t1", new AgentTask { Id = "t1", ContextId = "ctx", Status = new TaskStatus { State = TaskState.Submitted } }, owner: "alice");
+        await sut.SaveTaskAsync("t2", new AgentTask { Id = "t2", ContextId = "ctx", Status = new TaskStatus { State = TaskState.Working } }, owner: "alice");
+        await sut.SaveTaskAsync("t3", new AgentTask { Id = "t3", ContextId = "ctx", Status = new TaskStatus { State = TaskState.Working } }, owner: "bob");
+
+        // Act
+        var aliceTasks = await sut.ListTasksAsync(new ListTasksRequest(), owner: "alice");
+        var bobTasks = await sut.ListTasksAsync(new ListTasksRequest(), owner: "bob");
+
+        // Assert
+        Assert.Equal(2, aliceTasks.Tasks!.Count);
+        Assert.Equal(["t1", "t2"], aliceTasks.Tasks.Select(t => t.Id).OrderBy(id => id).ToArray());
+        Assert.Single(bobTasks.Tasks!);
+        Assert.Equal("t3", bobTasks.Tasks![0].Id);
+    }
+
+    [Fact]
+    public async Task DeleteTaskAsync_OnlyDeletesTaskForOwner()
+    {
+        // Arrange — same taskId under two owners
+        var sut = new InMemoryTaskStore();
+        await sut.SaveTaskAsync("t1", new AgentTask { Id = "t1", ContextId = "ctx", Status = new TaskStatus { State = TaskState.Submitted } }, owner: "alice");
+        await sut.SaveTaskAsync("t1", new AgentTask { Id = "t1", ContextId = "ctx", Status = new TaskStatus { State = TaskState.Submitted } }, owner: "bob");
+
+        // Act — delete only bob's copy
+        await sut.DeleteTaskAsync("t1", owner: "bob");
+
+        // Assert — alice's copy is untouched
+        Assert.Null(await sut.GetTaskAsync("t1", owner: "bob"));
+        Assert.NotNull(await sut.GetTaskAsync("t1", owner: "alice"));
+    }
+
+    [Fact]
+    public async Task NullAndEmptyOwner_ShareDefaultOwnerScope()
+    {
+        // Arrange — backward compatibility: unauthenticated flows share one scope
+        var sut = new InMemoryTaskStore();
+        await sut.SaveTaskAsync("t1", new AgentTask { Id = "t1", ContextId = "ctx", Status = new TaskStatus { State = TaskState.Submitted } }, owner: null);
+
+        // Act & Assert — null and empty-string owners resolve to the same scope
+        Assert.NotNull(await sut.GetTaskAsync("t1", owner: ""));
+        Assert.NotNull(await sut.GetTaskAsync("t1", owner: null));
+        var listed = await sut.ListTasksAsync(new ListTasksRequest(), owner: "");
+        Assert.Single(listed.Tasks!);
+    }
 }

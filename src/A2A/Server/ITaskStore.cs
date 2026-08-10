@@ -16,32 +16,48 @@ public interface ITaskStore
 {
     /// <summary>Get the current state of a task.</summary>
     /// <param name="taskId">The task identifier.</param>
+    /// <param name="owner">
+    /// Optional owner/tenant scope. When <c>null</c> or empty, the shared default owner
+    /// scope is used (unauthenticated flows). Tasks are isolated per owner.
+    /// </param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task<AgentTask?> GetTaskAsync(string taskId, CancellationToken cancellationToken = default);
+    Task<AgentTask?> GetTaskAsync(string taskId, string? owner = null, CancellationToken cancellationToken = default);
 
     /// <summary>Save (upsert) the current state of a task.</summary>
     /// <param name="taskId">The task identifier.</param>
     /// <param name="task">The task to persist.</param>
+    /// <param name="owner">
+    /// Optional owner/tenant scope. When <c>null</c> or empty, the shared default owner
+    /// scope is used (unauthenticated flows). Tasks are isolated per owner.
+    /// </param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task SaveTaskAsync(string taskId, AgentTask task, CancellationToken cancellationToken = default);
+    Task SaveTaskAsync(string taskId, AgentTask task, string? owner = null, CancellationToken cancellationToken = default);
 
     /// <summary>Delete a task.</summary>
     /// <param name="taskId">The task identifier.</param>
+    /// <param name="owner">
+    /// Optional owner/tenant scope. When <c>null</c> or empty, the shared default owner
+    /// scope is used (unauthenticated flows). Tasks are isolated per owner.
+    /// </param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <remarks>
     /// This method is not called by the SDK itself. It is provided for implementations
     /// that need task pruning (e.g. TTL expiry, admin cleanup). Implementations that
     /// do not need deletion may leave the body empty or throw <see cref="NotSupportedException"/>.
     /// </remarks>
-    Task DeleteTaskAsync(string taskId, CancellationToken cancellationToken = default);
+    Task DeleteTaskAsync(string taskId, string? owner = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Query tasks with filtering and pagination.
     /// Supports filtering by <see cref="ListTasksRequest.ContextId"/>,
     /// <see cref="ListTasksRequest.Status"/>, <see cref="ListTasksRequest.StatusTimestampAfter"/>,
-    /// and cursor-based pagination.
+    /// and cursor-based pagination. Results are scoped to <paramref name="owner"/>.
     /// </summary>
     /// <param name="request">The query request with filters and pagination.</param>
+    /// <param name="owner">
+    /// Optional owner/tenant scope. When <c>null</c> or empty, the shared default owner
+    /// scope is used (unauthenticated flows). Tasks are isolated per owner.
+    /// </param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task<ListTasksResponse> ListTasksAsync(ListTasksRequest request, CancellationToken cancellationToken = default);
+    Task<ListTasksResponse> ListTasksAsync(ListTasksRequest request, string? owner = null, CancellationToken cancellationToken = default);
 }

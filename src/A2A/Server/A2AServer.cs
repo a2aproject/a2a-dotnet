@@ -399,7 +399,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
                 A2AErrorCode.InvalidParams);
         }
 
-        var task = await _taskStore.GetTaskAsync(request.Id, cancellationToken).ConfigureAwait(false)
+        var task = await _taskStore.GetTaskAsync(request.Id, request.Tenant, cancellationToken).ConfigureAwait(false)
             ?? throw new A2AException($"Task '{request.Id}' not found.", A2AErrorCode.TaskNotFound);
 
         return task.WithHistoryTrimmedTo(request.HistoryLength);
@@ -409,7 +409,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
     public virtual async Task<ListTasksResponse> ListTasksAsync(
         ListTasksRequest request, CancellationToken cancellationToken = default)
     {
-        return await _taskStore.ListTasksAsync(request, cancellationToken).ConfigureAwait(false);
+        return await _taskStore.ListTasksAsync(request, request.Tenant, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -419,7 +419,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
         using var activity = A2ADiagnostics.Source.StartActivity("A2AServer.CancelTask", ActivityKind.Internal);
         activity?.SetTag("a2a.task.id", request.Id);
 
-        var task = await _taskStore.GetTaskAsync(request.Id, cancellationToken).ConfigureAwait(false)
+        var task = await _taskStore.GetTaskAsync(request.Id, request.Tenant, cancellationToken).ConfigureAwait(false)
             ?? throw new A2AException($"Task '{request.Id}' not found.", A2AErrorCode.TaskNotFound);
 
         if (task.Status.State.IsTerminal())
@@ -440,6 +440,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
             Task = task,
             TaskId = task.Id,
             ContextId = task.ContextId,
+            Owner = request.Tenant ?? RequestContext.DefaultOwner,
             StreamingResponse = false,
             Metadata = request.Metadata,
         };
@@ -464,7 +465,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
 
         await agentTask.ConfigureAwait(false);
 
-        return await _taskStore.GetTaskAsync(request.Id, cancellationToken).ConfigureAwait(false)
+        return await _taskStore.GetTaskAsync(request.Id, request.Tenant, cancellationToken).ConfigureAwait(false)
             ?? throw new A2AException($"Task '{request.Id}' not found.", A2AErrorCode.TaskNotFound);
     }
 
@@ -484,7 +485,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
         // guaranteeing no events are lost between snapshot and live stream.
         using (await _notifier.AcquireTaskLockAsync(request.Id, cancellationToken).ConfigureAwait(false))
         {
-            currentTask = await _taskStore.GetTaskAsync(request.Id, cancellationToken).ConfigureAwait(false)
+            currentTask = await _taskStore.GetTaskAsync(request.Id, request.Tenant, cancellationToken).ConfigureAwait(false)
                 ?? throw new A2AException($"Task '{request.Id}' not found.", A2AErrorCode.TaskNotFound);
 
             if (currentTask.Status.State.IsTerminal())
@@ -562,7 +563,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
     {
         try
         {
-            var task = await _taskStore.GetTaskAsync(context.TaskId, cancellationToken).ConfigureAwait(false);
+            var task = await _taskStore.GetTaskAsync(context.TaskId, context.Owner, cancellationToken).ConfigureAwait(false);
             if (task is not null && !task.Status.State.IsTerminal())
             {
                 await ApplyEventAsync(new StreamResponse
@@ -595,7 +596,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
 
         if (!string.IsNullOrEmpty(taskId))
         {
-            existingTask = await _taskStore.GetTaskAsync(taskId, cancellationToken).ConfigureAwait(false)
+            existingTask = await _taskStore.GetTaskAsync(taskId, request.Tenant, cancellationToken).ConfigureAwait(false)
                 ?? throw new A2AException($"Task '{taskId}' not found.", A2AErrorCode.TaskNotFound);
             contextId ??= existingTask.ContextId;
         }
@@ -606,6 +607,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
             Task = existingTask,
             TaskId = taskId ?? Guid.NewGuid().ToString("N"),
             ContextId = contextId ?? Guid.NewGuid().ToString("N"),
+            Owner = request.Tenant ?? RequestContext.DefaultOwner,
             ClientProvidedContextId = contextId is not null,
             StreamingResponse = streamingResponse,
             Configuration = request.Configuration,
@@ -628,7 +630,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
     {
         using (await _notifier.AcquireTaskLockAsync(context.TaskId, cancellationToken).ConfigureAwait(false))
         {
-            var currentTask = await _taskStore.GetTaskAsync(context.TaskId, cancellationToken)
+            var currentTask = await _taskStore.GetTaskAsync(context.TaskId, context.Owner, cancellationToken)
                 .ConfigureAwait(false);
 
             var updatedTask = TaskProjection.Apply(currentTask, response);
@@ -645,7 +647,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
                 A2ADiagnostics.TaskCreatedCount.Add(1);
             }
 
-            await _taskStore.SaveTaskAsync(context.TaskId, updatedTask, cancellationToken)
+            await _taskStore.SaveTaskAsync(context.TaskId, updatedTask, context.Owner, cancellationToken)
                 .ConfigureAwait(false);
 
             _notifier.Notify(context.TaskId, response);
@@ -743,7 +745,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
 #pragma warning restore CS4014, VSTHRD003
 
             // Re-fetch from store to return the current persisted state
-            result.Task = await _taskStore.GetTaskAsync(context.TaskId, CancellationToken.None).ConfigureAwait(false)
+            result.Task = await _taskStore.GetTaskAsync(context.TaskId, context.Owner, CancellationToken.None).ConfigureAwait(false)
                 ?? throw new A2AException($"Task '{context.TaskId}' not found after processing.", A2AErrorCode.TaskNotFound);
 
             return result;
@@ -786,7 +788,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
         // all persisted events, not a stale snapshot.
         if (result?.Task is not null)
         {
-            result.Task = await _taskStore.GetTaskAsync(context.TaskId, cancellationToken).ConfigureAwait(false)
+            result.Task = await _taskStore.GetTaskAsync(context.TaskId, context.Owner, cancellationToken).ConfigureAwait(false)
                 ?? throw new A2AException($"Task '{context.TaskId}' not found after processing.", A2AErrorCode.TaskNotFound);
         }
 
