@@ -60,12 +60,15 @@ public static class TaskProjection
 
     private static AgentTask ApplyMessage(AgentTask current, Message msg)
     {
+        GuardNotTerminal(current);
         current.History = [.. (current.History ?? []), msg];
         return current;
     }
 
     private static AgentTask ApplyStatus(AgentTask current, TaskStatusUpdateEvent su)
     {
+        GuardNotTerminal(current);
+
         // Move superseded status.message to history (aligned with Python SDK behavior).
         if (current.Status.Message is not null)
         {
@@ -73,6 +76,27 @@ public static class TaskProjection
         }
         current.Status = su.Status;
         return current;
+    }
+
+    /// <summary>
+    /// Terminal states are final: a completed/canceled/failed/rejected task must not be
+    /// overwritten by a later status update or accept further messages (BUG-43).
+    /// Guards the projection against state-machine violations that bypass the
+    /// request-level <see cref="A2AServer"/> terminal checks (e.g. a misbehaving agent
+    /// handler emitting events after a terminal status).
+    /// </summary>
+    /// <param name="current">The current task state being projected.</param>
+    /// <exception cref="A2AException">
+    /// Thrown with <see cref="A2AErrorCode.UnsupportedOperation"/> when the task is terminal.
+    /// </exception>
+    private static void GuardNotTerminal(AgentTask current)
+    {
+        if (current.Status.State.IsTerminal())
+        {
+            throw new A2AException(
+                $"Task '{current.Id}' is in a terminal state ({current.Status.State}) and cannot be modified.",
+                A2AErrorCode.UnsupportedOperation);
+        }
     }
 
     private static AgentTask ApplyArtifact(AgentTask current, TaskArtifactUpdateEvent au)

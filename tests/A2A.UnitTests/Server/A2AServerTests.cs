@@ -293,6 +293,59 @@ public class A2AServerTests
     }
 
     [Fact]
+    public async Task GivenWorkingTask_WhenTwoConcurrentCancels_ThenExactlyOneSucceeds()
+    {
+        // Arrange — two concurrent cancel requests race on the same task (BUG-44 TOCTOU).
+        // The per-task lock serializes check-then-act: the loser re-reads the now-terminal
+        // task and fails with TaskNotCancelable instead of double-cancelling.
+        var (server, store, handler) = CreateServer();
+        await store.SaveTaskAsync("t1", new AgentTask
+        {
+            Id = "t1",
+            ContextId = "ctx-1",
+            Status = new TaskStatus { State = TaskState.Working },
+        });
+
+        handler.OnCancel = async (ctx, eq, ct) =>
+        {
+            // Slight delay so the two requests overlap inside the lock window
+            await Task.Delay(50, ct);
+            var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
+            await updater.CancelAsync(cancellationToken: ct);
+        };
+
+        // Act — fire both cancels concurrently
+        var cancel1 = server.CancelTaskAsync(new CancelTaskRequest { Id = "t1" });
+        var cancel2 = server.CancelTaskAsync(new CancelTaskRequest { Id = "t1" });
+
+        var results = await Task.WhenAll(
+            RunCatchingAsync(cancel1),
+            RunCatchingAsync(cancel2));
+
+        // Assert — exactly one succeeds; the other sees the terminal state
+        var succeeded = results.Where(r => r.Item1).ToList();
+        var failed = results.Where(r => !r.Item1).ToList();
+
+        Assert.Single(succeeded);
+        Assert.Single(failed);
+        Assert.Equal(TaskState.Canceled, succeeded[0].Item2!.Status.State);
+        Assert.Equal(A2AErrorCode.TaskNotCancelable, failed[0].Item3!.ErrorCode);
+    }
+
+    private static async Task<(bool IsSuccess, AgentTask? Task, A2AException? Error)> RunCatchingAsync(Task<AgentTask> operation)
+    {
+        try
+        {
+            var task = await operation;
+            return (true, task, null);
+        }
+        catch (A2AException ex)
+        {
+            return (false, null, ex);
+        }
+    }
+
+    [Fact]
     public async Task GetTaskAsync_ReturnsTask_WhenExists()
     {
         // Arrange
