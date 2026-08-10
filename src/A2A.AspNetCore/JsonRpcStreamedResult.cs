@@ -1,7 +1,5 @@
 using Microsoft.AspNetCore.Http;
-using System.Net.ServerSentEvents;
-using System.Text;
-using System.Text.Encodings.Web;
+using Microsoft.AspNetCore.Http.Features;
 using System.Text.Json;
 
 namespace A2A.AspNetCore;
@@ -33,18 +31,20 @@ public sealed class JsonRpcStreamedResult : IResult
         httpContext.Response.ContentType = "text/event-stream";
         httpContext.Response.Headers.Append("Cache-Control", "no-cache");
 
+        // Disable response buffering so heartbeat and event frames flush immediately.
+        httpContext.Features.GetRequiredFeature<IHttpResponseBodyFeature>().DisableBuffering();
+
+        // SseStreamWriter emits periodic keep-alive comment frames and per-event ids (BUG-09).
+        await using var writer = new SseStreamWriter(httpContext);
         var responseTypeInfo = A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcResponse));
         try
         {
-            await SseFormatter.WriteAsync(
-                _events.Select(e => new SseItem<JsonRpcResponse>(JsonRpcResponse.CreateJsonRpcResponse(_requestId, e))),
-                httpContext.Response.Body,
-                (item, writer) =>
-                {
-                    using Utf8JsonWriter json = new(writer, new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
-                    JsonSerializer.Serialize(json, item.Data, responseTypeInfo);
-                },
-                httpContext.RequestAborted).ConfigureAwait(false);
+            await foreach (var ev in _events.WithCancellation(httpContext.RequestAborted).ConfigureAwait(false))
+            {
+                var response = JsonRpcResponse.CreateJsonRpcResponse(_requestId, ev);
+                var json = JsonSerializer.Serialize(response, responseTypeInfo);
+                await writer.WriteEventAsync(json, httpContext.RequestAborted);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -62,9 +62,7 @@ public sealed class JsonRpcStreamedResult : IResult
                     : JsonRpcResponse.InternalErrorResponse(
                         _requestId, "An internal error occurred during streaming.");
                 var errorJson = JsonSerializer.Serialize(errorResponse, responseTypeInfo);
-                var errorBytes = Encoding.UTF8.GetBytes($"data: {errorJson}\n\n");
-                await httpContext.Response.Body.WriteAsync(errorBytes, httpContext.RequestAborted);
-                await httpContext.Response.Body.FlushAsync(httpContext.RequestAborted);
+                await writer.WriteEventAsync(errorJson, httpContext.RequestAborted);
             }
             catch
             {

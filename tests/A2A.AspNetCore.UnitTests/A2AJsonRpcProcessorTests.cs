@@ -435,6 +435,26 @@ public class A2AJsonRpcProcessorTests
         Assert.Equal(-32700, BodyContent.Error!.Code); // Parse error per JSON-RPC 2.0 spec
     }
 
+    [Fact]
+    public async Task ProcessRequestAsync_GivenOversizedBody_ReturnsInvalidRequest()
+    {
+        // Arrange — body larger than the explicit 10 MB SDK limit (BUG-10)
+        var requestHandler = CreateTestServer();
+        var httpRequest = CreateHttpRequestFromJson("{}");
+        httpRequest.ContentLength = 11L * 1024 * 1024;
+
+        // Act
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
+
+        // Assert — rejected before the body is read, with a clear error
+        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
+        var (_, _, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+
+        Assert.NotNull(BodyContent.Error);
+        Assert.Equal((int)A2AErrorCode.InvalidRequest, BodyContent.Error!.Code);
+        Assert.Contains("maximum allowed size", BodyContent.Error.Message);
+    }
+
     /// <summary>Creates a test A2AServer with in-memory store and default callbacks.</summary>
     private static IA2ARequestHandler CreateTestServer()
     {

@@ -285,15 +285,16 @@ internal sealed class A2AEventStreamResult : IResult
         var bufferingFeature = httpContext.Features.GetRequiredFeature<IHttpResponseBodyFeature>();
         bufferingFeature.DisableBuffering();
 
+        // SseStreamWriter emits periodic keep-alive comment frames and per-event ids (BUG-09).
+        await using var writer = new SseStreamWriter(httpContext);
+
         try
         {
             await foreach (var taskEvent in _events.WithCancellation(httpContext.RequestAborted))
             {
                 var json = JsonSerializer.Serialize(taskEvent,
                     A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(StreamResponse)));
-                await httpContext.Response.BodyWriter.WriteAsync(
-                    Encoding.UTF8.GetBytes($"data: {json}\n\n"), httpContext.RequestAborted);
-                await httpContext.Response.BodyWriter.FlushAsync(httpContext.RequestAborted);
+                await writer.WriteEventAsync(json, httpContext.RequestAborted);
             }
         }
         catch (OperationCanceledException)
@@ -305,9 +306,9 @@ internal sealed class A2AEventStreamResult : IResult
             // Stream error — response already started, best-effort error event
             try
             {
-                await httpContext.Response.BodyWriter.WriteAsync(
-                    Encoding.UTF8.GetBytes("data: {\"error\":\"An internal error occurred during streaming.\"}\n\n"), httpContext.RequestAborted);
-                await httpContext.Response.BodyWriter.FlushAsync(httpContext.RequestAborted);
+                await writer.WriteEventAsync(
+                    "{\"error\":\"An internal error occurred during streaming.\"}",
+                    httpContext.RequestAborted);
             }
             catch
             {

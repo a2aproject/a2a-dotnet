@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -36,6 +37,13 @@ public static class A2AServiceCollectionExtensions
         services.TryAddSingleton<ChannelEventNotifier>();
 
         services.TryAddSingleton<ITaskStore, InMemoryTaskStore>();
+
+        // Explicitly cap the request body size at 10 MB (BUG-10) instead of relying on
+        // the host's framework default (Kestrel's default is ~30 MB and varies by host).
+        // Configuring KestrelServerOptions is a no-op on non-Kestrel hosts; the JSON-RPC
+        // processor additionally enforces the same limit per-request.
+        services.Configure<KestrelServerOptions>(
+            options => options.Limits.MaxRequestBodySize = A2ARequestLimits.MaxRequestBodySize);
 
         services.TryAddSingleton<IA2ARequestHandler>(sp =>
             new A2AServer(
