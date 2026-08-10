@@ -435,6 +435,36 @@ public class A2AJsonRpcProcessorTests
         Assert.Equal(-32700, BodyContent.Error!.Code); // Parse error per JSON-RPC 2.0 spec
     }
 
+    [Theory]
+    [InlineData("{invalid json")]
+    [InlineData("not json at all")]
+    [InlineData("{\"jsonrpc\": \"2.0\", \"method\":")]
+    public async Task ProcessRequestAsync_GivenInvalidJson_DoesNotLeakParserDetails(string body)
+    {
+        // Arrange — System.Text.Json exceptions embed paths, line/byte positions and
+        // library names; none of that must reach the client (BUG-12, CWE-209).
+        var requestHandler = CreateTestServer();
+        var httpRequest = CreateHttpRequestFromJson(body);
+
+        // Act
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
+
+        // Assert — generic message, no raw parser output, error code preserved
+        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
+        var (_, _, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+
+        Assert.Equal(-32700, BodyContent.Error!.Code);
+        Assert.DoesNotContain(body, BodyContent.Error.Message);
+        Assert.DoesNotContain("JsonException", BodyContent.Error.Message);
+        Assert.DoesNotContain("LineNumber", BodyContent.Error.Message);
+        Assert.DoesNotContain("BytePositionInLine", BodyContent.Error.Message);
+        // The message is one of the two generic parse-error messages, never raw parser output
+        Assert.Contains(GenericParseErrorMessages, msg => BodyContent.Error.Message == msg);
+    }
+
+    private static readonly string[] GenericParseErrorMessages =
+        ["Invalid JSON payload", "Invalid JSON-RPC request payload."];
+
     /// <summary>Creates a test A2AServer with in-memory store and default callbacks.</summary>
     private static IA2ARequestHandler CreateTestServer()
     {
