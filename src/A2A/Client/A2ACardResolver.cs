@@ -76,12 +76,9 @@ public sealed class A2ACardResolver
                 return JsonSerializer.Deserialize(bytes, A2AJsonUtilities.JsonContext.Default.AgentCard)
                     ?? throw new A2AException("Failed to parse agent card JSON.");
             }
-            catch (JsonException ex) when (ex.Message.Contains("supportedInterfaces") ||
-                                           ex.Message.Contains("skills") ||
-                                           ex.Message.Contains("defaultInputModes") ||
-                                           ex.Message.Contains("defaultOutputModes"))
+            catch (JsonException ex)
             {
-                // The card is missing v1.0 required properties — attempt v0.3 upcast
+                // v1.0 deserialization failed — attempt v0.3 upcast
                 _logger.AttemptingV03AgentCardUpcast(ex);
                 return UpcastV03AgentCard(bytes)
                     ?? throw new A2AException($"Failed to parse JSON: {ex.Message}");
@@ -114,6 +111,11 @@ public sealed class A2ACardResolver
         using var doc = JsonDocument.Parse(bytes);
         var root = doc.RootElement;
 
+        if (root.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
         // v0.3 cards MUST have a "url" property
         if (!root.TryGetProperty("url", out var urlElement) || urlElement.ValueKind != JsonValueKind.String)
         {
@@ -126,13 +128,19 @@ public sealed class A2ACardResolver
             return null;
         }
 
+        // v0.3 cards MUST have a top-level "protocolVersion" — use as a discriminator since we only reach here after v1.0 deserialization failed
+        if (!root.TryGetProperty("protocolVersion", out var pvElement) || pvElement.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+
         // Determine the protocol binding from preferredTransport (defaults to JSONRPC)
         var protocolBinding = ProtocolBindingNames.JsonRpc;
         if (root.TryGetProperty("preferredTransport", out var transportElement))
         {
             var transport = transportElement.ValueKind == JsonValueKind.String
                 ? transportElement.GetString()
-                : transportElement.ValueKind == JsonValueKind.Object && transportElement.TryGetProperty("value", out var val)
+                : transportElement.ValueKind == JsonValueKind.Object && transportElement.TryGetProperty("value", out var val) && val.ValueKind == JsonValueKind.String
                     ? val.GetString()
                     : null;
 
@@ -155,7 +163,7 @@ public sealed class A2ACardResolver
             {
                 ProtocolBinding = protocolBinding,
                 Url = url,
-                ProtocolVersion = root.TryGetProperty("protocolVersion", out var pv) ? pv.GetString() ?? "0.3" : "0.3",
+                ProtocolVersion = pvElement.GetString() ?? "0.3",
             }
         };
 
@@ -175,9 +183,9 @@ public sealed class A2ACardResolver
         // Extract common fields
         var card = new AgentCard
         {
-            Name = root.TryGetProperty("name", out var name) ? name.GetString() ?? "" : "",
-            Description = root.TryGetProperty("description", out var desc) ? desc.GetString() ?? "" : "",
-            Version = root.TryGetProperty("version", out var ver) ? ver.GetString() ?? "0.3" : "0.3",
+            Name = root.TryGetProperty("name", out var name) && name.ValueKind == JsonValueKind.String ? name.GetString() ?? "" : "",
+            Description = root.TryGetProperty("description", out var desc) && desc.ValueKind == JsonValueKind.String ? desc.GetString() ?? "" : "",
+            Version = root.TryGetProperty("version", out var ver) && ver.ValueKind == JsonValueKind.String ? ver.GetString() ?? "0.3" : "0.3",
             SupportedInterfaces = interfaces,
             Capabilities = new AgentCapabilities(),
             DefaultInputModes = ["text/plain"],
@@ -224,9 +232,9 @@ public sealed class A2ACardResolver
             }
         }
 
-        if (root.TryGetProperty("documentationUrl", out var docUrl))
+        if (root.TryGetProperty("documentationUrl", out var docUrl) && docUrl.ValueKind == JsonValueKind.String)
             card.DocumentationUrl = docUrl.GetString();
-        if (root.TryGetProperty("iconUrl", out var iconUrl))
+        if (root.TryGetProperty("iconUrl", out var iconUrl) && iconUrl.ValueKind == JsonValueKind.String)
             card.IconUrl = iconUrl.GetString();
 
         return card;

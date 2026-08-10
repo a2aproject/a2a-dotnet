@@ -17,7 +17,7 @@ namespace A2A
         [LoggerMessage(2, LogLevel.Error, "HTTP request failed with status code {StatusCode}")]
         internal static partial void HttpRequestFailedWithStatusCode(this ILogger logger, Exception exception, System.Net.HttpStatusCode StatusCode);
 
-        [LoggerMessage(5, LogLevel.Information, "Agent card missing v1.0 required properties, attempting v0.3 upcast")]
+        [LoggerMessage(5, LogLevel.Information, "V1.0 agent card deserialization failed, attempting v0.3 upcast")]
         internal static partial void AttemptingV03AgentCardUpcast(this ILogger logger, Exception exception);
 
         [LoggerMessage(3, LogLevel.Error, "Background event processing failed for task {TaskId}")]
