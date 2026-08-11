@@ -653,7 +653,7 @@ public class TaskProjectionTests
     [InlineData(TaskState.Rejected)]
     public void Apply_WithStatusUpdate_OnTerminalTask_Throws(TaskState terminalState)
     {
-        // Arrange — a terminal task whose status must not be overwritten (BUG-43)
+        // Arrange — a terminal task whose status must not be overwritten
         var current = new AgentTask
         {
             Id = "t1",
@@ -712,7 +712,7 @@ public class TaskProjectionTests
     [InlineData(TaskState.Rejected)]
     public void Apply_WithMessage_OnTerminalTask_Throws(TaskState terminalState)
     {
-        // Arrange — a terminal task must not accept further messages (BUG-43)
+        // Arrange — a terminal task must not accept further messages
         var current = new AgentTask
         {
             Id = "t1",

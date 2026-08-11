@@ -80,7 +80,7 @@ public static class TaskProjection
 
     /// <summary>
     /// Terminal states are final: a completed/canceled/failed/rejected task must not be
-    /// overwritten by a later status update or accept further messages (BUG-43).
+    /// overwritten by a later status update or accept further messages.
     /// Guards the projection against state-machine violations that bypass the
     /// request-level <see cref="A2AServer"/> terminal checks (e.g. a misbehaving agent
     /// handler emitting events after a terminal status).

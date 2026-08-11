@@ -295,7 +295,7 @@ public class A2AServerTests
     [Fact]
     public async Task GivenWorkingTask_WhenTwoConcurrentCancels_ThenExactlyOneSucceeds()
     {
-        // Arrange — two concurrent cancel requests race on the same task (BUG-44 TOCTOU).
+        // Arrange — two concurrent cancel requests race on the same task (TOCTOU).
         // The per-task lock serializes check-then-act: the loser re-reads the now-terminal
         // task and fails with TaskNotCancelable instead of double-cancelling.
         var (server, store, handler) = CreateServer();

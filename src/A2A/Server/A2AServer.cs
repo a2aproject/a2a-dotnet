@@ -423,7 +423,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
         // terminal-state check-then-act atomic with respect to concurrent mutations
         // (message/send ApplyEventAsync) and serializes concurrent cancel requests:
         // the loser of the race re-reads the now-terminal task and fails with
-        // TaskNotCancelable instead of double-cancelling (BUG-44).
+        // TaskNotCancelable instead of double-cancelling.
         // Events are applied via ApplyEventUnderLockAsync because the per-task
         // semaphore is not reentrant.
         using (await _notifier.AcquireTaskLockAsync(request.Id, cancellationToken).ConfigureAwait(false))
@@ -646,7 +646,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
     /// Applies an event to the task store while the caller holds the per-task lock.
     /// Used by <see cref="ApplyEventAsync"/> and by <see cref="CancelTaskAsync"/>, which
     /// holds the lock across the whole cancel operation to make the terminal-state
-    /// check-then-act atomic (BUG-44).
+    /// check-then-act atomic.
     /// </summary>
     /// <param name="response">The event to apply.</param>
     /// <param name="context">The request context identifying the task.</param>
