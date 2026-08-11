@@ -38,7 +38,7 @@ public static class A2AServiceCollectionExtensions
 
         services.TryAddSingleton<ITaskStore, InMemoryTaskStore>();
 
-        // Explicitly cap the request body size at 10 MB (BUG-10) instead of relying on
+        // Explicitly cap the request body size at 10 MB instead of relying on
         // the host's framework default (Kestrel's default is ~30 MB and varies by host).
         // Configuring KestrelServerOptions is a no-op on non-Kestrel hosts; the JSON-RPC
         // processor additionally enforces the same limit per-request.

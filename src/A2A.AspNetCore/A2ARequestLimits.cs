@@ -1,7 +1,7 @@
 namespace A2A.AspNetCore;
 
 /// <summary>
-/// Request/response transport limits enforced by the A2A endpoints (BUG-10).
+/// Request/response transport limits enforced by the A2A endpoints.
 /// </summary>
 internal static class A2ARequestLimits
 {

@@ -34,7 +34,7 @@ public sealed class JsonRpcStreamedResult : IResult
         // Disable response buffering so heartbeat and event frames flush immediately.
         httpContext.Features.GetRequiredFeature<IHttpResponseBodyFeature>().DisableBuffering();
 
-        // SseStreamWriter emits periodic keep-alive comment frames and per-event ids (BUG-09).
+        // SseStreamWriter emits periodic keep-alive comment frames and per-event ids.
         await using var writer = new SseStreamWriter(httpContext);
         var responseTypeInfo = A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcResponse));
         try

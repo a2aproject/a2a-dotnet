@@ -25,7 +25,7 @@ public class SseStreamWriterTests
     [Fact]
     public async Task Heartbeat_EmitsKeepAliveCommentFrames()
     {
-        // Arrange — short heartbeat interval so the test doesn't wait long (BUG-09)
+        // Arrange — short heartbeat interval so the test doesn't wait long
         var context = CreateHttpContext();
         var writer = new SseStreamWriter(context, TimeSpan.FromMilliseconds(50));
 

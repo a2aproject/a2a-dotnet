@@ -285,7 +285,7 @@ internal sealed class A2AEventStreamResult : IResult
         var bufferingFeature = httpContext.Features.GetRequiredFeature<IHttpResponseBodyFeature>();
         bufferingFeature.DisableBuffering();
 
-        // SseStreamWriter emits periodic keep-alive comment frames and per-event ids (BUG-09).
+        // SseStreamWriter emits periodic keep-alive comment frames and per-event ids.
         await using var writer = new SseStreamWriter(httpContext);
 
         try

@@ -438,7 +438,7 @@ public class A2AJsonRpcProcessorTests
     [Fact]
     public async Task ProcessRequestAsync_GivenOversizedBody_ReturnsInvalidRequest()
     {
-        // Arrange — body larger than the explicit 10 MB SDK limit (BUG-10)
+        // Arrange — body larger than the explicit 10 MB SDK limit
         var requestHandler = CreateTestServer();
         var httpRequest = CreateHttpRequestFromJson("{}");
         httpRequest.ContentLength = 11L * 1024 * 1024;

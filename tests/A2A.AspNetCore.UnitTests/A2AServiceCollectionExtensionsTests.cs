@@ -24,7 +24,7 @@ public class A2AServiceCollectionExtensionsTests
     [Fact]
     public void AddA2AAgent_ConfiguresExplicitRequestBodySizeLimit()
     {
-        // Arrange (BUG-10) — the SDK must not rely on the host's framework default
+        // Arrange — the SDK must not rely on the host's framework default
         var services = new ServiceCollection();
 
         // Act

@@ -32,7 +32,7 @@ public static class A2AJsonRpcProcessor
 
         using var activity = A2AAspNetCoreDiagnostics.Source.StartActivity("HandleA2ARequest", ActivityKind.Server);
 
-        // Explicit request body size limit (BUG-10): reject oversized requests before
+        // Explicit request body size limit: reject oversized requests before
         // reading the body, regardless of the host's framework default.
         if (request.ContentLength is { } contentLength && contentLength > A2ARequestLimits.MaxRequestBodySize)
         {

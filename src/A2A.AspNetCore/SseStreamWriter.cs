@@ -8,7 +8,7 @@ namespace A2A.AspNetCore;
 
 /// <summary>
 /// Writes Server-Sent Events (SSE) frames with periodic keep-alive comment frames and
-/// monotonically increasing event ids (BUG-09).
+/// monotonically increasing event ids.
 /// </summary>
 /// <remarks>
 /// <para>Keep-alive comment frames (<c>: keep-alive</c>) prevent proxies and load balancers
