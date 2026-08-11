@@ -188,7 +188,7 @@ public class A2AHttpProcessorTests
     public async Task SendMessageRest_WithEmptyParts_ReturnsInvalidParams()
     {
         // Arrange — empty Message parts are accepted by [FromBody] model binding,
-        // so the REST processor must validate them like the JSON-RPC binding does (BUG-49).
+        // so the REST processor must validate them like the JSON-RPC binding does.
         var (requestHandler, _) = CreateServer();
         var logger = NullLogger.Instance;
         var sendRequest = new SendMessageRequest

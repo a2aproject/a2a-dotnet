@@ -150,7 +150,7 @@ internal static class A2AHttpProcessor
 
     /// <summary>
     /// Validates a REST-bound <see cref="SendMessageRequest"/>, mirroring the JSON-RPC
-    /// binding validation in <see cref="A2AJsonRpcProcessor"/> (BUG-49). The REST endpoints
+    /// binding validation in <see cref="A2AJsonRpcProcessor"/>. The REST endpoints
     /// use <c>[FromBody]</c> model binding, which does not enforce a non-empty message parts
     /// list on its own.
     /// </summary>
@@ -323,7 +323,7 @@ internal sealed class A2AEventStreamResult : IResult
         {
             // Stream error — response already started, best-effort error event.
             // Use the same structured error shape (code/message/data) as the JSON-RPC
-            // SSE stream so clients get consistent errors across transports (BUG-50).
+            // SSE stream so clients get consistent errors across transports.
             // A2AException error codes are preserved; unexpected errors fall back to -32603.
             try
             {
