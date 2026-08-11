@@ -442,7 +442,7 @@ public class A2AJsonRpcProcessorTests
     public async Task ProcessRequestAsync_GivenInvalidJson_DoesNotLeakParserDetails(string body)
     {
         // Arrange — System.Text.Json exceptions embed paths, line/byte positions and
-        // library names; none of that must reach the client (BUG-12, CWE-209).
+        // library names; none of that must reach the client (CWE-209).
         var requestHandler = CreateTestServer();
         var httpRequest = CreateHttpRequestFromJson(body);
 

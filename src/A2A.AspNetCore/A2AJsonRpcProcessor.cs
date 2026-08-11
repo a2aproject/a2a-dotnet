@@ -57,7 +57,7 @@ public static class A2AJsonRpcProcessor
         catch (JsonException ex)
         {
             // Never leak System.Text.Json parser details (paths, line numbers, library
-            // names) to the client (BUG-12). The raw message is kept for observability
+            // names) to the client. The raw message is kept for observability
             // via the activity; the client receives a generic parse error.
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             activity?.AddEvent(new ActivityEvent("json.parse.error",
