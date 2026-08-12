@@ -231,7 +231,7 @@ public static class V03ServerProcessor
             }
             case A2AMethods.CreateTaskPushNotificationConfig:
             {
-                var req = DeserializeV1Params<CreateTaskPushNotificationConfigRequest>(paramsEl.Value, id);
+                var req = DeserializeV1Params<TaskPushNotificationConfig>(paramsEl.Value, id);
                 response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.CreateTaskPushNotificationConfigAsync(req, ct).ConfigureAwait(false));
                 break;
             }
@@ -241,10 +241,10 @@ public static class V03ServerProcessor
                 response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.GetTaskPushNotificationConfigAsync(req, ct).ConfigureAwait(false));
                 break;
             }
-            case A2AMethods.ListTaskPushNotificationConfig:
+            case A2AMethods.ListTaskPushNotificationConfigs:
             {
-                var req = DeserializeV1Params<ListTaskPushNotificationConfigRequest>(paramsEl.Value, id);
-                response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.ListTaskPushNotificationConfigAsync(req, ct).ConfigureAwait(false));
+                var req = DeserializeV1Params<ListTaskPushNotificationConfigsRequest>(paramsEl.Value, id);
+                response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.ListTaskPushNotificationConfigsAsync(req, ct).ConfigureAwait(false));
                 break;
             }
             case A2AMethods.DeleteTaskPushNotificationConfig:
@@ -365,10 +365,7 @@ public static class V03ServerProcessor
             case V03.A2AMethods.TaskPushNotificationConfigSet:
             {
                 var v03Config = DeserializeParams<V03.TaskPushNotificationConfig>(rpcRequest.Params.Value);
-                var v1Request = new CreateTaskPushNotificationConfigRequest
-                {
-                    Config = V03TypeConverter.ToV1TaskPushNotificationConfig(v03Config),
-                };
+                var v1Request = V03TypeConverter.ToV1TaskPushNotificationConfig(v03Config);
                 var v1Result = await handler.CreateTaskPushNotificationConfigAsync(v1Request, ct).ConfigureAwait(false);
                 var v03Result = new V03.TaskPushNotificationConfig
                 {

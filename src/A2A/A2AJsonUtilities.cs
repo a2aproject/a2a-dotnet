@@ -70,7 +70,7 @@ public static partial class A2AJsonUtilities
     [JsonSerializable(typeof(SendMessageResponse))]
     [JsonSerializable(typeof(StreamResponse))]
     [JsonSerializable(typeof(ListTasksResponse))]
-    [JsonSerializable(typeof(ListTaskPushNotificationConfigResponse))]
+    [JsonSerializable(typeof(ListTaskPushNotificationConfigsResponse))]
 
     // Agent discovery
     [JsonSerializable(typeof(AgentCard))]
@@ -106,9 +106,8 @@ public static partial class A2AJsonUtilities
     [JsonSerializable(typeof(ListTasksRequest))]
     [JsonSerializable(typeof(CancelTaskRequest))]
     [JsonSerializable(typeof(SubscribeToTaskRequest))]
-    [JsonSerializable(typeof(CreateTaskPushNotificationConfigRequest))]
     [JsonSerializable(typeof(GetTaskPushNotificationConfigRequest))]
-    [JsonSerializable(typeof(ListTaskPushNotificationConfigRequest))]
+    [JsonSerializable(typeof(ListTaskPushNotificationConfigsRequest))]
     [JsonSerializable(typeof(DeleteTaskPushNotificationConfigRequest))]
     [JsonSerializable(typeof(GetExtendedAgentCardRequest))]
 

@@ -324,7 +324,7 @@ All JSON wire format changes follow the A2A v1 ProtoJSON conventions.
 | `"tasks/resubscribe"` | `"SubscribeToTask"` |
 | N/A | `"ListTasks"` (new) |
 | N/A | `"DeleteTaskPushNotificationConfig"` (new) |
-| N/A | `"ListTaskPushNotificationConfig"` (new) |
+| N/A | `"ListTaskPushNotificationConfigs"` (new, pluralized) |
 | N/A | `"GetExtendedAgentCard"` (new) |
 
 ---

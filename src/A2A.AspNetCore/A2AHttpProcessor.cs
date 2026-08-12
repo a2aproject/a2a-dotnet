@@ -199,16 +199,13 @@ internal static class A2AHttpProcessor
         IA2ARequestHandler requestHandler, ILogger logger, string taskId, PushNotificationConfig config, CancellationToken cancellationToken)
         => WithExceptionHandlingAsync(logger, "REST.CreatePushNotificationConfig", async ct =>
         {
-            var request = new CreateTaskPushNotificationConfigRequest
+            var request = new TaskPushNotificationConfig
             {
-                Config = new TaskPushNotificationConfig
-                {
-                    Id = config.Id ?? string.Empty,
-                    TaskId = taskId,
-                    Url = config.Url,
-                    Token = config.Token,
-                    Authentication = config.Authentication,
-                },
+                Id = config.Id ?? string.Empty,
+                TaskId = taskId,
+                Url = config.Url,
+                Token = config.Token,
+                Authentication = config.Authentication,
             };
             var result = await requestHandler.CreateTaskPushNotificationConfigAsync(request, ct).ConfigureAwait(false);
             return new A2AResponseResult(result);
@@ -220,13 +217,13 @@ internal static class A2AHttpProcessor
         CancellationToken cancellationToken)
         => WithExceptionHandlingAsync(logger, "REST.ListPushNotificationConfig", async ct =>
         {
-            var request = new ListTaskPushNotificationConfigRequest
+            var request = new ListTaskPushNotificationConfigsRequest
             {
                 TaskId = taskId,
                 PageSize = pageSize,
                 PageToken = pageToken,
             };
-            var result = await requestHandler.ListTaskPushNotificationConfigAsync(request, ct)
+            var result = await requestHandler.ListTaskPushNotificationConfigsAsync(request, ct)
                 .ConfigureAwait(false);
             return new A2AResponseResult(result);
         }, taskId, cancellationToken);
@@ -263,7 +260,7 @@ internal sealed class A2AResponseResult : IResult
     internal A2AResponseResult(ListTasksResponse response) { _response = response; _responseType = typeof(ListTasksResponse); }
     internal A2AResponseResult(AgentCard card) { _response = card; _responseType = typeof(AgentCard); }
     internal A2AResponseResult(TaskPushNotificationConfig config) { _response = config; _responseType = typeof(TaskPushNotificationConfig); }
-    internal A2AResponseResult(ListTaskPushNotificationConfigResponse response) { _response = response; _responseType = typeof(ListTaskPushNotificationConfigResponse); }
+    internal A2AResponseResult(ListTaskPushNotificationConfigsResponse response) { _response = response; _responseType = typeof(ListTaskPushNotificationConfigsResponse); }
 
     public async Task ExecuteAsync(HttpContext httpContext)
     {

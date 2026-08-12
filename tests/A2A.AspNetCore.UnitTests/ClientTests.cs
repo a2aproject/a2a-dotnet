@@ -115,18 +115,15 @@ public sealed class ClientTests : IClassFixture<JsonSchemaFixture>, IDisposable
             };
         };
 
-        var createRequest = new CreateTaskPushNotificationConfigRequest
+        var createRequest = new TaskPushNotificationConfig()
         {
-            Config = new TaskPushNotificationConfig()
+            Id = "cfg-1",
+            TaskId = "test-task",
+            Url = "http://example.org/notify",
+            Token = "test-token",
+            Authentication = new AuthenticationInfo()
             {
-                Id = "cfg-1",
-                TaskId = "test-task",
-                Url = "http://example.org/notify",
-                Token = "test-token",
-                Authentication = new AuthenticationInfo()
-                {
-                    Scheme = "Bearer",
-                }
+                Scheme = "Bearer",
             }
         };
 
