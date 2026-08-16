@@ -120,7 +120,7 @@ public static class A2ARouteBuilderExtensions
 
         // Push notification config operations
         routeGroup.MapPost("/tasks/{id}/pushNotificationConfigs",
-            (string id, [FromBody] PushNotificationConfig config, CancellationToken ct)
+            (string id, [FromBody] TaskPushNotificationConfig config, CancellationToken ct)
             => A2AHttpProcessor.CreatePushNotificationConfigRestAsync(requestHandler, logger, id, config, ct));
 
         routeGroup.MapGet("/tasks/{id}/pushNotificationConfigs",

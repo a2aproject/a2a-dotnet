@@ -563,7 +563,7 @@ internal static class V03TypeConverter
                 HistoryLength = cfg.HistoryLength,
                 ReturnImmediately = !cfg.Blocking,
                 TaskPushNotificationConfig = cfg.PushNotification is { } pn
-                    ? ToV1TaskPushNotificationConfigFromV03PushNotification(pn, p.Message.TaskId ?? string.Empty)
+                    ? ToV1TaskPushNotificationConfigFromV03PushNotification(pn, string.Empty)
                     : null,
             } : null,
             Metadata = p.Metadata,

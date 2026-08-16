@@ -196,18 +196,12 @@ internal static class A2AHttpProcessor
 
     // REST handler: Create push notification config
     internal static Task<IResult> CreatePushNotificationConfigRestAsync(
-        IA2ARequestHandler requestHandler, ILogger logger, string taskId, PushNotificationConfig config, CancellationToken cancellationToken)
+        IA2ARequestHandler requestHandler, ILogger logger, string taskId, TaskPushNotificationConfig config, CancellationToken cancellationToken)
         => WithExceptionHandlingAsync(logger, "REST.CreatePushNotificationConfig", async ct =>
         {
-            var request = new TaskPushNotificationConfig
-            {
-                Id = config.Id ?? string.Empty,
-                TaskId = taskId,
-                Url = config.Url,
-                Token = config.Token,
-                Authentication = config.Authentication,
-            };
-            var result = await requestHandler.CreateTaskPushNotificationConfigAsync(request, ct).ConfigureAwait(false);
+            // Route provides the authoritative taskId; override whatever the body sent
+            config.TaskId = taskId;
+            var result = await requestHandler.CreateTaskPushNotificationConfigAsync(config, ct).ConfigureAwait(false);
             return new A2AResponseResult(result);
         }, taskId, cancellationToken);
 
