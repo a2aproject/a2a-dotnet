@@ -1,0 +1,33 @@
+name: ITK
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'itk/**'
+      - '.github/workflows/itk.yaml'
+
+permissions:
+  contents: read
+
+jobs:
+  itk:
+    name: ITK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Run ITK Tests
+        run: bash run_itk.sh
+        working-directory: itk
+        env:
+          A2A_ITK_REVISION: main

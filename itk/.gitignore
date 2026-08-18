@@ -1,0 +1,13 @@
+# Build output
+bin/
+obj/
+publish/
+
+# Cloned test harness (fetched by run_itk.sh)
+a2a-itk/
+
+# Runtime logs
+logs/
+
+# Local debugging artifacts
+single_test.json
