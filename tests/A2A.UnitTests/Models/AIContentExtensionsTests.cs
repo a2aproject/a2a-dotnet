@@ -150,13 +150,20 @@ namespace A2A.UnitTests.Models
             Assert.Equal("image/png", dc.MediaType);
         }
 
-        [Fact]
-        public void WhenDataPart_ToAIContent_ReturnsDataContent()
+        [Theory]
+        [InlineData(null, "application/json")]
+        [InlineData("text/plain", "application/json")]
+        [InlineData("application/json", "application/json")]
+        [InlineData("application/problem+json", "application/problem+json")]
+        [InlineData("Application/Json; charset=utf-8", "Application/Json; charset=utf-8")]
+        public void WhenDataPart_ToAIContent_ReturnsDataContent(string? mediaType, string expectedMediaType)
         {
             var part = Part.FromData(JsonSerializer.SerializeToElement(new { x = "y" }));
+            part.MediaType = mediaType;
             part.Metadata = new Dictionary<string, JsonElement> { ["m"] = JsonSerializer.SerializeToElement(123) };
             var content = part.ToAIContent();
-            Assert.IsType<DataContent>(content);
+            var dataContent = Assert.IsType<DataContent>(content);
+            Assert.Equal(expectedMediaType, dataContent.MediaType);
             Assert.NotNull(content.AdditionalProperties);
             Assert.True(content.AdditionalProperties!.TryGetValue("m", out var obj));
             Assert.True(obj is JsonElement je && je.GetInt32() == 123);

@@ -97,7 +97,7 @@ public static class AIContentExtensions
         {
             content = new DataContent(
                 JsonSerializer.SerializeToUtf8Bytes(data, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonElement))),
-                "application/json");
+                IsJsonMediaType(part.MediaType) ? part.MediaType! : "application/json");
         }
 
         content ??= new AIContent();
