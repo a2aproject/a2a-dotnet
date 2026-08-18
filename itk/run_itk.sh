@@ -15,6 +15,7 @@ cleanup() {
   docker rm itk-service > /dev/null 2>&1 || true
   docker rmi itk_service > /dev/null 2>&1 || true
   rm -rf a2a-itk > /dev/null 2>&1 || true
+  rm -rf publish > /dev/null 2>&1 || true
   echo "Done. Final exit code: $RESULT"
 }
 
@@ -46,6 +47,10 @@ A2A_DOTNET_ROOT=$(cd .. && pwd)
 ITK_DIR=$(pwd)
 
 # Stop existing container if any
+# Pre-publish the .NET agent so the container doesn't need .NET 10 SDK
+echo "Pre-publishing ITK agent..."
+dotnet publish -c Release -o "$ITK_DIR/publish" "$ITK_DIR/Itk.csproj"
+
 docker rm -f itk-service || true
 
 # Create logs directory if debug

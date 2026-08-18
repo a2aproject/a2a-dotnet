@@ -24,7 +24,13 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Pre-publish ITK agent
+        run: dotnet publish -c Release -o publish Itk.csproj
+        working-directory: itk
 
       - name: Run ITK Tests
         run: bash run_itk.sh
