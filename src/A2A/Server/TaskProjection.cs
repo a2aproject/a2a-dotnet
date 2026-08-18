@@ -35,6 +35,8 @@ public static class TaskProjection
 
         // Shallow copy so the caller's AgentTask reference is never mutated.
         // Artifacts list is copied because ApplyArtifact mutates it (Add/index-set).
+        // Metadata is copied so a caller holding the projected task cannot mutate
+        // the original task's Metadata dictionary through it.
         // History is not copied — every branch that touches it replaces the reference entirely.
         var result = new AgentTask
         {
@@ -43,7 +45,9 @@ public static class TaskProjection
             Status = current.Status,
             History = current.History,
             Artifacts = current.Artifacts is not null ? [.. current.Artifacts] : null,
-            Metadata = current.Metadata,
+            Metadata = current.Metadata is not null
+                ? new Dictionary<string, JsonElement>(current.Metadata, current.Metadata.Comparer)
+                : null,
         };
 
         if (streamEvent.StatusUpdate is { } su)
