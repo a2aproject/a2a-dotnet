@@ -71,9 +71,9 @@ public sealed class A2AClient : IA2AClient, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<TaskPushNotificationConfig> CreateTaskPushNotificationConfigAsync(CreateTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default)
+    public async Task<TaskPushNotificationConfig> CreateTaskPushNotificationConfigAsync(TaskPushNotificationConfig config, CancellationToken cancellationToken = default)
     {
-        return await SendJsonRpcRequestAsync<TaskPushNotificationConfig>(A2AMethods.CreateTaskPushNotificationConfig, request, cancellationToken).ConfigureAwait(false);
+        return await SendJsonRpcRequestAsync<TaskPushNotificationConfig>(A2AMethods.CreateTaskPushNotificationConfig, config, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -83,9 +83,9 @@ public sealed class A2AClient : IA2AClient, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<ListTaskPushNotificationConfigResponse> ListTaskPushNotificationConfigAsync(ListTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default)
+    public async Task<ListTaskPushNotificationConfigsResponse> ListTaskPushNotificationConfigsAsync(ListTaskPushNotificationConfigsRequest request, CancellationToken cancellationToken = default)
     {
-        return await SendJsonRpcRequestAsync<ListTaskPushNotificationConfigResponse>(A2AMethods.ListTaskPushNotificationConfig, request, cancellationToken).ConfigureAwait(false);
+        return await SendJsonRpcRequestAsync<ListTaskPushNotificationConfigsResponse>(A2AMethods.ListTaskPushNotificationConfigs, request, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />

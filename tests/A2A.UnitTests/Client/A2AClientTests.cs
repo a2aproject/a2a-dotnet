@@ -33,7 +33,7 @@ public class A2AClientTests
             Configuration = new SendMessageConfiguration
             {
                 AcceptedOutputModes = ["mode1"],
-                PushNotificationConfig = new PushNotificationConfig { Url = "http://push" },
+                TaskPushNotificationConfig = new TaskPushNotificationConfig { Id = "cfg-1", TaskId = "t-1", Url = "http://push" },
                 HistoryLength = 5,
                 ReturnImmediately = true
             },
@@ -339,17 +339,21 @@ public class A2AClientTests
         string? capturedBody = null;
 
         var sut = CreateA2AClient(
-            new TaskPushNotificationConfig { Id = "cfg-1", TaskId = "t-1", PushNotificationConfig = new PushNotificationConfig { Url = "http://push" } },
+            new TaskPushNotificationConfig { Id = "cfg-1", TaskId = "t-1", Url = "http://push" },
             req => capturedBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
 
         // Act
-        await sut.CreateTaskPushNotificationConfigAsync(new CreateTaskPushNotificationConfigRequest { TaskId = "t-1", ConfigId = "cfg-1", Config = new PushNotificationConfig { Url = "http://push" } });
+        await sut.CreateTaskPushNotificationConfigAsync(new TaskPushNotificationConfig { Id = "cfg-1", TaskId = "t-1", Url = "http://push" });
 
         // Assert
         Assert.NotNull(capturedBody);
 
         var requestJson = JsonDocument.Parse(capturedBody);
         Assert.Equal(A2AMethods.CreateTaskPushNotificationConfig, requestJson.RootElement.GetProperty("method").GetString());
+        var parameters = requestJson.RootElement.GetProperty("params");
+        Assert.Equal("t-1", parameters.GetProperty("taskId").GetString());
+        Assert.Equal("http://push", parameters.GetProperty("url").GetString());
+        Assert.False(parameters.TryGetProperty("config", out _));
     }
 
     [Fact]

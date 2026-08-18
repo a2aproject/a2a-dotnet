@@ -231,7 +231,7 @@ public static class V03ServerProcessor
             }
             case A2AMethods.CreateTaskPushNotificationConfig:
             {
-                var req = DeserializeV1Params<CreateTaskPushNotificationConfigRequest>(paramsEl.Value, id);
+                var req = DeserializeV1Params<TaskPushNotificationConfig>(paramsEl.Value, id);
                 response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.CreateTaskPushNotificationConfigAsync(req, ct).ConfigureAwait(false));
                 break;
             }
@@ -241,10 +241,10 @@ public static class V03ServerProcessor
                 response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.GetTaskPushNotificationConfigAsync(req, ct).ConfigureAwait(false));
                 break;
             }
-            case A2AMethods.ListTaskPushNotificationConfig:
+            case A2AMethods.ListTaskPushNotificationConfigs:
             {
-                var req = DeserializeV1Params<ListTaskPushNotificationConfigRequest>(paramsEl.Value, id);
-                response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.ListTaskPushNotificationConfigAsync(req, ct).ConfigureAwait(false));
+                var req = DeserializeV1Params<ListTaskPushNotificationConfigsRequest>(paramsEl.Value, id);
+                response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.ListTaskPushNotificationConfigsAsync(req, ct).ConfigureAwait(false));
                 break;
             }
             case A2AMethods.DeleteTaskPushNotificationConfig:
@@ -365,16 +365,12 @@ public static class V03ServerProcessor
             case V03.A2AMethods.TaskPushNotificationConfigSet:
             {
                 var v03Config = DeserializeParams<V03.TaskPushNotificationConfig>(rpcRequest.Params.Value);
-                var v1Request = new CreateTaskPushNotificationConfigRequest
-                {
-                    TaskId = v03Config.TaskId,
-                    Config = V03TypeConverter.ToV1PushNotificationConfig(v03Config.PushNotificationConfig),
-                };
+                var v1Request = V03TypeConverter.ToV1TaskPushNotificationConfig(v03Config);
                 var v1Result = await handler.CreateTaskPushNotificationConfigAsync(v1Request, ct).ConfigureAwait(false);
                 var v03Result = new V03.TaskPushNotificationConfig
                 {
-                    TaskId = v1Result.TaskId,
-                    PushNotificationConfig = V03TypeConverter.ToV03PushNotificationConfig(v1Result.PushNotificationConfig),
+                    TaskId = v1Result.TaskId ?? string.Empty,
+                    PushNotificationConfig = V03TypeConverter.ToV03PushNotificationConfigFromTask(v1Result),
                 };
                 return MakeSuccessResult(rpcRequest.Id, v03Result, typeof(V03.TaskPushNotificationConfig));
             }
@@ -390,8 +386,8 @@ public static class V03ServerProcessor
                 var v1Result = await handler.GetTaskPushNotificationConfigAsync(v1Request, ct).ConfigureAwait(false);
                 var v03Result = new V03.TaskPushNotificationConfig
                 {
-                    TaskId = v1Result.TaskId,
-                    PushNotificationConfig = V03TypeConverter.ToV03PushNotificationConfig(v1Result.PushNotificationConfig),
+                    TaskId = v1Result.TaskId ?? string.Empty,
+                    PushNotificationConfig = V03TypeConverter.ToV03PushNotificationConfigFromTask(v1Result),
                 };
                 return MakeSuccessResult(rpcRequest.Id, v03Result, typeof(V03.TaskPushNotificationConfig));
             }

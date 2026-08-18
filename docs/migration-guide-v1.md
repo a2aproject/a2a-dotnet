@@ -324,7 +324,7 @@ All JSON wire format changes follow the A2A v1 ProtoJSON conventions.
 | `"tasks/resubscribe"` | `"SubscribeToTask"` |
 | N/A | `"ListTasks"` (new) |
 | N/A | `"DeleteTaskPushNotificationConfig"` (new) |
-| N/A | `"ListTaskPushNotificationConfig"` (new) |
+| N/A | `"ListTaskPushNotificationConfigs"` (new, pluralized) |
 | N/A | `"GetExtendedAgentCard"` (new) |
 
 ---
@@ -456,6 +456,116 @@ await client.DeleteTaskPushNotificationConfigAsync(
 // Get extended agent card
 var extCard = await client.GetExtendedAgentCardAsync(
     new GetExtendedAgentCardRequest());
+```
+
+---
+
+## Push Notification Configuration
+
+The push notification config API has been restructured to match the v1 spec proto.
+
+### Flattened Model
+
+V0.3 used a nested two-class structure. V1 uses a single flat `TaskPushNotificationConfig`:
+
+```csharp
+// V0.3 — nested structure
+var config = new TaskPushNotificationConfig
+{
+    Id = "cfg-1",
+    TaskId = "t-1",
+    PushNotificationConfig = new PushNotificationConfig
+    {
+        Url = "http://example.com/notify",
+        Token = "my-token",
+        Authentication = new AuthenticationInfo { Scheme = "Bearer", Credentials = "..." }
+    }
+};
+
+// V1 — flat structure (matches proto TaskPushNotificationConfig)
+var config = new TaskPushNotificationConfig
+{
+    Id = "cfg-1",
+    TaskId = "t-1",
+    Url = "http://example.com/notify",
+    Token = "my-token",
+    Authentication = new AuthenticationInfo { Scheme = "Bearer", Credentials = "..." }
+};
+```
+
+**Key changes:**
+
+| Aspect | V0.3 | V1 |
+|--------|------|-----|
+| `Url`, `Token`, `Authentication` | Nested in `PushNotificationConfig` | Flat on `TaskPushNotificationConfig` |
+| `Id`, `TaskId` | `[JsonRequired]` `string` | Nullable `string?` (server may assign) |
+| `PushNotificationConfig` property | Required, nested object | Removed |
+
+### Removed Request Wrapper
+
+The `CreateTaskPushNotificationConfigRequest` wrapper class has been removed. The spec's `CreateTaskPushNotificationConfig` RPC takes `TaskPushNotificationConfig` directly:
+
+```csharp
+// V0.3
+await client.CreateTaskPushNotificationConfigAsync(
+    new CreateTaskPushNotificationConfigRequest
+    {
+        TaskId = "t-1",
+        ConfigId = "cfg-1",
+        Config = new PushNotificationConfig { Url = "http://callback" }
+    });
+
+// V1
+await client.CreateTaskPushNotificationConfigAsync(
+    new TaskPushNotificationConfig
+    {
+        TaskId = "t-1",
+        Url = "http://callback"
+    });
+```
+
+### SendMessageConfiguration Property Rename
+
+```csharp
+// V0.3
+var config = new SendMessageConfiguration
+{
+    PushNotificationConfig = new PushNotificationConfig { Url = "http://push" }
+};
+
+// V1
+var config = new SendMessageConfiguration
+{
+    TaskPushNotificationConfig = new TaskPushNotificationConfig { Url = "http://push" }
+};
+```
+
+### Pluralized List Types
+
+The List operation types and method names are now pluralized to match the proto (`ListTaskPushNotificationConfigs`):
+
+| V0.3 | V1 |
+|------|-----|
+| `ListTaskPushNotificationConfigRequest` | `ListTaskPushNotificationConfigsRequest` |
+| `ListTaskPushNotificationConfigResponse` | `ListTaskPushNotificationConfigsResponse` |
+| `ListTaskPushNotificationConfigAsync()` | `ListTaskPushNotificationConfigsAsync()` |
+
+### Handler Interface
+
+If you implement `IA2ARequestHandler`, update these signatures:
+
+```csharp
+// V0.3
+Task<TaskPushNotificationConfig> CreateTaskPushNotificationConfigAsync(
+    CreateTaskPushNotificationConfigRequest request, CancellationToken ct);
+Task<ListTaskPushNotificationConfigResponse> ListTaskPushNotificationConfigAsync(
+    ListTaskPushNotificationConfigRequest request, CancellationToken ct);
+
+// V1
+Task<TaskPushNotificationConfig> CreateTaskPushNotificationConfigAsync(
+    TaskPushNotificationConfig config, CancellationToken ct);
+Task<ListTaskPushNotificationConfigsResponse> ListTaskPushNotificationConfigsAsync(
+    ListTaskPushNotificationConfigsRequest request, CancellationToken ct);
 ```
 
 ---

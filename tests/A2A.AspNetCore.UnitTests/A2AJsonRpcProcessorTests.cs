@@ -632,7 +632,7 @@ public class A2AJsonRpcProcessorTests
             "jsonrpc": "2.0",
             "method": "{{A2AMethods.CreateTaskPushNotificationConfig}}",
             "id": "pn-1",
-            "params": { "taskId": "some-task", "pushNotificationConfig": { "url": "https://example.com/callback" } }
+            "params": { "taskId": "some-task", "url": "https://example.com/callback" }
         }
         """;
 
