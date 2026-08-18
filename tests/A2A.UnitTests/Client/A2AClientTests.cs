@@ -372,6 +372,16 @@ public class A2AClientTests
         Assert.Equal(A2AMethods.DeleteTaskPushNotificationConfig, requestJson.RootElement.GetProperty("method").GetString());
     }
 
+    [Fact]
+    public async Task DeletePushNotificationConfigAsync_CompletesOnNullResult()
+    {
+        // A2AJsonRpcProcessor answers delete with a success response whose result is null,
+        // which is valid per JSON-RPC 2.0 for the only void-result A2A method.
+        var sut = CreateA2AClient(new JsonRpcResponse { Id = "test-id", Result = null });
+
+        await sut.DeleteTaskPushNotificationConfigAsync(new DeleteTaskPushNotificationConfigRequest { Id = "cfg-1", TaskId = "t-1" });
+    }
+
     private static A2AClient CreateA2AClient(object result, Action<HttpRequestMessage>? onRequest = null, bool isSse = false)
     {
         var response = new JsonRpcResponse
