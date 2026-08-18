@@ -8,7 +8,7 @@
         <PackageVersion Include="Microsoft.Extensions.Caching.Abstractions" Version="9.0.9" />
         <PackageVersion Include="Microsoft.VisualStudio.Threading.Analyzers" Version="17.14.15" />
         <PackageVersion Include="Microsoft.Extensions.ExtraAnalyzers" Version="8.0.0-rc.2.23510.2" />
-        <PackageVersion Include="System.Text.Json" Version="10.0.10" />
+        <PackageVersion Include="System.Text.Json" Version="10.0.11" />
         <!-- Product dependencies shared -->
         <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11" />
         <PackageVersion Include="System.Linq.AsyncEnumerable" Version="10.0.8" />
@@ -16,7 +16,7 @@
         <!-- Testing / samples dependencies -->
         <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.5" />
         <PackageVersion Include="JsonSchema.Net" Version="9.4.0" />
-        <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.6.0" />
+        <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.9.0" />
         <PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.9" />
         <PackageVersion Include="Microsoft.SemanticKernel.Agents.Core" Version="1.79.0" />
         <PackageVersion Include="Microsoft.SemanticKernel.Agents.OpenAI" Version="1.59.0-preview" />
