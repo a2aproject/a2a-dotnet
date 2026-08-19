@@ -14,11 +14,15 @@ namespace AgentServer;
 /// processes, has no atomic index updates, and performs full file scans for
 /// unindexed queries.</para>
 /// <para>
+/// Tasks are isolated per owner (tenant): each owner has its own directory so that
+/// tasks created under one owner are not visible to another. The shared default owner
+/// scope (<see cref="RequestContext.DefaultOwner"/>) is stored under the "default"
+/// directory, preserving unauthenticated behavior.
 /// Storage layout:
 /// <code>
 /// {baseDir}/
-///   tasks/{taskId}.json           — materialized AgentTask snapshot
-///   indexes/context_{id}.idx      — newline-delimited task IDs per context
+///   tasks/{owner}/{taskId}.json      — materialized AgentTask snapshot
+///   indexes/{owner}/context_{id}.idx — newline-delimited task IDs per context
 /// </code>
 /// </para>
 /// </remarks>
@@ -46,25 +50,26 @@ public sealed class FileTaskStore : ITaskStore
     }
 
     /// <inheritdoc />
-    public async Task<AgentTask?> GetTaskAsync(string taskId, CancellationToken cancellationToken = default)
+    public async Task<AgentTask?> GetTaskAsync(string taskId, string? owner = null, CancellationToken cancellationToken = default)
     {
-        return await ReadTaskAsync(taskId, cancellationToken).ConfigureAwait(false);
+        return await ReadTaskAsync(taskId, GetEffectiveOwner(owner), cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task SaveTaskAsync(string taskId, AgentTask task, CancellationToken cancellationToken = default)
+    public async Task SaveTaskAsync(string taskId, AgentTask task, string? owner = null, CancellationToken cancellationToken = default)
     {
-        var taskLock = _taskLocks.GetOrAdd(taskId, _ => new SemaphoreSlim(1, 1));
+        var effectiveOwner = GetEffectiveOwner(owner);
+        var taskLock = _taskLocks.GetOrAdd($"{effectiveOwner}/{taskId}", _ => new SemaphoreSlim(1, 1));
         await taskLock.WaitAsync(cancellationToken).ConfigureAwait(false);
 
         try
         {
-            await WriteTaskAsync(taskId, task, cancellationToken).ConfigureAwait(false);
+            await WriteTaskAsync(taskId, effectiveOwner, task, cancellationToken).ConfigureAwait(false);
 
             // Update context index on save (idempotent)
             if (!string.IsNullOrEmpty(task.ContextId))
             {
-                await AppendToIndexAsync("context", task.ContextId, taskId, cancellationToken)
+                await AppendToIndexAsync("context", task.ContextId, taskId, effectiveOwner, cancellationToken)
                     .ConfigureAwait(false);
             }
         }
@@ -76,21 +81,23 @@ public sealed class FileTaskStore : ITaskStore
 
     /// <inheritdoc />
     /// <remarks>Not implemented in this sample. Throws <see cref="NotSupportedException"/>.</remarks>
-    public Task DeleteTaskAsync(string taskId, CancellationToken cancellationToken = default)
+    public Task DeleteTaskAsync(string taskId, string? owner = null, CancellationToken cancellationToken = default)
         => throw new NotSupportedException("Task deletion is not supported by this sample store.");
 
     /// <inheritdoc />
     public async Task<ListTasksResponse> ListTasksAsync(ListTasksRequest request,
-        CancellationToken cancellationToken = default)
+        string? owner = null, CancellationToken cancellationToken = default)
     {
+        var effectiveOwner = GetEffectiveOwner(owner);
+
         // Step 1: Find candidate task IDs from index files
-        var taskIds = await GetTaskIdsForQueryAsync(request, cancellationToken).ConfigureAwait(false);
+        var taskIds = await GetTaskIdsForQueryAsync(request, effectiveOwner, cancellationToken).ConfigureAwait(false);
 
         // Step 2: Load tasks for candidates
         var tasks = new List<AgentTask>();
         foreach (var taskId in taskIds)
         {
-            var task = await ReadTaskAsync(taskId, cancellationToken).ConfigureAwait(false);
+            var task = await ReadTaskAsync(taskId, effectiveOwner, cancellationToken).ConfigureAwait(false);
             if (task is null) continue;
 
             // Apply filters that aren't covered by the index
@@ -150,12 +157,24 @@ public sealed class FileTaskStore : ITaskStore
 
     // ─── File I/O Helpers ───
 
-    private string GetTaskFilePath(string taskId) => Path.Combine(_tasksDir, $"{taskId}.json");
-    private string GetIndexFilePath(string prefix, string id) => Path.Combine(_indexesDir, $"{prefix}_{id}.idx");
+    private static string GetEffectiveOwner(string? owner)
+        => string.IsNullOrEmpty(owner) ? "default" : owner;
 
-    private async Task<AgentTask?> ReadTaskAsync(string taskId, CancellationToken ct)
+    private static string SanitizeOwner(string owner)
+        => owner.Replace('\\', '_').Replace('/', '_');
+
+    private string GetTaskFilePath(string taskId, string owner)
+        => Path.Combine(_tasksDir, SanitizeOwner(owner), $"{taskId}.json");
+
+    private string GetIndexFilePath(string prefix, string id, string owner)
+        => Path.Combine(_indexesDir, SanitizeOwner(owner), $"{prefix}_{id}.idx");
+
+    private string GetOwnerTasksDir(string owner) => Path.Combine(_tasksDir, SanitizeOwner(owner));
+    private string GetOwnerIndexesDir(string owner) => Path.Combine(_indexesDir, SanitizeOwner(owner));
+
+    private async Task<AgentTask?> ReadTaskAsync(string taskId, string owner, CancellationToken ct)
     {
-        var path = GetTaskFilePath(taskId);
+        var path = GetTaskFilePath(taskId, owner);
         if (!File.Exists(path)) return null;
 
         await using var stream = File.OpenRead(path);
@@ -163,9 +182,11 @@ public sealed class FileTaskStore : ITaskStore
             .ConfigureAwait(false);
     }
 
-    private async Task WriteTaskAsync(string taskId, AgentTask task, CancellationToken ct)
+    private async Task WriteTaskAsync(string taskId, string owner, AgentTask task, CancellationToken ct)
     {
-        var path = GetTaskFilePath(taskId);
+        var dir = GetOwnerTasksDir(owner);
+        Directory.CreateDirectory(dir);
+        var path = GetTaskFilePath(taskId, owner);
         var tempPath = path + ".tmp";
 
         await using (var stream = File.Create(tempPath))
@@ -177,11 +198,11 @@ public sealed class FileTaskStore : ITaskStore
         File.Move(tempPath, path, overwrite: true);
     }
 
-    private async Task AppendToIndexAsync(string prefix, string id, string taskId, CancellationToken ct)
+    private async Task AppendToIndexAsync(string prefix, string id, string taskId, string owner, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(id)) return;
 
-        var indexPath = GetIndexFilePath(prefix, id);
+        var indexPath = GetIndexFilePath(prefix, id, owner);
 
         // Check if task is already in the index (avoid duplicates)
         if (File.Exists(indexPath))
@@ -191,27 +212,32 @@ public sealed class FileTaskStore : ITaskStore
                 return;
         }
 
+        Directory.CreateDirectory(GetOwnerIndexesDir(owner));
         await File.AppendAllTextAsync(indexPath, taskId + Environment.NewLine, ct).ConfigureAwait(false);
     }
 
     private async Task<IReadOnlyList<string>> GetTaskIdsForQueryAsync(
-        ListTasksRequest request, CancellationToken ct)
+        ListTasksRequest request, string owner, CancellationToken ct)
     {
         // Use the most specific index available
         if (!string.IsNullOrEmpty(request.ContextId))
-            return await ReadIndexAsync("context", request.ContextId, ct).ConfigureAwait(false);
+            return await ReadIndexAsync("context", request.ContextId, owner, ct).ConfigureAwait(false);
 
-        // No index match — scan all task files
-        return Directory.GetFiles(_tasksDir, "*.json")
+        // No index match — scan all task files for this owner
+        var dir = GetOwnerTasksDir(owner);
+        if (!Directory.Exists(dir))
+            return [];
+
+        return Directory.GetFiles(dir, "*.json")
             .Select(Path.GetFileNameWithoutExtension)
             .Where(name => name is not null)
             .Cast<string>()
             .ToList();
     }
 
-    private async Task<IReadOnlyList<string>> ReadIndexAsync(string prefix, string id, CancellationToken ct)
+    private async Task<IReadOnlyList<string>> ReadIndexAsync(string prefix, string id, string owner, CancellationToken ct)
     {
-        var path = GetIndexFilePath(prefix, id);
+        var path = GetIndexFilePath(prefix, id, owner);
         if (!File.Exists(path)) return [];
 
         var content = await File.ReadAllTextAsync(path, ct).ConfigureAwait(false);
