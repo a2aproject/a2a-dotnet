@@ -631,6 +631,20 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
             var currentTask = await _taskStore.GetTaskAsync(context.TaskId, cancellationToken)
                 .ConfigureAwait(false);
 
+            // First persisted terminal state wins (issue #401). Callers such as
+            // CancelTaskAsync and TryTransitionToFailedAsync check IsTerminal before
+            // taking the lock, but a concurrent writer can persist a terminal state in
+            // that window. This re-check under the lock is the atomic enforcement that
+            // stops any forced terminal writer from overwriting an already-terminal
+            // state with a different one, for every writer that funnels through here.
+            if (currentTask is not null
+                && currentTask.Status.State.IsTerminal()
+                && response.StatusUpdate is { } racingStatus
+                && racingStatus.Status.State != currentTask.Status.State)
+            {
+                return;
+            }
+
             var updatedTask = TaskProjection.Apply(currentTask, response);
 
             // Message-only responses with no existing task have nothing to persist.
