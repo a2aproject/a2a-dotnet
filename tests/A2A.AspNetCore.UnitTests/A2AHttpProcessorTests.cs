@@ -183,4 +183,51 @@ public class A2AHttpProcessorTests
         Assert.NotNull(result);
         Assert.Equal(StatusCodes.Status500InternalServerError, ((IStatusCodeHttpResult)result).StatusCode);
     }
+
+    [Fact]
+    public async Task SendMessageRest_WithEmptyParts_ReturnsInvalidParams()
+    {
+        // Arrange — empty Message parts are accepted by [FromBody] model binding,
+        // so the REST processor must validate them like the JSON-RPC binding does.
+        var (requestHandler, _) = CreateServer();
+        var logger = NullLogger.Instance;
+        var sendRequest = new SendMessageRequest
+        {
+            Message = new Message { Role = Role.User, Parts = [] },
+        };
+
+        // Act
+        var result = await A2AHttpProcessor.SendMessageRestAsync(requestHandler, logger, sendRequest, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, ((IStatusCodeHttpResult)result).StatusCode);
+
+        // Execute and verify the error message is present
+        var httpContext = new DefaultHttpContext();
+        httpContext.Response.Body = new MemoryStream();
+        await result.ExecuteAsync(httpContext);
+        httpContext.Response.Body.Position = 0;
+        var body = await new StreamReader(httpContext.Response.Body).ReadToEndAsync();
+        Assert.Contains("Message parts cannot be empty", body);
+    }
+
+    [Fact]
+    public async Task SendMessageStreamRest_WithEmptyParts_ReturnsInvalidParams()
+    {
+        // Arrange
+        var (requestHandler, _) = CreateServer();
+        var logger = NullLogger.Instance;
+        var sendRequest = new SendMessageRequest
+        {
+            Message = new Message { Role = Role.User, Parts = [] },
+        };
+
+        // Act — validation happens synchronously before streaming starts
+        var result = A2AHttpProcessor.SendMessageStreamRest(requestHandler, logger, sendRequest, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, ((IStatusCodeHttpResult)result).StatusCode);
+    }
 }
