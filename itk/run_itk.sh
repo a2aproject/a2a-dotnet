@@ -38,8 +38,10 @@ if git symbolic-ref -q HEAD > /dev/null; then
 fi
 cd ..
 
-# 2. Build the ITK service Docker image from a2a-itk root
-docker build -t itk_service a2a-itk
+# 2. Build the ITK service Docker image from a2a-itk root (skip if pre-built)
+if ! docker image inspect itk_service:latest > /dev/null 2>&1; then
+  docker build -t itk_service a2a-itk
+fi
 
 # 3. Start Docker service
 # Mount a2a-dotnet as repo and itk/ as the current agent
