@@ -1,6 +1,6 @@
 # Running ITK Tests Locally
 
-This directory contains the .NET ITK (Integration Test Kit) agent and scripts to run
+This directory contains the .NET ITK (Interoperability Test Kit) agent and scripts to run
 cross-SDK compatibility tests against the A2A .NET SDK.
 
 ## What is ITK?
