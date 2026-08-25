@@ -173,7 +173,7 @@ public sealed class ItkAgent(IHttpClientFactory httpClientFactory, ILogger<ItkAg
         {
             "JSONRPC" => ProtocolBindingNames.JsonRpc,
             "HTTP+JSON" or "HTTP_JSON" or "REST" => ProtocolBindingNames.HttpJson,
-            _ => ProtocolBindingNames.JsonRpc
+            _ => throw new NotSupportedException($"Unsupported transport: {call.Transport}")
         };
 
         AgentCard agentCard;
@@ -384,10 +384,9 @@ public sealed class ItkAgent(IHttpClientFactory httpClientFactory, ILogger<ItkAg
     {
         var results = new List<string>();
 
-        Message? message = null;
-        if (response.Task?.Status?.Message is not null)
-            message = response.Task.Status.Message;
-        else if (response.StatusUpdate?.Status?.Message is not null)
+        Message? message = response.Message
+            ?? response.Task?.Status?.Message;
+        if (message is null && response.StatusUpdate?.Status?.Message is not null)
             message = response.StatusUpdate.Status.Message;
 
         if (message is not null)
@@ -406,7 +405,8 @@ public sealed class ItkAgent(IHttpClientFactory httpClientFactory, ILogger<ItkAg
     {
         var results = new List<string>();
 
-        Message? message = response.Task?.Status?.Message;
+        Message? message = response.Message
+            ?? response.Task?.Status?.Message;
         if (message is not null)
         {
             foreach (var part in message.Parts)
@@ -443,7 +443,7 @@ public sealed class ItkAgent(IHttpClientFactory httpClientFactory, ILogger<ItkAg
         Capabilities = new AgentCapabilities
         {
             Streaming = true,
-            PushNotifications = true,
+            PushNotifications = false,
         },
         DefaultInputModes = ["text/plain"],
         DefaultOutputModes = ["text/plain"],

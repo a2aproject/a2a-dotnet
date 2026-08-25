@@ -1,7 +1,7 @@
 {
   "tests": [
     {
-      "name": "Star Topology (Full) - JSONRPC & GRPC",
+      "name": "Star Topology (Full) - JSONRPC",
       "sdks": ["current", "python_v10", "python_v03", "go_v10", "go_v03"],
       "edges": ["0->1", "0->2", "0->3", "0->4", "1->0", "2->0", "3->0", "4->0"],
       "protocols": ["jsonrpc"],

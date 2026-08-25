@@ -37,7 +37,7 @@ The script will:
 
 ### PR Tests vs Nightly
 
-- **PR tests** (`scenarios.json`): Focused star topology with core behaviors
+- **PR tests** (`scenarios_ci.json`): Focused star topology with core behaviors
 - **Nightly tests** (`scenarios_full.json`): Full protocol matrix with all behaviors
 
 To run nightly:
