@@ -1,0 +1,79 @@
+{
+  "tests": [
+    {
+      "name": "Star Topology (Full) - JSONRPC",
+      "sdks": ["current", "python_v10", "python_v03", "go_v10", "go_v03"],
+      "edges": ["0->1", "0->2", "0->3", "0->4", "1->0", "2->0", "3->0", "4->0"],
+      "protocols": ["jsonrpc"],
+      "behavior": "send_message"
+    },
+    {
+      "name": "Star Topology - HTTP_JSON",
+      "sdks": ["current", "python_v10", "python_v03", "go_v10"],
+      "edges": ["0->1", "0->2", "0->3", "1->0", "2->0", "3->0"],
+      "protocols": ["http_json"],
+      "behavior": "send_message"
+    },
+    {
+      "name": "Star Topology (Full) - JSONRPC (Streaming)",
+      "sdks": ["current", "python_v10", "python_v03", "go_v10", "go_v03"],
+      "edges": ["0->1", "0->2", "0->3", "0->4", "1->0", "2->0", "3->0", "4->0"],
+      "protocols": ["jsonrpc"],
+      "streaming": true,
+      "behavior": "send_message"
+    },
+    {
+      "name": "Star Topology - HTTP_JSON (Streaming)",
+      "sdks": ["current", "python_v10", "python_v03", "go_v10"],
+      "edges": ["0->1", "0->2", "0->3", "1->0", "2->0", "3->0"],
+      "protocols": ["http_json"],
+      "streaming": true,
+      "behavior": "send_message"
+    },
+    {
+      "name": "Push Notification Test - JSONRPC",
+      "sdks": ["current", "python_v10", "python_v03", "go_v03"],
+      "edges": ["0->1", "0->2", "0->3", "1->0", "2->0", "3->0"],
+      "protocols": ["jsonrpc"],
+      "behavior": "push_notification"
+    },
+    {
+      "name": "Push Notification Test - HTTP_JSON",
+      "sdks": ["current", "python_v10", "python_v03"],
+      "edges": ["0->1", "0->2", "1->0", "2->0"],
+      "protocols": ["http_json"],
+      "behavior": "push_notification"
+    },
+    {
+      "name": "Resubscribe Test - JSONRPC",
+      "sdks": ["current", "python_v10", "python_v03", "go_v10", "go_v03"],
+      "edges": ["0->1", "0->2", "0->3", "0->4", "1->0", "2->0", "3->0", "4->0"],
+      "protocols": ["jsonrpc"],
+      "streaming": true,
+      "behavior": "resubscribe"
+    },
+    {
+      "name": "Resubscribe Test - HTTP_JSON",
+      "sdks": ["current", "python_v10", "python_v03", "go_v10"],
+      "edges": ["0->1", "0->2", "0->3", "1->0", "2->0", "3->0"],
+      "protocols": ["http_json"],
+      "streaming": true,
+      "behavior": "resubscribe"
+    },
+    {
+      "name": "Full Backwards Compat - JSONRPC",
+      "sdks": ["python_v03", "go_v03", "current", "go_v10"],
+      "protocols": ["jsonrpc"],
+      "edges": ["3->0", "3->1", "2->0", "2->1", "0->2", "0->3", "1->2", "1->3"],
+      "behavior": "send_message"
+    },
+    {
+      "name": "Full Backwards Compat - JSONRPC (Streaming)",
+      "sdks": ["python_v03", "go_v03", "current", "go_v10"],
+      "protocols": ["jsonrpc"],
+      "edges": ["3->0", "3->1", "2->0", "2->1", "0->2", "0->3", "1->2", "1->3"],
+      "streaming": true,
+      "behavior": "send_message"
+    }
+  ]
+}
