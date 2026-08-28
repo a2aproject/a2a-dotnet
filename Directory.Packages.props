@@ -16,11 +16,12 @@
         <!-- Testing / samples dependencies -->
         <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.5" />
         <PackageVersion Include="JsonSchema.Net" Version="9.4.0" />
+        <PackageVersion Include="Microsoft.Agents.AI.A2A" Version="1.19.0-preview.260822.1" />
+        <PackageVersion Include="Microsoft.Agents.AI.Hosting.A2A" Version="1.19.0-preview.260822.1" />
+        <PackageVersion Include="Microsoft.Agents.AI.OpenAI" Version="1.19.0" />
+        <PackageVersion Include="Microsoft.Extensions.AI" Version="10.9.0" />
         <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.9.0" />
         <PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.9" />
-        <PackageVersion Include="Microsoft.SemanticKernel.Agents.Core" Version="1.79.0" />
-        <PackageVersion Include="Microsoft.SemanticKernel.Agents.OpenAI" Version="1.59.0-preview" />
-        <PackageVersion Include="Microsoft.SemanticKernel.Connectors.AzureOpenAI" Version="1.59.0" />
         <PackageVersion Include="Moq" Version="4.20.72" />
         <PackageVersion Include="OpenTelemetry" Version="1.12.0" />
         <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.17.0" />
@@ -29,7 +30,6 @@
         <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.17.0" />
         <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.17.0" />
         <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.12.0" />
-        <PackageVersion Include="Polly" Version="8.7.0" />
         <PackageVersion Include="System.CommandLine" Version="2.0.8" />
         <!-- Build / infrastructure dependencies -->
         <PackageVersion Include="coverlet.collector" Version="10.0.1" />

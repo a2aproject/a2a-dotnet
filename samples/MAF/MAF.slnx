@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="README.md" />
+  </Folder>
+  <Project Path="A2AClient/A2AClient.csproj" />
+  <Project Path="A2AServer/A2AServer.csproj" />
+</Solution>

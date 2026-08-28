@@ -189,12 +189,13 @@ Server-side examples demonstrating how to build A2A-compatible agents:
 - **Researcher Agent**: More complex agent with research capabilities
 - **HTTP Test Suite**: Complete set of HTTP tests for all agent endpoints
 
-### Semantic Kernel Integration
-**[`samples/SemanticKernelAgent/`](samples/SemanticKernelAgent/README.md)**
+### Microsoft Agent Framework Integration
+**[`samples/MAF/`](samples/MAF/README.md)**
 
-Advanced sample showing integration with Microsoft Semantic Kernel:
-- **Travel Planner Agent**: AI-powered travel planning agent
-- **Semantic Kernel Integration**: Demonstrates how to wrap Semantic Kernel functionality in A2A protocol
+End-to-end sample showing interoperability with Microsoft Agent Framework:
+- **Travel Planner Agent**: Uses local tour availability and current time-zone tools
+- **A2A Client and Server**: Hosts and consumes the agent through the Agent Framework `AIAgent` abstraction
+- **Protocol Bindings**: Supports both JSON-RPC and HTTP+JSON
 
 ### Command Line Interface
 **[`samples/A2ACli/`](samples/A2ACli/)**
@@ -236,4 +237,3 @@ This library builds upon [Darrel Miller's](https://github.com/darrelmiller) [sha
 ## License
 
 This project is licensed under the [Apache 2.0 License](LICENSE).
-
