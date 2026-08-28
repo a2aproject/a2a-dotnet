@@ -1,0 +1,41 @@
+@host = http://localhost:5000
+
+### Discover the travel agent
+GET {{host}}/.well-known/agent-card.json
+
+### Send a message using JSON-RPC
+POST {{host}}
+Content-Type: application/json
+
+{
+    "id": "1",
+    "jsonrpc": "2.0",
+    "method": "SendMessage",
+    "params": {
+        "message": {
+            "role": "ROLE_USER",
+            "messageId": "msg_1",
+            "parts": [
+                {
+                    "text": "Show me the available tour in Ireland and the current local time in Europe/Dublin."
+                }
+            ]
+        }
+    }
+}
+
+### Send a message using HTTP+JSON
+POST {{host}}/message:send
+Content-Type: application/json
+
+{
+    "message": {
+        "role": "ROLE_USER",
+        "messageId": "msg_2",
+        "parts": [
+            {
+                "text": "Show me the available tour in Ireland and the current local time in Europe/Dublin."
+            }
+        ]
+    }
+}
