@@ -134,25 +134,16 @@ public sealed class A2ACardResolver
             return null;
         }
 
+        var protocolVersion = pvElement.GetString() ?? "0.3";
+
         // Determine the protocol binding from preferredTransport (defaults to JSONRPC)
         var protocolBinding = ProtocolBindingNames.JsonRpc;
         if (root.TryGetProperty("preferredTransport", out var transportElement))
         {
-            var transport = transportElement.ValueKind == JsonValueKind.String
-                ? transportElement.GetString()
-                : transportElement.ValueKind == JsonValueKind.Object && transportElement.TryGetProperty("value", out var val) && val.ValueKind == JsonValueKind.String
-                    ? val.GetString()
-                    : null;
-
+            var transport = ExtractTransportName(transportElement);
             if (!string.IsNullOrEmpty(transport))
             {
-                protocolBinding = transport.ToUpperInvariant() switch
-                {
-                    "JSONRPC" or "JSON-RPC" => ProtocolBindingNames.JsonRpc,
-                    "HTTP+JSON" or "HTTP_JSON" or "REST" => ProtocolBindingNames.HttpJson,
-                    "GRPC" => ProtocolBindingNames.Grpc,
-                    _ => transport
-                };
+                protocolBinding = MapV03TransportToBinding(transport!);
             }
         }
 
@@ -163,20 +154,51 @@ public sealed class A2ACardResolver
             {
                 ProtocolBinding = protocolBinding,
                 Url = url,
-                ProtocolVersion = pvElement.GetString() ?? "0.3",
+                ProtocolVersion = protocolVersion,
             }
         };
 
-        // Also include additionalInterfaces if present (a v0.3 extension)
+        // Also include additionalInterfaces if present.
+        // v0.3 entries have shape { "transport": "...", "url": "..." }, which does not
+        // match v1's AgentInterface shape { "url", "protocolBinding", "protocolVersion" }.
+        // Map explicitly so HTTP+JSON / GRPC bindings are preserved rather than silently
+        // defaulted to JSONRPC by the v1 deserializer.
         if (root.TryGetProperty("additionalInterfaces", out var addlInterfaces) && addlInterfaces.ValueKind == JsonValueKind.Array)
         {
             foreach (var iface in addlInterfaces.EnumerateArray())
             {
-                var ai = JsonSerializer.Deserialize(iface.GetRawText(), A2AJsonUtilities.JsonContext.Default.AgentInterface);
-                if (ai is not null)
+                if (iface.ValueKind != JsonValueKind.Object)
                 {
-                    interfaces.Add(ai);
+                    continue;
                 }
+
+                if (!iface.TryGetProperty("url", out var ifaceUrlElement) || ifaceUrlElement.ValueKind != JsonValueKind.String)
+                {
+                    continue;
+                }
+
+                var ifaceUrl = ifaceUrlElement.GetString();
+                if (string.IsNullOrEmpty(ifaceUrl))
+                {
+                    continue;
+                }
+
+                var ifaceBinding = ProtocolBindingNames.JsonRpc;
+                if (iface.TryGetProperty("transport", out var ifaceTransportElement))
+                {
+                    var ifaceTransport = ExtractTransportName(ifaceTransportElement);
+                    if (!string.IsNullOrEmpty(ifaceTransport))
+                    {
+                        ifaceBinding = MapV03TransportToBinding(ifaceTransport!);
+                    }
+                }
+
+                interfaces.Add(new AgentInterface
+                {
+                    Url = ifaceUrl!,
+                    ProtocolBinding = ifaceBinding,
+                    ProtocolVersion = protocolVersion,
+                });
             }
         }
 
@@ -239,4 +261,34 @@ public sealed class A2ACardResolver
 
         return card;
     }
+
+    /// <summary>
+    /// Extracts a transport name from a v0.3 transport JSON element. v0.3 uses a string
+    /// (e.g. "JSONRPC"), but some producers wrap it as { "value": "JSONRPC" }.
+    /// </summary>
+    /// <param name="element">The JSON element to inspect.</param>
+    /// <returns>The transport name, or <c>null</c> if none could be extracted.</returns>
+    private static string? ExtractTransportName(JsonElement element) =>
+        element.ValueKind == JsonValueKind.String
+            ? element.GetString()
+            : element.ValueKind == JsonValueKind.Object
+              && element.TryGetProperty("value", out var val)
+              && val.ValueKind == JsonValueKind.String
+                ? val.GetString()
+                : null;
+
+    /// <summary>
+    /// Maps a v0.3 transport name to a v1 protocol binding name.
+    /// Unknown values are passed through so custom bindings still round-trip.
+    /// </summary>
+    /// <param name="transport">The v0.3 transport name.</param>
+    /// <returns>The corresponding v1 protocol binding name.</returns>
+    private static string MapV03TransportToBinding(string transport) =>
+        transport.ToUpperInvariant() switch
+        {
+            "JSONRPC" or "JSON-RPC" => ProtocolBindingNames.JsonRpc,
+            "HTTP+JSON" or "HTTP_JSON" or "REST" => ProtocolBindingNames.HttpJson,
+            "GRPC" => ProtocolBindingNames.Grpc,
+            _ => transport,
+        };
 }
