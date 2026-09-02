@@ -34,6 +34,34 @@ public sealed class JsonSerializationSettingsTests
         Assert.Contains("\"contextId\"", msgJson);
     }
 
+    [Theory]
+    [InlineData("2026-09-02T14:55:42.7994676+00:00", "2026-09-02T14:55:42.7994676Z")]
+    [InlineData("2026-09-02T10:55:42.7994676-04:00", "2026-09-02T14:55:42.7994676Z")]
+    public void Serialize_Timestamp_NormalizesToUtcWithZSuffix(string timestamp, string expected)
+    {
+        var status = new TaskStatus
+        {
+            State = TaskState.Working,
+            Timestamp = DateTimeOffset.Parse(timestamp, System.Globalization.CultureInfo.InvariantCulture)
+        };
+
+        var json = JsonSerializer.Serialize(status, A2AJsonUtilities.DefaultOptions);
+        using var document = JsonDocument.Parse(json);
+
+        Assert.Equal(expected, document.RootElement.GetProperty("timestamp").GetString());
+    }
+
+    [Fact]
+    public void Deserialize_Timestamp_PreservesOffset()
+    {
+        const string json = """{"state":"TASK_STATE_WORKING","timestamp":"2026-09-02T10:55:42.7994676-04:00"}""";
+
+        var status = JsonSerializer.Deserialize<TaskStatus>(json, A2AJsonUtilities.DefaultOptions);
+
+        Assert.NotNull(status);
+        Assert.Equal(TimeSpan.FromHours(-4), status.Timestamp!.Value.Offset);
+    }
+
     [Fact]
     public void Deserialize_NumbersFromStrings_Succeeds()
     {
