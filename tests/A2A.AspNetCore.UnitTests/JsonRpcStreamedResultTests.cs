@@ -77,7 +77,7 @@ public class JsonRpcStreamedResultTests
         Assert.Equal((int)A2AErrorCode.InternalError, response.Error.Code);
         // Must NOT leak the original exception message
         Assert.DoesNotContain("sensitive internal details", response.Error.Message);
-        Assert.Equal("An internal error occurred during streaming.", response.Error.Message);
+        Assert.Equal("An internal error occurred.", response.Error.Message);
     }
 
     [Fact]
@@ -137,6 +137,78 @@ public class JsonRpcStreamedResultTests
         var doc = JsonDocument.Parse(json);
         Assert.Equal("2.0", doc.RootElement.GetProperty("jsonrpc").GetString());
         Assert.Equal((int)A2AErrorCode.InvalidParams, doc.RootElement.GetProperty("error").GetProperty("code").GetInt32());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_MultipleEvents_EmitsFirstEventOnceAndInOrder()
+    {
+        // Arrange
+        var result = new JsonRpcStreamedResult(
+            MultipleEventsAsyncEnumerable(), new JsonRpcId("req-7"));
+        var httpContext = CreateHttpContext();
+
+        // Act
+        await result.ExecuteAsync(httpContext);
+
+        // Assert
+        var body = GetResponseBody(httpContext);
+        Assert.Equal(1, body.Split("\"task-1\"", StringSplitOptions.None).Length - 1);
+        Assert.Equal(1, body.Split("\"task-2\"", StringSplitOptions.None).Length - 1);
+        Assert.True(
+            body.IndexOf("\"task-1\"", StringComparison.Ordinal) <
+            body.IndexOf("\"task-2\"", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_GetAsyncEnumeratorThrows_ReturnsJsonRpcError()
+    {
+        // Arrange
+        var result = new JsonRpcStreamedResult(
+            new ThrowingGetAsyncEnumerable(), new JsonRpcId("req-8"));
+        var httpContext = CreateHttpContext();
+
+        // Act
+        await result.ExecuteAsync(httpContext);
+
+        // Assert
+        var response = ParseJsonRpcResponse(GetResponseBody(httpContext));
+        Assert.Equal("application/json", httpContext.Response.ContentType);
+        Assert.Equal((int)A2AErrorCode.InternalError, response.Error?.Code);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_DisposeAsyncThrowsAfterFirstEvent_ReturnsSseError()
+    {
+        // Arrange
+        var result = new JsonRpcStreamedResult(
+            new ThrowingDisposeAsyncEnumerable(), new JsonRpcId("req-9"));
+        var httpContext = CreateHttpContext();
+
+        // Act
+        await result.ExecuteAsync(httpContext);
+
+        // Assert
+        var body = GetResponseBody(httpContext);
+        Assert.Equal("text/event-stream", httpContext.Response.ContentType);
+        Assert.Contains("\"task-1\"", body);
+        Assert.Contains("\"error\"", body);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_DisposeAsyncThrowsBeforeFirstEvent_ReturnsJsonRpcError()
+    {
+        // Arrange
+        var result = new JsonRpcStreamedResult(
+            new ThrowingDisposeAsyncEnumerable(yieldEvent: false), new JsonRpcId("req-10"));
+        var httpContext = CreateHttpContext();
+
+        // Act
+        await result.ExecuteAsync(httpContext);
+
+        // Assert
+        var response = ParseJsonRpcResponse(GetResponseBody(httpContext));
+        Assert.Equal("application/json", httpContext.Response.ContentType);
+        Assert.Equal((int)A2AErrorCode.InternalError, response.Error?.Code);
     }
 
     [Fact]
@@ -228,5 +300,58 @@ public class JsonRpcStreamedResultTests
         }
 
         throw exception;
+    }
+
+    private static async IAsyncEnumerable<StreamResponse> MultipleEventsAsyncEnumerable(
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        await Task.CompletedTask;
+        yield return CreateTaskResponse("task-1");
+        yield return CreateTaskResponse("task-2");
+    }
+
+    private static StreamResponse CreateTaskResponse(string taskId) =>
+        new()
+        {
+            Task = new AgentTask
+            {
+                Id = taskId,
+                ContextId = "context-1",
+                Status = new TaskStatus { State = TaskState.Working },
+            },
+        };
+
+    private sealed class ThrowingGetAsyncEnumerable : IAsyncEnumerable<StreamResponse>
+    {
+        public IAsyncEnumerator<StreamResponse> GetAsyncEnumerator(
+            CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Failed to create enumerator.");
+    }
+
+    private sealed class ThrowingDisposeAsyncEnumerable :
+        IAsyncEnumerable<StreamResponse>, IAsyncEnumerator<StreamResponse>
+    {
+        private readonly bool _yieldEvent;
+        private bool _hasYielded;
+
+        public ThrowingDisposeAsyncEnumerable(bool yieldEvent = true)
+        {
+            _yieldEvent = yieldEvent;
+        }
+
+        public StreamResponse Current { get; } = CreateTaskResponse("task-1");
+
+        public IAsyncEnumerator<StreamResponse> GetAsyncEnumerator(
+            CancellationToken cancellationToken = default) => this;
+
+        public ValueTask<bool> MoveNextAsync()
+        {
+            var shouldYield = _yieldEvent && !_hasYielded;
+            _hasYielded = true;
+            return ValueTask.FromResult(shouldYield);
+        }
+
+        public ValueTask DisposeAsync() =>
+            ValueTask.FromException(new InvalidOperationException("Failed to dispose enumerator."));
     }
 }

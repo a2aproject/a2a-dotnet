@@ -29,13 +29,10 @@ public sealed class JsonRpcStreamedResult : IResult
     {
         ArgumentNullException.ThrowIfNull(httpContext);
 
-        var responseTypeInfo = A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcResponse));
-        await using var enumerator = _events.GetAsyncEnumerator(httpContext.RequestAborted);
-
-        bool hasFirstEvent;
+        IAsyncEnumerator<StreamResponse> enumerator;
         try
         {
-            hasFirstEvent = await enumerator.MoveNextAsync().ConfigureAwait(false);
+            enumerator = _events.GetAsyncEnumerator(httpContext.RequestAborted);
         }
         catch (OperationCanceledException)
         {
@@ -43,32 +40,36 @@ public sealed class JsonRpcStreamedResult : IResult
         }
         catch (Exception ex)
         {
-            await new JsonRpcResponseResult(CreateErrorResponse(ex))
-                .ExecuteAsync(httpContext).ConfigureAwait(false);
+            await WriteErrorAsync(httpContext, ex, streamStarted: false).ConfigureAwait(false);
             return;
         }
 
-        httpContext.Response.StatusCode = StatusCodes.Status200OK;
-        httpContext.Response.ContentType = "text/event-stream";
-        httpContext.Response.Headers.Append("Cache-Control", "no-cache");
-
-        if (!hasFirstEvent)
-        {
-            return;
-        }
-
+        Exception? failure = null;
+        var streamStarted = false;
+        var completedWithoutEvents = false;
         try
         {
-            await SseFormatter.WriteAsync(
-                EnumerateFromCurrentAsync(enumerator)
-                    .Select(e => new SseItem<JsonRpcResponse>(JsonRpcResponse.CreateJsonRpcResponse(_requestId, e))),
-                httpContext.Response.Body,
-                (item, writer) =>
-                {
-                    using Utf8JsonWriter json = new(writer, new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
-                    JsonSerializer.Serialize(json, item.Data, responseTypeInfo);
-                },
-                httpContext.RequestAborted).ConfigureAwait(false);
+            if (await enumerator.MoveNextAsync().ConfigureAwait(false))
+            {
+                ConfigureSseResponse(httpContext);
+                streamStarted = true;
+
+                var responseTypeInfo = A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcResponse));
+                await SseFormatter.WriteAsync(
+                    EnumerateFromCurrentAsync(enumerator)
+                        .Select(e => new SseItem<JsonRpcResponse>(JsonRpcResponse.CreateJsonRpcResponse(_requestId, e))),
+                    httpContext.Response.Body,
+                    (item, writer) =>
+                    {
+                        using Utf8JsonWriter json = new(writer, new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
+                        JsonSerializer.Serialize(json, item.Data, responseTypeInfo);
+                    },
+                    httpContext.RequestAborted).ConfigureAwait(false);
+            }
+            else
+            {
+                completedWithoutEvents = true;
+            }
         }
         catch (OperationCanceledException)
         {
@@ -76,29 +77,73 @@ public sealed class JsonRpcStreamedResult : IResult
         }
         catch (Exception ex)
         {
-            // Stream error — response already started, cannot change status code.
-            // Best effort: write an error event if the response body is still writable.
-            // Preserve A2AException error codes; fall back to -32603 for unexpected errors.
+            failure = ex;
+        }
+        finally
+        {
             try
             {
-                var errorResponse = CreateErrorResponse(ex);
-                var errorJson = JsonSerializer.Serialize(errorResponse, responseTypeInfo);
-                var errorBytes = Encoding.UTF8.GetBytes($"data: {errorJson}\n\n");
-                await httpContext.Response.Body.WriteAsync(errorBytes, httpContext.RequestAborted);
-                await httpContext.Response.Body.FlushAsync(httpContext.RequestAborted);
+                await enumerator.DisposeAsync().ConfigureAwait(false);
             }
-            catch
+            catch (OperationCanceledException)
             {
-                // Response body is no longer writable — silently abandon
+                // Client disconnected — expected
             }
+            catch (Exception ex)
+            {
+                failure ??= ex;
+            }
+        }
+
+        if (failure is not null)
+        {
+            await WriteErrorAsync(httpContext, failure, streamStarted).ConfigureAwait(false);
+        }
+        else if (completedWithoutEvents)
+        {
+            ConfigureSseResponse(httpContext);
         }
     }
 
-    private JsonRpcResponse CreateErrorResponse(Exception exception) =>
+    private static void ConfigureSseResponse(HttpContext httpContext)
+    {
+        httpContext.Response.StatusCode = StatusCodes.Status200OK;
+        httpContext.Response.ContentType = "text/event-stream";
+        httpContext.Response.Headers.Append("Cache-Control", "no-cache");
+    }
+
+    private async Task WriteErrorAsync(HttpContext httpContext, Exception exception, bool streamStarted)
+    {
+        var errorResponse = CreateErrorResponse(
+            exception,
+            streamStarted
+                ? "An internal error occurred during streaming."
+                : "An internal error occurred.");
+
+        if (!streamStarted)
+        {
+            await new JsonRpcResponseResult(errorResponse).ExecuteAsync(httpContext).ConfigureAwait(false);
+            return;
+        }
+
+        try
+        {
+            var responseTypeInfo = A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcResponse));
+            var errorJson = JsonSerializer.Serialize(errorResponse, responseTypeInfo);
+            var errorBytes = Encoding.UTF8.GetBytes($"data: {errorJson}\n\n");
+            await httpContext.Response.Body.WriteAsync(errorBytes, httpContext.RequestAborted);
+            await httpContext.Response.Body.FlushAsync(httpContext.RequestAborted);
+        }
+        catch
+        {
+            // Response body is no longer writable — silently abandon
+        }
+    }
+
+    private JsonRpcResponse CreateErrorResponse(Exception exception, string internalErrorMessage) =>
         exception is A2AException a2aException
             ? JsonRpcResponse.CreateJsonRpcErrorResponse(_requestId, a2aException)
-            : JsonRpcResponse.InternalErrorResponse(
-                _requestId, "An internal error occurred during streaming.");
+            : JsonRpcResponse.InternalErrorResponse(_requestId, internalErrorMessage);
 
     private static async IAsyncEnumerable<StreamResponse> EnumerateFromCurrentAsync(
         IAsyncEnumerator<StreamResponse> enumerator)

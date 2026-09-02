@@ -116,6 +116,21 @@ public class V03ServerProcessorTests
         Assert.Equal(-32001, errorEl.GetProperty("code").GetInt32()); // TaskNotFound
     }
 
+    [Fact]
+    public async Task ProcessRequestAsync_V03TasksResubscribe_NonExistentTask_ReturnsTaskNotFoundError()
+    {
+        var handler = CreateRequestHandler();
+        var request = CreateHttpRequest(
+            """{"jsonrpc":"2.0","method":"tasks/resubscribe","id":1,"params":{"id":"nonexistent-task-v03"}}""");
+
+        var result = await V03ServerProcessor.ProcessRequestAsync(handler, request, CancellationToken.None);
+
+        using var body = await ExecuteAndParseJson(result);
+        Assert.True(body.RootElement.TryGetProperty("error", out var errorEl),
+            "Expected error for nonexistent task");
+        Assert.Equal(-32001, errorEl.GetProperty("code").GetInt32()); // TaskNotFound
+    }
+
     // ── v1.0 method routing through V03ServerProcessor ──────────────────────
 
     [Fact]
