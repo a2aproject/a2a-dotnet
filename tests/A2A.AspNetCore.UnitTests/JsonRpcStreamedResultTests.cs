@@ -8,7 +8,7 @@ namespace A2A.AspNetCore.Tests;
 public class JsonRpcStreamedResultTests
 {
     [Fact]
-    public async Task ExecuteAsync_A2AException_PreservesErrorCode()
+    public async Task ExecuteAsync_A2AExceptionBeforeFirstEvent_ReturnsJsonRpcError()
     {
         // Arrange
         var requestId = new JsonRpcId("req-1");
@@ -24,8 +24,9 @@ public class JsonRpcStreamedResultTests
 
         // Assert
         var body = GetResponseBody(httpContext);
-        var response = ParseSseDataLine(body);
+        var response = ParseJsonRpcResponse(body);
 
+        Assert.Equal("application/json", httpContext.Response.ContentType);
         Assert.NotNull(response.Error);
         Assert.Equal((int)errorCode, response.Error.Code);
         Assert.Equal(errorMessage, response.Error.Message);
@@ -33,7 +34,7 @@ public class JsonRpcStreamedResultTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_A2AExceptionMethodNotFound_PreservesErrorCode()
+    public async Task ExecuteAsync_A2AExceptionMethodNotFoundBeforeFirstEvent_ReturnsJsonRpcError()
     {
         // Arrange
         var requestId = new JsonRpcId("req-2");
@@ -47,15 +48,16 @@ public class JsonRpcStreamedResultTests
 
         // Assert
         var body = GetResponseBody(httpContext);
-        var response = ParseSseDataLine(body);
+        var response = ParseJsonRpcResponse(body);
 
+        Assert.Equal("application/json", httpContext.Response.ContentType);
         Assert.NotNull(response.Error);
         Assert.Equal((int)A2AErrorCode.MethodNotFound, response.Error.Code);
         Assert.Equal("Method not found", response.Error.Message);
     }
 
     [Fact]
-    public async Task ExecuteAsync_GenericException_ReturnsInternalError()
+    public async Task ExecuteAsync_GenericExceptionBeforeFirstEvent_ReturnsInternalError()
     {
         // Arrange
         var requestId = new JsonRpcId("req-3");
@@ -68,8 +70,9 @@ public class JsonRpcStreamedResultTests
 
         // Assert
         var body = GetResponseBody(httpContext);
-        var response = ParseSseDataLine(body);
+        var response = ParseJsonRpcResponse(body);
 
+        Assert.Equal("application/json", httpContext.Response.ContentType);
         Assert.NotNull(response.Error);
         Assert.Equal((int)A2AErrorCode.InternalError, response.Error.Code);
         // Must NOT leak the original exception message
@@ -99,7 +102,7 @@ public class JsonRpcStreamedResultTests
     {
         // Arrange
         var requestId = new JsonRpcId("req-5");
-        var events = ThrowingAsyncEnumerable(new A2AException("test", A2AErrorCode.InternalError));
+        var events = SingleEventAsyncEnumerable();
         var result = new JsonRpcStreamedResult(events, requestId);
         var httpContext = CreateHttpContext();
 
@@ -113,11 +116,11 @@ public class JsonRpcStreamedResultTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_ErrorResponseIsValidSseFormat()
+    public async Task ExecuteAsync_A2AExceptionAfterFirstEvent_ReturnsSseError()
     {
         // Arrange
         var requestId = new JsonRpcId("req-6");
-        var events = ThrowingAsyncEnumerable(
+        var events = YieldThenThrowAsyncEnumerable(
             new A2AException("Bad params", A2AErrorCode.InvalidParams));
         var result = new JsonRpcStreamedResult(events, requestId);
         var httpContext = CreateHttpContext();
@@ -178,6 +181,12 @@ public class JsonRpcStreamedResultTests
             ?? throw new InvalidOperationException("Failed to deserialize JsonRpcResponse");
     }
 
+    private static JsonRpcResponse ParseJsonRpcResponse(string body)
+    {
+        return JsonSerializer.Deserialize<JsonRpcResponse>(body, A2AJsonUtilities.DefaultOptions)
+            ?? throw new InvalidOperationException("Failed to deserialize JsonRpcResponse");
+    }
+
     private static async IAsyncEnumerable<StreamResponse> ThrowingAsyncEnumerable(
         Exception exception, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -193,5 +202,31 @@ public class JsonRpcStreamedResultTests
     {
         await Task.CompletedTask;
         yield break;
+    }
+
+    private static async IAsyncEnumerable<StreamResponse> SingleEventAsyncEnumerable(
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        await Task.CompletedTask;
+        yield return new StreamResponse
+        {
+            Task = new AgentTask
+            {
+                Id = "task-1",
+                ContextId = "context-1",
+                Status = new TaskStatus { State = TaskState.Working },
+            },
+        };
+    }
+
+    private static async IAsyncEnumerable<StreamResponse> YieldThenThrowAsyncEnumerable(
+        Exception exception, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        await foreach (var response in SingleEventAsyncEnumerable(cancellationToken))
+        {
+            yield return response;
+        }
+
+        throw exception;
     }
 }
