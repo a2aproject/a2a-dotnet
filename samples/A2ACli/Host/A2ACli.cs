@@ -222,8 +222,6 @@ public static class A2ACli
         {
             payload.Configuration.TaskPushNotificationConfig = new TaskPushNotificationConfig
             {
-                Id = Guid.NewGuid().ToString(),
-                TaskId = taskId,
                 Url = $"http://{notificationReceiverHost}:{notificationReceiverPort}/notify",
                 Authentication = new AuthenticationInfo
                 {

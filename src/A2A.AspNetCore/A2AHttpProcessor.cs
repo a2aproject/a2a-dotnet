@@ -201,6 +201,8 @@ internal static class A2AHttpProcessor
         {
             // Route provides the authoritative taskId; override whatever the body sent
             config.TaskId = taskId;
+            // This route has no tenant segment and does not support tenant routing.
+            config.Tenant = null;
             var result = await requestHandler.CreateTaskPushNotificationConfigAsync(config, ct).ConfigureAwait(false);
             return new A2AResponseResult(result);
         }, taskId, cancellationToken);

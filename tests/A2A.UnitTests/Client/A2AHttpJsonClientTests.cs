@@ -31,6 +31,41 @@ public class A2AHttpJsonClientTests
     }
 
     [Fact]
+    public async Task SendMessageAsync_OmitsIdentifiersFromEmbeddedPushConfiguration()
+    {
+        string? capturedBody = null;
+        var expected = new SendMessageResponse
+        {
+            Message = new Message { MessageId = "id-1", Role = Role.Agent, Parts = [] }
+        };
+        var sut = CreateClient(expected, req =>
+            capturedBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+
+        await sut.SendMessageAsync(new SendMessageRequest
+        {
+            Message = new Message
+            {
+                MessageId = "m-1",
+                TaskId = "task-1",
+                Role = Role.User,
+                Parts = [Part.FromText("Hello")]
+            },
+            Configuration = new SendMessageConfiguration
+            {
+                TaskPushNotificationConfig = new TaskPushNotificationConfig { Url = "http://push" }
+            }
+        });
+
+        Assert.NotNull(capturedBody);
+        using var requestJson = JsonDocument.Parse(capturedBody);
+        Assert.Equal("task-1", requestJson.RootElement.GetProperty("message").GetProperty("taskId").GetString());
+        var pushConfig = requestJson.RootElement.GetProperty("configuration").GetProperty("taskPushNotificationConfig");
+        Assert.Equal("http://push", pushConfig.GetProperty("url").GetString());
+        Assert.False(pushConfig.TryGetProperty("taskId", out _));
+        Assert.False(pushConfig.TryGetProperty("id", out _));
+    }
+
+    [Fact]
     public async Task SendStreamingMessageAsync_PostsToCorrectUrlAndYieldsEvents()
     {
         HttpRequestMessage? captured = null;

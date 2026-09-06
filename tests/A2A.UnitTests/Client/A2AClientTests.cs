@@ -33,7 +33,7 @@ public class A2AClientTests
             Configuration = new SendMessageConfiguration
             {
                 AcceptedOutputModes = ["mode1"],
-                TaskPushNotificationConfig = new TaskPushNotificationConfig { Id = "cfg-1", TaskId = "t-1", Url = "http://push" },
+                TaskPushNotificationConfig = new TaskPushNotificationConfig { Url = "http://push" },
                 HistoryLength = 5,
                 ReturnImmediately = true
             },
@@ -57,6 +57,13 @@ public class A2AClientTests
         Assert.Equal(sendRequest.Message.Parts[0].Text, parameters.Message.Parts[0].Text);
         Assert.Equal(sendRequest.Message.Role, parameters.Message.Role);
         Assert.Equal(sendRequest.Message.MessageId, parameters.Message.MessageId);
+        Assert.Equal("task-1", parameters.Message.TaskId);
+
+        var pushConfig = requestJson.RootElement.GetProperty("params")
+            .GetProperty("configuration").GetProperty("taskPushNotificationConfig");
+        Assert.Equal("http://push", pushConfig.GetProperty("url").GetString());
+        Assert.False(pushConfig.TryGetProperty("taskId", out _));
+        Assert.False(pushConfig.TryGetProperty("id", out _));
     }
 
     [Fact]
