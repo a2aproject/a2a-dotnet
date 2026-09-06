@@ -259,6 +259,73 @@ public sealed class A2ACardResolver
         if (root.TryGetProperty("iconUrl", out var iconUrl) && iconUrl.ValueKind == JsonValueKind.String)
             card.IconUrl = iconUrl.GetString();
 
+        // Provider — same shape in v0.3 and v1 ({ organization, url })
+        if (root.TryGetProperty("provider", out var provider) && provider.ValueKind == JsonValueKind.Object)
+        {
+            card.Provider = JsonSerializer.Deserialize(provider.GetRawText(), A2AJsonUtilities.JsonContext.Default.AgentProvider);
+        }
+
+        // Signatures — same shape in v0.3 and v1
+        if (root.TryGetProperty("signatures", out var signatures) && signatures.ValueKind == JsonValueKind.Array)
+        {
+            card.Signatures = [];
+            foreach (var sigElement in signatures.EnumerateArray())
+            {
+                var sig = JsonSerializer.Deserialize(sigElement.GetRawText(), A2AJsonUtilities.JsonContext.Default.AgentCardSignature);
+                if (sig is not null)
+                {
+                    card.Signatures.Add(sig);
+                }
+            }
+        }
+
+        // SecuritySchemes — v0.3 uses a polymorphic type discriminator ("type": "apiKey"|"http"|...),
+        // while v1 uses a flat container with optional sub-scheme fields. Deserialize each entry
+        // as v0.3, then map to v1's flat shape.
+        if (root.TryGetProperty("securitySchemes", out var schemes) && schemes.ValueKind == JsonValueKind.Object)
+        {
+            card.SecuritySchemes = [];
+            foreach (var prop in schemes.EnumerateObject())
+            {
+                var v1Scheme = MapV03SecurityScheme(prop.Value);
+                if (v1Scheme is not null)
+                {
+                    card.SecuritySchemes[prop.Name] = v1Scheme;
+                }
+            }
+        }
+
+        // Security — v0.3 uses List<Dictionary<string, string[]>>,
+        // v1 uses List<SecurityRequirement> where each has a Schemes dictionary.
+        if (root.TryGetProperty("security", out var security) && security.ValueKind == JsonValueKind.Array)
+        {
+            card.SecurityRequirements = [];
+            foreach (var reqElement in security.EnumerateArray())
+            {
+                if (reqElement.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                var requirement = new SecurityRequirement { Schemes = [] };
+                foreach (var prop in reqElement.EnumerateObject())
+                {
+                    var scopes = new StringList();
+                    if (prop.Value.ValueKind == JsonValueKind.Array)
+                    {
+                        scopes.List = prop.Value.EnumerateArray()
+                            .Where(e => e.ValueKind == JsonValueKind.String)
+                            .Select(e => e.GetString()!)
+                            .ToList();
+                    }
+
+                    requirement.Schemes[prop.Name] = scopes;
+                }
+
+                card.SecurityRequirements.Add(requirement);
+            }
+        }
+
         return card;
     }
 
@@ -291,4 +358,70 @@ public sealed class A2ACardResolver
             "GRPC" => ProtocolBindingNames.Grpc,
             _ => transport,
         };
+
+    /// <summary>
+    /// Maps a v0.3 polymorphic SecurityScheme (discriminated by "type") to a v1 flat SecurityScheme container.
+    /// </summary>
+    /// <param name="element">A <see cref="JsonElement"/> representing a single v0.3 security scheme entry.</param>
+    private static SecurityScheme? MapV03SecurityScheme(JsonElement element)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        if (!element.TryGetProperty("type", out var typeElement) || typeElement.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+
+        var type = typeElement.GetString();
+        var scheme = new SecurityScheme();
+
+        switch (type)
+        {
+            case "apiKey":
+                scheme.ApiKeySecurityScheme = new ApiKeySecurityScheme
+                {
+                    Name = element.TryGetProperty("name", out var name) ? name.GetString() ?? string.Empty : string.Empty,
+                    Location = element.TryGetProperty("in", out var location) ? location.GetString() ?? string.Empty : string.Empty,
+                    Description = element.TryGetProperty("description", out var akDesc) ? akDesc.GetString() : null,
+                };
+                break;
+
+            case "http":
+                scheme.HttpAuthSecurityScheme = new HttpAuthSecurityScheme
+                {
+                    Scheme = element.TryGetProperty("scheme", out var httpScheme) ? httpScheme.GetString() ?? string.Empty : string.Empty,
+                    BearerFormat = element.TryGetProperty("bearerFormat", out var bf) ? bf.GetString() : null,
+                    Description = element.TryGetProperty("description", out var httpDesc) ? httpDesc.GetString() : null,
+                };
+                break;
+
+            case "oauth2":
+                scheme.OAuth2SecurityScheme = JsonSerializer.Deserialize(
+                    element.GetRawText(), A2AJsonUtilities.JsonContext.Default.OAuth2SecurityScheme);
+                break;
+
+            case "openIdConnect":
+                scheme.OpenIdConnectSecurityScheme = new OpenIdConnectSecurityScheme
+                {
+                    OpenIdConnectUrl = element.TryGetProperty("openIdConnectUrl", out var oidcUrl) ? oidcUrl.GetString() ?? string.Empty : string.Empty,
+                    Description = element.TryGetProperty("description", out var oidcDesc) ? oidcDesc.GetString() : null,
+                };
+                break;
+
+            case "mutualTLS":
+                scheme.MtlsSecurityScheme = new MutualTlsSecurityScheme
+                {
+                    Description = element.TryGetProperty("description", out var mtlsDesc) ? mtlsDesc.GetString() : null,
+                };
+                break;
+
+            default:
+                return null;
+        }
+
+        return scheme;
+    }
 }
