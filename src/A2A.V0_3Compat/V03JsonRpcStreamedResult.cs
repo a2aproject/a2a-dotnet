@@ -26,25 +26,49 @@ internal sealed class V03JsonRpcStreamedResult : IResult
     {
         ArgumentNullException.ThrowIfNull(httpContext);
 
-        httpContext.Response.StatusCode = StatusCodes.Status200OK;
-        httpContext.Response.ContentType = "text/event-stream";
-        httpContext.Response.Headers.Append("Cache-Control", "no-cache");
-
         var responseTypeInfo = V03.A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(V03.JsonRpcResponse));
         var eventTypeInfo = V03.A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(V03.A2AEvent));
 
+        IAsyncEnumerator<V03.A2AEvent> enumerator;
         try
         {
-            await SseFormatter.WriteAsync(
-                _events.Select(e => new SseItem<V03.JsonRpcResponse>(
-                    V03.JsonRpcResponse.CreateJsonRpcResponse(_requestId, e, eventTypeInfo))),
-                httpContext.Response.Body,
-                (item, writer) =>
-                {
-                    using Utf8JsonWriter json = new(writer, new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
-                    JsonSerializer.Serialize(json, item.Data, responseTypeInfo);
-                },
-                httpContext.RequestAborted).ConfigureAwait(false);
+            enumerator = _events.GetAsyncEnumerator(httpContext.RequestAborted);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            await WriteErrorAsync(httpContext, ex, streamStarted: false, responseTypeInfo).ConfigureAwait(false);
+            return;
+        }
+
+        Exception? failure = null;
+        var streamStarted = false;
+        var completedWithoutEvents = false;
+        try
+        {
+            if (await enumerator.MoveNextAsync().ConfigureAwait(false))
+            {
+                ConfigureSseResponse(httpContext);
+                streamStarted = true;
+
+                await SseFormatter.WriteAsync(
+                    EnumerateFromCurrentAsync(enumerator).Select(e => new SseItem<V03.JsonRpcResponse>(
+                        V03.JsonRpcResponse.CreateJsonRpcResponse(_requestId, e, eventTypeInfo))),
+                    httpContext.Response.Body,
+                    (item, writer) =>
+                    {
+                        using Utf8JsonWriter json = new(writer, new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
+                        JsonSerializer.Serialize(json, item.Data, responseTypeInfo);
+                    },
+                    httpContext.RequestAborted).ConfigureAwait(false);
+            }
+            else
+            {
+                completedWithoutEvents = true;
+            }
         }
         catch (OperationCanceledException)
         {
@@ -52,21 +76,83 @@ internal sealed class V03JsonRpcStreamedResult : IResult
         }
         catch (Exception ex)
         {
+            failure = ex;
+        }
+        finally
+        {
             try
             {
-                var errorResponse = ex is A2AException a2aEx
-                    ? V03.JsonRpcResponse.CreateJsonRpcErrorResponse(_requestId,
-                        new V03.A2AException(a2aEx.Message, (V03.A2AErrorCode)(int)a2aEx.ErrorCode))
-                    : V03.JsonRpcResponse.InternalErrorResponse(_requestId, "An internal error occurred during streaming.");
-                var errorJson = JsonSerializer.Serialize(errorResponse, responseTypeInfo);
-                var errorBytes = Encoding.UTF8.GetBytes($"data: {errorJson}\n\n");
-                await httpContext.Response.Body.WriteAsync(errorBytes, httpContext.RequestAborted);
-                await httpContext.Response.Body.FlushAsync(httpContext.RequestAborted);
+                await enumerator.DisposeAsync().ConfigureAwait(false);
             }
-            catch
+            catch (OperationCanceledException)
             {
-                // Response body is no longer writable — silently abandon
+                // Client disconnected — expected
+            }
+            catch (Exception ex)
+            {
+                failure ??= ex;
             }
         }
+
+        if (failure is not null)
+        {
+            await WriteErrorAsync(httpContext, failure, streamStarted, responseTypeInfo).ConfigureAwait(false);
+        }
+        else if (completedWithoutEvents)
+        {
+            ConfigureSseResponse(httpContext);
+        }
+    }
+
+    private static void ConfigureSseResponse(HttpContext httpContext)
+    {
+        httpContext.Response.StatusCode = StatusCodes.Status200OK;
+        httpContext.Response.ContentType = "text/event-stream";
+        httpContext.Response.Headers.Append("Cache-Control", "no-cache");
+    }
+
+    private async Task WriteErrorAsync(
+        HttpContext httpContext,
+        Exception exception,
+        bool streamStarted,
+        System.Text.Json.Serialization.Metadata.JsonTypeInfo responseTypeInfo)
+    {
+        var errorResponse = exception is A2AException a2aException
+            ? V03.JsonRpcResponse.CreateJsonRpcErrorResponse(
+                _requestId,
+                new V03.A2AException(a2aException.Message, (V03.A2AErrorCode)(int)a2aException.ErrorCode))
+            : V03.JsonRpcResponse.InternalErrorResponse(
+                _requestId,
+                streamStarted
+                    ? "An internal error occurred during streaming."
+                    : "An internal error occurred.");
+
+        if (!streamStarted)
+        {
+            await new V03JsonRpcResponseResult(errorResponse).ExecuteAsync(httpContext).ConfigureAwait(false);
+            return;
+        }
+
+        try
+        {
+            var errorJson = JsonSerializer.Serialize(errorResponse, responseTypeInfo);
+            var errorBytes = Encoding.UTF8.GetBytes($"data: {errorJson}\n\n");
+            await httpContext.Response.Body.WriteAsync(errorBytes, httpContext.RequestAborted);
+            await httpContext.Response.Body.FlushAsync(httpContext.RequestAborted);
+        }
+        catch
+        {
+            // Response body is no longer writable — silently abandon
+        }
+    }
+
+    private static async IAsyncEnumerable<V03.A2AEvent> EnumerateFromCurrentAsync(
+        IAsyncEnumerator<V03.A2AEvent> enumerator)
+    {
+        do
+        {
+            yield return enumerator.Current;
+        }
+        while (await enumerator.MoveNextAsync().ConfigureAwait(false));
     }
 }
