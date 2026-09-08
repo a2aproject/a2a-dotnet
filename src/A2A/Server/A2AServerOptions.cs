@@ -9,7 +9,8 @@ public sealed class A2AServerOptions
     /// Whether the agent advertises support for an extended agent card. Default: false.
     /// </summary>
     /// <remarks>
-    /// <c>AddA2AAgent</c> derives this value from the registered agent card.
+    /// <c>AddA2AAgent</c> derives this value from the registered agent card,
+    /// overriding any value set by its options configuration callback.
     /// </remarks>
     public bool SupportsExtendedAgentCard { get; set; }
 
