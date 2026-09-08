@@ -1,0 +1,34 @@
+{
+  "tests": [
+    {
+      "name": "Star Topology - JSONRPC",
+      "sdks": ["current", "python_v10", "go_v10"],
+      "edges": ["0->1", "0->2", "1->0", "2->0"],
+      "protocols": ["jsonrpc"],
+      "behavior": "send_message"
+    },
+    {
+      "name": "Star Topology - HTTP_JSON",
+      "sdks": ["current", "python_v10", "go_v10"],
+      "edges": ["0->1", "0->2", "1->0", "2->0"],
+      "protocols": ["http_json"],
+      "behavior": "send_message"
+    },
+    {
+      "name": "Star Topology - JSONRPC (Streaming)",
+      "sdks": ["current", "python_v10", "go_v10"],
+      "edges": ["0->1", "0->2", "1->0", "2->0"],
+      "protocols": ["jsonrpc"],
+      "streaming": true,
+      "behavior": "send_message"
+    },
+    {
+      "name": "Resubscribe Test - JSONRPC",
+      "sdks": ["current", "python_v10", "go_v10"],
+      "edges": ["0->1", "0->2", "1->0", "2->0"],
+      "protocols": ["jsonrpc"],
+      "streaming": true,
+      "behavior": "resubscribe"
+    }
+  ]
+}
