@@ -277,6 +277,85 @@ internal sealed class A2AEventStreamResult : IResult
 
     public async Task ExecuteAsync(HttpContext httpContext)
     {
+        IAsyncEnumerator<StreamResponse> enumerator;
+        try
+        {
+            enumerator = _events.GetAsyncEnumerator(httpContext.RequestAborted);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            await WriteErrorAsync(httpContext, ex, streamStarted: false).ConfigureAwait(false);
+            return;
+        }
+
+        Exception? failure = null;
+        var streamStarted = false;
+        var completedWithoutEvents = false;
+        try
+        {
+            if (await enumerator.MoveNextAsync().ConfigureAwait(false))
+            {
+                ConfigureSseResponse(httpContext);
+                streamStarted = true;
+
+                do
+                {
+                    #pragma warning disable VSTHRD103 // Serialize to string is not blocking I/O
+                    var json = JsonSerializer.Serialize(enumerator.Current,
+                        A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(StreamResponse)));
+                    #pragma warning restore VSTHRD103
+                    await httpContext.Response.BodyWriter.WriteAsync(
+                        Encoding.UTF8.GetBytes($"data: {json}\n\n"), httpContext.RequestAborted);
+                    await httpContext.Response.BodyWriter.FlushAsync(httpContext.RequestAborted);
+                }
+                while (await enumerator.MoveNextAsync().ConfigureAwait(false));
+            }
+            else
+            {
+                completedWithoutEvents = true;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Client disconnected — expected
+        }
+        catch (Exception ex)
+        {
+            failure = ex;
+        }
+        finally
+        {
+            try
+            {
+                await enumerator.DisposeAsync().ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // Client disconnected — expected
+            }
+            catch (Exception ex)
+            {
+                failure ??= ex;
+            }
+        }
+
+        if (failure is not null)
+        {
+            await WriteErrorAsync(httpContext, failure, streamStarted).ConfigureAwait(false);
+        }
+        else if (completedWithoutEvents)
+        {
+            ConfigureSseResponse(httpContext);
+        }
+    }
+
+    private static void ConfigureSseResponse(HttpContext httpContext)
+    {
+        httpContext.Response.StatusCode = StatusCodes.Status200OK;
         httpContext.Response.ContentType = "text/event-stream";
         httpContext.Response.Headers.CacheControl = "no-cache,no-store";
         httpContext.Response.Headers.Pragma = "no-cache";
@@ -284,35 +363,29 @@ internal sealed class A2AEventStreamResult : IResult
 
         var bufferingFeature = httpContext.Features.GetRequiredFeature<IHttpResponseBodyFeature>();
         bufferingFeature.DisableBuffering();
+    }
+
+    private static async Task WriteErrorAsync(HttpContext httpContext, Exception exception, bool streamStarted)
+    {
+        if (!streamStarted)
+        {
+            var error = exception is A2AException a2aException
+                ? a2aException
+                : new A2AException("An internal error occurred.", A2AErrorCode.InternalError);
+            await new A2AErrorResult(error).ExecuteAsync(httpContext).ConfigureAwait(false);
+            return;
+        }
 
         try
         {
-            await foreach (var taskEvent in _events.WithCancellation(httpContext.RequestAborted))
-            {
-                var json = JsonSerializer.Serialize(taskEvent,
-                    A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(StreamResponse)));
-                await httpContext.Response.BodyWriter.WriteAsync(
-                    Encoding.UTF8.GetBytes($"data: {json}\n\n"), httpContext.RequestAborted);
-                await httpContext.Response.BodyWriter.FlushAsync(httpContext.RequestAborted);
-            }
+            await httpContext.Response.BodyWriter.WriteAsync(
+                Encoding.UTF8.GetBytes("data: {\"error\":\"An internal error occurred during streaming.\"}\n\n"),
+                httpContext.RequestAborted);
+            await httpContext.Response.BodyWriter.FlushAsync(httpContext.RequestAborted);
         }
-        catch (OperationCanceledException)
+        catch
         {
-            // Client disconnected — expected
-        }
-        catch (Exception)
-        {
-            // Stream error — response already started, best-effort error event
-            try
-            {
-                await httpContext.Response.BodyWriter.WriteAsync(
-                    Encoding.UTF8.GetBytes("data: {\"error\":\"An internal error occurred during streaming.\"}\n\n"), httpContext.RequestAborted);
-                await httpContext.Response.BodyWriter.FlushAsync(httpContext.RequestAborted);
-            }
-            catch
-            {
-                // Response body no longer writable
-            }
+            // Response body no longer writable
         }
     }
 }
