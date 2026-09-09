@@ -135,7 +135,9 @@ internal sealed class V03JsonRpcStreamedResult : IResult
 
         try
         {
+            #pragma warning disable VSTHRD103 // Serialize to string is not blocking I/O
             var errorJson = JsonSerializer.Serialize(errorResponse, responseTypeInfo);
+            #pragma warning restore VSTHRD103
             var errorBytes = Encoding.UTF8.GetBytes($"data: {errorJson}\n\n");
             await httpContext.Response.Body.WriteAsync(errorBytes, httpContext.RequestAborted);
             await httpContext.Response.Body.FlushAsync(httpContext.RequestAborted);

@@ -304,8 +304,10 @@ internal sealed class A2AEventStreamResult : IResult
 
                 do
                 {
+                    #pragma warning disable VSTHRD103 // Serialize to string is not blocking I/O
                     var json = JsonSerializer.Serialize(enumerator.Current,
                         A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(StreamResponse)));
+                    #pragma warning restore VSTHRD103
                     await httpContext.Response.BodyWriter.WriteAsync(
                         Encoding.UTF8.GetBytes($"data: {json}\n\n"), httpContext.RequestAborted);
                     await httpContext.Response.BodyWriter.FlushAsync(httpContext.RequestAborted);
