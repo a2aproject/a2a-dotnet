@@ -8,8 +8,8 @@ public sealed class SendMessageConfiguration
     /// <summary>Gets or sets the accepted output modes.</summary>
     public List<string>? AcceptedOutputModes { get; set; }
 
-    /// <summary>Gets or sets the push notification configuration.</summary>
-    public PushNotificationConfig? PushNotificationConfig { get; set; }
+    /// <summary>Gets or sets the push notification configuration for this task.</summary>
+    public TaskPushNotificationConfig? TaskPushNotificationConfig { get; set; }
 
     /// <summary>Gets or sets the history length to include.</summary>
     public int? HistoryLength { get; set; }

@@ -220,7 +220,7 @@ public static class A2ACli
         // Add push notification configuration if enabled
         if (usePushNotifications)
         {
-            payload.Configuration.PushNotificationConfig = new PushNotificationConfig
+            payload.Configuration.TaskPushNotificationConfig = new TaskPushNotificationConfig
             {
                 Url = $"http://{notificationReceiverHost}:{notificationReceiverPort}/notify",
                 Authentication = new AuthenticationInfo

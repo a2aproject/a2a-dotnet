@@ -194,9 +194,9 @@ internal static class V03TypeConverter
                 Blocking = !config.ReturnImmediately,
             };
 
-            if (config.PushNotificationConfig is { } pushConfig)
+            if (config.TaskPushNotificationConfig is { } pushConfig)
             {
-                result.Configuration.PushNotification = ToV03PushNotificationConfig(pushConfig);
+                result.Configuration.PushNotification = ToV03PushNotificationConfigFromTask(pushConfig);
             }
         }
 
@@ -424,6 +424,56 @@ internal static class V03TypeConverter
 
     // ──── Push notification config conversion ────
 
+    /// <summary>Converts a v1.0 flat TaskPushNotificationConfig to a v0.3 PushNotificationConfig.</summary>
+    /// <param name="config">The v1.0 task push notification config to convert.</param>
+    /// <returns>The converted v0.3 push notification config.</returns>
+    internal static V03.PushNotificationConfig ToV03PushNotificationConfigFromTask(A2A.TaskPushNotificationConfig config)
+    {
+        var result = new V03.PushNotificationConfig
+        {
+            Url = config.Url,
+            Id = config.Id,
+            Token = config.Token,
+        };
+
+        if (config.Authentication is { } auth)
+        {
+            result.Authentication = new V03.PushNotificationAuthenticationInfo
+            {
+                Schemes = [auth.Scheme],
+                Credentials = auth.Credentials,
+            };
+        }
+
+        return result;
+    }
+
+    /// <summary>Converts a v0.3 PushNotificationConfig to a v1.0 flat TaskPushNotificationConfig.</summary>
+    /// <param name="config">The v0.3 push notification config to convert.</param>
+    /// <param name="taskId">The task identifier to include in the result.</param>
+    /// <returns>The converted v1.0 task push notification config.</returns>
+    internal static A2A.TaskPushNotificationConfig ToV1TaskPushNotificationConfigFromV03PushNotification(V03.PushNotificationConfig config, string taskId)
+    {
+        var result = new A2A.TaskPushNotificationConfig
+        {
+            Id = config.Id ?? string.Empty,
+            TaskId = taskId,
+            Url = config.Url,
+            Token = config.Token,
+        };
+
+        if (config.Authentication is { Schemes: { Count: > 0 } schemes })
+        {
+            result.Authentication = new A2A.AuthenticationInfo
+            {
+                Scheme = schemes[0],
+                Credentials = config.Authentication.Credentials,
+            };
+        }
+
+        return result;
+    }
+
     /// <summary>Converts a v1.0 push notification config to v0.3.</summary>
     /// <param name="config">The v1.0 config to convert.</param>
     /// <returns>The converted v0.3 push notification config.</returns>
@@ -460,30 +510,44 @@ internal static class V03TypeConverter
             Token = config.Token,
         };
 
-        if (config.Authentication is { } auth && auth.Schemes.Count > 0)
+        if (config.Authentication is { Schemes: { Count: > 0 } schemes })
         {
             // v0.3 PushNotificationAuthenticationInfo.Schemes is a list; v1.0 AuthenticationInfo.Scheme
             // is a single string. Only the first scheme is preserved — multi-scheme configs lose data here.
             result.Authentication = new A2A.AuthenticationInfo
             {
-                Scheme = auth.Schemes[0],
-                Credentials = auth.Credentials,
+                Scheme = schemes[0],
+                Credentials = config.Authentication.Credentials,
             };
         }
 
         return result;
     }
 
-    /// <summary>Converts a v0.3 task push notification config to v1.0.</summary>
+    /// <summary>Converts a v0.3 task push notification config to v1.0 (flat structure).</summary>
     /// <param name="config">The v0.3 config to convert.</param>
     /// <returns>The converted v1.0 task push notification config.</returns>
-    internal static A2A.TaskPushNotificationConfig ToV1TaskPushNotificationConfig(V03.TaskPushNotificationConfig config) =>
-        new()
+    internal static A2A.TaskPushNotificationConfig ToV1TaskPushNotificationConfig(V03.TaskPushNotificationConfig config)
+    {
+        var result = new A2A.TaskPushNotificationConfig
         {
             Id = config.PushNotificationConfig.Id ?? string.Empty,
             TaskId = config.TaskId,
-            PushNotificationConfig = ToV1PushNotificationConfig(config.PushNotificationConfig),
+            Url = config.PushNotificationConfig.Url,
+            Token = config.PushNotificationConfig.Token,
         };
+
+        if (config.PushNotificationConfig.Authentication is { Schemes: { Count: > 0 } schemes })
+        {
+            result.Authentication = new A2A.AuthenticationInfo
+            {
+                Scheme = schemes[0],
+                Credentials = config.PushNotificationConfig.Authentication.Credentials,
+            };
+        }
+
+        return result;
+    }
 
     // ──── v0.3 request params → v1.0 request types (server-side compat) ────
 
@@ -498,8 +562,8 @@ internal static class V03TypeConverter
                 AcceptedOutputModes = cfg.AcceptedOutputModes,
                 HistoryLength = cfg.HistoryLength,
                 ReturnImmediately = !cfg.Blocking,
-                PushNotificationConfig = cfg.PushNotification is { } pn
-                    ? ToV1PushNotificationConfig(pn)
+                TaskPushNotificationConfig = cfg.PushNotification is { } pn
+                    ? ToV1TaskPushNotificationConfigFromV03PushNotification(pn, string.Empty)
                     : null,
             } : null,
             Metadata = p.Metadata,
