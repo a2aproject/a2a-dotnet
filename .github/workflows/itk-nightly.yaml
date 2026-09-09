@@ -1,0 +1,77 @@
+name: Nightly ITK
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # 2:00 AM UTC daily (before 4 AM dashboard refresh)
+  workflow_dispatch:      # Allow manual execution
+
+permissions:
+  contents: write
+
+concurrency:
+  group: itk-nightly
+  cancel-in-progress: true
+
+jobs:
+  nightly:
+    name: Nightly ITK Run
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Pre-publish ITK agent
+        run: dotnet publish -c Release -o publish Itk.csproj
+        working-directory: itk
+
+      - name: Clone a2a-itk
+        uses: actions/checkout@v4
+        with:
+          repository: a2aproject/a2a-itk
+          ref: main
+          path: itk/a2a-itk
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build itk_service image (GHA layer cache)
+        uses: docker/build-push-action@v6
+        with:
+          context: itk/a2a-itk
+          tags: itk_service:latest
+          load: true
+          cache-from: type=gha,scope=itk_service
+          cache-to: type=gha,mode=max,scope=itk_service
+
+      - name: Cache launcher peer-SDK checkouts
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/a2a-itk-launcher
+          key: itk-launcher-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            itk-launcher-${{ runner.os }}-
+
+      - name: Run Nightly ITK Tests
+        run: bash run_itk.sh
+        working-directory: itk
+        env:
+          A2A_ITK_REVISION: main
+          ITK_NIGHTLY_RUN: "True"
+
+      - name: Upload Results to Rolling Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "nightly-metrics"
+          prerelease: true
+          files: |
+            itk/itk_dotnet.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
