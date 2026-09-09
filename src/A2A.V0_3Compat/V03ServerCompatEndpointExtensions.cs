@@ -153,7 +153,7 @@ public static class V03ServerCompatEndpointExtensions
         response.Headers.CacheControl = cacheControl;
         response.Headers.ETag = $"\"{Convert.ToHexString(SHA256.HashData(jsonBytes))}\"";
         response.Headers.LastModified = lastModified;
-        response.Headers.Vary = "A2A-Version";
+        response.Headers.Append("Vary", "A2A-Version");
         return Results.Bytes(jsonBytes, "application/json");
     }
 

@@ -32,11 +32,21 @@ public class V03AgentCardEndpointTests
 
     private static async Task<HttpClient> CreateClientAsync(
         bool blendedCard = true,
-        AgentCardCacheOptions? cacheOptions = null)
+        AgentCardCacheOptions? cacheOptions = null,
+        string? existingVary = null)
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
         var app = builder.Build();
+        if (existingVary is not null)
+        {
+            app.Use(async (context, next) =>
+            {
+                context.Response.Headers.Vary = existingVary;
+                await next();
+            });
+        }
+
         var card = CreateTestCard();
         app.MapAgentCardGetWithV03Compat(
             () => Task.FromResult(card),
@@ -114,6 +124,20 @@ public class V03AgentCardEndpointTests
         var response = await client.GetAsync(path);
 
         response.EnsureSuccessStatusCode();
+        Assert.Contains("A2A-Version", response.Headers.Vary);
+    }
+
+    [Theory]
+    [InlineData("/agent")]
+    [InlineData("/agent/.well-known/agent-card.json")]
+    public async Task AgentCardRoutes_PreserveExistingVaryHeader(string path)
+    {
+        using var client = await CreateClientAsync(existingVary: "Accept-Encoding");
+
+        var response = await client.GetAsync(path);
+
+        response.EnsureSuccessStatusCode();
+        Assert.Contains("Accept-Encoding", response.Headers.Vary);
         Assert.Contains("A2A-Version", response.Headers.Vary);
     }
 
