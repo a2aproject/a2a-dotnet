@@ -1,6 +1,9 @@
+using A2A.AspNetCore;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
+using System.Globalization;
+using System.Security.Cryptography;
 using System.Text.Json.Nodes;
 
 namespace A2A.V0_3Compat.UnitTests;
@@ -27,15 +30,110 @@ public class V03AgentCardEndpointTests
         Skills = [],
     };
 
-    private static async Task<HttpClient> CreateClientAsync(bool blendedCard = true)
+    private static async Task<HttpClient> CreateClientAsync(
+        bool blendedCard = true,
+        AgentCardCacheOptions? cacheOptions = null)
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
         var app = builder.Build();
         var card = CreateTestCard();
-        app.MapAgentCardGetWithV03Compat(() => Task.FromResult(card), "/agent", blendedCard);
+        app.MapAgentCardGetWithV03Compat(
+            () => Task.FromResult(card),
+            "/agent",
+            blendedCard,
+            cacheOptions);
         await app.StartAsync();
         return app.GetTestClient();
+    }
+
+    [Theory]
+    [InlineData("/agent")]
+    [InlineData("/agent/.well-known/agent-card.json")]
+    public async Task AgentCardRoutes_IncludeCacheControlMaxAge(string path)
+    {
+        using var client = await CreateClientAsync();
+
+        var response = await client.GetAsync(path);
+
+        response.EnsureSuccessStatusCode();
+        Assert.Equal("public, max-age=3600", response.Headers.CacheControl?.ToString());
+    }
+
+    [Fact]
+    public async Task AgentCardRoutes_WithCacheOptions_UseConfiguredMaxAge()
+    {
+        using var client = await CreateClientAsync(
+            cacheOptions: new AgentCardCacheOptions { MaxAge = TimeSpan.FromMinutes(15) });
+
+        var response = await client.GetAsync("/agent/.well-known/agent-card.json");
+
+        response.EnsureSuccessStatusCode();
+        Assert.Equal("public, max-age=900", response.Headers.CacheControl?.ToString());
+    }
+
+    [Fact]
+    public void MapAgentCardGetWithV03Compat_WithNegativeMaxAge_Throws()
+    {
+        var app = WebApplication.CreateBuilder().Build();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => app.MapAgentCardGetWithV03Compat(
+            () => Task.FromResult(CreateTestCard()),
+            cacheOptions: new AgentCardCacheOptions { MaxAge = TimeSpan.FromSeconds(-1) }));
+    }
+
+    [Fact]
+    public async Task WellKnownRoute_ETagVariesByRepresentation()
+    {
+        using var client = await CreateClientAsync();
+        var blendedResponse = await client.GetAsync("/agent/.well-known/agent-card.json");
+        var v03Request = new HttpRequestMessage(HttpMethod.Get, "/agent/.well-known/agent-card.json");
+        v03Request.Headers.Add("A2A-Version", "0.3");
+        var v10Request = new HttpRequestMessage(HttpMethod.Get, "/agent/.well-known/agent-card.json");
+        v10Request.Headers.Add("A2A-Version", "1.0");
+
+        var v03Response = await client.SendAsync(v03Request);
+        var v10Response = await client.SendAsync(v10Request);
+
+        blendedResponse.EnsureSuccessStatusCode();
+        v03Response.EnsureSuccessStatusCode();
+        v10Response.EnsureSuccessStatusCode();
+        await AssertETagMatchesContentAsync(blendedResponse);
+        await AssertETagMatchesContentAsync(v03Response);
+        await AssertETagMatchesContentAsync(v10Response);
+        Assert.NotEqual(v03Response.Headers.ETag, v10Response.Headers.ETag);
+    }
+
+    [Theory]
+    [InlineData("/agent")]
+    [InlineData("/agent/.well-known/agent-card.json")]
+    public async Task AgentCardRoutes_VaryByA2AVersion(string path)
+    {
+        using var client = await CreateClientAsync();
+
+        var response = await client.GetAsync(path);
+
+        response.EnsureSuccessStatusCode();
+        Assert.Contains("A2A-Version", response.Headers.Vary);
+    }
+
+    [Fact]
+    public async Task WellKnownRoute_LastModifiedIsStable()
+    {
+        using var client = await CreateClientAsync();
+
+        var firstResponse = await client.GetAsync("/agent/.well-known/agent-card.json");
+        var secondResponse = await client.GetAsync("/agent/.well-known/agent-card.json");
+
+        firstResponse.EnsureSuccessStatusCode();
+        secondResponse.EnsureSuccessStatusCode();
+        Assert.Equal(firstResponse.Content.Headers.LastModified, secondResponse.Content.Headers.LastModified);
+        Assert.True(DateTimeOffset.TryParseExact(
+            firstResponse.Content.Headers.LastModified?.ToString("R"),
+            "R",
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal,
+            out _));
     }
 
     // ── GET /agent (root route) ────────────────────────────────────────────
@@ -126,5 +224,13 @@ public class V03AgentCardEndpointTests
         var json = JsonNode.Parse(await response.Content.ReadAsStringAsync())!.AsObject();
         Assert.True(json.ContainsKey("supportedInterfaces"));
         Assert.False(json.ContainsKey("url"));
+    }
+
+    private static async Task AssertETagMatchesContentAsync(HttpResponseMessage response)
+    {
+        var body = await response.Content.ReadAsByteArrayAsync();
+        Assert.Equal(
+            $"\"{Convert.ToHexString(SHA256.HashData(body))}\"",
+            response.Headers.ETag?.ToString());
     }
 }
