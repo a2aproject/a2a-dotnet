@@ -111,11 +111,12 @@ public static class A2ARouteBuilderExtensions
     /// <remarks>
     /// <para>Routes follow the A2A specification (e.g., <c>/tasks/{id}</c>, <c>/message:send</c>).
     /// Use the <paramref name="path"/> parameter to add a base path prefix if needed.</para>
-    /// <para><strong>Limitation:</strong> Multi-tenant route variants
-    /// (<c>/{tenant}/tasks/{id}</c>) defined in the A2A specification are not currently
-    /// supported. The <c>Tenant</c> field on request types will always be <c>null</c>
-    /// for REST API calls. Use the JSON-RPC binding with explicit tenant parameters
-    /// if multi-tenant routing is required.</para>
+    /// <para>For JSON-RPC and HTTP+JSON, select a tenant-specific agent through its URL,
+    /// with routing configured by the host application. Explicit tenant parameters are
+    /// intended for the gRPC binding, not tenant selection in the HTTP bindings.</para>
+    /// <para><strong>Limitation:</strong> This method does not automatically register
+    /// tenant-parameter route variants or implement tenant selection from request fields.
+    /// The host application is responsible for mapping tenant-specific agent URLs.</para>
     /// </remarks>
     /// <param name="endpoints">The endpoint route builder.</param>
     /// <param name="requestHandler">The A2A request handler.</param>
@@ -156,7 +157,7 @@ public static class A2ARouteBuilderExtensions
 
         // Push notification config operations
         routeGroup.MapPost("/tasks/{id}/pushNotificationConfigs",
-            (string id, [FromBody] PushNotificationConfig config, CancellationToken ct)
+            (string id, [FromBody] TaskPushNotificationConfig config, CancellationToken ct)
             => A2AHttpProcessor.CreatePushNotificationConfigRestAsync(requestHandler, logger, id, config, ct));
 
         routeGroup.MapGet("/tasks/{id}/pushNotificationConfigs",
