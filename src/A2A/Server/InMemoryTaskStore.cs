@@ -8,37 +8,46 @@ namespace A2A;
 /// In-memory task store using <see cref="ConcurrentDictionary{TKey, TValue}"/>.
 /// Suitable for development and testing.
 /// </summary>
+/// <remarks>
+/// Tasks are keyed by <c>(owner, taskId)</c> so that tasks created under one owner/tenant
+/// scope are not visible to other owners (tenant isolation). When no owner is supplied
+/// (unauthenticated requests), the shared <see cref="RequestContext.DefaultOwner"/> scope
+/// is used, which preserves the previous flat-store behavior.
+/// </remarks>
 public sealed class InMemoryTaskStore : ITaskStore
 {
-    private readonly ConcurrentDictionary<string, AgentTask> _tasks = new();
+    private readonly ConcurrentDictionary<(string Owner, string TaskId), AgentTask> _tasks = new();
 
     /// <inheritdoc />
-    public Task<AgentTask?> GetTaskAsync(string taskId, CancellationToken cancellationToken = default)
+    public Task<AgentTask?> GetTaskAsync(string taskId, string? owner = null, CancellationToken cancellationToken = default)
     {
-        if (!_tasks.TryGetValue(taskId, out var task))
+        if (!_tasks.TryGetValue((GetEffectiveOwner(owner), taskId), out var task))
             return Task.FromResult<AgentTask?>(null);
         return Task.FromResult<AgentTask?>(CloneTask(task));
     }
 
     /// <inheritdoc />
-    public Task SaveTaskAsync(string taskId, AgentTask task, CancellationToken cancellationToken = default)
+    public Task SaveTaskAsync(string taskId, AgentTask task, string? owner = null, CancellationToken cancellationToken = default)
     {
-        _tasks[taskId] = CloneTask(task);
+        _tasks[(GetEffectiveOwner(owner), taskId)] = CloneTask(task);
         return Task.CompletedTask;
     }
 
     /// <inheritdoc />
-    public Task DeleteTaskAsync(string taskId, CancellationToken cancellationToken = default)
+    public Task DeleteTaskAsync(string taskId, string? owner = null, CancellationToken cancellationToken = default)
     {
-        _tasks.TryRemove(taskId, out _);
+        _tasks.TryRemove((GetEffectiveOwner(owner), taskId), out _);
         return Task.CompletedTask;
     }
 
     /// <inheritdoc />
     public Task<ListTasksResponse> ListTasksAsync(ListTasksRequest request,
-        CancellationToken cancellationToken = default)
+        string? owner = null, CancellationToken cancellationToken = default)
     {
-        IEnumerable<AgentTask> allTasks = _tasks.Values
+        var effectiveOwner = GetEffectiveOwner(owner);
+        IEnumerable<AgentTask> allTasks = _tasks
+            .Where(kvp => kvp.Key.Owner == effectiveOwner)
+            .Select(kvp => kvp.Value)
             .Select(CloneTask);
 
         // Apply filters
@@ -116,6 +125,15 @@ public sealed class InMemoryTaskStore : ITaskStore
             TotalSize = totalSize,
         });
     }
+
+    /// <summary>
+    /// Normalizes the caller-supplied owner: <c>null</c> or empty maps to the shared
+    /// default owner scope so unauthenticated flows keep the flat-store behavior.
+    /// </summary>
+    /// <param name="owner">The caller-supplied owner scope, possibly <c>null</c>.</param>
+    /// <returns>The effective owner scope.</returns>
+    private static string GetEffectiveOwner(string? owner)
+        => string.IsNullOrEmpty(owner) ? RequestContext.DefaultOwner : owner;
 
     [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "All types are registered in source-generated JsonContext.")]
     [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "All types are registered in source-generated JsonContext.")]

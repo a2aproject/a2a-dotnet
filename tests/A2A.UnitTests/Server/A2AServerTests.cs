@@ -326,6 +326,50 @@ public class A2AServerTests
     }
 
     [Fact]
+    public async Task SendMessage_WithTenant_PersistsTaskUnderTenantScope()
+    {
+        // Arrange
+        var (server, store, handler) = CreateServer();
+        string? capturedTaskId = null;
+        handler.OnExecute = async (ctx, eq, ct) =>
+        {
+            capturedTaskId = ctx.TaskId;
+            Assert.Equal("alice", ctx.Owner); // RequestContext carries the tenant as owner
+            var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
+            await updater.SubmitAsync(cancellationToken: ct);
+            await updater.CompleteAsync(cancellationToken: ct);
+        };
+
+        var request = new SendMessageRequest
+        {
+            Tenant = "alice",
+            Message = new Message { MessageId = "u1", Parts = [Part.FromText("Hello!")], Role = Role.User }
+        };
+
+        // Act
+        await server.SendMessageAsync(request);
+
+        // Assert — task is retrievable under the same tenant only (IDOR fix)
+        Assert.NotNull(capturedTaskId);
+        var sameTenant = await server.GetTaskAsync(new GetTaskRequest { Id = capturedTaskId!, Tenant = "alice" });
+        Assert.NotNull(sameTenant);
+        Assert.Equal(TaskState.Completed, sameTenant!.Status.State);
+
+        // Different tenant (or no tenant → default owner) must NOT see the task
+        var otherTenantEx = await Assert.ThrowsAsync<A2AException>(() =>
+            server.GetTaskAsync(new GetTaskRequest { Id = capturedTaskId!, Tenant = "bob" }));
+        Assert.Equal(A2AErrorCode.TaskNotFound, otherTenantEx.ErrorCode);
+
+        var noTenantEx = await Assert.ThrowsAsync<A2AException>(() =>
+            server.GetTaskAsync(new GetTaskRequest { Id = capturedTaskId! }));
+        Assert.Equal(A2AErrorCode.TaskNotFound, noTenantEx.ErrorCode);
+
+        // The task IS in the store under the tenant scope
+        var persisted = await store.GetTaskAsync(capturedTaskId!, owner: "alice");
+        Assert.NotNull(persisted);
+    }
+
+    [Fact]
     public async Task GetTaskAsync_RespectsHistoryLength()
     {
         // Arrange
@@ -519,7 +563,7 @@ public class A2AServerTests
         Channel<StreamResponse> channel;
         using (await notifier.AcquireTaskLockAsync("t1", cts.Token))
         {
-            var task = await store.GetTaskAsync("t1", cts.Token);
+            var task = await store.GetTaskAsync("t1", cancellationToken: cts.Token);
             Assert.NotNull(task);
             channel = notifier.CreateChannel("t1");
         }
@@ -528,7 +572,7 @@ public class A2AServerTests
         using (await notifier.AcquireTaskLockAsync("t1", cts.Token))
         {
             var completed = new AgentTask { Id = "t1", ContextId = "ctx", Status = new TaskStatus { State = TaskState.Completed } };
-            await store.SaveTaskAsync("t1", completed, cts.Token);
+            await store.SaveTaskAsync("t1", completed, cancellationToken: cts.Token);
             notifier.Notify("t1", new StreamResponse
             {
                 StatusUpdate = new TaskStatusUpdateEvent { TaskId = "t1", ContextId = "ctx", Status = new TaskStatus { State = TaskState.Completed } }

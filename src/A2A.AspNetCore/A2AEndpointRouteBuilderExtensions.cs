@@ -77,9 +77,11 @@ public static class A2ARouteBuilderExtensions
     /// Use the <paramref name="path"/> parameter to add a base path prefix if needed.</para>
     /// <para><strong>Limitation:</strong> Multi-tenant route variants
     /// (<c>/{tenant}/tasks/{id}</c>) defined in the A2A specification are not currently
-    /// supported. The <c>Tenant</c> field on request types will always be <c>null</c>
-    /// for REST API calls. Use the JSON-RPC binding with explicit tenant parameters
-    /// if multi-tenant routing is required.</para>
+    /// supported. The <c>Tenant</c> field on REST request types will always be <c>null</c>,
+    /// so REST calls operate in the shared default owner scope. Use the JSON-RPC binding
+    /// with an explicit <c>tenant</c> parameter if per-tenant isolation is required:
+    /// the SDK scopes task store access by the request tenant, so tasks created under one
+    /// tenant are not visible to another.</para>
     /// </remarks>
     /// <param name="endpoints">The endpoint route builder.</param>
     /// <param name="requestHandler">The A2A request handler.</param>
