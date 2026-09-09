@@ -151,7 +151,7 @@ public static class A2AJsonRpcProcessor
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, cancelledTask);
                 break;
             case A2AMethods.CreateTaskPushNotificationConfig:
-                var createPnConfig = DeserializeAndValidate<CreateTaskPushNotificationConfigRequest>(parameters.Value);
+                var createPnConfig = DeserializeAndValidate<TaskPushNotificationConfig>(parameters.Value);
                 var createdConfig = await requestHandler.CreateTaskPushNotificationConfigAsync(createPnConfig, cancellationToken).ConfigureAwait(false);
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, createdConfig);
                 break;
@@ -160,9 +160,9 @@ public static class A2AJsonRpcProcessor
                 var gotConfig = await requestHandler.GetTaskPushNotificationConfigAsync(getPnConfig, cancellationToken).ConfigureAwait(false);
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, gotConfig);
                 break;
-            case A2AMethods.ListTaskPushNotificationConfig:
-                var listPnConfig = DeserializeAndValidate<ListTaskPushNotificationConfigRequest>(parameters.Value);
-                var listPnResult = await requestHandler.ListTaskPushNotificationConfigAsync(listPnConfig, cancellationToken).ConfigureAwait(false);
+            case A2AMethods.ListTaskPushNotificationConfigs:
+                var listPnConfig = DeserializeAndValidate<ListTaskPushNotificationConfigsRequest>(parameters.Value);
+                var listPnResult = await requestHandler.ListTaskPushNotificationConfigsAsync(listPnConfig, cancellationToken).ConfigureAwait(false);
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, listPnResult);
                 break;
             case A2AMethods.DeleteTaskPushNotificationConfig:
