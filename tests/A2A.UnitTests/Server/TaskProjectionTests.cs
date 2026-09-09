@@ -608,6 +608,72 @@ public class TaskProjectionTests
     }
 
     [Fact]
+    public void Apply_WithStatusUpdate_DoesNotShareMetadataReferenceWithOriginal()
+    {
+        // Arrange
+        var originalMetadata = new Dictionary<string, JsonElement>
+        {
+            ["key"] = JsonSerializer.SerializeToElement("val")
+        };
+        var task = new AgentTask
+        {
+            Id = "t1",
+            ContextId = "c1",
+            Status = new TaskStatus { State = TaskState.Working },
+            Metadata = originalMetadata
+        };
+
+        // Act
+        var result = TaskProjection.Apply(task, new StreamResponse
+        {
+            StatusUpdate = new TaskStatusUpdateEvent
+            {
+                Status = new TaskStatus { State = TaskState.Completed }
+            }
+        });
+
+        // Assert: projected task has its own Metadata dictionary instance
+        Assert.NotSame(originalMetadata, result!.Metadata);
+        Assert.Equal(originalMetadata.Count, result.Metadata!.Count);
+
+        // Assert: mutating the copy does not affect the original
+        result.Metadata["new"] = JsonSerializer.SerializeToElement("new-val");
+        Assert.Single(originalMetadata);
+    }
+
+    [Fact]
+    public void Apply_WithStatusUpdate_PreservesMetadataComparer()
+    {
+        // Arrange
+        var originalMetadata = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["key"] = JsonSerializer.SerializeToElement("val")
+        };
+        var task = new AgentTask
+        {
+            Id = "t1",
+            ContextId = "c1",
+            Status = new TaskStatus { State = TaskState.Working },
+            Metadata = originalMetadata
+        };
+
+        // Act
+        var result = TaskProjection.Apply(task, new StreamResponse
+        {
+            StatusUpdate = new TaskStatusUpdateEvent
+            {
+                Status = new TaskStatus { State = TaskState.Completed }
+            }
+        });
+
+        // Assert: projected task's Metadata keeps a case-insensitive lookup working
+        Assert.True(result!.Metadata!.ContainsKey("KEY"));
+
+        // Assert: the comparer instance itself is preserved, not defaulted
+        Assert.Same(originalMetadata.Comparer, result.Metadata.Comparer);
+    }
+
+    [Fact]
     public void Apply_ReturnsNewAgentTaskInstance_OriginalUnmutated()
     {
         // Arrange

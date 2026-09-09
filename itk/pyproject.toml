@@ -1,0 +1,6 @@
+[project]
+name = "itk-dotnet-agent"
+version = "0.1.0"
+description = "Launcher for the .NET ITK agent"
+requires-python = ">=3.10"
+dependencies = []
