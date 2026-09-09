@@ -411,6 +411,36 @@ public class A2AJsonRpcProcessorTests
         Assert.Equal("Invalid parameters", BodyContent.Error.Message);
     }
 
+    [Fact]
+    public async Task StreamResponse_SubscribeToTerminalTask_ReturnsUnsupportedOperationError()
+    {
+        // Arrange
+        var (requestHandler, store) = CreateTestServerWithStore();
+        await store.SaveTaskAsync("terminal-task", new AgentTask
+        {
+            Id = "terminal-task",
+            ContextId = "ctx-1",
+            Status = new TaskStatus { State = TaskState.Completed },
+        });
+        var parameters = ToJsonElement(new SubscribeToTaskRequest { Id = "terminal-task" });
+
+        // Act
+        var result = A2AJsonRpcProcessor.StreamResponse(
+            requestHandler, "10", A2AMethods.SubscribeToTask, parameters, CancellationToken.None);
+        var responseResult = Assert.IsType<JsonRpcStreamedResult>(result);
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+        await responseResult.ExecuteAsync(context);
+
+        // Assert
+        context.Response.Body.Position = 0;
+        var response = await JsonSerializer.DeserializeAsync<JsonRpcResponse>(
+            context.Response.Body, A2AJsonUtilities.DefaultOptions);
+        Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
+        Assert.Equal("application/json", context.Response.ContentType);
+        Assert.Equal((int)A2AErrorCode.UnsupportedOperation, response?.Error?.Code);
+    }
+
     [Theory]
     [InlineData("{invalid json", "completely malformed JSON")]
     [InlineData("not json at all", "plain text")]

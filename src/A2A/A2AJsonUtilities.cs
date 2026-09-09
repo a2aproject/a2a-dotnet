@@ -41,6 +41,7 @@ public static partial class A2AJsonUtilities
 
         // Chain with all supported types from MEAI.
         opts.TypeInfoResolverChain.Add(AIJsonUtilities.DefaultOptions.TypeInfoResolver!);
+        opts.Converters.Add(new UtcDateTimeOffsetConverter());
 
         opts.MakeReadOnly();
         return opts;
