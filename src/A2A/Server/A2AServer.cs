@@ -419,53 +419,63 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
         using var activity = A2ADiagnostics.Source.StartActivity("A2AServer.CancelTask", ActivityKind.Internal);
         activity?.SetTag("a2a.task.id", request.Id);
 
-        var task = await _taskStore.GetTaskAsync(request.Id, cancellationToken).ConfigureAwait(false)
-            ?? throw new A2AException($"Task '{request.Id}' not found.", A2AErrorCode.TaskNotFound);
-
-        if (task.Status.State.IsTerminal())
+        // Hold the per-task lock across the entire cancel operation. This makes the
+        // terminal-state check-then-act atomic with respect to concurrent mutations
+        // (message/send ApplyEventAsync) and serializes concurrent cancel requests:
+        // the loser of the race re-reads the now-terminal task and fails with
+        // TaskNotCancelable instead of double-cancelling.
+        // Events are applied via ApplyEventUnderLockAsync because the per-task
+        // semaphore is not reentrant.
+        using (await _notifier.AcquireTaskLockAsync(request.Id, cancellationToken).ConfigureAwait(false))
         {
-            throw new A2AException("Task is already in a terminal state.", A2AErrorCode.TaskNotCancelable);
-        }
+            var task = await _taskStore.GetTaskAsync(request.Id, cancellationToken).ConfigureAwait(false)
+                ?? throw new A2AException($"Task '{request.Id}' not found.", A2AErrorCode.TaskNotFound);
 
-        // Signal any background return-immediately work to stop.
-        // Don't dispose the CTS here — the drain's finally block owns disposal.
-        if (_backgroundCancellations.TryRemove(request.Id, out var backgroundCts))
-        {
-            await backgroundCts.CancelAsync().ConfigureAwait(false);
-        }
-
-        var context = new RequestContext
-        {
-            Message = task.History?.LastOrDefault() ?? new Message { Role = Role.User, MessageId = string.Empty, Parts = [] },
-            Task = task,
-            TaskId = task.Id,
-            ContextId = task.ContextId,
-            StreamingResponse = false,
-            Metadata = request.Metadata,
-        };
-
-        var eventQueue = new AgentEventQueue();
-        var agentTask = Task.Run(async () =>
-        {
-            try
+            if (task.Status.State.IsTerminal())
             {
-                await _handler.CancelAsync(context, eventQueue, cancellationToken).ConfigureAwait(false);
+                throw new A2AException("Task is already in a terminal state.", A2AErrorCode.TaskNotCancelable);
             }
-            finally
+
+            // Signal any background return-immediately work to stop.
+            // Don't dispose the CTS here — the drain's finally block owns disposal.
+            if (_backgroundCancellations.TryRemove(request.Id, out var backgroundCts))
             {
-                eventQueue.Complete();
+                await backgroundCts.CancelAsync().ConfigureAwait(false);
             }
-        }, cancellationToken);
 
-        await foreach (var response in eventQueue.WithCancellation(cancellationToken).ConfigureAwait(false))
-        {
-            await ApplyEventAsync(response, context, cancellationToken).ConfigureAwait(false);
+            var context = new RequestContext
+            {
+                Message = task.History?.LastOrDefault() ?? new Message { Role = Role.User, MessageId = string.Empty, Parts = [] },
+                Task = task,
+                TaskId = task.Id,
+                ContextId = task.ContextId,
+                StreamingResponse = false,
+                Metadata = request.Metadata,
+            };
+
+            var eventQueue = new AgentEventQueue();
+            var agentTask = Task.Run(async () =>
+            {
+                try
+                {
+                    await _handler.CancelAsync(context, eventQueue, cancellationToken).ConfigureAwait(false);
+                }
+                finally
+                {
+                    eventQueue.Complete();
+                }
+            }, cancellationToken);
+
+            await foreach (var response in eventQueue.WithCancellation(cancellationToken).ConfigureAwait(false))
+            {
+                await ApplyEventUnderLockAsync(response, context, cancellationToken).ConfigureAwait(false);
+            }
+
+            await agentTask.ConfigureAwait(false);
+
+            return await _taskStore.GetTaskAsync(request.Id, cancellationToken).ConfigureAwait(false)
+                ?? throw new A2AException($"Task '{request.Id}' not found.", A2AErrorCode.TaskNotFound);
         }
-
-        await agentTask.ConfigureAwait(false);
-
-        return await _taskStore.GetTaskAsync(request.Id, cancellationToken).ConfigureAwait(false)
-            ?? throw new A2AException($"Task '{request.Id}' not found.", A2AErrorCode.TaskNotFound);
     }
 
     /// <inheritdoc />
@@ -628,28 +638,43 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
     {
         using (await _notifier.AcquireTaskLockAsync(context.TaskId, cancellationToken).ConfigureAwait(false))
         {
-            var currentTask = await _taskStore.GetTaskAsync(context.TaskId, cancellationToken)
-                .ConfigureAwait(false);
-
-            var updatedTask = TaskProjection.Apply(currentTask, response);
-
-            // Message-only responses with no existing task have nothing to persist.
-            if (updatedTask is null)
-            {
-                _notifier.Notify(context.TaskId, response);
-                return;
-            }
-
-            if (currentTask is null)
-            {
-                A2ADiagnostics.TaskCreatedCount.Add(1);
-            }
-
-            await _taskStore.SaveTaskAsync(context.TaskId, updatedTask, cancellationToken)
-                .ConfigureAwait(false);
-
-            _notifier.Notify(context.TaskId, response);
+            await ApplyEventUnderLockAsync(response, context, cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>
+    /// Applies an event to the task store while the caller holds the per-task lock.
+    /// Used by <see cref="ApplyEventAsync"/> and by <see cref="CancelTaskAsync"/>, which
+    /// holds the lock across the whole cancel operation to make the terminal-state
+    /// check-then-act atomic.
+    /// </summary>
+    /// <param name="response">The event to apply.</param>
+    /// <param name="context">The request context identifying the task.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    private async Task ApplyEventUnderLockAsync(
+        StreamResponse response, RequestContext context, CancellationToken cancellationToken)
+    {
+        var currentTask = await _taskStore.GetTaskAsync(context.TaskId, cancellationToken)
+            .ConfigureAwait(false);
+
+        var updatedTask = TaskProjection.Apply(currentTask, response);
+
+        // Message-only responses with no existing task have nothing to persist.
+        if (updatedTask is null)
+        {
+            _notifier.Notify(context.TaskId, response);
+            return;
+        }
+
+        if (currentTask is null)
+        {
+            A2ADiagnostics.TaskCreatedCount.Add(1);
+        }
+
+        await _taskStore.SaveTaskAsync(context.TaskId, updatedTask, cancellationToken)
+            .ConfigureAwait(false);
+
+        _notifier.Notify(context.TaskId, response);
     }
 
     /// <summary>
