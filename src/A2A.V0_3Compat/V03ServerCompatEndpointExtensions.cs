@@ -1,9 +1,16 @@
 namespace A2A.V0_3Compat;
 
+using A2A.AspNetCore;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+
+using V03 = A2A.V0_3;
 
 /// <summary>
 /// Extension methods for registering A2A endpoints with v0.3 compatibility support.
@@ -72,6 +79,7 @@ public static class V03ServerCompatEndpointExtensions
     /// even when no <c>A2A-Version</c> header is sent. Set to <c>false</c> to return a strict v0.3
     /// card with no v1.0 properties, for clients whose deserializers reject unknown fields.
     /// </param>
+    /// <param name="cacheOptions">Optional Agent Card HTTP caching configuration.</param>
     /// <returns>An endpoint convention builder for further configuration.</returns>
     [RequiresDynamicCode("MapAgentCardGetWithV03Compat uses runtime reflection for route binding. For AOT-compatible usage, use a source-generated host.")]
     [RequiresUnreferencedCode("MapAgentCardGetWithV03Compat may perform reflection on types that are not preserved by trimming.")]
@@ -79,47 +87,87 @@ public static class V03ServerCompatEndpointExtensions
         this IEndpointRouteBuilder endpoints,
         Func<Task<AgentCard>> getAgentCardAsync,
         [StringSyntax("Route")] string path = "",
-        bool blendedCard = true)
+        bool blendedCard = true,
+        AgentCardCacheOptions? cacheOptions = null)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(getAgentCardAsync);
 
         var routeGroup = endpoints.MapGroup(path);
+        var lastModified = DateTimeOffset.UtcNow.ToString("R", CultureInfo.InvariantCulture);
+        var cacheControl = GetAgentCardCacheControl(cacheOptions);
 
         // Negotiate format via A2A-Version header.
         // Per spec, v1.0 clients MUST send A2A-Version; absent header indicates a v0.3 client.
         // Explicit A2A-Version: 0.3 always returns strict v0.3; blendedCard only applies when
         // no header is present (client version unknown).
-        routeGroup.MapGet(string.Empty, async (HttpRequest request) =>
+        routeGroup.MapGet(string.Empty, async (HttpRequest request, HttpResponse response) =>
         {
             var v1Card = await getAgentCardAsync();
             var version = request.Headers["A2A-Version"].FirstOrDefault();
-            if (version == "1.0")
-                return Results.Ok(v1Card);
-            if (version == "0.3")
-                return Results.Ok(V03TypeConverter.ToV03AgentCard(v1Card));
-            return blendedCard
-                ? Results.Json(V03TypeConverter.ToBlendedAgentCard(v1Card))
-                : Results.Ok(V03TypeConverter.ToV03AgentCard(v1Card));
+            return CreateAgentCardResult(v1Card, version, blendedCard, response, lastModified, cacheControl);
         });
 
         // Both v0.3 and v1.0 clients use GET .well-known/agent-card.json.
         // v1.0 clients send A2A-Version: 1.0; return v1.0 format.
         // Explicit A2A-Version: 0.3 returns strict v0.3; absent header defaults to blended or strict
         // depending on blendedCard.
-        routeGroup.MapGet(".well-known/agent-card.json", async (HttpRequest request, CancellationToken ct) =>
+        routeGroup.MapGet(".well-known/agent-card.json", async (HttpRequest request, HttpResponse response, CancellationToken ct) =>
         {
             var v1Card = await getAgentCardAsync();
             var version = request.Headers["A2A-Version"].FirstOrDefault();
-            if (version == "1.0")
-                return Results.Ok(v1Card);
-            if (version == "0.3")
-                return Results.Ok(V03TypeConverter.ToV03AgentCard(v1Card));
-            return blendedCard
-                ? Results.Json(V03TypeConverter.ToBlendedAgentCard(v1Card))
-                : Results.Ok(V03TypeConverter.ToV03AgentCard(v1Card));
+            return CreateAgentCardResult(v1Card, version, blendedCard, response, lastModified, cacheControl);
         });
 
         return routeGroup;
+    }
+
+    private static IResult CreateAgentCardResult(
+        AgentCard v1Card,
+        string? version,
+        bool blendedCard,
+        HttpResponse response,
+        string lastModified,
+        string cacheControl)
+    {
+        string json;
+        if (version == "1.0")
+        {
+            json = JsonSerializer.Serialize(
+                v1Card,
+                A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(AgentCard)));
+        }
+        else if (version == "0.3" || !blendedCard)
+        {
+            var v03Card = V03TypeConverter.ToV03AgentCard(v1Card);
+            json = JsonSerializer.Serialize(
+                v03Card,
+                V03.A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(V03.AgentCard)));
+        }
+        else
+        {
+            json = V03TypeConverter.ToBlendedAgentCard(v1Card).ToJsonString();
+        }
+
+        var jsonBytes = Encoding.UTF8.GetBytes(json);
+        response.Headers.CacheControl = cacheControl;
+        response.Headers.ETag = $"\"{Convert.ToHexString(SHA256.HashData(jsonBytes))}\"";
+        response.Headers.LastModified = lastModified;
+        response.Headers.Append("Vary", "A2A-Version");
+        return Results.Bytes(jsonBytes, "application/json");
+    }
+
+    private static string GetAgentCardCacheControl(AgentCardCacheOptions? cacheOptions)
+    {
+        var maxAge = cacheOptions?.MaxAge ?? TimeSpan.FromHours(1);
+        if (maxAge < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(cacheOptions),
+                maxAge,
+                "Agent Card cache max-age cannot be negative.");
+        }
+
+        return $"public, max-age={(long)Math.Ceiling(maxAge.TotalSeconds)}";
     }
 }
