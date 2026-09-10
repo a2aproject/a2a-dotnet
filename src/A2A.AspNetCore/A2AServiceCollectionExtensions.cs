@@ -31,6 +31,7 @@ public static class A2AServiceCollectionExtensions
 
         var options = new A2AServerOptions();
         configureOptions?.Invoke(options);
+        options.SupportsExtendedAgentCard = agentCard.Capabilities.ExtendedAgentCard == true;
         services.AddSingleton(options);
 
         services.TryAddSingleton<ChannelEventNotifier>();
