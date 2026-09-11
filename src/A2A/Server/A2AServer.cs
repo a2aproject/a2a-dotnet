@@ -517,7 +517,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
 
     /// <inheritdoc />
     public virtual Task<TaskPushNotificationConfig> CreateTaskPushNotificationConfigAsync(
-        CreateTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default)
+        TaskPushNotificationConfig config, CancellationToken cancellationToken = default)
     {
         throw new A2AException("Push notifications not supported.", A2AErrorCode.PushNotificationNotSupported);
     }
@@ -530,8 +530,8 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
     }
 
     /// <inheritdoc />
-    public virtual Task<ListTaskPushNotificationConfigResponse> ListTaskPushNotificationConfigAsync(
-        ListTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default)
+    public virtual Task<ListTaskPushNotificationConfigsResponse> ListTaskPushNotificationConfigsAsync(
+        ListTaskPushNotificationConfigsRequest request, CancellationToken cancellationToken = default)
     {
         throw new A2AException("Push notifications not supported.", A2AErrorCode.PushNotificationNotSupported);
     }

@@ -229,7 +229,7 @@ public sealed class ItkAgent(IHttpClientFactory httpClientFactory, ILogger<ItkAg
 
             request.Configuration = new SendMessageConfiguration
             {
-                PushNotificationConfig = new PushNotificationConfig
+                TaskPushNotificationConfig = new TaskPushNotificationConfig
                 {
                     Url = $"{url}/notifications",
                     Token = "itk-token"
