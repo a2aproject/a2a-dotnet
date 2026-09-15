@@ -443,7 +443,7 @@ public class A2AServerTests
 
         // Act & Assert
         await Assert.ThrowsAsync<A2AException>(() =>
-            server.CreateTaskPushNotificationConfigAsync(new CreateTaskPushNotificationConfigRequest()));
+            server.CreateTaskPushNotificationConfigAsync(new TaskPushNotificationConfig()));
         await Assert.ThrowsAsync<A2AException>(() =>
             server.GetTaskPushNotificationConfigAsync(new GetTaskPushNotificationConfigRequest()));
     }

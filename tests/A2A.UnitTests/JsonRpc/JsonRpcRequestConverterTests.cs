@@ -140,7 +140,7 @@ public class JsonRpcRequestConverterTests
     [InlineData(A2AMethods.SubscribeToTask)]
     [InlineData(A2AMethods.CreateTaskPushNotificationConfig)]
     [InlineData(A2AMethods.GetTaskPushNotificationConfig)]
-    [InlineData(A2AMethods.ListTaskPushNotificationConfig)]
+    [InlineData(A2AMethods.ListTaskPushNotificationConfigs)]
     [InlineData(A2AMethods.DeleteTaskPushNotificationConfig)]
     [InlineData(A2AMethods.GetExtendedAgentCard)]
     public void Read_ValidMethods_ReturnsCorrectMethod(string method)
@@ -489,7 +489,7 @@ public class JsonRpcRequestConverterTests
     [InlineData(A2AMethods.SubscribeToTask)]
     [InlineData(A2AMethods.CreateTaskPushNotificationConfig)]
     [InlineData(A2AMethods.GetTaskPushNotificationConfig)]
-    [InlineData(A2AMethods.ListTaskPushNotificationConfig)]
+    [InlineData(A2AMethods.ListTaskPushNotificationConfigs)]
     [InlineData(A2AMethods.DeleteTaskPushNotificationConfig)]
     [InlineData(A2AMethods.GetExtendedAgentCard)]
     public void RoundTrip_AllValidMethods_PreservesMethod(string method)

@@ -196,16 +196,14 @@ internal static class A2AHttpProcessor
 
     // REST handler: Create push notification config
     internal static Task<IResult> CreatePushNotificationConfigRestAsync(
-        IA2ARequestHandler requestHandler, ILogger logger, string taskId, PushNotificationConfig config, CancellationToken cancellationToken)
+        IA2ARequestHandler requestHandler, ILogger logger, string taskId, TaskPushNotificationConfig config, CancellationToken cancellationToken)
         => WithExceptionHandlingAsync(logger, "REST.CreatePushNotificationConfig", async ct =>
         {
-            var request = new CreateTaskPushNotificationConfigRequest
-            {
-                TaskId = taskId,
-                Config = config,
-                ConfigId = config.Id ?? string.Empty,
-            };
-            var result = await requestHandler.CreateTaskPushNotificationConfigAsync(request, ct).ConfigureAwait(false);
+            // Route provides the authoritative taskId; override whatever the body sent
+            config.TaskId = taskId;
+            // This route has no tenant segment and does not support tenant routing.
+            config.Tenant = null;
+            var result = await requestHandler.CreateTaskPushNotificationConfigAsync(config, ct).ConfigureAwait(false);
             return new A2AResponseResult(result);
         }, taskId, cancellationToken);
 
@@ -215,13 +213,13 @@ internal static class A2AHttpProcessor
         CancellationToken cancellationToken)
         => WithExceptionHandlingAsync(logger, "REST.ListPushNotificationConfig", async ct =>
         {
-            var request = new ListTaskPushNotificationConfigRequest
+            var request = new ListTaskPushNotificationConfigsRequest
             {
                 TaskId = taskId,
                 PageSize = pageSize,
                 PageToken = pageToken,
             };
-            var result = await requestHandler.ListTaskPushNotificationConfigAsync(request, ct)
+            var result = await requestHandler.ListTaskPushNotificationConfigsAsync(request, ct)
                 .ConfigureAwait(false);
             return new A2AResponseResult(result);
         }, taskId, cancellationToken);
@@ -258,7 +256,7 @@ internal sealed class A2AResponseResult : IResult
     internal A2AResponseResult(ListTasksResponse response) { _response = response; _responseType = typeof(ListTasksResponse); }
     internal A2AResponseResult(AgentCard card) { _response = card; _responseType = typeof(AgentCard); }
     internal A2AResponseResult(TaskPushNotificationConfig config) { _response = config; _responseType = typeof(TaskPushNotificationConfig); }
-    internal A2AResponseResult(ListTaskPushNotificationConfigResponse response) { _response = response; _responseType = typeof(ListTaskPushNotificationConfigResponse); }
+    internal A2AResponseResult(ListTaskPushNotificationConfigsResponse response) { _response = response; _responseType = typeof(ListTaskPushNotificationConfigsResponse); }
 
     public async Task ExecuteAsync(HttpContext httpContext)
     {
@@ -277,6 +275,85 @@ internal sealed class A2AEventStreamResult : IResult
 
     public async Task ExecuteAsync(HttpContext httpContext)
     {
+        IAsyncEnumerator<StreamResponse> enumerator;
+        try
+        {
+            enumerator = _events.GetAsyncEnumerator(httpContext.RequestAborted);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            await WriteErrorAsync(httpContext, ex, streamStarted: false).ConfigureAwait(false);
+            return;
+        }
+
+        Exception? failure = null;
+        var streamStarted = false;
+        var completedWithoutEvents = false;
+        try
+        {
+            if (await enumerator.MoveNextAsync().ConfigureAwait(false))
+            {
+                ConfigureSseResponse(httpContext);
+                streamStarted = true;
+
+                do
+                {
+                    #pragma warning disable VSTHRD103 // Serialize to string is not blocking I/O
+                    var json = JsonSerializer.Serialize(enumerator.Current,
+                        A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(StreamResponse)));
+                    #pragma warning restore VSTHRD103
+                    await httpContext.Response.BodyWriter.WriteAsync(
+                        Encoding.UTF8.GetBytes($"data: {json}\n\n"), httpContext.RequestAborted);
+                    await httpContext.Response.BodyWriter.FlushAsync(httpContext.RequestAborted);
+                }
+                while (await enumerator.MoveNextAsync().ConfigureAwait(false));
+            }
+            else
+            {
+                completedWithoutEvents = true;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Client disconnected — expected
+        }
+        catch (Exception ex)
+        {
+            failure = ex;
+        }
+        finally
+        {
+            try
+            {
+                await enumerator.DisposeAsync().ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // Client disconnected — expected
+            }
+            catch (Exception ex)
+            {
+                failure ??= ex;
+            }
+        }
+
+        if (failure is not null)
+        {
+            await WriteErrorAsync(httpContext, failure, streamStarted).ConfigureAwait(false);
+        }
+        else if (completedWithoutEvents)
+        {
+            ConfigureSseResponse(httpContext);
+        }
+    }
+
+    private static void ConfigureSseResponse(HttpContext httpContext)
+    {
+        httpContext.Response.StatusCode = StatusCodes.Status200OK;
         httpContext.Response.ContentType = "text/event-stream";
         httpContext.Response.Headers.CacheControl = "no-cache,no-store";
         httpContext.Response.Headers.Pragma = "no-cache";
@@ -284,35 +361,29 @@ internal sealed class A2AEventStreamResult : IResult
 
         var bufferingFeature = httpContext.Features.GetRequiredFeature<IHttpResponseBodyFeature>();
         bufferingFeature.DisableBuffering();
+    }
+
+    private static async Task WriteErrorAsync(HttpContext httpContext, Exception exception, bool streamStarted)
+    {
+        if (!streamStarted)
+        {
+            var error = exception is A2AException a2aException
+                ? a2aException
+                : new A2AException("An internal error occurred.", A2AErrorCode.InternalError);
+            await new A2AErrorResult(error).ExecuteAsync(httpContext).ConfigureAwait(false);
+            return;
+        }
 
         try
         {
-            await foreach (var taskEvent in _events.WithCancellation(httpContext.RequestAborted))
-            {
-                var json = JsonSerializer.Serialize(taskEvent,
-                    A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(StreamResponse)));
-                await httpContext.Response.BodyWriter.WriteAsync(
-                    Encoding.UTF8.GetBytes($"data: {json}\n\n"), httpContext.RequestAborted);
-                await httpContext.Response.BodyWriter.FlushAsync(httpContext.RequestAborted);
-            }
+            await httpContext.Response.BodyWriter.WriteAsync(
+                Encoding.UTF8.GetBytes("data: {\"error\":\"An internal error occurred during streaming.\"}\n\n"),
+                httpContext.RequestAborted);
+            await httpContext.Response.BodyWriter.FlushAsync(httpContext.RequestAborted);
         }
-        catch (OperationCanceledException)
+        catch
         {
-            // Client disconnected — expected
-        }
-        catch (Exception)
-        {
-            // Stream error — response already started, best-effort error event
-            try
-            {
-                await httpContext.Response.BodyWriter.WriteAsync(
-                    Encoding.UTF8.GetBytes("data: {\"error\":\"An internal error occurred during streaming.\"}\n\n"), httpContext.RequestAborted);
-                await httpContext.Response.BodyWriter.FlushAsync(httpContext.RequestAborted);
-            }
-            catch
-            {
-                // Response body no longer writable
-            }
+            // Response body no longer writable
         }
     }
 }

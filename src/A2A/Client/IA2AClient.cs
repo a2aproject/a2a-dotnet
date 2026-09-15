@@ -40,10 +40,10 @@ public interface IA2AClient
     IAsyncEnumerable<StreamResponse> SubscribeToTaskAsync(SubscribeToTaskRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>Creates a push notification configuration.</summary>
-    /// <param name="request">The create push notification config request.</param>
+    /// <param name="config">The push notification configuration to create.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The created push notification configuration.</returns>
-    Task<TaskPushNotificationConfig> CreateTaskPushNotificationConfigAsync(CreateTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default);
+    Task<TaskPushNotificationConfig> CreateTaskPushNotificationConfigAsync(TaskPushNotificationConfig config, CancellationToken cancellationToken = default);
 
     /// <summary>Gets a push notification configuration.</summary>
     /// <param name="request">The get push notification config request.</param>
@@ -54,8 +54,8 @@ public interface IA2AClient
     /// <summary>Lists push notification configurations.</summary>
     /// <param name="request">The list push notification configs request.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
-    /// <returns>The list push notification config response.</returns>
-    Task<ListTaskPushNotificationConfigResponse> ListTaskPushNotificationConfigAsync(ListTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default);
+    /// <returns>The list push notification configs response.</returns>
+    Task<ListTaskPushNotificationConfigsResponse> ListTaskPushNotificationConfigsAsync(ListTaskPushNotificationConfigsRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>Deletes a push notification configuration.</summary>
     /// <param name="request">The delete push notification config request.</param>
