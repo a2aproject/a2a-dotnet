@@ -585,13 +585,23 @@ internal static partial class ProtoMap
         return result;
     }
 
-    public static SendMessageRequest ToDomain(Protos.SendMessageRequest request) => new()
+    public static SendMessageRequest ToDomain(Protos.SendMessageRequest request)
     {
-        Tenant = NullIfEmpty(request.Tenant),
-        Message = ToDomain(request.Message),
-        Configuration = request.Configuration is null ? null : ToDomain(request.Configuration),
-        Metadata = ToMetadata(request.Metadata),
-    };
+        // `message` is required by the spec but protobuf lets a caller omit it; surface the
+        // protocol error instead of a NullReferenceException.
+        if (request.Message is null)
+        {
+            throw new A2AException("SendMessageRequest.message is required.", A2AErrorCode.InvalidParams);
+        }
+
+        return new SendMessageRequest
+        {
+            Tenant = NullIfEmpty(request.Tenant),
+            Message = ToDomain(request.Message),
+            Configuration = request.Configuration is null ? null : ToDomain(request.Configuration),
+            Metadata = ToMetadata(request.Metadata),
+        };
+    }
 
     public static Protos.GetTaskRequest ToProto(GetTaskRequest request)
     {
@@ -880,7 +890,8 @@ internal static partial class ProtoMap
     {
         var result = new Protos.ListTaskPushNotificationConfigsResponse
         {
-            NextPageToken = response.NextPageToken,
+            // Protobuf string fields reject null; "no next page" is the empty string on the wire.
+            NextPageToken = response.NextPageToken ?? string.Empty,
         };
 
         if (response.Configs is not null)

@@ -109,6 +109,26 @@ internal static class GrpcErrorMapping
         return new A2AException(exception.Status.Detail, exception, code);
     }
 
+    /// <summary>
+    /// Translates a gRPC fault for a client call, preserving cancellation semantics.
+    /// </summary>
+    /// <param name="exception">The gRPC exception to translate.</param>
+    /// <param name="cancellationToken">The token supplied to the call.</param>
+    /// <remarks>
+    /// A call cancelled by the caller surfaces as <see cref="StatusCode.Cancelled"/>; rethrowing it as
+    /// an <see cref="OperationCanceledException"/> keeps the gRPC client consistent with the JSON-RPC
+    /// and HTTP+JSON clients, which propagate cancellation from <see cref="HttpClient"/> unchanged.
+    /// </remarks>
+    public static Exception ToClientException(RpcException exception, CancellationToken cancellationToken)
+    {
+        if (exception.StatusCode == StatusCode.Cancelled && cancellationToken.IsCancellationRequested)
+        {
+            return new OperationCanceledException(exception.Status.Detail, exception, cancellationToken);
+        }
+
+        return ToA2AException(exception);
+    }
+
     private static bool TryReadReason(RpcException exception, out string reason)
     {
         reason = string.Empty;
@@ -133,7 +153,13 @@ internal static class GrpcErrorMapping
         {
             if (detail.Is(ErrorInfo.Descriptor))
             {
-                reason = detail.Unpack<ErrorInfo>().Reason;
+                var errorInfo = detail.Unpack<ErrorInfo>();
+                if (!string.Equals(errorInfo.Domain, ErrorDomain, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                reason = errorInfo.Reason;
                 return !string.IsNullOrEmpty(reason);
             }
         }

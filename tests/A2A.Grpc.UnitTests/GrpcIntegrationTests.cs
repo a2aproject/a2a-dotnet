@@ -121,6 +121,31 @@ public sealed class GrpcIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task UnsupportedProtocolVersion_IsRejected()
+    {
+        var rawClient = new A2A.Grpc.Protos.A2AService.A2AServiceClient(_channel!);
+        var headers = new global::Grpc.Core.Metadata { { "a2a-version", "2.0" } };
+
+        var exception = await Assert.ThrowsAsync<global::Grpc.Core.RpcException>(async () =>
+            await rawClient.GetTaskAsync(new A2A.Grpc.Protos.GetTaskRequest { Id = "t" }, headers));
+
+        Assert.Equal(global::Grpc.Core.StatusCode.FailedPrecondition, exception.StatusCode);
+        Assert.Contains("not supported", exception.Status.Detail, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SupportedProtocolVersion_IsAccepted()
+    {
+        _handler.TaskResult = new AgentTask { Id = "ok", ContextId = "c" };
+        var rawClient = new A2A.Grpc.Protos.A2AService.A2AServiceClient(_channel!);
+        var headers = new global::Grpc.Core.Metadata { { "a2a-version", "0.3" } };
+
+        var task = await rawClient.GetTaskAsync(new A2A.Grpc.Protos.GetTaskRequest { Id = "ok" }, headers);
+
+        Assert.Equal("ok", task.Id);
+    }
+
+    [Fact]
     public async Task Handler_A2AException_IsSurfacedWithErrorCode()
     {
         _handler.Error = new A2AException("no such task", A2AErrorCode.TaskNotFound);

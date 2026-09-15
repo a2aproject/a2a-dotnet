@@ -59,7 +59,7 @@ public sealed class A2AGrpcClient : IA2AClient, IDisposable
         }
         catch (RpcException exception)
         {
-            throw GrpcErrorMapping.ToA2AException(exception);
+            throw GrpcErrorMapping.ToClientException(exception, cancellationToken);
         }
     }
 
@@ -74,7 +74,7 @@ public sealed class A2AGrpcClient : IA2AClient, IDisposable
         }
         catch (RpcException exception)
         {
-            throw GrpcErrorMapping.ToA2AException(exception);
+            throw GrpcErrorMapping.ToClientException(exception, cancellationToken);
         }
     }
 
@@ -89,7 +89,7 @@ public sealed class A2AGrpcClient : IA2AClient, IDisposable
         }
         catch (RpcException exception)
         {
-            throw GrpcErrorMapping.ToA2AException(exception);
+            throw GrpcErrorMapping.ToClientException(exception, cancellationToken);
         }
     }
 
@@ -104,7 +104,7 @@ public sealed class A2AGrpcClient : IA2AClient, IDisposable
         }
         catch (RpcException exception)
         {
-            throw GrpcErrorMapping.ToA2AException(exception);
+            throw GrpcErrorMapping.ToClientException(exception, cancellationToken);
         }
     }
 
@@ -119,7 +119,7 @@ public sealed class A2AGrpcClient : IA2AClient, IDisposable
         }
         catch (RpcException exception)
         {
-            throw GrpcErrorMapping.ToA2AException(exception);
+            throw GrpcErrorMapping.ToClientException(exception, cancellationToken);
         }
     }
 
@@ -134,7 +134,7 @@ public sealed class A2AGrpcClient : IA2AClient, IDisposable
         }
         catch (RpcException exception)
         {
-            throw GrpcErrorMapping.ToA2AException(exception);
+            throw GrpcErrorMapping.ToClientException(exception, cancellationToken);
         }
     }
 
@@ -149,7 +149,7 @@ public sealed class A2AGrpcClient : IA2AClient, IDisposable
         }
         catch (RpcException exception)
         {
-            throw GrpcErrorMapping.ToA2AException(exception);
+            throw GrpcErrorMapping.ToClientException(exception, cancellationToken);
         }
     }
 
@@ -163,7 +163,7 @@ public sealed class A2AGrpcClient : IA2AClient, IDisposable
         }
         catch (RpcException exception)
         {
-            throw GrpcErrorMapping.ToA2AException(exception);
+            throw GrpcErrorMapping.ToClientException(exception, cancellationToken);
         }
     }
 
@@ -178,7 +178,7 @@ public sealed class A2AGrpcClient : IA2AClient, IDisposable
         }
         catch (RpcException exception)
         {
-            throw GrpcErrorMapping.ToA2AException(exception);
+            throw GrpcErrorMapping.ToClientException(exception, cancellationToken);
         }
     }
 
@@ -215,7 +215,7 @@ public sealed class A2AGrpcClient : IA2AClient, IDisposable
                 }
                 catch (RpcException exception)
                 {
-                    throw GrpcErrorMapping.ToA2AException(exception);
+                    throw GrpcErrorMapping.ToClientException(exception, cancellationToken);
                 }
 
                 if (!hasNext)
