@@ -20,12 +20,12 @@ public class A2AServerTests
     }
 
     private static (A2AServer server, InMemoryTaskStore store, TestAgentHandler handler)
-        CreateServer()
+        CreateServer(A2AServerOptions? options = null)
     {
         var notifier = new ChannelEventNotifier();
         var store = new InMemoryTaskStore();
         var handler = new TestAgentHandler();
-        var server = new A2AServer(handler, store, notifier, NullLogger<A2AServer>.Instance);
+        var server = new A2AServer(handler, store, notifier, NullLogger<A2AServer>.Instance, options);
         return (server, store, handler);
     }
 
@@ -449,10 +449,34 @@ public class A2AServerTests
     }
 
     [Fact]
-    public async Task GetExtendedAgentCard_ThrowsNotConfigured()
+    public async Task GetExtendedAgentCard_WhenCapabilityIsAbsent_ThrowsUnsupportedOperation()
     {
         // Arrange
         var (server, _, _) = CreateServer();
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<A2AException>(() =>
+            server.GetExtendedAgentCardAsync(new GetExtendedAgentCardRequest()));
+        Assert.Equal(A2AErrorCode.UnsupportedOperation, ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task GetExtendedAgentCard_WhenCapabilityIsFalse_ThrowsUnsupportedOperation()
+    {
+        // Arrange
+        var (server, _, _) = CreateServer(new A2AServerOptions { SupportsExtendedAgentCard = false });
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<A2AException>(() =>
+            server.GetExtendedAgentCardAsync(new GetExtendedAgentCardRequest()));
+        Assert.Equal(A2AErrorCode.UnsupportedOperation, ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task GetExtendedAgentCard_WhenCapabilityIsTrue_ThrowsNotConfigured()
+    {
+        // Arrange
+        var (server, _, _) = CreateServer(new A2AServerOptions { SupportsExtendedAgentCard = true });
 
         // Act & Assert
         var ex = await Assert.ThrowsAsync<A2AException>(() =>
