@@ -109,12 +109,12 @@ public sealed class A2AGrpcClient : IA2AClient, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<TaskPushNotificationConfig> CreateTaskPushNotificationConfigAsync(CreateTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default)
+    public async Task<TaskPushNotificationConfig> CreateTaskPushNotificationConfigAsync(TaskPushNotificationConfig config, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(config);
         try
         {
-            var response = await _client.CreateTaskPushNotificationConfigAsync(ProtoMap.ToProto(request), _headers, cancellationToken: cancellationToken).ConfigureAwait(false);
+            var response = await _client.CreateTaskPushNotificationConfigAsync(ProtoMap.ToProto(config), _headers, cancellationToken: cancellationToken).ConfigureAwait(false);
             return ProtoMap.ToDomain(response);
         }
         catch (RpcException exception)
@@ -139,7 +139,7 @@ public sealed class A2AGrpcClient : IA2AClient, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<ListTaskPushNotificationConfigResponse> ListTaskPushNotificationConfigAsync(ListTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default)
+    public async Task<ListTaskPushNotificationConfigsResponse> ListTaskPushNotificationConfigsAsync(ListTaskPushNotificationConfigsRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         try

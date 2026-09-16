@@ -29,7 +29,7 @@ public class ArgumentValidationTests
         await Assert.ThrowsAsync<ArgumentNullException>(() => client.CancelTaskAsync(null!));
         await Assert.ThrowsAsync<ArgumentNullException>(() => client.CreateTaskPushNotificationConfigAsync(null!));
         await Assert.ThrowsAsync<ArgumentNullException>(() => client.GetTaskPushNotificationConfigAsync(null!));
-        await Assert.ThrowsAsync<ArgumentNullException>(() => client.ListTaskPushNotificationConfigAsync(null!));
+        await Assert.ThrowsAsync<ArgumentNullException>(() => client.ListTaskPushNotificationConfigsAsync(null!));
         await Assert.ThrowsAsync<ArgumentNullException>(() => client.DeleteTaskPushNotificationConfigAsync(null!));
         await Assert.ThrowsAsync<ArgumentNullException>(() => client.GetExtendedAgentCardAsync(null!));
     }

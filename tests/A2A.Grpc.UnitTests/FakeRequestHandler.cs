@@ -20,7 +20,7 @@ internal sealed class FakeRequestHandler : IA2ARequestHandler
 
     public TaskPushNotificationConfig PushConfigResult { get; set; } = new() { Id = "cfg", TaskId = "task" };
 
-    public ListTaskPushNotificationConfigResponse ListPushConfigResult { get; set; } = new();
+    public ListTaskPushNotificationConfigsResponse ListPushConfigResult { get; set; } = new();
 
     public AgentCard AgentCardResult { get; set; } = new() { Name = "Agent", Description = "d", Version = "1.0.0" };
 
@@ -30,7 +30,7 @@ internal sealed class FakeRequestHandler : IA2ARequestHandler
 
     public GetTaskRequest? LastGetTask { get; private set; }
 
-    public CreateTaskPushNotificationConfigRequest? LastCreateConfig { get; private set; }
+    public TaskPushNotificationConfig? LastCreateConfig { get; private set; }
 
     public DeleteTaskPushNotificationConfigRequest? LastDeleteConfig { get; private set; }
 
@@ -60,9 +60,9 @@ internal sealed class FakeRequestHandler : IA2ARequestHandler
         return Task.FromResult(TaskResult);
     }
 
-    public Task<TaskPushNotificationConfig> CreateTaskPushNotificationConfigAsync(CreateTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default)
+    public Task<TaskPushNotificationConfig> CreateTaskPushNotificationConfigAsync(TaskPushNotificationConfig config, CancellationToken cancellationToken = default)
     {
-        LastCreateConfig = request;
+        LastCreateConfig = config;
         ThrowIfConfigured();
         return Task.FromResult(PushConfigResult);
     }
@@ -73,7 +73,7 @@ internal sealed class FakeRequestHandler : IA2ARequestHandler
         return Task.FromResult(PushConfigResult);
     }
 
-    public Task<ListTaskPushNotificationConfigResponse> ListTaskPushNotificationConfigAsync(ListTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default)
+    public Task<ListTaskPushNotificationConfigsResponse> ListTaskPushNotificationConfigsAsync(ListTaskPushNotificationConfigsRequest request, CancellationToken cancellationToken = default)
     {
         ThrowIfConfigured();
         return Task.FromResult(ListPushConfigResult);

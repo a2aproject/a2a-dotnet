@@ -81,20 +81,22 @@ public sealed class GrpcIntegrationTests : IAsyncLifetime
         {
             Id = "cfg9",
             TaskId = "task9",
-            PushNotificationConfig = new PushNotificationConfig { Url = "https://hook", Token = "tok" },
+            Url = "https://hook",
+            Token = "tok",
         };
 
-        var created = await Client.CreateTaskPushNotificationConfigAsync(new CreateTaskPushNotificationConfigRequest
+        var created = await Client.CreateTaskPushNotificationConfigAsync(new TaskPushNotificationConfig
         {
+            Id = "cfg9",
             TaskId = "task9",
-            ConfigId = "cfg9",
-            Config = new PushNotificationConfig { Url = "https://hook", Token = "tok" },
+            Url = "https://hook",
+            Token = "tok",
         });
 
         Assert.Equal("cfg9", created.Id);
-        Assert.Equal("https://hook", created.PushNotificationConfig.Url);
+        Assert.Equal("https://hook", created.Url);
         Assert.Equal("task9", _handler.LastCreateConfig!.TaskId);
-        Assert.Equal("cfg9", _handler.LastCreateConfig.ConfigId);
+        Assert.Equal("cfg9", _handler.LastCreateConfig.Id);
 
         await Client.DeleteTaskPushNotificationConfigAsync(new DeleteTaskPushNotificationConfigRequest { TaskId = "task9", Id = "cfg9" });
         Assert.Equal("cfg9", _handler.LastDeleteConfig!.Id);

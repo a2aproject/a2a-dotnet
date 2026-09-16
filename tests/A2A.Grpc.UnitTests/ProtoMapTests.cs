@@ -168,20 +168,16 @@ public class ProtoMapTests
     }
 
     [Fact]
-    public void TaskPushNotificationConfig_FlattensAndRoundTrips()
+    public void TaskPushNotificationConfig_RoundTrips()
     {
         var domain = new TaskPushNotificationConfig
         {
             Id = "cfg1",
             TaskId = "task1",
             Tenant = "tenantA",
-            PushNotificationConfig = new PushNotificationConfig
-            {
-                Id = "cfg1",
-                Url = "https://hook.example.com",
-                Token = "tok",
-                Authentication = new AuthenticationInfo { Scheme = "Bearer", Credentials = "abc" },
-            },
+            Url = "https://hook.example.com",
+            Token = "tok",
+            Authentication = new AuthenticationInfo { Scheme = "Bearer", Credentials = "abc" },
         };
 
         var result = ProtoMap.ToDomain(ProtoMap.ToProto(domain));
@@ -189,10 +185,10 @@ public class ProtoMapTests
         Assert.Equal("cfg1", result.Id);
         Assert.Equal("task1", result.TaskId);
         Assert.Equal("tenantA", result.Tenant);
-        Assert.Equal("https://hook.example.com", result.PushNotificationConfig.Url);
-        Assert.Equal("tok", result.PushNotificationConfig.Token);
-        Assert.Equal("Bearer", result.PushNotificationConfig.Authentication!.Scheme);
-        Assert.Equal("abc", result.PushNotificationConfig.Authentication.Credentials);
+        Assert.Equal("https://hook.example.com", result.Url);
+        Assert.Equal("tok", result.Token);
+        Assert.Equal("Bearer", result.Authentication!.Scheme);
+        Assert.Equal("abc", result.Authentication.Credentials);
     }
 
     [Fact]
@@ -239,25 +235,6 @@ public class ProtoMapTests
         Assert.Null(result.Status);
         Assert.Null(result.PageSize);
         Assert.Null(result.IncludeArtifacts);
-    }
-
-    [Fact]
-    public void CreateRequest_RoundTripsThroughProtoConfig()
-    {
-        var request = new CreateTaskPushNotificationConfigRequest
-        {
-            TaskId = "task1",
-            ConfigId = "cfg1",
-            Tenant = "t",
-            Config = new PushNotificationConfig { Url = "https://hook", Token = "tok" },
-        };
-
-        var result = ProtoMap.ToCreateRequest(ProtoMap.ToProto(request));
-
-        Assert.Equal("task1", result.TaskId);
-        Assert.Equal("cfg1", result.ConfigId);
-        Assert.Equal("https://hook", result.Config.Url);
-        Assert.Equal("tok", result.Config.Token);
     }
 
     [Fact]

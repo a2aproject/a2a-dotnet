@@ -95,7 +95,7 @@ internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
         try
         {
             EnsureSupportedVersion(context);
-            var config = await _handler.CreateTaskPushNotificationConfigAsync(ProtoMap.ToCreateRequest(request), context.CancellationToken).ConfigureAwait(false);
+            var config = await _handler.CreateTaskPushNotificationConfigAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false);
             return ProtoMap.ToProto(config);
         }
         catch (A2AException exception)
@@ -123,7 +123,7 @@ internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
         try
         {
             EnsureSupportedVersion(context);
-            var response = await _handler.ListTaskPushNotificationConfigAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false);
+            var response = await _handler.ListTaskPushNotificationConfigsAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false);
             return ProtoMap.ToProto(response);
         }
         catch (A2AException exception)

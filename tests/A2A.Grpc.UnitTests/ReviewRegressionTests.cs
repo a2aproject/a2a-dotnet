@@ -15,7 +15,7 @@ public class ReviewRegressionTests
     [Fact]
     public void ListPushConfigResponse_NullNextPageToken_MapsToEmptyString()
     {
-        var result = ProtoMap.ToProto(new ListTaskPushNotificationConfigResponse { NextPageToken = null });
+        var result = ProtoMap.ToProto(new ListTaskPushNotificationConfigsResponse { NextPageToken = null });
 
         Assert.Equal(string.Empty, result.NextPageToken);
     }

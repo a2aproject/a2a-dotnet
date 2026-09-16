@@ -433,27 +433,27 @@ internal static partial class ProtoMap
     };
 
     // ---- Push notification configuration ------------------------------------------------------
-    // The proto flattens PushNotificationConfig into TaskPushNotificationConfig; the domain nests it.
 
-    public static Protos.TaskPushNotificationConfig ToProto(TaskPushNotificationConfig config) =>
-        ToProtoPushConfig(config.PushNotificationConfig, config.Id, config.TaskId, config.Tenant);
-
-    private static Protos.TaskPushNotificationConfig ToProtoPushConfig(PushNotificationConfig config, string? id, string taskId, string? tenant)
+    public static Protos.TaskPushNotificationConfig ToProto(TaskPushNotificationConfig config)
     {
         var result = new Protos.TaskPushNotificationConfig
         {
-            TaskId = taskId,
             Url = config.Url,
         };
 
-        if (id is not null)
+        if (config.Id is not null)
         {
-            result.Id = id;
+            result.Id = config.Id;
         }
 
-        if (tenant is not null)
+        if (config.TaskId is not null)
         {
-            result.Tenant = tenant;
+            result.TaskId = config.TaskId;
+        }
+
+        if (config.Tenant is not null)
+        {
+            result.Tenant = config.Tenant;
         }
 
         if (config.Token is not null)
@@ -471,16 +471,12 @@ internal static partial class ProtoMap
 
     public static TaskPushNotificationConfig ToDomain(Protos.TaskPushNotificationConfig config) => new()
     {
-        Id = config.Id,
-        TaskId = config.TaskId,
+        Id = NullIfEmpty(config.Id),
+        TaskId = NullIfEmpty(config.TaskId),
         Tenant = NullIfEmpty(config.Tenant),
-        PushNotificationConfig = new PushNotificationConfig
-        {
-            Id = NullIfEmpty(config.Id),
-            Url = config.Url,
-            Token = NullIfEmpty(config.Token),
-            Authentication = config.Authentication is null ? null : ToDomain(config.Authentication),
-        },
+        Url = config.Url,
+        Token = NullIfEmpty(config.Token),
+        Authentication = config.Authentication is null ? null : ToDomain(config.Authentication),
     };
 
     public static Protos.AuthenticationInfo ToProto(AuthenticationInfo info)
@@ -523,14 +519,9 @@ internal static partial class ProtoMap
             result.HistoryLength = configuration.HistoryLength.Value;
         }
 
-        if (configuration.PushNotificationConfig is not null)
+        if (configuration.TaskPushNotificationConfig is not null)
         {
-            // task_id is left empty per spec when sent inside a SendMessage request.
-            result.TaskPushNotificationConfig = ToProtoPushConfig(
-                configuration.PushNotificationConfig,
-                configuration.PushNotificationConfig.Id,
-                taskId: string.Empty,
-                tenant: null);
+            result.TaskPushNotificationConfig = ToProto(configuration.TaskPushNotificationConfig);
         }
 
         return result;
@@ -551,7 +542,7 @@ internal static partial class ProtoMap
 
         if (configuration.TaskPushNotificationConfig is not null)
         {
-            result.PushNotificationConfig = ToDomain(configuration.TaskPushNotificationConfig).PushNotificationConfig;
+            result.TaskPushNotificationConfig = ToDomain(configuration.TaskPushNotificationConfig);
         }
 
         return result;
@@ -783,7 +774,7 @@ internal static partial class ProtoMap
         TaskId = request.TaskId,
     };
 
-    public static Protos.ListTaskPushNotificationConfigsRequest ToProto(ListTaskPushNotificationConfigRequest request)
+    public static Protos.ListTaskPushNotificationConfigsRequest ToProto(ListTaskPushNotificationConfigsRequest request)
     {
         var result = new Protos.ListTaskPushNotificationConfigsRequest
         {
@@ -808,7 +799,7 @@ internal static partial class ProtoMap
         return result;
     }
 
-    public static ListTaskPushNotificationConfigRequest ToDomain(Protos.ListTaskPushNotificationConfigsRequest request) => new()
+    public static ListTaskPushNotificationConfigsRequest ToDomain(Protos.ListTaskPushNotificationConfigsRequest request) => new()
     {
         Tenant = NullIfEmpty(request.Tenant),
         TaskId = request.TaskId,
@@ -830,24 +821,6 @@ internal static partial class ProtoMap
     public static GetExtendedAgentCardRequest ToDomain(Protos.GetExtendedAgentCardRequest request) => new()
     {
         Tenant = NullIfEmpty(request.Tenant),
-    };
-
-    // Builds the proto push-config message for a CreateTaskPushNotificationConfig call.
-    public static Protos.TaskPushNotificationConfig ToProto(CreateTaskPushNotificationConfigRequest request) => ToProto(new TaskPushNotificationConfig
-    {
-        Id = request.ConfigId,
-        TaskId = request.TaskId,
-        Tenant = request.Tenant,
-        PushNotificationConfig = request.Config,
-    });
-
-    // Reconstructs a CreateTaskPushNotificationConfigRequest from the proto push-config message.
-    public static CreateTaskPushNotificationConfigRequest ToCreateRequest(Protos.TaskPushNotificationConfig config) => new()
-    {
-        Tenant = NullIfEmpty(config.Tenant),
-        TaskId = config.TaskId,
-        ConfigId = config.Id,
-        Config = ToDomain(config).PushNotificationConfig,
     };
 
     // ---- Responses ----------------------------------------------------------------------------
@@ -886,7 +859,7 @@ internal static partial class ProtoMap
         return result;
     }
 
-    public static Protos.ListTaskPushNotificationConfigsResponse ToProto(ListTaskPushNotificationConfigResponse response)
+    public static Protos.ListTaskPushNotificationConfigsResponse ToProto(ListTaskPushNotificationConfigsResponse response)
     {
         var result = new Protos.ListTaskPushNotificationConfigsResponse
         {
@@ -905,9 +878,9 @@ internal static partial class ProtoMap
         return result;
     }
 
-    public static ListTaskPushNotificationConfigResponse ToDomain(Protos.ListTaskPushNotificationConfigsResponse response)
+    public static ListTaskPushNotificationConfigsResponse ToDomain(Protos.ListTaskPushNotificationConfigsResponse response)
     {
-        var result = new ListTaskPushNotificationConfigResponse
+        var result = new ListTaskPushNotificationConfigsResponse
         {
             NextPageToken = NullIfEmpty(response.NextPageToken),
         };
