@@ -547,7 +547,12 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
     public virtual Task<AgentCard> GetExtendedAgentCardAsync(
         GetExtendedAgentCardRequest request, CancellationToken cancellationToken = default)
     {
-        throw new A2AException("Extended agent card not configured.", A2AErrorCode.ExtendedAgentCardNotConfigured);
+        if (_options.SupportsExtendedAgentCard)
+        {
+            throw new A2AException("Extended agent card not configured.", A2AErrorCode.ExtendedAgentCardNotConfigured);
+        }
+
+        throw new A2AException("Extended agent card not supported.", A2AErrorCode.UnsupportedOperation);
     }
 
     // ─── Private Helpers ───
