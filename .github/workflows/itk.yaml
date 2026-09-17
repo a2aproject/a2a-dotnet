@@ -21,19 +21,39 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+      - name: Clone a2a-itk
+        uses: actions/checkout@v7
         with:
-          dotnet-version: |
-            8.0.x
-            10.0.x
+          repository: a2aproject/a2a-itk
+          ref: main
+          path: itk/a2a-itk
 
-      - name: Pre-publish ITK agent
-        run: dotnet publish -c Release -o publish Itk.csproj
-        working-directory: itk
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build itk_service image (GHA layer cache)
+        uses: docker/build-push-action@v7
+        with:
+          context: itk/a2a-itk
+          tags: itk_service:latest
+          load: true
+          cache-from: type=gha,scope=itk_service
+          cache-to: type=gha,mode=max,scope=itk_service
+
+      # Also holds the NuGet package cache the in-container `dotnet publish`
+      # writes to, which is what keeps the agent's build inside the readiness
+      # window on a warm runner.
+      - name: Cache launcher checkouts and build outputs
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/a2a-itk-launcher
+          key: itk-launcher-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            itk-launcher-${{ runner.os }}-
 
       - name: Run ITK Tests
         run: bash run_itk.sh
         working-directory: itk
         env:
           A2A_ITK_REVISION: main
+          ITK_SKIP_BUILD: "1"

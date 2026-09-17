@@ -1,20 +1,26 @@
-name: Nightly ITK
+name: Nightly ACTS
+
+# Conformance counterpart of `itk-nightly.yaml`, on the same schedule. Separate
+# workflows so neither shows up red for the other's failure and each can be
+# re-run on its own.
 
 on:
   schedule:
     - cron: '0 2 * * *'  # 2:00 AM UTC daily (before 4 AM dashboard refresh)
-  workflow_dispatch:      # Allow manual execution
+  workflow_dispatch:     # Allow manual execution
 
 permissions:
   contents: write
 
 concurrency:
-  group: itk-nightly
+  group: acts-nightly
   cancel-in-progress: true
 
 jobs:
-  nightly:
-    name: Nightly ITK Run
+  acts:
+    # Don't run scheduled builds on forks.
+    if: github.event_name != 'schedule' || github.repository == 'a2aproject/a2a-dotnet'
+    name: Nightly ACTS Run
     runs-on: ubuntu-latest
 
     steps:
@@ -51,20 +57,41 @@ jobs:
           restore-keys: |
             itk-launcher-${{ runner.os }}-
 
-      - name: Run Nightly ITK Tests
+      - name: Run Nightly ACTS Conformance
         run: bash run_itk.sh
         working-directory: itk
         env:
           A2A_ITK_REVISION: main
+          ITK_ACTS_RUN: "1"
+          ITK_ACTS_TRANSPORTS: jsonrpc,rest
+          # Does not gate on conformance, unlike the PR tier: a `must` failure
+          # is the metric being recorded. The step fails only if the service
+          # errored or the report came back malformed — exactly when
+          # publishing should be skipped.
           ITK_NIGHTLY_RUN: "True"
           ITK_SKIP_BUILD: "1"
 
-      - name: Upload Results to Rolling Release
+      - name: Upload ACTS reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: acts-reports-dotnet-nightly
+          path: itk/acts-report-*.json
+          if-no-files-found: warn
+          # Outlives the rolling asset's 7-run window, so every entry it
+          # carries still has its full report to link to.
+          retention-days: 30
+
+      - name: Upload ACTS Results to Rolling Release
         uses: softprops/action-gh-release@v3
         with:
+          # The conformance counterpart of itk_dotnet.json, on the same
+          # permanent tag: process_acts_results.py fetches the existing
+          # acts_dotnet.json, appends one entry covering both bindings, and
+          # this puts it back.
           tag_name: "nightly-metrics"
           prerelease: true
           files: |
-            itk/itk_dotnet.json
+            itk/acts_dotnet.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
