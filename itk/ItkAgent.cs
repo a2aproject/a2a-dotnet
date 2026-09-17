@@ -1,5 +1,6 @@
 using A2A;
 using A2A.Itk.Proto;
+using A2A.V0_3Compat;
 using Google.Protobuf;
 using Microsoft.Extensions.Logging;
 
@@ -13,8 +14,17 @@ public sealed class ItkAgent(IHttpClientFactory httpClientFactory, ILogger<ItkAg
 {
     public async Task ExecuteAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
     {
+        // Before any task is opened: tck-message-response must answer with a bare
+        // Message, which a submitted task would turn into a task update.
+        if (ActsBehaviors.BehaviorFor(context) is { } behavior)
+        {
+            logger.LogInformation("Serving ACTS behaviour {Behavior} for task {TaskId}", behavior, context.TaskId);
+            await ActsBehaviors.RunAsync(context, eventQueue, behavior, httpClientFactory, cancellationToken);
+            return;
+        }
+
         var updater = new TaskUpdater(eventQueue, context.TaskId, context.ContextId);
-        await updater.SubmitAsync(cancellationToken: cancellationToken);
+        await OpenTaskAsync(context, eventQueue, cancellationToken);
         await updater.StartWorkAsync(cancellationToken: cancellationToken);
 
         var instruction = ExtractInstruction(context.Message);
@@ -83,6 +93,33 @@ public sealed class ItkAgent(IHttpClientFactory httpClientFactory, ILogger<ItkAg
             await updater.FailAsync(cancellationToken: cancellationToken);
         }
     }
+
+    /// <summary>Emits the opening Task event, carrying this turn's message in history.</summary>
+    /// <remarks>
+    /// Not <see cref="TaskUpdater.SubmitAsync"/>: that opens the task with no history, and
+    /// TaskProjection replaces the stored task wholesale on a Task event, so the user
+    /// message is lost. Peers read it back — a2a-python's v0.3 itk agent iterates
+    /// <c>task.history</c> directly and raises on null — and an ACTS multi-turn
+    /// continuation recovers its behaviour prefix from there.
+    ///
+    /// On a continuation the history rebuilt here is what the store already holds:
+    /// <see cref="RequestContext.Task"/> is the snapshot taken before AutoAppendHistory
+    /// appended this turn's message.
+    /// </remarks>
+    internal static ValueTask OpenTaskAsync(
+        RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
+        => eventQueue.EnqueueTaskAsync(
+            new AgentTask
+            {
+                Id = context.TaskId,
+                ContextId = context.ContextId,
+                Status = context.Task?.Status
+                    ?? new A2A.TaskStatus { State = TaskState.Submitted, Timestamp = DateTimeOffset.UtcNow },
+                History = [.. context.Task?.History ?? [], context.Message],
+                Artifacts = context.Task?.Artifacts,
+                Metadata = context.Task?.Metadata,
+            },
+            cancellationToken);
 
     public async Task CancelAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
     {
@@ -176,6 +213,23 @@ public sealed class ItkAgent(IHttpClientFactory httpClientFactory, ILogger<ItkAg
             _ => throw new NotSupportedException($"Unsupported transport: {call.Transport}")
         };
 
+        // A v0.3 peer is reached through the compat client, which speaks the old
+        // wire format; the v1.0 client would send v1.0 method names it cannot
+        // answer. The peer's own card is what says which it is — the instruction
+        // carries no version — so this has to run before the card is parsed as
+        // v1.0, which is a shape a v0.3 card does not have.
+        if (await ItkV03.PeerEndpointAsync(call.AgentCardUri, httpClient, cancellationToken) is { } v03Url)
+        {
+            logger.LogInformation("Peer {AgentCardUri} is v0.3; dialing {Url} over compat", call.AgentCardUri, v03Url);
+            // Not CreateAsync: its only extra work is fetching the card to find this
+            // URL, which the detection above has already done — and it looks for the
+            // card at the v0.3 path, which the +itk overlay agents do not use.
+#pragma warning disable CA1849 // Create() constructs a client; it performs no I/O.
+            var v03Client = V03CompatClientFactory.Create(v03Url, httpClient);
+#pragma warning restore CA1849
+            return await CallWithClientAsync(call, v03Client, cancellationToken);
+        }
+
         AgentCard agentCard;
         try
         {
@@ -214,8 +268,13 @@ public sealed class ItkAgent(IHttpClientFactory httpClientFactory, ILogger<ItkAg
             PreferredBindings = [preferredBinding]
         };
 
-        var client = A2AClientFactory.Create(agentCard, httpClient, clientOptions);
+        return await CallWithClientAsync(
+            call, A2AClientFactory.Create(agentCard, httpClient, clientOptions), cancellationToken);
+    }
 
+    private async Task<List<string>> CallWithClientAsync(
+        CallAgent call, IA2AClient client, CancellationToken cancellationToken)
+    {
         // Wrap nested instruction into a message
         var nestedMessage = WrapInstructionToMessage(call.Instruction!);
         var request = new SendMessageRequest { Message = nestedMessage };
@@ -440,11 +499,19 @@ public sealed class ItkAgent(IHttpClientFactory httpClientFactory, ILogger<ItkAg
         Name = "ITK .NET Agent",
         Description = ".NET agent for ITK compatibility testing.",
         Version = "1.0.0",
-        Capabilities = new AgentCapabilities
-        {
-            Streaming = true,
-            PushNotifications = false,
-        },
+        Capabilities = ActsBehaviors.Capabilities(),
+        SecuritySchemes = ActsAuth.SecuritySchemes(),
+        SecurityRequirements = ActsAuth.SecurityRequirements(),
+        Skills =
+        [
+            new AgentSkill
+            {
+                Id = "itk",
+                Name = "ITK compatibility",
+                Description = "Executes ITK traversal instructions and ACTS tck-* behaviours.",
+                Tags = ["itk", "acts"],
+            },
+        ],
         DefaultInputModes = ["text/plain"],
         DefaultOutputModes = ["text/plain"],
         SupportedInterfaces =
@@ -454,6 +521,17 @@ public sealed class ItkAgent(IHttpClientFactory httpClientFactory, ILogger<ItkAg
                 ProtocolBinding = "JSONRPC",
                 Url = $"http://127.0.0.1:{httpPort}/jsonrpc",
                 ProtocolVersion = "1.0",
+            },
+            // Same URL as the v1.0 entry: one endpoint serves both dialects,
+            // chosen by the A2A-Version header. No HTTP+JSON counterpart —
+            // A2A.V0_3Compat ships a JSON-RPC server and client only, so
+            // advertising a v0.3 REST interface would name something nothing
+            // serves.
+            new AgentInterface
+            {
+                ProtocolBinding = "JSONRPC",
+                Url = $"http://127.0.0.1:{httpPort}/jsonrpc",
+                ProtocolVersion = "0.3",
             },
             new AgentInterface
             {
