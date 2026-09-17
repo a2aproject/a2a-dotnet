@@ -5,6 +5,10 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 
 namespace A2A.AspNetCore;
 
@@ -56,17 +60,49 @@ public static class A2ARouteBuilderExtensions
     /// <param name="endpoints">The endpoint route builder.</param>
     /// <param name="agentCard">The agent card to serve.</param>
     /// <param name="path">An optional route prefix. When provided, the agent card is served at <c>{path}/.well-known/agent-card.json</c>.</param>
+    /// <param name="cacheOptions">Optional Agent Card HTTP caching configuration.</param>
     /// <returns>An endpoint convention builder for further configuration.</returns>
-    public static IEndpointConventionBuilder MapWellKnownAgentCard(this IEndpointRouteBuilder endpoints, AgentCard agentCard, [StringSyntax("Route")] string path = "")
+    public static IEndpointConventionBuilder MapWellKnownAgentCard(
+        this IEndpointRouteBuilder endpoints,
+        AgentCard agentCard,
+        [StringSyntax("Route")] string path = "",
+        AgentCardCacheOptions? cacheOptions = null)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(agentCard);
 
         var routeGroup = endpoints.MapGroup(path);
+        var lastModified = DateTimeOffset.UtcNow.ToString("R", CultureInfo.InvariantCulture);
+        var cacheControl = GetAgentCardCacheControl(cacheOptions);
 
-        routeGroup.MapGet(".well-known/agent-card.json", () => Results.Ok(agentCard));
+        routeGroup.MapGet(".well-known/agent-card.json", (HttpResponse response) =>
+        {
+            var json = JsonSerializer.Serialize(
+                agentCard,
+                A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(AgentCard)));
+            var jsonBytes = Encoding.UTF8.GetBytes(json);
+
+            response.Headers.CacheControl = cacheControl;
+            response.Headers.ETag = $"\"{Convert.ToHexString(SHA256.HashData(jsonBytes))}\"";
+            response.Headers.LastModified = lastModified;
+            return Results.Bytes(jsonBytes, "application/json");
+        });
 
         return routeGroup;
+    }
+
+    private static string GetAgentCardCacheControl(AgentCardCacheOptions? cacheOptions)
+    {
+        var maxAge = cacheOptions?.MaxAge ?? TimeSpan.FromHours(1);
+        if (maxAge < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(cacheOptions),
+                maxAge,
+                "Agent Card cache max-age cannot be negative.");
+        }
+
+        return $"public, max-age={(long)Math.Ceiling(maxAge.TotalSeconds)}";
     }
 
     /// <summary>
