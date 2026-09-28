@@ -12,6 +12,7 @@ using global::Grpc.Core;
 internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
 {
     private const string VersionHeader = "a2a-version";
+    private const string SupportedVersion = "1.0";
 
     private readonly IA2ARequestHandler _handler;
 
@@ -21,15 +22,17 @@ internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
         _handler = handler;
     }
 
-    // Rejects requests declaring an unsupported A2A protocol version, mirroring the JSON-RPC
-    // binding's preflight check. An absent header means "unspecified" and is accepted.
+    // Rejects requests declaring a protocol version this endpoint does not implement.
+    // Unlike the JSON-RPC binding, which also serves v0.3 through the compatibility processor,
+    // this endpoint only implements the v1 service contract (`lf.a2a.v1`), so "0.3" is rejected
+    // as well. An absent header means "unspecified" and is accepted.
     private static void EnsureSupportedVersion(ServerCallContext context)
     {
         var version = context.RequestHeaders.GetValue(VersionHeader);
-        if (!string.IsNullOrEmpty(version) && version != "1.0" && version != "0.3")
+        if (!string.IsNullOrEmpty(version) && version != SupportedVersion)
         {
             throw new A2AException(
-                $"Protocol version '{version}' is not supported. Supported versions: 0.3, 1.0",
+                $"Protocol version '{version}' is not supported. Supported versions: {SupportedVersion}",
                 A2AErrorCode.VersionNotSupported);
         }
     }

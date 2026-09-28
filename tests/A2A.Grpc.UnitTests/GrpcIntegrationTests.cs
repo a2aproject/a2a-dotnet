@@ -135,14 +135,40 @@ public sealed class GrpcIntegrationTests : IAsyncLifetime
         Assert.Contains("not supported", exception.Status.Detail, StringComparison.OrdinalIgnoreCase);
     }
 
+    // This endpoint implements the v1 protobuf service contract (`lf.a2a.v1`) only, so a client
+    // declaring the v0.3 protocol is rejected rather than silently dispatched to the v1 handler.
+    [Fact]
+    public async Task LegacyProtocolVersion_IsRejected()
+    {
+        var rawClient = new A2A.Grpc.Protos.A2AService.A2AServiceClient(_channel!);
+        var headers = new global::Grpc.Core.Metadata { { "a2a-version", "0.3" } };
+
+        var exception = await Assert.ThrowsAsync<global::Grpc.Core.RpcException>(async () =>
+            await rawClient.GetTaskAsync(new A2A.Grpc.Protos.GetTaskRequest { Id = "t" }, headers));
+
+        Assert.Equal(global::Grpc.Core.StatusCode.FailedPrecondition, exception.StatusCode);
+        Assert.Contains("not supported", exception.Status.Detail, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public async Task SupportedProtocolVersion_IsAccepted()
     {
         _handler.TaskResult = new AgentTask { Id = "ok", ContextId = "c" };
         var rawClient = new A2A.Grpc.Protos.A2AService.A2AServiceClient(_channel!);
-        var headers = new global::Grpc.Core.Metadata { { "a2a-version", "0.3" } };
+        var headers = new global::Grpc.Core.Metadata { { "a2a-version", "1.0" } };
 
         var task = await rawClient.GetTaskAsync(new A2A.Grpc.Protos.GetTaskRequest { Id = "ok" }, headers);
+
+        Assert.Equal("ok", task.Id);
+    }
+
+    [Fact]
+    public async Task AbsentProtocolVersion_IsAccepted()
+    {
+        _handler.TaskResult = new AgentTask { Id = "ok", ContextId = "c" };
+        var rawClient = new A2A.Grpc.Protos.A2AService.A2AServiceClient(_channel!);
+
+        var task = await rawClient.GetTaskAsync(new A2A.Grpc.Protos.GetTaskRequest { Id = "ok" });
 
         Assert.Equal("ok", task.Id);
     }
