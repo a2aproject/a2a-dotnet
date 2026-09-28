@@ -299,12 +299,21 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
                 {
                     await ApplyEventAsync(response, context!, cancellationToken).ConfigureAwait(false);
                 }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    // Caller-requested cancellation is not a failure: propagate it as
+                    // cancellation (classified by the caller token, not by exception type),
+                    // and let the finally block drain remaining events in the background.
+                    throw;
+                }
                 catch (Exception ex)
                 {
+                    // A failure to read or persist authoritative task state must surface
+                    // to the caller, not be converted into a normal end-of-stream (#495).
                     A2ADiagnostics.ErrorCount.Add(1);
                     activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
                     RecordException(activity, ex);
-                    yield break;
+                    throw;
                 }
 
                 eventCount++;
