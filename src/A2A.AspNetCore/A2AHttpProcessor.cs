@@ -139,7 +139,8 @@ internal sealed class A2AEventStreamResult<TEvent>(
     IAsyncEnumerable<TEvent> events,
     JsonTypeInfo<TEvent> eventTypeInfo,
     Func<Exception, IResult> createErrorResult,
-    A2AOperationDiagnosticContext? diagnosticContext)
+    A2AOperationDiagnosticContext? diagnosticContext,
+    Action<Exception>? logStreamException = null)
     : IResult
 {
     public async Task ExecuteAsync(HttpContext httpContext)
@@ -173,9 +174,6 @@ internal sealed class A2AEventStreamResult<TEvent>(
         {
             if (await enumerator.MoveNextAsync().ConfigureAwait(false))
             {
-                ConfigureSseResponse(httpContext);
-                streamStarted = true;
-
                 do
                 {
 #pragma warning disable VSTHRD103 // Serialize to string is not blocking I/O
@@ -183,8 +181,16 @@ internal sealed class A2AEventStreamResult<TEvent>(
                         enumerator.Current,
                         eventTypeInfo);
 #pragma warning restore VSTHRD103
+                    var frame = Encoding.UTF8.GetBytes($"data: {json}\n\n");
+                    if (!streamStarted)
+                    {
+                        ConfigureSseResponse(httpContext);
+                    }
+
                     await httpContext.Response.BodyWriter.WriteAsync(
-                        Encoding.UTF8.GetBytes($"data: {json}\n\n"), httpContext.RequestAborted);
+                        frame,
+                        httpContext.RequestAborted);
+                    streamStarted = true;
                     await httpContext.Response.BodyWriter.FlushAsync(httpContext.RequestAborted);
                 }
                 while (await enumerator.MoveNextAsync().ConfigureAwait(false));
@@ -275,6 +281,7 @@ internal sealed class A2AEventStreamResult<TEvent>(
             return;
         }
 
+        logStreamException?.Invoke(exception);
         try
         {
             await httpContext.Response.BodyWriter.WriteAsync(

@@ -200,6 +200,23 @@ public static class A2ARouteBuilderExtensions
         ArgumentNullException.ThrowIfNull(path);
 
         var routeGroup = endpoints.MapGroup(path);
+        if (!bindings.HasCompleteStandardBindings(handlers.OperationCatalog))
+        {
+            var operationBuilder = new A2AOperationCatalogBuilder();
+            var standard = operationBuilder.AddStandardA2AOperations();
+            var operationCatalog = operationBuilder.Build();
+            var standardHandlers = new A2AOperationHandlerCatalogBuilder()
+                .AddStandardA2AHandlers(standard)
+                .Build(operationCatalog);
+            var standardBindings = new A2AHttpOperationBindingBuilder()
+                .AddStandardA2AHttpBindings(standard)
+                .Build();
+            standardBindings.MapEndpoints(
+                routeGroup,
+                scopeFactory,
+                standardHandlers);
+        }
+
         bindings.MapEndpoints(routeGroup, scopeFactory, handlers);
         return routeGroup;
     }

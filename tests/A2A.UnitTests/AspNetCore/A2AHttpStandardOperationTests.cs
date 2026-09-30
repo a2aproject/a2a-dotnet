@@ -44,6 +44,40 @@ public class A2AHttpStandardOperationTests
             { HttpMethods.Get, "/extendedAgentCard", A2AOperationKind.Unary },
         };
 
+    public static TheoryData<string, string?> UnsupportedJsonBodyMediaTypes =>
+        new()
+        {
+            { "/message:send", null },
+            { "/message:send", "text/plain" },
+            { "/message:stream", null },
+            { "/message:stream", "text/plain" },
+            { "/tasks/{id}/pushNotificationConfigs", null },
+            { "/tasks/{id}/pushNotificationConfigs", "text/plain" },
+        };
+
+    public static TheoryData<string, string> SupportedJsonBodyMediaTypes =>
+        new()
+        {
+            { "/message:send", "application/json" },
+            { "/message:send", "application/json; charset=utf-8" },
+            { "/message:send", "application/vnd.a2a+json" },
+            { "/message:stream", "application/json" },
+            { "/message:stream", "application/json; charset=utf-8" },
+            { "/message:stream", "application/vnd.a2a+json" },
+            {
+                "/tasks/{id}/pushNotificationConfigs",
+                "application/json"
+            },
+            {
+                "/tasks/{id}/pushNotificationConfigs",
+                "application/json; charset=utf-8"
+            },
+            {
+                "/tasks/{id}/pushNotificationConfigs",
+                "application/vnd.a2a+json"
+            },
+        };
+
     [Theory]
     [MemberData(nameof(StandardRoutes))]
     public async Task AddStandardA2AHttpBindings_MapsRouteToExpectedTypedOperation(
@@ -262,6 +296,92 @@ public class A2AHttpStandardOperationTests
             StringComparison.OrdinalIgnoreCase);
     }
 
+    [Theory]
+    [MemberData(nameof(UnsupportedJsonBodyMediaTypes))]
+    public async Task JsonBodyRoute_UnsupportedOrMissingContentTypeReturns415BeforeScopeCreation(
+        string route,
+        string? contentType)
+    {
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var standard = operationBuilder.AddStandardA2AOperations();
+        var operationCatalog = operationBuilder.Build();
+        var handlers = CreateExpectedHandlerCatalog(
+            HttpMethods.Post,
+            route,
+            standard,
+            operationCatalog,
+            static _ => { });
+        var bindings = new A2AHttpOperationBindingBuilder()
+            .AddStandardA2AHttpBindings(standard)
+            .Build();
+        var scopeCreateCount = 0;
+        A2ARequestScopeFactory scopeFactory = (_, _) =>
+        {
+            scopeCreateCount++;
+            return ValueTask.FromResult(
+                new A2ARequestScope(
+                    new A2AOperationContext(new ThrowingRequestHandler())));
+        };
+        var app = WebApplication.CreateBuilder().Build();
+        app.MapHttpA2A(scopeFactory, handlers, bindings);
+        var httpContext = CreateHttpContext(app, HttpMethods.Post, route);
+        httpContext.Request.ContentType = contentType;
+
+        await GetEndpoint(
+            app,
+            HttpMethods.Post,
+            route).RequestDelegate!(httpContext);
+
+        Assert.Equal(0, scopeCreateCount);
+        Assert.Equal(
+            StatusCodes.Status415UnsupportedMediaType,
+            httpContext.Response.StatusCode);
+        Assert.Null(httpContext.Response.ContentType);
+        Assert.Empty(GetResponseBody(httpContext));
+    }
+
+    [Theory]
+    [MemberData(nameof(SupportedJsonBodyMediaTypes))]
+    public async Task JsonBodyRoute_SupportedContentTypeDispatches(
+        string route,
+        string contentType)
+    {
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var standard = operationBuilder.AddStandardA2AOperations();
+        var operationCatalog = operationBuilder.Build();
+        object? capturedRequest = null;
+        var handlers = CreateExpectedHandlerCatalog(
+            HttpMethods.Post,
+            route,
+            standard,
+            operationCatalog,
+            request => capturedRequest = request);
+        var bindings = new A2AHttpOperationBindingBuilder()
+            .AddStandardA2AHttpBindings(standard)
+            .Build();
+        var scopeCreateCount = 0;
+        A2ARequestScopeFactory scopeFactory = (_, _) =>
+        {
+            scopeCreateCount++;
+            return ValueTask.FromResult(
+                new A2ARequestScope(
+                    new A2AOperationContext(new ThrowingRequestHandler())));
+        };
+        var app = WebApplication.CreateBuilder().Build();
+        app.MapHttpA2A(scopeFactory, handlers, bindings);
+        var httpContext = CreateHttpContext(app, HttpMethods.Post, route);
+        httpContext.Request.ContentType = contentType;
+
+        await GetEndpoint(
+            app,
+            HttpMethods.Post,
+            route).RequestDelegate!(httpContext);
+
+        Assert.NotNull(capturedRequest);
+        Assert.Equal(1, scopeCreateCount);
+        Assert.Equal(StatusCodes.Status200OK, httpContext.Response.StatusCode);
+    }
+
     [Fact]
     public async Task ListTasks_SemanticValidationRunsBeforeScopeCreation()
     {
@@ -299,8 +419,11 @@ public class A2AHttpStandardOperationTests
             StringComparison.OrdinalIgnoreCase);
     }
 
-    [Fact]
-    public void MapHttpA2A_WhenReservedRouteMapsToExtensionOperation_Throws()
+    [Theory]
+    [InlineData("/TASKS/{taskId}")]
+    [InlineData("TASKS/{taskId}")]
+    public void MapHttpA2A_WhenReservedRouteMapsToExtensionOperation_Throws(
+        string route)
     {
         var operationBuilder = new A2AOperationCatalogBuilder();
         var extensionOperation = operationBuilder.DefineUnary<GetTaskRequest, AgentTask>(
@@ -315,7 +438,7 @@ public class A2AHttpStandardOperationTests
         var bindings = new A2AHttpOperationBindingBuilder()
             .Map(
                 HttpMethods.Get,
-                "/TASKS/{taskId}",
+                route,
                 extensionOperation,
                 static (context, _) => ValueTask.FromResult(
                     new GetTaskRequest
@@ -332,8 +455,81 @@ public class A2AHttpStandardOperationTests
         var exception = Assert.Throws<InvalidOperationException>(
             () => app.MapHttpA2A(scopeFactory, handlers, bindings));
 
-        Assert.Contains("/TASKS/{taskId}", exception.Message, StringComparison.Ordinal);
+        Assert.Contains(route, exception.Message, StringComparison.Ordinal);
         Assert.Contains("standard", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void MapHttpA2A_WhenReservedRouteMapsToWrongStandardOperation_Throws()
+    {
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var standard = operationBuilder.AddStandardA2AOperations();
+        var operationCatalog = operationBuilder.Build();
+        var handlers = new A2AOperationHandlerCatalogBuilder()
+            .Map(
+                standard.ListTasks,
+                static (_, _, _) => ValueTask.FromResult(
+                    new ListTasksResponse()))
+            .Build(operationCatalog);
+        var bindings = new A2AHttpOperationBindingBuilder()
+            .Map(
+                HttpMethods.Get,
+                "tasks/{taskId}",
+                standard.ListTasks,
+                static (_, _) => ValueTask.FromResult(
+                    new ListTasksRequest()),
+                GetTypeInfo<ListTasksResponse>())
+            .Build();
+        A2ARequestScopeFactory scopeFactory = (_, _) => ValueTask.FromResult(
+            new A2ARequestScope(
+                new A2AOperationContext(new ThrowingRequestHandler())));
+        var app = WebApplication.CreateBuilder().Build();
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => app.MapHttpA2A(scopeFactory, handlers, bindings));
+
+        Assert.Contains(
+            "tasks/{taskId}",
+            exception.Message,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            standard.GetTask.Id.Value,
+            exception.Message,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Map_WhenExtensionRoutesDifferOnlyByLeadingSlash_Throws()
+    {
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var firstOperation = operationBuilder.DefineUnary<
+            GetTaskRequest,
+            AgentTask>(new A2AOperationId("test.first-extension"));
+        var secondOperation = operationBuilder.DefineUnary<
+            GetTaskRequest,
+            AgentTask>(new A2AOperationId("test.second-extension"));
+        var bindingBuilder = new A2AHttpOperationBindingBuilder()
+            .Map(
+                HttpMethods.Get,
+                "/extensions/{id}",
+                firstOperation,
+                static (_, _) => ValueTask.FromResult(
+                    new GetTaskRequest { Id = "task-1" }),
+                GetTypeInfo<AgentTask>());
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => bindingBuilder.Map(
+                HttpMethods.Get,
+                "extensions/{taskId}",
+                secondOperation,
+                static (_, _) => ValueTask.FromResult(
+                    new GetTaskRequest { Id = "task-1" }),
+                GetTypeInfo<AgentTask>()));
+
+        Assert.Contains(
+            "extensions/{taskId}",
+            exception.Message,
+            StringComparison.Ordinal);
     }
 
     [Fact]

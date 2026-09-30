@@ -10,6 +10,8 @@ namespace A2A.AspNetCore;
 /// <summary>Registers HTTP+JSON bindings for the standard A2A operations.</summary>
 public static class A2AStandardHttpBindingBuilderExtensions
 {
+    internal const int StandardOperationCount = 11;
+
     /// <summary>Adds HTTP+JSON bindings for every standard A2A operation.</summary>
     /// <param name="builder">The HTTP binding builder.</param>
     /// <param name="standard">The standard operation handles.</param>
@@ -142,7 +144,12 @@ public static class A2AStandardHttpBindingBuilderExtensions
 
     internal static string NormalizeRoutePattern(string route)
     {
-        var normalized = new StringBuilder(route.Length);
+        var normalized = new StringBuilder(route.Length + 1);
+        if (route[0] != '/')
+        {
+            normalized.Append('/');
+        }
+
         for (var index = 0; index < route.Length; index++)
         {
             var character = route[index];
@@ -303,6 +310,13 @@ public static class A2AStandardHttpBindingBuilderExtensions
         JsonTypeInfo<T> typeInfo,
         CancellationToken cancellationToken)
     {
+        if (!context.Request.HasJsonContentType())
+        {
+            throw new A2AHttpBindingException(
+                Results.StatusCode(
+                    StatusCodes.Status415UnsupportedMediaType));
+        }
+
         try
         {
             var value = await JsonSerializer.DeserializeAsync(

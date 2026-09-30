@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -138,7 +140,10 @@ public sealed class A2AHttpOperationBindingBuilder
     /// <summary>Builds the immutable HTTP operation bindings.</summary>
     /// <returns>The operation bindings.</returns>
     public A2AHttpOperationBindings Build()
-        => new(_bindings.Values.ToArray());
+        => new(
+            _bindings.Values
+                .Select(static registration => registration.Freeze())
+                .ToArray());
 
     private A2AHttpOperationBindingBuilder MapErrorCore<TDetails>(
         object operation,
@@ -244,13 +249,35 @@ public sealed class A2AHttpOperationBindings
         A2ARequestScopeFactory scopeFactory,
         A2AOperationHandlerCatalog handlers)
     {
+        var logger = ((IEndpointRouteBuilder)routeGroup).ServiceProvider
+            .GetRequiredService<ILoggerFactory>()
+            .CreateLogger("A2A.REST");
         foreach (var registration in _registrations)
         {
             registration.Build(handlers.OperationCatalog).MapEndpoint(
                 routeGroup,
                 scopeFactory,
-                handlers);
+                handlers,
+                logger);
         }
+    }
+
+    internal bool HasCompleteStandardBindings(
+        A2AOperationCatalog operationCatalog)
+    {
+        var operationIds = new HashSet<A2AOperationId>();
+        foreach (var registration in _registrations)
+        {
+            if (registration.TryGetStandardOperationId(
+                    operationCatalog,
+                    out var operationId))
+            {
+                operationIds.Add(operationId);
+            }
+        }
+
+        return operationIds.Count
+            == A2AStandardHttpBindingBuilderExtensions.StandardOperationCount;
     }
 }
 
@@ -273,6 +300,12 @@ internal interface IA2AHttpOperationBindingRegistration
     void SetRoute(string httpMethod, string route);
 
     void AddErrorMapping(IA2AHttpErrorMapping mapping);
+
+    IA2AHttpOperationBindingRegistration Freeze();
+
+    bool TryGetStandardOperationId(
+        A2AOperationCatalog operationCatalog,
+        out A2AOperationId operationId);
 
     IA2AHttpOperationBinding Build(A2AOperationCatalog operationCatalog);
 }
@@ -307,6 +340,43 @@ internal abstract class A2AHttpOperationBindingRegistration
             throw new InvalidOperationException(
                 $"The A2A operation error '{mapping.ErrorId}' already has an HTTP mapping.");
         }
+    }
+
+    public IA2AHttpOperationBindingRegistration Freeze()
+    {
+        var clone = CloneCore();
+        clone.SetRoute(
+            _httpMethod
+                ?? throw new InvalidOperationException(
+                    "The HTTP binding has no method."),
+            _route
+                ?? throw new InvalidOperationException(
+                    "The HTTP binding has no route."));
+        foreach (var mapping in _errorMappings.Values)
+        {
+            clone.AddErrorMapping(mapping);
+        }
+
+        return clone;
+    }
+
+    public bool TryGetStandardOperationId(
+        A2AOperationCatalog operationCatalog,
+        out A2AOperationId operationId)
+    {
+        if (Operation is IA2AOperationHandle operationHandle
+            && operationCatalog.TryGetRegistration(
+                operationHandle.Id,
+                out var registration)
+            && ReferenceEquals(registration.Handle, Operation)
+            && registration.Source == A2AOperationSource.Standard)
+        {
+            operationId = registration.Id;
+            return true;
+        }
+
+        operationId = default;
+        return false;
     }
 
     public IA2AHttpOperationBinding Build(A2AOperationCatalog operationCatalog)
@@ -366,6 +436,8 @@ internal abstract class A2AHttpOperationBindingRegistration
         A2AOperationCatalog operationCatalog,
         A2AOperationRegistration operationRegistration,
         IReadOnlyDictionary<string, IA2AHttpErrorMapping> errorMappings);
+
+    protected abstract A2AHttpOperationBindingRegistration CloneCore();
 }
 
 internal sealed class A2AHttpUnaryOperationBindingRegistration<TRequest, TResult>(
@@ -397,6 +469,12 @@ internal sealed class A2AHttpUnaryOperationBindingRegistration<TRequest, TResult
             requestBinder,
             resultTypeInfo,
             errorMappings);
+
+    protected override A2AHttpOperationBindingRegistration CloneCore() =>
+        new A2AHttpUnaryOperationBindingRegistration<TRequest, TResult>(
+            operation,
+            requestBinder,
+            resultTypeInfo);
 }
 
 internal sealed class A2AHttpStreamingOperationBindingRegistration<TRequest, TEvent>(
@@ -428,6 +506,12 @@ internal sealed class A2AHttpStreamingOperationBindingRegistration<TRequest, TEv
             requestBinder,
             eventTypeInfo,
             errorMappings);
+
+    protected override A2AHttpOperationBindingRegistration CloneCore() =>
+        new A2AHttpStreamingOperationBindingRegistration<TRequest, TEvent>(
+            operation,
+            requestBinder,
+            eventTypeInfo);
 }
 
 internal interface IA2AHttpOperationBinding
@@ -435,7 +519,8 @@ internal interface IA2AHttpOperationBinding
     void MapEndpoint(
         RouteGroupBuilder routeGroup,
         A2ARequestScopeFactory scopeFactory,
-        A2AOperationHandlerCatalog handlers);
+        A2AOperationHandlerCatalog handlers,
+        ILogger logger);
 }
 
 internal interface IA2AHttpBoundOperation
@@ -455,7 +540,8 @@ internal abstract class A2AHttpOperationBinding(
     public void MapEndpoint(
         RouteGroupBuilder routeGroup,
         A2ARequestScopeFactory scopeFactory,
-        A2AOperationHandlerCatalog handlers)
+        A2AOperationHandlerCatalog handlers,
+        ILogger logger)
     {
         routeGroup.MapMethods(
             route,
@@ -465,17 +551,24 @@ internal abstract class A2AHttpOperationBinding(
                     httpContext,
                     scopeFactory,
                     handlers,
+                    logger,
                     cancellationToken));
     }
 
     protected abstract ValueTask<IA2AHttpBoundOperation> BindAsync(
         HttpContext httpContext,
+        ILogger logger,
         CancellationToken cancellationToken);
 
-    protected IResult CreateErrorResult(Exception exception)
+    protected IResult CreateErrorResult(
+        Exception exception,
+        ILogger logger)
     {
         if (exception is A2AException a2aException)
         {
+            logger.A2AErrorInActivityName(
+                exception,
+                "HandleA2AHttpRequest");
             return new A2AErrorResult(a2aException);
         }
 
@@ -490,13 +583,36 @@ internal abstract class A2AHttpOperationBinding(
             return mappedResult;
         }
 
+        logger.UnexpectedErrorInActivityName(
+            exception,
+            "HandleA2AHttpRequest");
         return CreateInternalErrorResult();
+    }
+
+    protected void LogStreamException(
+        Exception exception,
+        ILogger logger)
+    {
+        if (exception is A2AException
+            || exception is A2AOperationException operationException
+                && errorMappings.ContainsKey(operationException.ErrorId))
+        {
+            logger.A2AErrorInActivityName(
+                exception,
+                "HandleA2AHttpRequest");
+            return;
+        }
+
+        logger.UnexpectedErrorInActivityName(
+            exception,
+            "HandleA2AHttpRequest");
     }
 
     private async Task<IResult> InvokeAsync(
         HttpContext httpContext,
         A2ARequestScopeFactory scopeFactory,
         A2AOperationHandlerCatalog handlers,
+        ILogger logger,
         CancellationToken cancellationToken)
     {
         using var activity = A2AAspNetCoreDiagnostics.Source.StartActivity(
@@ -510,6 +626,7 @@ internal abstract class A2AHttpOperationBinding(
         {
             var boundOperation = await BindAsync(
                 httpContext,
+                logger,
                 cancellationToken).ConfigureAwait(false);
 
             scope = await scopeFactory(
@@ -538,7 +655,9 @@ internal abstract class A2AHttpOperationBinding(
         {
             activity?.SetStatus(ActivityStatusCode.Error, exception.Message);
             activity?.AddException(exception);
-            return WrapScope(CreateErrorResult(exception), ref scope);
+            return WrapScope(
+                CreateErrorResult(exception, logger),
+                ref scope);
         }
         finally
         {
@@ -583,6 +702,7 @@ internal sealed class A2AHttpUnaryOperationBinding<TRequest, TResult>(
 {
     protected override async ValueTask<IA2AHttpBoundOperation> BindAsync(
         HttpContext httpContext,
+        ILogger logger,
         CancellationToken cancellationToken)
     {
         var request = await BindRequestAsync(
@@ -701,6 +821,7 @@ internal sealed class A2AHttpStreamingOperationBinding<TRequest, TEvent>(
 {
     protected override async ValueTask<IA2AHttpBoundOperation> BindAsync(
         HttpContext httpContext,
+        ILogger logger,
         CancellationToken cancellationToken)
     {
         var request = await BindRequestAsync(
@@ -713,7 +834,8 @@ internal sealed class A2AHttpStreamingOperationBinding<TRequest, TEvent>(
             operation,
             request,
             eventTypeInfo,
-            CreateErrorResult);
+            exception => CreateErrorResult(exception, logger),
+            exception => LogStreamException(exception, logger));
     }
 
     private sealed class BoundOperation(
@@ -721,7 +843,8 @@ internal sealed class A2AHttpStreamingOperationBinding<TRequest, TEvent>(
         A2AStreamingOperation<TRequest, TEvent> operation,
         TRequest request,
         JsonTypeInfo<TEvent> eventTypeInfo,
-        Func<Exception, IResult> createErrorResult)
+        Func<Exception, IResult> createErrorResult,
+        Action<Exception> logStreamException)
         : IA2AHttpBoundOperation
     {
         public ValueTask<IResult> InvokeAsync(
@@ -758,7 +881,8 @@ internal sealed class A2AHttpStreamingOperationBinding<TRequest, TEvent>(
                         operation.Id,
                         A2AOperationKind.Streaming,
                         operationSource,
-                        "http-json")));
+                        "http-json"),
+                    logStreamException));
         }
     }
 

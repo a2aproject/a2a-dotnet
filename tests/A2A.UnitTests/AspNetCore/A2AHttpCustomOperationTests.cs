@@ -3,6 +3,7 @@ using A2A.AspNetCore;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Logging;
 
 using System.Text;
 using System.Text.Json;
@@ -71,6 +72,81 @@ public partial class A2AHttpCustomOperationTests
             responseBody,
             A2AJsonUtilities.DefaultOptions);
         Assert.Equal("task-1", task!.Id);
+    }
+
+    [Fact]
+    public async Task MapHttpA2A_CustomOnlyCatalogAlsoMapsEveryStandardRoute()
+    {
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var customOperation = operationBuilder.DefineUnary<
+            ResumeRequest,
+            ResumeResult>(new A2AOperationId("test.compatibility"));
+        var operationCatalog = operationBuilder.Build();
+        var handlers = new A2AOperationHandlerCatalogBuilder()
+            .Map(
+                customOperation,
+                static (_, request, _) => ValueTask.FromResult(
+                    new ResumeResult(request.Token)))
+            .Build(operationCatalog);
+        var bindings = new A2AHttpOperationBindingBuilder()
+            .Map(
+                HttpMethods.Post,
+                "/tasks/{id}:resumeAuth",
+                customOperation,
+                static (context, _) => ValueTask.FromResult(
+                    new ResumeRequest(
+                        (string)context.Request.RouteValues["id"]!,
+                        "opaque-token")),
+                CustomHttpJsonContext.Default.ResumeResult)
+            .Build();
+        A2ARequestScopeFactory scopeFactory = (_, _) => ValueTask.FromResult(
+            new A2ARequestScope(
+                new A2AOperationContext(
+                    new A2AJsonRpcCustomOperationTests.TestRequestHandler(
+                        request => Task.FromResult(
+                            new AgentTask
+                            {
+                                Id = request.Id,
+                                ContextId = "context-1",
+                                Status = new TaskStatus
+                                {
+                                    State = TaskState.Working,
+                                },
+                            })))));
+        var app = WebApplication.CreateBuilder().Build();
+
+        app.MapHttpA2A(scopeFactory, handlers, bindings);
+
+        foreach (var route in A2AHttpStandardOperationTests.StandardRoutes)
+        {
+            Assert.NotNull(GetEndpoint(
+                app,
+                Assert.IsType<string>(route[0]),
+                Assert.IsType<string>(route[1])));
+        }
+
+        var standardContext = CreateHttpContext(app, "/tasks/{id}");
+        standardContext.Request.Method = HttpMethods.Get;
+        await GetEndpoint(
+            app,
+            HttpMethods.Get,
+            "/tasks/{id}").RequestDelegate!(standardContext);
+        var customContext = CreateHttpContext(app, "/tasks/{id}:resumeAuth");
+        await GetEndpoint(
+            app,
+            HttpMethods.Post,
+            "/tasks/{id}:resumeAuth").RequestDelegate!(customContext);
+
+        Assert.Equal(StatusCodes.Status200OK, standardContext.Response.StatusCode);
+        Assert.Contains(
+            "\"id\":\"task-1\"",
+            GetResponseBody(standardContext),
+            StringComparison.Ordinal);
+        Assert.Equal(StatusCodes.Status200OK, customContext.Response.StatusCode);
+        Assert.Contains(
+            "opaque-token",
+            GetResponseBody(customContext),
+            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -557,6 +633,138 @@ public partial class A2AHttpCustomOperationTests
             StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task MapHttpA2A_UnexpectedDispatchExceptionIsLogged(
+        bool throwFromScopeFactory)
+    {
+        var expectedException = new InvalidOperationException(
+            throwFromScopeFactory
+                ? "secret scope factory failure"
+                : "secret handler failure");
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var operation = operationBuilder.DefineUnary<ResumeRequest, ResumeResult>(
+            new A2AOperationId("test.logging"));
+        var operationCatalog = operationBuilder.Build();
+        var handlers = new A2AOperationHandlerCatalogBuilder()
+            .Map<ResumeRequest, ResumeResult>(
+                operation,
+                (_, _, _) => throw expectedException)
+            .Build(operationCatalog);
+        var bindings = new A2AHttpOperationBindingBuilder()
+            .Map(
+                HttpMethods.Post,
+                "/tasks/{id}:logging",
+                operation,
+                static (context, _) => ValueTask.FromResult(
+                    new ResumeRequest(
+                        (string)context.Request.RouteValues["id"]!,
+                        "opaque-token")),
+                CustomHttpJsonContext.Default.ResumeResult)
+            .Build();
+        A2ARequestScopeFactory scopeFactory = (_, _) =>
+            throwFromScopeFactory
+                ? throw expectedException
+                : ValueTask.FromResult(
+                    new A2ARequestScope(
+                        new A2AOperationContext(
+                            new A2AJsonRpcCustomOperationTests.TestRequestHandler())));
+        var loggerProvider = new CapturingLoggerProvider();
+        var builder = WebApplication.CreateBuilder();
+        builder.Logging.AddProvider(loggerProvider);
+        var app = builder.Build();
+        app.MapHttpA2A(scopeFactory, handlers, bindings);
+        var httpContext = CreateHttpContext(app, "/tasks/{id}:logging");
+
+        await GetEndpoint(
+            app,
+            HttpMethods.Post,
+            "/tasks/{id}:logging").RequestDelegate!(httpContext);
+
+        Assert.Equal(
+            StatusCodes.Status500InternalServerError,
+            httpContext.Response.StatusCode);
+        Assert.Contains(
+            loggerProvider.Entries,
+            entry =>
+                entry.LogLevel == LogLevel.Error
+                && ReferenceEquals(entry.Exception, expectedException)
+                && entry.Message.Contains(
+                    "Unexpected error",
+                    StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            expectedException.Message,
+            GetResponseBody(httpContext),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Build_MapErrorAfterBuildDoesNotMutatePriorBindings()
+    {
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var operation = operationBuilder.DefineUnary<ResumeRequest, ResumeResult>(
+            new A2AOperationId("test.immutable-bindings"));
+        var declaredError = operationBuilder.DeclareError<
+            ResumeRequest,
+            ResumeResult,
+            CustomErrorDetails>(
+                operation,
+                "https://example.com/errors/immutable");
+        var operationCatalog = operationBuilder.Build();
+        var handlers = new A2AOperationHandlerCatalogBuilder()
+            .Map<ResumeRequest, ResumeResult>(
+                operation,
+                (_, _, _) => throw new A2AOperationException<CustomErrorDetails>(
+                    declaredError,
+                    "The immutable binding failed.",
+                    new CustomErrorDetails("authorization-1")))
+            .Build(operationCatalog);
+        var bindingBuilder = new A2AHttpOperationBindingBuilder()
+            .Map(
+                HttpMethods.Post,
+                "/tasks/{id}:immutable",
+                operation,
+                static (context, _) => ValueTask.FromResult(
+                    new ResumeRequest(
+                        (string)context.Request.RouteValues["id"]!,
+                        "opaque-token")),
+                CustomHttpJsonContext.Default.ResumeResult);
+        var priorBindings = bindingBuilder.Build();
+        bindingBuilder.MapError(
+            operation,
+            declaredError,
+            StatusCodes.Status409Conflict,
+            CustomHttpJsonContext.Default.CustomErrorDetails);
+        var updatedBindings = bindingBuilder.Build();
+        A2ARequestScopeFactory scopeFactory = (_, _) => ValueTask.FromResult(
+            new A2ARequestScope(
+                new A2AOperationContext(
+                    new A2AJsonRpcCustomOperationTests.TestRequestHandler())));
+        var priorApp = WebApplication.CreateBuilder().Build();
+        priorApp.MapHttpA2A(scopeFactory, handlers, priorBindings);
+        var updatedApp = WebApplication.CreateBuilder().Build();
+        updatedApp.MapHttpA2A(scopeFactory, handlers, updatedBindings);
+        var priorContext = CreateHttpContext(priorApp, "/tasks/{id}:immutable");
+        var updatedContext = CreateHttpContext(updatedApp, "/tasks/{id}:immutable");
+
+        await GetEndpoint(
+            priorApp,
+            HttpMethods.Post,
+            "/tasks/{id}:immutable").RequestDelegate!(priorContext);
+        await GetEndpoint(
+            updatedApp,
+            HttpMethods.Post,
+            "/tasks/{id}:immutable").RequestDelegate!(updatedContext);
+
+        Assert.Equal(
+            StatusCodes.Status500InternalServerError,
+            priorContext.Response.StatusCode);
+        Assert.Equal(
+            StatusCodes.Status409Conflict,
+            updatedContext.Response.StatusCode);
+    }
+
     [Fact]
     public async Task MapHttpA2A_CustomStreamingScopeSurvivesSseCompletion()
     {
@@ -973,6 +1181,47 @@ public partial class A2AHttpCustomOperationTests
         [JsonPropertyName("value")]
         public string Value => throw new InvalidOperationException(_failureMessage);
     }
+
+    private sealed class CapturingLoggerProvider : ILoggerProvider
+    {
+        internal List<CapturedLogEntry> Entries { get; } = [];
+
+        public ILogger CreateLogger(string categoryName) =>
+            new CapturingLogger(Entries);
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class CapturingLogger(List<CapturedLogEntry> entries)
+        : ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull =>
+            null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            entries.Add(
+                new CapturedLogEntry(
+                    logLevel,
+                    exception,
+                    formatter(state, exception)));
+        }
+    }
+
+    private sealed record CapturedLogEntry(
+        LogLevel LogLevel,
+        Exception? Exception,
+        string Message);
 
     [JsonSerializable(typeof(ResumeBody))]
     [JsonSerializable(typeof(ResumeResult))]
