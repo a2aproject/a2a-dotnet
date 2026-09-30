@@ -352,6 +352,11 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
             body = await response.Content.ReadAsStringAsync(
                 cancellationToken).ConfigureAwait(false);
         }
+        catch (OperationCanceledException)
+            when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception readException)
         {
             Activity.Current?.AddException(readException);
@@ -445,7 +450,16 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
             if (!document.RootElement.TryGetProperty(
                     "error",
                     out var error)
+                || error.ValueKind != JsonValueKind.Object
+                || !error.TryGetProperty("code", out var codeElement)
+                || codeElement.ValueKind != JsonValueKind.Number
+                || !codeElement.TryGetInt32(out var code)
+                || code != (int)statusCode
+                || !error.TryGetProperty("status", out var statusElement)
+                || statusElement.ValueKind != JsonValueKind.String
+                || statusElement.GetString() is null
                 || !error.TryGetProperty("message", out var messageElement)
+                || messageElement.ValueKind != JsonValueKind.String
                 || messageElement.GetString() is not { } message
                 || !error.TryGetProperty("details", out var details)
                 || details.ValueKind != JsonValueKind.Array)

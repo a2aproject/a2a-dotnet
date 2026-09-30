@@ -186,7 +186,9 @@ public sealed class A2AOperationCatalogBuilder
     {
         ValidateOperationId(id);
 
-        var operation = new A2AOperation<TRequest, TResult>(id);
+        var operation = new A2AOperation<TRequest, TResult>(
+            id,
+            requiresCatalog: true);
         AddRegistration(new A2AOperationRegistrationBuilder(
             id,
             A2AOperationKind.Unary,
@@ -205,7 +207,9 @@ public sealed class A2AOperationCatalogBuilder
     {
         ValidateOperationId(id);
 
-        var operation = new A2AStreamingOperation<TRequest, TEvent>(id);
+        var operation = new A2AStreamingOperation<TRequest, TEvent>(
+            id,
+            requiresCatalog: true);
         AddRegistration(new A2AOperationRegistrationBuilder(
             id,
             A2AOperationKind.Streaming,

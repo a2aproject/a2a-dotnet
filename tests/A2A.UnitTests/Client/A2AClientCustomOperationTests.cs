@@ -135,6 +135,90 @@ public partial class A2AClientCustomOperationTests
     }
 
     [Fact]
+    public void Build_WithoutCatalogRejectsStandardBindings()
+    {
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var standard = operationBuilder.AddStandardA2AOperations();
+        var bindingBuilder = new A2AClientOperationBindingBuilder()
+            .AddStandardA2AJsonRpcBindings(standard);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => bindingBuilder.Build());
+
+        Assert.Contains("standard", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Build(A2AOperationCatalog)", exception.Message);
+    }
+
+    [Fact]
+    public void Build_WithoutCatalogRejectsStreamingBindings()
+    {
+        var operation = new A2AStreamingOperation<
+            CustomRequest,
+            CustomStreamEvent>(
+                new A2AOperationId("test.stream"));
+        var bindingBuilder = new A2AClientOperationBindingBuilder()
+            .MapJsonRpcStreaming(
+                operation,
+                "test/stream",
+                CustomClientJsonContext.Default.CustomRequest,
+                CustomClientJsonContext.Default.CustomStreamEvent);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => bindingBuilder.Build());
+
+        Assert.Contains("streaming", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Build(A2AOperationCatalog)", exception.Message);
+    }
+
+    [Fact]
+    public void Build_WithoutCatalogRejectsErrorMappings()
+    {
+        var operation = new A2AOperation<CustomRequest, CustomResult>(
+            new A2AOperationId("test.execute"));
+        var error = new A2AOperationError<CustomErrorDetails>(
+            "https://example.com/errors/not-ready");
+        var bindingBuilder = new A2AClientOperationBindingBuilder()
+            .MapHttp(
+                operation,
+                static (endpoint, _, _) => ValueTask.FromResult(
+                    new HttpRequestMessage(HttpMethod.Post, endpoint)),
+                CustomClientJsonContext.Default.CustomResult)
+            .MapHttpError(
+                operation,
+                error,
+                (int)HttpStatusCode.Conflict,
+                CustomClientJsonContext.Default.CustomErrorDetails);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => bindingBuilder.Build());
+
+        Assert.Contains("error", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Build(A2AOperationCatalog)", exception.Message);
+    }
+
+    [Fact]
+    public void Build_WithoutCatalogRejectsCatalogDefinedUnaryBindings()
+    {
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var operation = operationBuilder.DefineUnary<
+            CustomRequest,
+            CustomResult>(
+                new A2AOperationId("test.execute"));
+        var bindingBuilder = new A2AClientOperationBindingBuilder()
+            .MapJsonRpc(
+                operation,
+                "test/execute",
+                CustomClientJsonContext.Default.CustomRequest,
+                CustomClientJsonContext.Default.CustomResult);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => bindingBuilder.Build());
+
+        Assert.Contains("operation catalog", exception.Message);
+        Assert.Contains("Build(A2AOperationCatalog)", exception.Message);
+    }
+
+    [Fact]
     public async Task InvokeStreamingAsync_JsonRpcUsesRegisteredBindingAndEventMetadata()
     {
         var operationBuilder = new A2AOperationCatalogBuilder();
@@ -331,6 +415,47 @@ public partial class A2AClientCustomOperationTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => moveNextTask);
         Assert.True(handler.CancellationToken.IsCancellationRequested);
+        await enumerator.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task InvokeStreamingAsync_HttpErrorBodyReadCancellationPropagates()
+    {
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var operation = operationBuilder.DefineStreaming<
+            CustomRequest,
+            CustomStreamEvent>(
+                new A2AOperationId("test.stream"));
+        var catalog = operationBuilder.Build();
+        var bindings = new A2AClientOperationBindingBuilder()
+            .MapHttpStreaming(
+                operation,
+                static (endpoint, _, _) => ValueTask.FromResult(
+                    new HttpRequestMessage(HttpMethod.Post, endpoint)),
+                CustomClientJsonContext.Default.CustomStreamEvent)
+            .Build(catalog);
+        var content = new CancellationResponseContent();
+        var client = new A2AHttpJsonClient(
+            new Uri("http://localhost/a2a"),
+            bindings,
+            new HttpClient(new RecordingHandler(
+                _ => new HttpResponseMessage(HttpStatusCode.Conflict)
+                {
+                    Content = content,
+                })));
+        using var cancellationSource = new CancellationTokenSource();
+        var enumerator = client.InvokeStreamingAsync(
+                operation,
+                new CustomRequest("request-value"),
+                cancellationSource.Token)
+            .GetAsyncEnumerator();
+
+        var moveNextTask = enumerator.MoveNextAsync().AsTask();
+        await content.ReadStarted.Task;
+        await cancellationSource.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => moveNextTask);
         await enumerator.DisposeAsync();
     }
 
@@ -589,6 +714,56 @@ public partial class A2AClientCustomOperationTests
             exception.Message);
     }
 
+    [Theory]
+    [MemberData(nameof(InvalidHttpErrorStatusEnvelopes))]
+    public async Task InvokeAsync_HttpDeclaredErrorWithInvalidStatusEnvelopeRetainsGenericBehavior(
+        string responseBody)
+    {
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var operation = operationBuilder.DefineUnary<
+            CustomRequest,
+            CustomResult>(
+                new A2AOperationId("test.execute"));
+        var error = operationBuilder.DeclareError<
+            CustomRequest,
+            CustomResult,
+            CustomErrorDetails>(
+                operation,
+                "https://example.com/errors/not-ready");
+        var catalog = operationBuilder.Build();
+        var bindings = new A2AClientOperationBindingBuilder()
+            .MapHttp(
+                operation,
+                static (endpoint, _, _) =>
+                    ValueTask.FromResult(
+                        new HttpRequestMessage(HttpMethod.Post, endpoint)),
+                CustomClientJsonContext.Default.CustomResult)
+            .MapHttpError(
+                operation,
+                error,
+                (int)HttpStatusCode.Conflict,
+                CustomClientJsonContext.Default.CustomErrorDetails)
+            .Build(catalog);
+        var client = new A2AHttpJsonClient(
+            new Uri("http://localhost/a2a"),
+            bindings,
+            new HttpClient(new RecordingHandler(
+                _ => new HttpResponseMessage(HttpStatusCode.Conflict)
+                {
+                    Content = new StringContent(
+                        responseBody,
+                        Encoding.UTF8,
+                        "application/json"),
+                })));
+
+        var exception = await Assert.ThrowsAsync<A2AException>(
+            () => client.InvokeAsync(
+                operation,
+                new CustomRequest("request-value")));
+
+        Assert.IsNotType<A2AOperationException<CustomErrorDetails>>(exception);
+    }
+
     [Fact]
     public async Task InvokeAsync_MalformedDeclaredErrorRetainsGenericJsonRpcBehavior()
     {
@@ -756,6 +931,109 @@ public partial class A2AClientCustomOperationTests
     [JsonSerializable(typeof(CustomErrorDetails))]
     internal sealed partial class CustomClientJsonContext : JsonSerializerContext;
 
+    public static TheoryData<string> InvalidHttpErrorStatusEnvelopes =>
+        new()
+        {
+            """
+            {
+              "error": {
+                "status": "ABORTED",
+                "message": "Authorization is not ready.",
+                "details": [
+                  {
+                    "@type": "https://example.com/errors/not-ready",
+                    "requestId": "request-2"
+                  }
+                ]
+              }
+            }
+            """,
+            """
+            {
+              "error": {
+                "code": 409,
+                "message": "Authorization is not ready.",
+                "details": [
+                  {
+                    "@type": "https://example.com/errors/not-ready",
+                    "requestId": "request-2"
+                  }
+                ]
+              }
+            }
+            """,
+            """
+            {
+              "error": {
+                "code": "409",
+                "status": "ABORTED",
+                "message": "Authorization is not ready.",
+                "details": [
+                  {
+                    "@type": "https://example.com/errors/not-ready",
+                    "requestId": "request-2"
+                  }
+                ]
+              }
+            }
+            """,
+            """
+            {
+              "error": {
+                "code": 409,
+                "status": 10,
+                "message": "Authorization is not ready.",
+                "details": [
+                  {
+                    "@type": "https://example.com/errors/not-ready",
+                    "requestId": "request-2"
+                  }
+                ]
+              }
+            }
+            """,
+            """
+            {
+              "error": {
+                "code": 409,
+                "status": "ABORTED",
+                "message": 10,
+                "details": [
+                  {
+                    "@type": "https://example.com/errors/not-ready",
+                    "requestId": "request-2"
+                  }
+                ]
+              }
+            }
+            """,
+            """
+            {
+              "error": {
+                "code": 409,
+                "status": "ABORTED",
+                "message": "Authorization is not ready.",
+                "details": {}
+              }
+            }
+            """,
+            """
+            {
+              "error": {
+                "code": 400,
+                "status": "ABORTED",
+                "message": "Authorization is not ready.",
+                "details": [
+                  {
+                    "@type": "https://example.com/errors/not-ready",
+                    "requestId": "request-2"
+                  }
+                ]
+              }
+            }
+            """,
+        };
+
     private static HttpResponseMessage CreateSseResponse(string data) =>
         new(HttpStatusCode.OK)
         {
@@ -824,6 +1102,34 @@ public partial class A2AClientCustomOperationTests
                 TaskCreationOptions.RunContinuationsAsynchronously);
             await never.Task.WaitAsync(cancellationToken);
             throw new InvalidOperationException("Unreachable.");
+        }
+    }
+
+    private sealed class CancellationResponseContent : HttpContent
+    {
+        internal TaskCompletionSource ReadStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        protected override Task SerializeToStreamAsync(
+            Stream stream,
+            TransportContext? context) =>
+            throw new NotSupportedException();
+
+        protected override async Task SerializeToStreamAsync(
+            Stream stream,
+            TransportContext? context,
+            CancellationToken cancellationToken)
+        {
+            ReadStarted.TrySetResult();
+            var never = new TaskCompletionSource(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            await never.Task.WaitAsync(cancellationToken);
+        }
+
+        protected override bool TryComputeLength(out long length)
+        {
+            length = -1;
+            return false;
         }
     }
 

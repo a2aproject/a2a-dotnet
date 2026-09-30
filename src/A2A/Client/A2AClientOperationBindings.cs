@@ -246,7 +246,11 @@ public sealed class A2AClientOperationBindingBuilder
     /// <see cref="Build(A2AOperationCatalog)"/> to enable catalog membership,
     /// semantic validation, and declared-error validation.
     /// </remarks>
-    public A2AClientOperationBindings Build() => BuildCore(operationCatalog: null);
+    public A2AClientOperationBindings Build()
+    {
+        ValidateCatalogFreeBuild();
+        return BuildCore(operationCatalog: null);
+    }
 
     /// <summary>Builds immutable client operation bindings for a catalog.</summary>
     /// <param name="operationCatalog">The operation catalog.</param>
@@ -398,6 +402,20 @@ public sealed class A2AClientOperationBindingBuilder
                 static pair => pair.Key,
                 pair => pair.Value.Build(operationCatalog)),
             _standardOperations);
+
+    private void ValidateCatalogFreeBuild()
+    {
+        if (_standardOperations is not null)
+        {
+            throw new InvalidOperationException(
+                "Standard client bindings require operation catalog validation. Call Build(A2AOperationCatalog).");
+        }
+
+        foreach (var registration in _registrations.Values)
+        {
+            registration.ValidateCatalogFreeBuild();
+        }
+    }
 
     private A2AClientUnaryOperationRegistrationBuilder<TRequest, TResult>
         GetUnaryRegistration<TRequest, TResult>(
@@ -612,6 +630,8 @@ public sealed class A2AClientOperationBindings
 
 internal interface IA2AClientOperationRegistrationBuilder
 {
+    void ValidateCatalogFreeBuild();
+
     IA2AClientOperationRegistration Build(
         A2AOperationCatalog? operationCatalog);
 }
@@ -633,6 +653,22 @@ internal sealed class A2AClientUnaryOperationRegistrationBuilder<
     internal A2AHttpClientOperationBindingBuilder<TRequest, TResult>?
         Http
     { get; set; }
+
+    public void ValidateCatalogFreeBuild()
+    {
+        if (JsonRpc?.HasErrorMappings == true
+            || Http?.HasErrorMappings == true)
+        {
+            throw new InvalidOperationException(
+                $"Client error mappings for '{operation.Id.Value}' require operation catalog validation. Call Build(A2AOperationCatalog).");
+        }
+
+        if (operation.RequiresCatalog)
+        {
+            throw new InvalidOperationException(
+                $"The client binding operation '{operation.Id.Value}' was defined by an operation catalog. Call Build(A2AOperationCatalog).");
+        }
+    }
 
     public IA2AClientOperationRegistration Build(
         A2AOperationCatalog? operationCatalog)
@@ -723,6 +759,10 @@ internal sealed class A2AClientStreamingOperationRegistrationBuilder<
         Http
     { get; set; }
 
+    public void ValidateCatalogFreeBuild()
+        => throw new InvalidOperationException(
+            $"Streaming client bindings for '{operation.Id.Value}' require operation catalog validation. Call Build(A2AOperationCatalog).");
+
     public IA2AClientOperationRegistration Build(
         A2AOperationCatalog? operationCatalog)
     {
@@ -800,6 +840,8 @@ internal sealed class A2AJsonRpcClientOperationBindingBuilder<
     private readonly Dictionary<int, IA2AJsonRpcClientErrorMapping>
         _errorMappings = [];
 
+    internal bool HasErrorMappings => _errorMappings.Count != 0;
+
     internal bool IsCanonicalStandardBinding => isCanonicalStandardBinding;
 
     internal void AddErrorMapping<TDetails>(
@@ -848,6 +890,8 @@ internal sealed class A2AHttpClientOperationBindingBuilder<
     private readonly Dictionary<
         A2AHttpClientErrorMappingKey,
         IA2AHttpClientErrorMapping> _errorMappings = [];
+
+    internal bool HasErrorMappings => _errorMappings.Count != 0;
 
     internal bool IsCanonicalStandardBinding => isCanonicalStandardBinding;
 
