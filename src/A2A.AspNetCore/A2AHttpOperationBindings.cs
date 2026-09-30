@@ -247,13 +247,20 @@ public sealed class A2AHttpOperationBindings
     internal void MapEndpoints(
         RouteGroupBuilder routeGroup,
         A2ARequestScopeFactory scopeFactory,
-        A2AOperationHandlerCatalog handlers)
+        A2AOperationHandlerCatalog handlers,
+        IReadOnlySet<A2AHttpOperationBindingKey>? routeKeys = null)
     {
         var logger = ((IEndpointRouteBuilder)routeGroup).ServiceProvider
             .GetRequiredService<ILoggerFactory>()
             .CreateLogger("A2A.REST");
         foreach (var registration in _registrations)
         {
+            if (routeKeys is not null
+                && !routeKeys.Contains(registration.RouteKey))
+            {
+                continue;
+            }
+
             registration.Build(handlers.OperationCatalog).MapEndpoint(
                 routeGroup,
                 scopeFactory,
@@ -262,22 +269,30 @@ public sealed class A2AHttpOperationBindings
         }
     }
 
-    internal bool HasCompleteStandardBindings(
+    internal IReadOnlySet<A2AHttpOperationBindingKey>
+        GetMissingCanonicalStandardRouteKeys(
         A2AOperationCatalog operationCatalog)
     {
-        var operationIds = new HashSet<A2AOperationId>();
+        var missingRouteKeys = new HashSet<A2AHttpOperationBindingKey>(
+            A2AStandardHttpBindingBuilderExtensions
+                .CanonicalRouteOperationIds.Keys);
         foreach (var registration in _registrations)
         {
-            if (registration.TryGetStandardOperationId(
+            _ = registration.Build(operationCatalog);
+            if (A2AStandardHttpBindingBuilderExtensions
+                    .CanonicalRouteOperationIds.TryGetValue(
+                        registration.RouteKey,
+                        out var expectedOperationId)
+                && registration.TryGetStandardOperationId(
                     operationCatalog,
-                    out var operationId))
+                    out var operationId)
+                && operationId == expectedOperationId)
             {
-                operationIds.Add(operationId);
+                missingRouteKeys.Remove(registration.RouteKey);
             }
         }
 
-        return operationIds.Count
-            == A2AStandardHttpBindingBuilderExtensions.StandardOperationCount;
+        return missingRouteKeys;
     }
 }
 
@@ -297,6 +312,8 @@ internal readonly record struct A2AHttpOperationBindingKey
 
 internal interface IA2AHttpOperationBindingRegistration
 {
+    A2AHttpOperationBindingKey RouteKey { get; }
+
     void SetRoute(string httpMethod, string route);
 
     void AddErrorMapping(IA2AHttpErrorMapping mapping);
@@ -325,6 +342,15 @@ internal abstract class A2AHttpOperationBindingRegistration
     protected abstract Type RequestType { get; }
 
     protected abstract Type ResponseType { get; }
+
+    public A2AHttpOperationBindingKey RouteKey =>
+        new(
+            _httpMethod
+                ?? throw new InvalidOperationException(
+                    "The HTTP binding has no method."),
+            _route
+                ?? throw new InvalidOperationException(
+                    "The HTTP binding has no route."));
 
     public void SetRoute(string httpMethod, string route)
     {

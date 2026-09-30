@@ -150,6 +150,119 @@ public partial class A2AHttpCustomOperationTests
     }
 
     [Fact]
+    public async Task MapHttpA2A_PartialStandardAndCustomCatalogMapsEachCanonicalRouteOnce()
+    {
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var standard = operationBuilder.AddStandardA2AOperations();
+        var customOperation = operationBuilder.DefineUnary<
+            ResumeRequest,
+            ResumeResult>(new A2AOperationId("test.partial-compatibility"));
+        var operationCatalog = operationBuilder.Build();
+        var suppliedStandardDispatchCount = 0;
+        var handlers = new A2AOperationHandlerCatalogBuilder()
+            .Map(
+                standard.ListTasks,
+                (_, _, _) =>
+                {
+                    suppliedStandardDispatchCount++;
+                    return ValueTask.FromResult(new ListTasksResponse());
+                })
+            .Map(
+                customOperation,
+                static (_, request, _) => ValueTask.FromResult(
+                    new ResumeResult(request.Token)))
+            .Build(operationCatalog);
+        var bindings = new A2AHttpOperationBindingBuilder()
+            .Map(
+                HttpMethods.Get,
+                "/tasks",
+                standard.ListTasks,
+                static (_, _) => ValueTask.FromResult(new ListTasksRequest()),
+                (JsonTypeInfo<ListTasksResponse>)A2AJsonUtilities
+                    .DefaultOptions.GetTypeInfo(typeof(ListTasksResponse)))
+            .Map(
+                HttpMethods.Post,
+                "/tasks/{id}:resumeAuth",
+                customOperation,
+                static (context, _) => ValueTask.FromResult(
+                    new ResumeRequest(
+                        (string)context.Request.RouteValues["id"]!,
+                        "opaque-token")),
+                CustomHttpJsonContext.Default.ResumeResult)
+            .Build();
+        A2ARequestScopeFactory scopeFactory = (_, _) => ValueTask.FromResult(
+            new A2ARequestScope(
+                new A2AOperationContext(
+                    new A2AJsonRpcCustomOperationTests.TestRequestHandler(
+                        request => Task.FromResult(
+                            new AgentTask
+                            {
+                                Id = request.Id,
+                                ContextId = "synthesized-standard",
+                                Status = new TaskStatus
+                                {
+                                    State = TaskState.Working,
+                                },
+                            })))));
+        var app = WebApplication.CreateBuilder().Build();
+
+        app.MapHttpA2A(scopeFactory, handlers, bindings);
+
+        var endpoints = ((IEndpointRouteBuilder)app).DataSources
+            .SelectMany(static dataSource => dataSource.Endpoints)
+            .OfType<RouteEndpoint>()
+            .ToArray();
+        foreach (var route in A2AHttpStandardOperationTests.StandardRoutes)
+        {
+            var httpMethod = Assert.IsType<string>(route[0]);
+            var routePattern = Assert.IsType<string>(route[1]);
+            Assert.Single(
+                endpoints,
+                endpoint =>
+                    endpoint.RoutePattern.RawText == routePattern
+                    && endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!
+                        .HttpMethods.Contains(httpMethod));
+        }
+
+        var suppliedStandardContext = CreateHttpContext(app, "/tasks");
+        suppliedStandardContext.Request.Method = HttpMethods.Get;
+        await GetEndpoint(
+            app,
+            HttpMethods.Get,
+            "/tasks").RequestDelegate!(suppliedStandardContext);
+        var synthesizedStandardContext = CreateHttpContext(
+            app,
+            "/tasks/{id}");
+        synthesizedStandardContext.Request.Method = HttpMethods.Get;
+        await GetEndpoint(
+            app,
+            HttpMethods.Get,
+            "/tasks/{id}").RequestDelegate!(synthesizedStandardContext);
+        var customContext = CreateHttpContext(app, "/tasks/{id}:resumeAuth");
+        await GetEndpoint(
+            app,
+            HttpMethods.Post,
+            "/tasks/{id}:resumeAuth").RequestDelegate!(customContext);
+
+        Assert.Equal(1, suppliedStandardDispatchCount);
+        Assert.Equal(
+            StatusCodes.Status200OK,
+            suppliedStandardContext.Response.StatusCode);
+        Assert.Equal(
+            StatusCodes.Status200OK,
+            synthesizedStandardContext.Response.StatusCode);
+        Assert.Contains(
+            "synthesized-standard",
+            GetResponseBody(synthesizedStandardContext),
+            StringComparison.Ordinal);
+        Assert.Equal(StatusCodes.Status200OK, customContext.Response.StatusCode);
+        Assert.Contains(
+            "opaque-token",
+            GetResponseBody(customContext),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task MapHttpA2A_CustomOperationBindsRouteAndBodyAndDisposesRequestScope()
     {
         var operationBuilder = new A2AOperationCatalogBuilder();

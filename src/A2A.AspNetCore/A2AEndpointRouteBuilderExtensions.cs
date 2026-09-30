@@ -200,7 +200,10 @@ public static class A2ARouteBuilderExtensions
         ArgumentNullException.ThrowIfNull(path);
 
         var routeGroup = endpoints.MapGroup(path);
-        if (!bindings.HasCompleteStandardBindings(handlers.OperationCatalog))
+        var missingStandardRouteKeys =
+            bindings.GetMissingCanonicalStandardRouteKeys(
+                handlers.OperationCatalog);
+        if (missingStandardRouteKeys.Count != 0)
         {
             var operationBuilder = new A2AOperationCatalogBuilder();
             var standard = operationBuilder.AddStandardA2AOperations();
@@ -214,7 +217,8 @@ public static class A2ARouteBuilderExtensions
             standardBindings.MapEndpoints(
                 routeGroup,
                 scopeFactory,
-                standardHandlers);
+                standardHandlers,
+                missingStandardRouteKeys);
         }
 
         bindings.MapEndpoints(routeGroup, scopeFactory, handlers);

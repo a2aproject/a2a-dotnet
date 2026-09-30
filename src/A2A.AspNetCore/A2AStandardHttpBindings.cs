@@ -10,7 +10,47 @@ namespace A2A.AspNetCore;
 /// <summary>Registers HTTP+JSON bindings for the standard A2A operations.</summary>
 public static class A2AStandardHttpBindingBuilderExtensions
 {
-    internal const int StandardOperationCount = 11;
+    internal static IReadOnlyDictionary<
+        A2AHttpOperationBindingKey,
+        A2AOperationId> CanonicalRouteOperationIds { get; } =
+        new Dictionary<A2AHttpOperationBindingKey, A2AOperationId>
+        {
+            [new(HttpMethods.Get, "/tasks/{id}")] =
+                new("https://a2a-protocol.org/operations/get-task"),
+            [new(HttpMethods.Get, "/tasks")] =
+                new("https://a2a-protocol.org/operations/list-tasks"),
+            [new(HttpMethods.Post, "/tasks/{id}:cancel")] =
+                new("https://a2a-protocol.org/operations/cancel-task"),
+            [new(HttpMethods.Post, "/tasks/{id}:subscribe")] =
+                new("https://a2a-protocol.org/operations/subscribe-to-task"),
+            [new(HttpMethods.Post, "/message:send")] =
+                new("https://a2a-protocol.org/operations/send-message"),
+            [new(HttpMethods.Post, "/message:stream")] =
+                new("https://a2a-protocol.org/operations/send-message-stream"),
+            [new(
+                HttpMethods.Post,
+                "/tasks/{id}/pushNotificationConfigs")] =
+                new(
+                    "https://a2a-protocol.org/operations/create-task-push-notification-config"),
+            [new(
+                HttpMethods.Get,
+                "/tasks/{id}/pushNotificationConfigs")] =
+                new(
+                    "https://a2a-protocol.org/operations/list-task-push-notification-configs"),
+            [new(
+                HttpMethods.Get,
+                "/tasks/{id}/pushNotificationConfigs/{configId}")] =
+                new(
+                    "https://a2a-protocol.org/operations/get-task-push-notification-config"),
+            [new(
+                HttpMethods.Delete,
+                "/tasks/{id}/pushNotificationConfigs/{configId}")] =
+                new(
+                    "https://a2a-protocol.org/operations/delete-task-push-notification-config"),
+            [new(HttpMethods.Get, "/extendedAgentCard")] =
+                new(
+                    "https://a2a-protocol.org/operations/get-extended-agent-card"),
+        };
 
     /// <summary>Adds HTTP+JSON bindings for every standard A2A operation.</summary>
     /// <param name="builder">The HTTP binding builder.</param>
@@ -98,35 +138,9 @@ public static class A2AStandardHttpBindingBuilderExtensions
         string route,
         A2AOperationRegistration registration)
     {
-        var expectedOperationId = (
-            httpMethod.ToUpperInvariant(),
-            NormalizeRoutePattern(route)) switch
-        {
-            ("GET", "/tasks/{}") =>
-                "https://a2a-protocol.org/operations/get-task",
-            ("GET", "/tasks") =>
-                "https://a2a-protocol.org/operations/list-tasks",
-            ("POST", "/tasks/{}:cancel") =>
-                "https://a2a-protocol.org/operations/cancel-task",
-            ("POST", "/tasks/{}:subscribe") =>
-                "https://a2a-protocol.org/operations/subscribe-to-task",
-            ("POST", "/message:send") =>
-                "https://a2a-protocol.org/operations/send-message",
-            ("POST", "/message:stream") =>
-                "https://a2a-protocol.org/operations/send-message-stream",
-            ("POST", "/tasks/{}/pushnotificationconfigs") =>
-                "https://a2a-protocol.org/operations/create-task-push-notification-config",
-            ("GET", "/tasks/{}/pushnotificationconfigs") =>
-                "https://a2a-protocol.org/operations/list-task-push-notification-configs",
-            ("GET", "/tasks/{}/pushnotificationconfigs/{}") =>
-                "https://a2a-protocol.org/operations/get-task-push-notification-config",
-            ("DELETE", "/tasks/{}/pushnotificationconfigs/{}") =>
-                "https://a2a-protocol.org/operations/delete-task-push-notification-config",
-            ("GET", "/extendedagentcard") =>
-                "https://a2a-protocol.org/operations/get-extended-agent-card",
-            _ => null,
-        };
-        if (expectedOperationId is null)
+        if (!CanonicalRouteOperationIds.TryGetValue(
+                new A2AHttpOperationBindingKey(httpMethod, route),
+                out var expectedOperationId))
         {
             return;
         }
@@ -134,11 +148,11 @@ public static class A2AStandardHttpBindingBuilderExtensions
         if (registration.Source != A2AOperationSource.Standard
             || !string.Equals(
                 registration.Id.Value,
-                expectedOperationId,
+                expectedOperationId.Value,
                 StringComparison.Ordinal))
         {
             throw new InvalidOperationException(
-                $"The reserved HTTP route '{httpMethod} {route}' must map to the standard A2A operation '{expectedOperationId}'.");
+                $"The reserved HTTP route '{httpMethod} {route}' must map to the standard A2A operation '{expectedOperationId.Value}'.");
         }
     }
 
