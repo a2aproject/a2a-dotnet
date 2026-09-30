@@ -127,7 +127,7 @@ public static class A2AJsonRpcProcessor
         catch (A2AException ex)
         {
             activity?.SetStatus(ActivityStatusCode.Error);
-            A2AOperationDiagnostics.SetError(operationActivity, ex);
+            A2AOperationDiagnostics.SetError(operationActivity, ex, cancellationToken);
             var errorId = GetErrorId(rpcRequest, parsedRequestId, ex);
             return WrapScope(
                 new JsonRpcResponseResult(
@@ -137,7 +137,7 @@ public static class A2AJsonRpcProcessor
         catch (Exception ex)
         {
             activity?.SetStatus(ActivityStatusCode.Error);
-            A2AOperationDiagnostics.SetError(operationActivity, ex);
+            A2AOperationDiagnostics.SetError(operationActivity, ex, cancellationToken);
             var errorId = GetErrorId(rpcRequest, parsedRequestId);
             var response = boundOperation?.CreateErrorResponse(
                 errorId,
@@ -156,7 +156,7 @@ public static class A2AJsonRpcProcessor
             {
                 if (scope is not null)
                 {
-                    await A2AOperationDiagnostics.DisposeAsync(scope, operationActivity).ConfigureAwait(false);
+                    await A2AOperationDiagnostics.DisposeAsync(scope, operationActivity, cancellationToken).ConfigureAwait(false);
                 }
             }
             finally

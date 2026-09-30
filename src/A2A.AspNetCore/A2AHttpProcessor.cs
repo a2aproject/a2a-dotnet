@@ -150,14 +150,14 @@ internal sealed class A2AEventStreamResult<TEvent>(
         {
             enumerator = events.GetAsyncEnumerator(httpContext.RequestAborted);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException exception)
         {
-            A2AOperationDiagnostics.SetOutcome(operationActivity, "cancelled");
+            A2AOperationDiagnostics.SetError(operationActivity, exception, httpContext.RequestAborted);
             return;
         }
         catch (Exception exception)
         {
-            A2AOperationDiagnostics.SetError(operationActivity, exception);
+            A2AOperationDiagnostics.SetError(operationActivity, exception, httpContext.RequestAborted);
             await WriteErrorAsync(
                 httpContext,
                 exception,
@@ -168,7 +168,7 @@ internal sealed class A2AEventStreamResult<TEvent>(
         Exception? failure = null;
         var streamStarted = false;
         var completedWithoutEvents = false;
-        var cancelled = false;
+        OperationCanceledException? cancellation = null;
         try
         {
             if (await enumerator.MoveNextAsync().ConfigureAwait(false))
@@ -199,9 +199,9 @@ internal sealed class A2AEventStreamResult<TEvent>(
                 completedWithoutEvents = true;
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException exception)
         {
-            cancelled = true;
+            cancellation = exception;
         }
         catch (Exception exception)
         {
@@ -213,9 +213,9 @@ internal sealed class A2AEventStreamResult<TEvent>(
             {
                 await enumerator.DisposeAsync().ConfigureAwait(false);
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException exception)
             {
-                cancelled = true;
+                cancellation = exception;
             }
             catch (Exception exception)
             {
@@ -225,12 +225,12 @@ internal sealed class A2AEventStreamResult<TEvent>(
 
         if (failure is not null)
         {
-            A2AOperationDiagnostics.SetError(operationActivity, failure);
+            A2AOperationDiagnostics.SetError(operationActivity, failure, httpContext.RequestAborted);
             await WriteErrorAsync(httpContext, failure, streamStarted).ConfigureAwait(false);
         }
-        else if (cancelled)
+        else if (cancellation is not null)
         {
-            A2AOperationDiagnostics.SetOutcome(operationActivity, "cancelled");
+            A2AOperationDiagnostics.SetError(operationActivity, cancellation, httpContext.RequestAborted);
         }
         else
         {

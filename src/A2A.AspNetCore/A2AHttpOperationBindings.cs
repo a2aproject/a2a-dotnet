@@ -674,20 +674,20 @@ internal abstract class A2AHttpOperationBinding(
         catch (A2AHttpBindingException exception)
         {
             activity?.SetStatus(ActivityStatusCode.Error);
-            A2AOperationDiagnostics.SetError(operationActivity, exception);
+            A2AOperationDiagnostics.SetError(operationActivity, exception, cancellationToken);
             return WrapScope(exception.Result, ref scope, ref operationActivity);
         }
         catch (OperationCanceledException exception)
             when (cancellationToken.IsCancellationRequested)
         {
             activity?.SetStatus(ActivityStatusCode.Error, "cancelled");
-            A2AOperationDiagnostics.SetError(operationActivity, exception);
+            A2AOperationDiagnostics.SetError(operationActivity, exception, cancellationToken);
             throw;
         }
         catch (Exception exception)
         {
             activity?.SetStatus(ActivityStatusCode.Error);
-            A2AOperationDiagnostics.SetError(operationActivity, exception);
+            A2AOperationDiagnostics.SetError(operationActivity, exception, cancellationToken);
             return WrapScope(
                 CreateErrorResult(exception, logger),
                 ref scope, ref operationActivity);
@@ -698,7 +698,7 @@ internal abstract class A2AHttpOperationBinding(
             {
                 if (scope is not null)
                 {
-                    await A2AOperationDiagnostics.DisposeAsync(scope, operationActivity).ConfigureAwait(false);
+                    await A2AOperationDiagnostics.DisposeAsync(scope, operationActivity, cancellationToken).ConfigureAwait(false);
                 }
             }
             finally
@@ -1021,12 +1021,12 @@ internal sealed class A2AHttpOperationResult<TResult>(
         catch (OperationCanceledException exception)
             when (httpContext.RequestAborted.IsCancellationRequested)
         {
-            A2AOperationDiagnostics.SetError(operationActivity, exception);
+            A2AOperationDiagnostics.SetError(operationActivity, exception, httpContext.RequestAborted);
             return;
         }
         catch (Exception exception)
         {
-            A2AOperationDiagnostics.SetError(operationActivity, exception);
+            A2AOperationDiagnostics.SetError(operationActivity, exception, httpContext.RequestAborted);
             await new A2AErrorResult(
                 new A2AException(
                     "An internal error occurred.",

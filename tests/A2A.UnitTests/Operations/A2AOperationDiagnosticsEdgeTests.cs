@@ -10,11 +10,16 @@ namespace A2A.UnitTests.Operations;
 public partial class A2AOperationDiagnosticsTests
 {
     [Theory]
-    [InlineData("jsonrpc")]
-    [InlineData("http-json")]
-    public async Task Client_DisposingBeforeStreamCompletionRecordsCancellation(string transport)
+    [InlineData("jsonrpc", false, "error")]
+    [InlineData("jsonrpc", true, "cancelled")]
+    [InlineData("http-json", false, "error")]
+    [InlineData("http-json", true, "cancelled")]
+    public async Task Client_DisposingBeforeStreamCompletionUsesEnumerationToken(
+        string transport, bool cancel, string outcome)
     {
         using var capture = new ActivityCapture();
+        using var callerCancellation = new CancellationTokenSource();
+        using var enumerationCancellation = new CancellationTokenSource();
         var builder = new A2AOperationCatalogBuilder();
         var operation = builder.DefineStreaming<Request, Result>(new("test.stream"));
         var bindings = new A2AClientOperationBindingBuilder()
@@ -26,14 +31,20 @@ public partial class A2AOperationDiagnosticsTests
         IA2AClient client = transport == "jsonrpc"
             ? new A2AClient(new Uri("http://localhost"), bindings, httpClient)
             : new A2AHttpJsonClient(new Uri("http://localhost"), bindings, httpClient);
-        await using (var enumerator = client.InvokeStreamingAsync(operation, new Request("request")).GetAsyncEnumerator())
+        await using (var enumerator = client.InvokeStreamingAsync(operation, new Request("request"), callerCancellation.Token)
+            .GetAsyncEnumerator(enumerationCancellation.Token))
         {
             Assert.True(await enumerator.MoveNextAsync());
             Assert.Equal(Secret, enumerator.Current.Value);
             Assert.Empty(capture.Operations);
+            if (cancel)
+            {
+                await enumerationCancellation.CancelAsync();
+            }
         }
 
-        AssertOperation(Assert.Single(capture.Operations), "test.stream", true, "extension", "client", transport, "cancelled");
+        AssertOperation(Assert.Single(capture.Operations), "test.stream", true, "extension", "client", transport, outcome);
+        capture.AssertNoSecrets();
     }
 
     [Fact]
@@ -63,8 +74,8 @@ public partial class A2AOperationDiagnosticsTests
     [InlineData("jsonrpc", true, true)]
     [InlineData("http-json", false, true)]
     [InlineData("http-json", true, true)]
-    public async Task Client_ErrorDetailDeserializationIsPrivateAndCancellationIsPreserved(
-        string transport, bool streaming, bool cancelled)
+    public async Task Client_ErrorDetailDeserializationIsPrivateAndUncancelledFailuresAreErrors(
+        string transport, bool streaming, bool throwsCancellation)
     {
         using var capture = new ActivityCapture();
         var builder = new A2AOperationCatalogBuilder();
@@ -82,7 +93,7 @@ public partial class A2AOperationDiagnosticsTests
             .MapHttpError(unary, unaryError, 409, EdgeJsonContext.Default.FaultingErrorDetails)
             .MapHttpError(stream, streamError, 409, EdgeJsonContext.Default.FaultingErrorDetails)
             .Build(builder.Build());
-        using var httpClient = new HttpClient(new ErrorDetailsHandler(transport, cancelled));
+        using var httpClient = new HttpClient(new ErrorDetailsHandler(transport, throwsCancellation));
         IA2AClient client = transport == "jsonrpc"
             ? new A2AClient(new Uri("http://localhost"), bindings, httpClient)
             : new A2AHttpJsonClient(new Uri("http://localhost"), bindings, httpClient);
@@ -99,7 +110,7 @@ public partial class A2AOperationDiagnosticsTests
             }
         });
 
-        if (cancelled)
+        if (throwsCancellation)
         {
             Assert.IsAssignableFrom<OperationCanceledException>(exception);
         }
@@ -109,7 +120,7 @@ public partial class A2AOperationDiagnosticsTests
         }
 
         AssertOperation(Assert.Single(capture.Operations), streaming ? "test.stream" : "test.unary",
-            streaming, "extension", "client", transport, cancelled ? "cancelled" : "error");
+            streaming, "extension", "client", transport, "error");
         capture.AssertNoSecrets();
 
         static ValueTask<HttpRequestMessage> MapAsync(Uri endpoint, Request request, CancellationToken cancellationToken) =>

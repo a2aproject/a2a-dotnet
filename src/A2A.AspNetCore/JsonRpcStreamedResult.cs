@@ -88,14 +88,14 @@ public sealed class JsonRpcStreamedResult : IResult
             enumerator = _responses.GetAsyncEnumerator(
                 httpContext.RequestAborted);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
-            A2AOperationDiagnostics.SetOutcome(operationActivity, "cancelled");
+            A2AOperationDiagnostics.SetError(operationActivity, ex, httpContext.RequestAborted);
             return;
         }
         catch (Exception ex)
         {
-            A2AOperationDiagnostics.SetError(operationActivity, ex);
+            A2AOperationDiagnostics.SetError(operationActivity, ex, httpContext.RequestAborted);
             await WriteErrorAsync(
                 httpContext,
                 ex,
@@ -106,7 +106,7 @@ public sealed class JsonRpcStreamedResult : IResult
         Exception? failure = null;
         var streamStarted = false;
         var completedWithoutEvents = false;
-        var cancelled = false;
+        OperationCanceledException? cancellation = null;
         try
         {
             if (await enumerator.MoveNextAsync().ConfigureAwait(false))
@@ -142,9 +142,9 @@ public sealed class JsonRpcStreamedResult : IResult
                 completedWithoutEvents = true;
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
-            cancelled = true;
+            cancellation = ex;
         }
         catch (Exception ex)
         {
@@ -156,9 +156,9 @@ public sealed class JsonRpcStreamedResult : IResult
             {
                 await enumerator.DisposeAsync().ConfigureAwait(false);
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException ex)
             {
-                cancelled = true;
+                cancellation = ex;
             }
             catch (Exception ex)
             {
@@ -168,15 +168,15 @@ public sealed class JsonRpcStreamedResult : IResult
 
         if (failure is not null)
         {
-            A2AOperationDiagnostics.SetError(operationActivity, failure);
+            A2AOperationDiagnostics.SetError(operationActivity, failure, httpContext.RequestAborted);
             await WriteErrorAsync(
                 httpContext,
                 failure,
                 streamStarted).ConfigureAwait(false);
         }
-        else if (cancelled)
+        else if (cancellation is not null)
         {
-            A2AOperationDiagnostics.SetOutcome(operationActivity, "cancelled");
+            A2AOperationDiagnostics.SetError(operationActivity, cancellation, httpContext.RequestAborted);
         }
         else
         {

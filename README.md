@@ -241,8 +241,12 @@ to observe unified operation dispatch. Each invocation emits one
 Server activities include binding, validation, scope creation, handler
 execution, response writing, stream enumeration, and scope disposal. Client
 activities include binding lookup, validation, serialization, transport,
-response deserialization, and stream disposal. Disposing a client stream
-before completion records `cancelled`. Exception messages, payloads,
+response deserialization, and stream disposal. An `OperationCanceledException`
+records `cancelled` only when the invocation's request, caller, or enumeration
+token is cancelled; otherwise it records `error`, including timeout failures.
+Disposing a client stream before completion records `cancelled` only when its
+caller or enumeration token is cancelled, and `error` otherwise.
+Exception messages, payloads,
 authorization headers, extension tokens, and feature values are not added to
 operation activities. Client transport activities record the server address
 and port instead of a full URL, which can contain private path or query values.

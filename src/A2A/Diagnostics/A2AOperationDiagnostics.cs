@@ -34,8 +34,10 @@ internal static class A2AOperationDiagnostics
         activity?.SetStatus(outcome == "error" ? ActivityStatusCode.Error : ActivityStatusCode.Unset);
     }
 
-    internal static void SetError(Activity? activity, Exception exception) =>
-        SetOutcome(activity, exception is OperationCanceledException ? "cancelled" : "error");
+    internal static void SetError(
+        Activity? activity, Exception exception, CancellationToken cancellationToken = default) =>
+        SetOutcome(activity, exception is OperationCanceledException && cancellationToken.IsCancellationRequested
+            ? "cancelled" : "error");
 
     internal static async Task<TResult> InvokeAsync<TResult>(
         A2AOperationId id,
@@ -53,7 +55,7 @@ internal static class A2AOperationDiagnostics
         }
         catch (Exception exception)
         {
-            SetError(activity, exception);
+            SetError(activity, exception, cancellationToken);
             throw;
         }
     }
@@ -73,7 +75,7 @@ internal static class A2AOperationDiagnostics
         }
         catch (Exception exception)
         {
-            SetError(activity, exception);
+            SetError(activity, exception, cancellationToken);
             throw;
         }
 
@@ -95,7 +97,7 @@ internal static class A2AOperationDiagnostics
                 }
                 catch (Exception exception)
                 {
-                    SetError(activity, exception);
+                    SetError(activity, exception, cancellationToken);
                     throw;
                 }
 
@@ -104,17 +106,16 @@ internal static class A2AOperationDiagnostics
         }
         finally
         {
-            await DisposeAsync(enumerator, activity).ConfigureAwait(false);
+            await DisposeAsync(enumerator, activity, cancellationToken).ConfigureAwait(false);
             if (activity?.GetTagItem("a2a.operation.outcome") is null)
             {
-                SetOutcome(activity, completed ? "success" : "cancelled");
+                SetOutcome(activity, completed ? "success" : cancellationToken.IsCancellationRequested ? "cancelled" : "error");
             }
         }
     }
 
-#pragma warning disable EA0014 // IAsyncDisposable cleanup must run even after request cancellation.
     internal static async ValueTask DisposeAsync(
-        IAsyncDisposable resource, Activity? activity)
+        IAsyncDisposable resource, Activity? activity, CancellationToken cancellationToken)
     {
         try
         {
@@ -122,9 +123,8 @@ internal static class A2AOperationDiagnostics
         }
         catch (Exception exception)
         {
-            SetError(activity, exception);
+            SetError(activity, exception, cancellationToken);
             throw;
         }
     }
-#pragma warning restore EA0014
 }

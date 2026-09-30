@@ -31,7 +31,7 @@ internal sealed class A2ARequestScopeResult(
         }
         catch (Exception exception)
         {
-            A2AOperationDiagnostics.SetError(operationActivity, exception);
+            A2AOperationDiagnostics.SetError(operationActivity, exception, httpContext.RequestAborted);
             throw;
         }
         finally

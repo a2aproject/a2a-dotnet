@@ -32,7 +32,9 @@ public partial class A2AOperationDiagnosticsTests
                     {
                         "success", "binding", "validation", "factory", "handler",
                         "serialization", "write", "dispose", "cancel-factory",
-                        "cancel-handler", "cancel-dispose",
+                        "cancel-handler", "cancel-dispose", "cancel-serialization",
+                        "uncancelled-factory", "uncancelled-handler", "uncancelled-dispose",
+                        "uncancelled-serialization",
                     })
                     {
                         cases.Add(transport, streaming, stage);
@@ -40,7 +42,12 @@ public partial class A2AOperationDiagnosticsTests
 
                     if (streaming)
                     {
-                        foreach (var stage in new[] { "enumerator", "stream", "stream-dispose", "cancel-stream" })
+                        foreach (var stage in new[]
+                        {
+                            "enumerator", "stream", "stream-dispose", "cancel-stream",
+                            "cancel-enumerator", "cancel-stream-dispose", "uncancelled-enumerator",
+                            "uncancelled-stream", "uncancelled-stream-dispose",
+                        })
                         {
                             cases.Add(transport, true, stage);
                         }
@@ -58,12 +65,15 @@ public partial class A2AOperationDiagnosticsTests
         string transport, bool streaming, string stage)
     {
         using var capture = new ActivityCapture();
+        using var cancellation = new CancellationTokenSource();
         var observed = new List<Activity?>();
+        var scopeCreated = false;
+        var scopeDisposed = false;
         var builder = new A2AOperationCatalogBuilder();
         void Validate(Request request)
         {
             observed.Add(Activity.Current);
-            Fail(stage, "validation");
+            Fail(stage, "validation", cancellation);
         }
 
         var unary = builder.DefineUnary<Request, Result>(new("test.unary"), Validate);
@@ -73,33 +83,36 @@ public partial class A2AOperationDiagnosticsTests
             .Map(unary, (_, _, _) =>
             {
                 observed.Add(Activity.Current);
-                Fail(stage, "handler");
-                return ValueTask.FromResult(new Result(stage == "serialization"));
+                Fail(stage, "handler", cancellation);
+                return ValueTask.FromResult(new Result(stage, cancellation));
             })
             .MapStreaming(stream, (_, _, _) =>
             {
                 observed.Add(Activity.Current);
-                Fail(stage, "handler");
-                return new Events(stage);
+                Fail(stage, "handler", cancellation);
+                return new Events(stage, cancellation);
             })
             .Build(catalog);
         A2ARequestScopeFactory factory = (_, _) =>
         {
             observed.Add(Activity.Current);
-            Fail(stage, "factory");
+            Fail(stage, "factory", cancellation);
             var features = new A2AFeatureCollection();
             features.Set(new Request(Secret));
+            scopeCreated = true;
             return ValueTask.FromResult(new A2ARequestScope(
                 new A2AOperationContext(new A2AJsonRpcCustomOperationTests.TestRequestHandler(), features),
                 () =>
                 {
                     observed.Add(Activity.Current);
-                    Fail(stage, "dispose");
+                    scopeDisposed = true;
+                    Fail(stage, "dispose", cancellation);
                     return ValueTask.CompletedTask;
                 }));
         };
         await using var app = WebApplication.CreateBuilder().Build();
         var context = new DefaultHttpContext { RequestServices = app.Services };
+        context.RequestAborted = cancellation.Token;
         context.Request.Headers.Authorization = $"Bearer {Secret}";
         context.Request.Headers["X-Extension-Token"] = Secret;
         context.Response.Body = stage == "write" ? new FailingStream() : new MemoryStream();
@@ -117,7 +130,7 @@ public partial class A2AOperationDiagnosticsTests
                 context.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(
                     $$"""{"jsonrpc":"2.0","id":42,"method":"test/{{(streaming ? "stream" : "unary")}}","params":{{requestBody}}}"""));
                 var result = await A2AJsonRpcProcessor.ProcessRequestAsync(
-                    factory, handlers, bindings, context.Request, default);
+                    factory, handlers, bindings, context.Request, cancellation.Token);
                 Assert.Empty(capture.Operations);
                 await result.ExecuteAsync(context);
             }
@@ -145,6 +158,7 @@ public partial class A2AOperationDiagnosticsTests
         }
 
         var activity = Assert.Single(capture.Operations);
+        Assert.Equal(scopeCreated, scopeDisposed);
         AssertOperation(activity, streaming ? "test.stream" : "test.unary",
             streaming, "extension", "server", transport, Outcome(stage));
         Assert.All(observed, item => Assert.Same(activity, item));
@@ -169,7 +183,9 @@ public partial class A2AOperationDiagnosticsTests
                 {
                     foreach (var stage in new[]
                     {
-                        "success", "binding", "validation", "mapper", "response", "remote-error", "cancel-send", "secret-url",
+                        "success", "binding", "validation", "mapper", "response", "remote-error",
+                        "cancel-send", "uncancelled-send", "timeout-send", "cancel-mapper",
+                        "uncancelled-mapper", "secret-url",
                     })
                     {
                         cases.Add(transport, streaming, stage);
@@ -178,6 +194,14 @@ public partial class A2AOperationDiagnosticsTests
                     if (streaming)
                     {
                         cases.Add(transport, true, "pre-stream-error");
+                        foreach (var stage in new[]
+                        {
+                            "cancel-read", "uncancelled-read", "timeout-read", "cancel-enumeration",
+                            "cancel-stream-dispose", "uncancelled-stream-dispose", "timeout-stream-dispose",
+                        })
+                        {
+                            cases.Add(transport, true, stage);
+                        }
                     }
                 }
             }
@@ -192,6 +216,8 @@ public partial class A2AOperationDiagnosticsTests
         string transport, bool streaming, string stage)
     {
         using var capture = new ActivityCapture();
+        using var cancellation = new CancellationTokenSource();
+        using var enumerationCancellation = new CancellationTokenSource();
         var builder = new A2AOperationCatalogBuilder();
         var unary = builder.DefineUnary<Request, Result>(new("test.unary"), _ => Fail(stage, "validation"));
         var stream = builder.DefineStreaming<Request, Result>(new("test.stream"), _ => Fail(stage, "validation"));
@@ -206,7 +232,9 @@ public partial class A2AOperationDiagnosticsTests
                 .MapHttpStreaming(stream, MapAsync, TestJsonContext.Default.Result);
         }
 
-        using var httpClient = new HttpClient(new ResponseHandler(stage, transport, streaming));
+        using var httpClient = new HttpClient(new ResponseHandler(
+            stage == "cancel-enumeration" ? "cancel-read" : stage, transport, streaming,
+            stage == "cancel-enumeration" ? enumerationCancellation : cancellation));
         var endpoint = new Uri(stage == "secret-url" ? $"http://localhost/{Secret}?token={Secret}" : "http://localhost");
         IA2AClient client = transport == "jsonrpc"
             ? new A2AClient(endpoint, bindingBuilder.Build(catalog), httpClient)
@@ -216,11 +244,16 @@ public partial class A2AOperationDiagnosticsTests
         {
             if (streaming)
             {
-                results = await client.InvokeStreamingAsync(stream, new Request(Secret)).ToListAsync();
+                results = [];
+                await foreach (var item in client.InvokeStreamingAsync(stream, new Request(Secret), cancellation.Token)
+                    .WithCancellation(enumerationCancellation.Token))
+                {
+                    results.Add(item);
+                }
             }
             else
             {
-                results = [await client.InvokeAsync(unary, new Request(Secret))];
+                results = [await client.InvokeAsync(unary, new Request(Secret), cancellation.Token)];
             }
         });
         if (stage is "success" or "secret-url")
@@ -243,13 +276,13 @@ public partial class A2AOperationDiagnosticsTests
 
         void Customize(HttpRequestMessage message, Request request)
         {
-            Fail(stage, "mapper");
+            Fail(stage, "mapper", cancellation);
             message.Headers.TryAddWithoutValidation("Authorization", $"Bearer {request.Value}");
         }
 
         ValueTask<HttpRequestMessage> MapAsync(Uri endpoint, Request request, CancellationToken cancellationToken)
         {
-            Fail(stage, "mapper");
+            Fail(stage, "mapper", cancellation);
             return ValueTask.FromResult(new HttpRequestMessage(HttpMethod.Post,
                 stage == "secret-url" ? new Uri(endpoint, $"?token={Secret}") : endpoint));
         }
@@ -364,7 +397,7 @@ public partial class A2AOperationDiagnosticsTests
     private static string Outcome(string stage) =>
         stage is "success" or "secret-url" ? "success" : stage.StartsWith("cancel-", StringComparison.Ordinal) ? "cancelled" : "error";
 
-    private static void Fail(string stage, string current)
+    private static void Fail(string stage, string current, CancellationTokenSource? cancellation = null)
     {
         if (stage == current)
         {
@@ -373,7 +406,19 @@ public partial class A2AOperationDiagnosticsTests
 
         if (stage == $"cancel-{current}")
         {
-            throw new OperationCanceledException(Secret);
+            Assert.NotNull(cancellation);
+            cancellation.Cancel();
+            throw new OperationCanceledException(Secret, cancellation.Token);
+        }
+
+        if (stage == $"uncancelled-{current}")
+        {
+            throw new OperationCanceledException(Secret, new CancellationToken(canceled: true));
+        }
+
+        if (stage == $"timeout-{current}")
+        {
+            throw new TaskCanceledException(Secret, new TimeoutException(Secret), new CancellationToken(canceled: true));
         }
     }
 
@@ -422,19 +467,19 @@ public partial class A2AOperationDiagnosticsTests
         public void Dispose() => _listener.Dispose();
     }
 
-    private sealed class Events(string stage) : IAsyncEnumerable<Result>, IAsyncEnumerator<Result>
+    private sealed class Events(string stage, CancellationTokenSource cancellation) : IAsyncEnumerable<Result>, IAsyncEnumerator<Result>
     {
         private bool _moved;
-        public Result Current => new(stage == "serialization");
+        public Result Current => new(stage, cancellation);
         public IAsyncEnumerator<Result> GetAsyncEnumerator(CancellationToken cancellationToken = default)
         {
-            Fail(stage, "enumerator");
+            Fail(stage, "enumerator", cancellation);
             return this;
         }
 
         public ValueTask<bool> MoveNextAsync()
         {
-            Fail(stage, "stream");
+            Fail(stage, "stream", cancellation);
             var next = !_moved;
             _moved = true;
             return ValueTask.FromResult(next);
@@ -442,7 +487,7 @@ public partial class A2AOperationDiagnosticsTests
 
         public ValueTask DisposeAsync()
         {
-            Fail(stage, "stream-dispose");
+            Fail(stage, "stream-dispose", cancellation);
             return ValueTask.CompletedTask;
         }
     }
@@ -462,11 +507,12 @@ public partial class A2AOperationDiagnosticsTests
             Task.FromException(new IOException(Secret));
     }
 
-    private sealed class ResponseHandler(string stage, string transport, bool streaming) : HttpMessageHandler
+    private sealed class ResponseHandler(
+        string stage, string transport, bool streaming, CancellationTokenSource? cancellation = null) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            Fail(stage, "send");
+            Fail(stage, "send", cancellation);
             var body = stage switch
             {
                 "response" => """{"value":{}}""",
@@ -480,12 +526,43 @@ public partial class A2AOperationDiagnosticsTests
             }
 
             var sse = streaming && stage != "pre-stream-error";
+            HttpContent content = stage.EndsWith("-read", StringComparison.Ordinal)
+                || stage.EndsWith("-stream-dispose", StringComparison.Ordinal)
+                ? new StreamContent(new FaultingResponseStream($"data: {body}\n\n", stage, cancellation!))
+                : new StringContent(sse ? $"data: {body}\n\n" : body,
+                    Encoding.UTF8, sse ? "text/event-stream" : "application/json");
+            content.Headers.ContentType = new(sse ? "text/event-stream" : "application/json");
             return Task.FromResult(new HttpResponseMessage(
                 stage is "remote-error" or "pre-stream-error" && transport == "http-json" ? HttpStatusCode.NotFound : HttpStatusCode.OK)
             {
-                Content = new StringContent(sse ? $"data: {body}\n\n" : body,
-                    Encoding.UTF8, sse ? "text/event-stream" : "application/json"),
+                Content = content,
             });
+        }
+    }
+
+    private sealed class FaultingResponseStream(string body, string stage, CancellationTokenSource cancellation)
+        : MemoryStream(Encoding.UTF8.GetBytes(body))
+    {
+        private bool _disposed;
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (Position == Length)
+            {
+                Fail(stage, "read", cancellation);
+            }
+
+            return base.ReadAsync(buffer, cancellationToken);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            base.Dispose(disposing);
+            if (disposing && !_disposed)
+            {
+                _disposed = true;
+                Fail(stage, "stream-dispose", cancellation);
+            }
         }
     }
 
@@ -493,19 +570,20 @@ public partial class A2AOperationDiagnosticsTests
 
     internal sealed class Result
     {
-        private readonly bool _throws;
+        private readonly string _stage = "";
+        private readonly CancellationTokenSource? _cancellation;
         private string _value = Secret;
         public Result() { }
-        internal Result(bool throws) => _throws = throws;
+        internal Result(string stage, CancellationTokenSource cancellation)
+        {
+            _stage = stage;
+            _cancellation = cancellation;
+        }
         public string Value
         {
             get
             {
-                if (_throws)
-                {
-                    throw new InvalidOperationException(Secret);
-                }
-
+                Fail(_stage, "serialization", _cancellation);
                 return _value;
             }
             set => _value = value;
