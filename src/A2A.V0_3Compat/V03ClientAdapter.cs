@@ -18,6 +18,22 @@ internal sealed class V03ClientAdapter : A2A.IA2AClient, IDisposable
     }
 
     /// <inheritdoc />
+    public Task<TResult> InvokeAsync<TRequest, TResult>(
+        A2A.A2AOperation<TRequest, TResult> operation,
+        TRequest request,
+        CancellationToken cancellationToken = default) =>
+        Task.FromException<TResult>(
+            new NotSupportedException(
+                "A2A v0.3 does not support custom operations."));
+
+    /// <inheritdoc />
+    public IAsyncEnumerable<TEvent> InvokeStreamingAsync<TRequest, TEvent>(
+        A2A.A2AStreamingOperation<TRequest, TEvent> operation,
+        TRequest request,
+        CancellationToken cancellationToken = default) =>
+        ThrowUnsupportedStreamingOperationAsync<TEvent>(cancellationToken);
+
+    /// <inheritdoc />
     public async Task<A2A.SendMessageResponse> SendMessageAsync(
         A2A.SendMessageRequest request,
         CancellationToken cancellationToken = default)
@@ -137,5 +153,15 @@ internal sealed class V03ClientAdapter : A2A.IA2AClient, IDisposable
     public void Dispose()
     {
         // The v0.3 A2AClient does not implement IDisposable, so nothing to dispose.
+    }
+
+    private static async IAsyncEnumerable<TEvent>
+        ThrowUnsupportedStreamingOperationAsync<TEvent>(
+            [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        yield return await Task.FromException<TEvent>(
+            new NotSupportedException(
+                "A2A v0.3 does not support custom operations."));
     }
 }

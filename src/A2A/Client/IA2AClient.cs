@@ -15,6 +15,18 @@ public interface IA2AClient
         TRequest request,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Invokes a custom typed streaming operation.</summary>
+    /// <typeparam name="TRequest">The operation request type.</typeparam>
+    /// <typeparam name="TEvent">The streamed event type.</typeparam>
+    /// <param name="operation">The streaming operation definition.</param>
+    /// <param name="request">The operation request.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The streamed operation events.</returns>
+    IAsyncEnumerable<TEvent> InvokeStreamingAsync<TRequest, TEvent>(
+        A2AStreamingOperation<TRequest, TEvent> operation,
+        TRequest request,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Sends a message to the agent.</summary>
     /// <param name="request">The send message request.</param>
     /// <param name="cancellationToken">A cancellation token.</param>

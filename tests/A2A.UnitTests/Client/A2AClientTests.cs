@@ -84,7 +84,14 @@ public class A2AClientTests
 
         var sut = CreateA2AClient(expectedResponse);
 
-        var sendRequest = new SendMessageRequest { Message = new Message { Parts = [], Role = Role.User } };
+        var sendRequest = new SendMessageRequest
+        {
+            Message = new Message
+            {
+                Parts = [Part.FromText("test")],
+                Role = Role.User,
+            },
+        };
 
         // Act
         var result = await sut.SendMessageAsync(sendRequest);
@@ -192,7 +199,14 @@ public class A2AClientTests
 
         var sut = CreateA2AClient(expectedResponse, isSse: true);
 
-        var sendRequest = new SendMessageRequest { Message = new Message { Parts = [], Role = Role.User } };
+        var sendRequest = new SendMessageRequest
+        {
+            Message = new Message
+            {
+                Parts = [Part.FromText("test")],
+                Role = Role.User,
+            },
+        };
 
         // Act
         StreamResponse? result = null;
@@ -243,7 +257,14 @@ public class A2AClientTests
         // Arrange
         var sut = CreateA2AClient(JsonRpcResponse.InvalidParamsResponse("test-id"), isSse: true);
 
-        var sendRequest = new SendMessageRequest { Message = new Message { Parts = [], Role = Role.User } };
+        var sendRequest = new SendMessageRequest
+        {
+            Message = new Message
+            {
+                Parts = [Part.FromText("test")],
+                Role = Role.User,
+            },
+        };
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<A2AException>(async () =>
@@ -262,7 +283,14 @@ public class A2AClientTests
         // Arrange
         var sut = CreateA2AClient(JsonRpcResponse.MethodNotFoundResponse("test-id"));
 
-        var sendRequest = new SendMessageRequest { Message = new Message { Parts = [], Role = Role.User } };
+        var sendRequest = new SendMessageRequest
+        {
+            Message = new Message
+            {
+                Parts = [Part.FromText("test")],
+                Role = Role.User,
+            },
+        };
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<A2AException>(async () =>

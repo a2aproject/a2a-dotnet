@@ -17,19 +17,17 @@ public static class A2AClientFactory
     private static readonly ConcurrentDictionary<string, Func<Uri, HttpClient?, A2AClientOperationBindings?, IA2AClient>> s_bindings = new(StringComparer.OrdinalIgnoreCase)
     {
         [ProtocolBindingNames.HttpJson] = (url, httpClient, operationBindings) =>
-            operationBindings is null
-                ? new A2AHttpJsonClient(url, httpClient)
-                : new A2AHttpJsonClient(
-                    url,
-                    operationBindings,
-                    httpClient ?? A2AClient.s_sharedClient),
+            new A2AHttpJsonClient(
+                url,
+                operationBindings
+                    ?? A2AStandardClientBindings.Default.Bindings,
+                httpClient ?? A2AClient.s_sharedClient),
         [ProtocolBindingNames.JsonRpc] = (url, httpClient, operationBindings) =>
-            operationBindings is null
-                ? new A2AClient(url, httpClient)
-                : new A2AClient(
-                    url,
-                    operationBindings,
-                    httpClient ?? A2AClient.s_sharedClient),
+            new A2AClient(
+                url,
+                operationBindings
+                    ?? A2AStandardClientBindings.Default.Bindings,
+                httpClient ?? A2AClient.s_sharedClient),
     };
 
     /// <summary>
