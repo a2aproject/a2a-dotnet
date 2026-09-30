@@ -136,9 +136,11 @@ public static class A2AStandardOperationCatalogBuilderExtensions
 
         return new A2AStandardOperations(
             builder.DefineStandardUnary<SendMessageRequest, SendMessageResponse>(
-                new A2AOperationId("https://a2a-protocol.org/operations/send-message")),
+                new A2AOperationId("https://a2a-protocol.org/operations/send-message"),
+                ValidateSendMessage),
             builder.DefineStandardStreaming<SendMessageRequest, StreamResponse>(
-                new A2AOperationId("https://a2a-protocol.org/operations/send-message-stream")),
+                new A2AOperationId("https://a2a-protocol.org/operations/send-message-stream"),
+                ValidateSendMessage),
             builder.DefineStandardUnary<GetTaskRequest, AgentTask>(
                 new A2AOperationId("https://a2a-protocol.org/operations/get-task"),
                 static request => ValidateHistoryLength(request.HistoryLength)),
@@ -169,6 +171,16 @@ public static class A2AStandardOperationCatalogBuilderExtensions
                 new A2AOperationId("https://a2a-protocol.org/operations/delete-task-push-notification-config")),
             builder.DefineStandardUnary<GetExtendedAgentCardRequest, AgentCard>(
                 new A2AOperationId("https://a2a-protocol.org/operations/get-extended-agent-card")));
+    }
+
+    private static void ValidateSendMessage(SendMessageRequest request)
+    {
+        if (request.Message.Parts.Count == 0)
+        {
+            throw new A2AException(
+                "Message parts cannot be empty",
+                A2AErrorCode.InvalidParams);
+        }
     }
 
     private static void ValidateHistoryLength(int? historyLength)

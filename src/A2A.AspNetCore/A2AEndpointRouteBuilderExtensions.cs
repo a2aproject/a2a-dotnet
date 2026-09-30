@@ -30,12 +30,7 @@ public static class A2ARouteBuilderExtensions
         ArgumentException.ThrowIfNullOrEmpty(path);
 
         var handler = endpoints.ServiceProvider.GetRequiredService<IA2ARequestHandler>();
-
-        var routeGroup = endpoints.MapGroup("");
-        routeGroup.MapPost(path, (HttpRequest request, CancellationToken cancellationToken)
-            => A2AJsonRpcProcessor.ProcessRequestAsync(handler, request, cancellationToken));
-
-        return routeGroup;
+        return endpoints.MapA2A(handler, path);
     }
 
     /// <summary>Enables JSON-RPC A2A endpoints for the specified path.</summary>
@@ -49,18 +44,22 @@ public static class A2ARouteBuilderExtensions
         ArgumentNullException.ThrowIfNull(requestHandler);
         ArgumentException.ThrowIfNullOrEmpty(path);
 
-        var routeGroup = endpoints.MapGroup("");
-
-        routeGroup.MapPost(path, (HttpRequest request, CancellationToken cancellationToken) => A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, request, cancellationToken));
-
-        return routeGroup;
+        var dispatch = A2AJsonRpcProcessor.CreateStandardDispatch();
+        A2ARequestScopeFactory scopeFactory = (_, _) => ValueTask.FromResult(
+            new A2ARequestScope(
+                new A2AOperationContext(requestHandler)));
+        return endpoints.MapA2A(
+            scopeFactory,
+            dispatch.Handlers,
+            dispatch.Bindings,
+            path);
     }
 
-    /// <summary>Enables request-scoped JSON-RPC A2A endpoints with custom operations.</summary>
+    /// <summary>Enables request-scoped JSON-RPC A2A endpoints with typed operations.</summary>
     /// <param name="endpoints">The endpoint route builder.</param>
     /// <param name="scopeFactory">The request-scope factory.</param>
-    /// <param name="handlers">The custom operation handlers.</param>
-    /// <param name="bindings">The custom JSON-RPC operation bindings.</param>
+    /// <param name="handlers">The operation handlers.</param>
+    /// <param name="bindings">The JSON-RPC operation bindings.</param>
     /// <param name="path">The route path for the A2A endpoint.</param>
     /// <returns>An endpoint convention builder for further configuration.</returns>
     public static IEndpointConventionBuilder MapA2A(
