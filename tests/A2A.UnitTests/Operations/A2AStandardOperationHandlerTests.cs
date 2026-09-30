@@ -8,7 +8,7 @@ public class A2AStandardOperationHandlerTests
     [Fact]
     public async Task SendMessageHandler_CallsRequestHandlerOnce()
     {
-        var (standard, handlers, requestHandler) = CreateHandlers();
+        var (standard, _, handlers, requestHandler) = CreateHandlers();
         var request = new SendMessageRequest();
         var expected = new SendMessageResponse();
         using var cts = new CancellationTokenSource();
@@ -32,7 +32,7 @@ public class A2AStandardOperationHandlerTests
     [Fact]
     public async Task SendStreamingMessageHandler_CallsRequestHandlerOnce()
     {
-        var (standard, handlers, requestHandler) = CreateHandlers();
+        var (standard, _, handlers, requestHandler) = CreateHandlers();
         var request = new SendMessageRequest();
         var expected = new StreamResponse();
         using var cts = new CancellationTokenSource();
@@ -57,7 +57,7 @@ public class A2AStandardOperationHandlerTests
     [Fact]
     public async Task GetTaskHandler_CallsRequestHandlerOnce()
     {
-        var (standard, handlers, requestHandler) = CreateHandlers();
+        var (standard, _, handlers, requestHandler) = CreateHandlers();
         var request = new GetTaskRequest { Id = "task-1" };
         var expected = new AgentTask { Id = "task-1" };
         using var cts = new CancellationTokenSource();
@@ -80,16 +80,14 @@ public class A2AStandardOperationHandlerTests
 
     [Theory]
     [InlineData(-1)]
-    public async Task GetTaskHandler_RejectsNegativeHistoryLength(int historyLength)
+    public void GetTaskHandler_RejectsNegativeHistoryLength(int historyLength)
     {
-        var (standard, handlers, requestHandler) = CreateHandlers();
+        var (standard, operationCatalog, _, requestHandler) = CreateHandlers();
 
-        var exception = await Assert.ThrowsAsync<A2AException>(() =>
-            handlers.InvokeAsync(
+        var exception = Assert.Throws<A2AException>(() =>
+            operationCatalog.Validate(
                 standard.GetTask,
-                new A2AOperationContext(requestHandler),
-                new GetTaskRequest { Id = "task-1", HistoryLength = historyLength },
-                CancellationToken.None).AsTask());
+                new GetTaskRequest { Id = "task-1", HistoryLength = historyLength }));
 
         Assert.Equal(A2AErrorCode.InvalidParams, exception.ErrorCode);
         requestHandler.AssertNoCalls();
@@ -98,7 +96,7 @@ public class A2AStandardOperationHandlerTests
     [Fact]
     public async Task ListTasksHandler_CallsRequestHandlerOnce()
     {
-        var (standard, handlers, requestHandler) = CreateHandlers();
+        var (standard, _, handlers, requestHandler) = CreateHandlers();
         var request = new ListTasksRequest { ContextId = "context-1" };
         var expected = new ListTasksResponse();
         using var cts = new CancellationTokenSource();
@@ -122,16 +120,14 @@ public class A2AStandardOperationHandlerTests
     [Theory]
     [InlineData(0)]
     [InlineData(101)]
-    public async Task ListTasksHandler_RejectsPageSizeOutsideOneToHundred(int pageSize)
+    public void ListTasksHandler_RejectsPageSizeOutsideOneToHundred(int pageSize)
     {
-        var (standard, handlers, requestHandler) = CreateHandlers();
+        var (standard, operationCatalog, _, requestHandler) = CreateHandlers();
 
-        var exception = await Assert.ThrowsAsync<A2AException>(() =>
-            handlers.InvokeAsync(
+        var exception = Assert.Throws<A2AException>(() =>
+            operationCatalog.Validate(
                 standard.ListTasks,
-                new A2AOperationContext(requestHandler),
-                new ListTasksRequest { PageSize = pageSize },
-                CancellationToken.None).AsTask());
+                new ListTasksRequest { PageSize = pageSize }));
 
         Assert.Equal(A2AErrorCode.InvalidParams, exception.ErrorCode);
         requestHandler.AssertNoCalls();
@@ -139,16 +135,14 @@ public class A2AStandardOperationHandlerTests
 
     [Theory]
     [InlineData(-1)]
-    public async Task ListTasksHandler_RejectsNegativeHistoryLength(int historyLength)
+    public void ListTasksHandler_RejectsNegativeHistoryLength(int historyLength)
     {
-        var (standard, handlers, requestHandler) = CreateHandlers();
+        var (standard, operationCatalog, _, requestHandler) = CreateHandlers();
 
-        var exception = await Assert.ThrowsAsync<A2AException>(() =>
-            handlers.InvokeAsync(
+        var exception = Assert.Throws<A2AException>(() =>
+            operationCatalog.Validate(
                 standard.ListTasks,
-                new A2AOperationContext(requestHandler),
-                new ListTasksRequest { HistoryLength = historyLength },
-                CancellationToken.None).AsTask());
+                new ListTasksRequest { HistoryLength = historyLength }));
 
         Assert.Equal(A2AErrorCode.InvalidParams, exception.ErrorCode);
         requestHandler.AssertNoCalls();
@@ -157,7 +151,7 @@ public class A2AStandardOperationHandlerTests
     [Fact]
     public async Task CancelTaskHandler_CallsRequestHandlerOnce()
     {
-        var (standard, handlers, requestHandler) = CreateHandlers();
+        var (standard, _, handlers, requestHandler) = CreateHandlers();
         var request = new CancelTaskRequest { Id = "task-1" };
         var expected = new AgentTask { Id = "task-1" };
         using var cts = new CancellationTokenSource();
@@ -181,7 +175,7 @@ public class A2AStandardOperationHandlerTests
     [Fact]
     public async Task SubscribeToTaskHandler_CallsRequestHandlerOnce()
     {
-        var (standard, handlers, requestHandler) = CreateHandlers();
+        var (standard, _, handlers, requestHandler) = CreateHandlers();
         var request = new SubscribeToTaskRequest { Id = "task-1" };
         var expected = new StreamResponse();
         using var cts = new CancellationTokenSource();
@@ -206,7 +200,7 @@ public class A2AStandardOperationHandlerTests
     [Fact]
     public async Task CreateTaskPushNotificationConfigHandler_CallsRequestHandlerOnce()
     {
-        var (standard, handlers, requestHandler) = CreateHandlers();
+        var (standard, _, handlers, requestHandler) = CreateHandlers();
         var request = new TaskPushNotificationConfig { TaskId = "task-1" };
         var expected = new TaskPushNotificationConfig { TaskId = "task-1" };
         using var cts = new CancellationTokenSource();
@@ -230,7 +224,7 @@ public class A2AStandardOperationHandlerTests
     [Fact]
     public async Task GetTaskPushNotificationConfigHandler_CallsRequestHandlerOnce()
     {
-        var (standard, handlers, requestHandler) = CreateHandlers();
+        var (standard, _, handlers, requestHandler) = CreateHandlers();
         var request = new GetTaskPushNotificationConfigRequest { TaskId = "task-1", Id = "config-1" };
         var expected = new TaskPushNotificationConfig { TaskId = "task-1" };
         using var cts = new CancellationTokenSource();
@@ -254,7 +248,7 @@ public class A2AStandardOperationHandlerTests
     [Fact]
     public async Task ListTaskPushNotificationConfigsHandler_CallsRequestHandlerOnce()
     {
-        var (standard, handlers, requestHandler) = CreateHandlers();
+        var (standard, _, handlers, requestHandler) = CreateHandlers();
         var request = new ListTaskPushNotificationConfigsRequest { TaskId = "task-1" };
         var expected = new ListTaskPushNotificationConfigsResponse();
         using var cts = new CancellationTokenSource();
@@ -278,7 +272,7 @@ public class A2AStandardOperationHandlerTests
     [Fact]
     public async Task DeleteTaskPushNotificationConfigHandler_ReturnsEmptyResultAfterRequestHandlerCompletes()
     {
-        var (standard, handlers, requestHandler) = CreateHandlers();
+        var (standard, _, handlers, requestHandler) = CreateHandlers();
         var request = new DeleteTaskPushNotificationConfigRequest { TaskId = "task-1", Id = "config-1" };
         var completed = false;
         using var cts = new CancellationTokenSource();
@@ -304,7 +298,7 @@ public class A2AStandardOperationHandlerTests
     [Fact]
     public async Task GetExtendedAgentCardHandler_CallsRequestHandlerOnce()
     {
-        var (standard, handlers, requestHandler) = CreateHandlers();
+        var (standard, _, handlers, requestHandler) = CreateHandlers();
         var request = new GetExtendedAgentCardRequest();
         var expected = new AgentCard();
         using var cts = new CancellationTokenSource();
@@ -327,6 +321,7 @@ public class A2AStandardOperationHandlerTests
 
     private static (
         A2AStandardOperations Standard,
+        A2AOperationCatalog OperationCatalog,
         A2AOperationHandlerCatalog Handlers,
         StrictRequestHandler RequestHandler) CreateHandlers()
     {
@@ -337,7 +332,7 @@ public class A2AStandardOperationHandlerTests
         var handlers = new A2AOperationHandlerCatalogBuilder()
             .AddStandardA2AHandlers(standard)
             .Build(operationCatalog);
-        return (standard, handlers, requestHandler);
+        return (standard, operationCatalog, handlers, requestHandler);
     }
 
     private static async Task<List<T>> ToListAsync<T>(
@@ -359,7 +354,6 @@ public class A2AStandardOperationHandlerTests
     {
         cancellationToken.ThrowIfCancellationRequested();
         yield return response;
-        await Task.CompletedTask;
     }
 
     private sealed class StrictRequestHandler : IA2ARequestHandler

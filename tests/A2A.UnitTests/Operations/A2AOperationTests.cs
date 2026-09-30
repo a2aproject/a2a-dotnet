@@ -362,7 +362,7 @@ public class A2AOperationTests
     }
 
     [Fact]
-    public async Task HandlerCatalog_InvokesOperationValidatorBeforeHandler()
+    public async Task HandlerCatalog_DoesNotInvokeOperationValidatorImplicitly()
     {
         var operationBuilder = new A2AOperationCatalogBuilder();
         var operation = operationBuilder.DefineUnary<TestRequest, TestResult>(
@@ -382,19 +382,54 @@ public class A2AOperationTests
                 (_, _, _) =>
                 {
                     handlerInvoked = true;
-                    throw new Xunit.Sdk.XunitException("handler should not run");
+                    return ValueTask.FromResult(new TestResult("handled"));
                 })
             .Build(operationCatalog);
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            handlers.InvokeAsync(
-                operation,
-                new A2AOperationContext(new TestRequestHandler()),
-                new TestRequest("invalid"),
-                CancellationToken.None).AsTask());
+        var result = await handlers.InvokeAsync(
+            operation,
+            new A2AOperationContext(new TestRequestHandler()),
+            new TestRequest("invalid"),
+            CancellationToken.None);
 
-        Assert.Equal("invalid", exception.Message);
-        Assert.False(handlerInvoked);
+        Assert.True(handlerInvoked);
+        Assert.Equal("handled", result.Value);
+    }
+
+    [Fact]
+    public async Task HandlerCatalog_DoesNotInvokeStreamingOperationValidatorImplicitly()
+    {
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var operation = operationBuilder.DefineStreaming<TestRequest, TestEvent>(
+            new A2AOperationId("https://example.com/extensions/test#validated-stream"),
+            static request =>
+            {
+                if (request.Value == "invalid")
+                {
+                    throw new InvalidOperationException("invalid");
+                }
+            });
+        var operationCatalog = operationBuilder.Build();
+        var handlerInvoked = false;
+        var expected = new TestEvent("handled");
+        var handlers = new A2AOperationHandlerCatalogBuilder()
+            .MapStreaming(
+                operation,
+                (_, _, cancellationToken) =>
+                {
+                    handlerInvoked = true;
+                    return Yield(expected, cancellationToken);
+                })
+            .Build(operationCatalog);
+
+        var result = await ToListAsync(handlers.InvokeStreamingAsync(
+            operation,
+            new A2AOperationContext(new TestRequestHandler()),
+            new TestRequest("invalid"),
+            CancellationToken.None));
+
+        Assert.True(handlerInvoked);
+        Assert.Same(expected, Assert.Single(result));
     }
 
     [Fact]
@@ -483,6 +518,48 @@ public class A2AOperationTests
         });
 
         Assert.Contains(typedOperation.Id.Value, exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Validate_WhenOperationComesFromAnotherCatalog_Throws()
+    {
+        var firstBuilder = new A2AOperationCatalogBuilder();
+        var firstOperation = firstBuilder.DefineUnary<TestRequest, TestResult>(
+            new A2AOperationId("https://example.com/extensions/test#shared"));
+        var firstCatalog = firstBuilder.Build();
+
+        var secondBuilder = new A2AOperationCatalogBuilder();
+        var secondOperation = secondBuilder.DefineUnary<TestRequest, TestResult>(
+            firstOperation.Id);
+        _ = secondBuilder.Build();
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+        {
+            firstCatalog.Validate(secondOperation, new TestRequest("value"));
+        });
+
+        Assert.Contains("does not belong", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ValidateStreaming_WhenOperationTypesDoNotMatch_Throws()
+    {
+        var builder = new A2AOperationCatalogBuilder();
+        var registeredOperation = builder.DefineStreaming<OtherRequest, OtherResult>(
+            new A2AOperationId("https://example.com/extensions/test#stream-shared"));
+        var catalog = builder.Build();
+        var mismatchedOperation = new A2AStreamingOperation<TestRequest, TestEvent>(
+            registeredOperation.Id);
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+        {
+            catalog.ValidateStreaming(
+                mismatchedOperation,
+                new TestRequest("value"));
+        });
+
+        Assert.Contains(mismatchedOperation.Id.Value, exception.Message, StringComparison.Ordinal);
+        Assert.Contains("incompatible", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]

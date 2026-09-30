@@ -136,7 +136,7 @@ public sealed class A2AOperationHandlerCatalogBuilder
             ValidateRegistration(operationCatalog, registration);
         }
 
-        return new(operationCatalog, _registrations);
+        return new(_registrations);
     }
 
     private static void ValidateRegistration(
@@ -173,14 +173,11 @@ public sealed class A2AOperationHandlerCatalogBuilder
 /// <summary>Invokes typed unary and streaming operation handlers.</summary>
 public sealed class A2AOperationHandlerCatalog
 {
-    private readonly A2AOperationCatalog _operationCatalog;
     private readonly Dictionary<A2AOperationId, object> _registrations;
 
     internal A2AOperationHandlerCatalog(
-        A2AOperationCatalog operationCatalog,
         IReadOnlyDictionary<A2AOperationId, object> registrations)
     {
-        _operationCatalog = operationCatalog;
         _registrations = new Dictionary<A2AOperationId, object>(registrations);
     }
 
@@ -218,8 +215,6 @@ public sealed class A2AOperationHandlerCatalog
             throw new InvalidOperationException(
                 $"The A2A operation '{operation.Id.Value}' does not belong to this handler catalog.");
         }
-
-        _operationCatalog.Validate(operation, request);
         return typedRegistration.Handler(context, request, cancellationToken);
     }
 
@@ -257,8 +252,6 @@ public sealed class A2AOperationHandlerCatalog
             throw new InvalidOperationException(
                 $"The A2A operation '{operation.Id.Value}' does not belong to this handler catalog.");
         }
-
-        _operationCatalog.ValidateStreaming(operation, request);
         return typedRegistration.Handler(context, request, cancellationToken);
     }
 }

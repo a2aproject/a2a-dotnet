@@ -384,22 +384,32 @@ public sealed class A2AOperationCatalog
             string errorId)
         => GetRequiredErrorCore<TDetails>(operation, errorId, A2AOperationKind.Streaming);
 
-    internal void Validate<TRequest, TResult>(
+    /// <summary>Validates a typed unary operation request against the catalog-owned semantic validator.</summary>
+    /// <typeparam name="TRequest">The operation request type.</typeparam>
+    /// <typeparam name="TResult">The operation result type.</typeparam>
+    /// <param name="operation">The registered operation definition.</param>
+    /// <param name="request">The request to validate.</param>
+    public void Validate<TRequest, TResult>(
         A2AOperation<TRequest, TResult> operation,
         TRequest request)
     {
-        var registration = GetRequiredRegistration(operation, A2AOperationKind.Unary);
+        var registration = GetRequiredUnaryRegistration(operation);
         if (registration.Validator is A2AOperationValidator<TRequest> validator)
         {
             validator(request);
         }
     }
 
-    internal void ValidateStreaming<TRequest, TEvent>(
+    /// <summary>Validates a typed streaming operation request against the catalog-owned semantic validator.</summary>
+    /// <typeparam name="TRequest">The operation request type.</typeparam>
+    /// <typeparam name="TEvent">The streamed event type.</typeparam>
+    /// <param name="operation">The registered streaming operation definition.</param>
+    /// <param name="request">The request to validate.</param>
+    public void ValidateStreaming<TRequest, TEvent>(
         A2AStreamingOperation<TRequest, TEvent> operation,
         TRequest request)
     {
-        var registration = GetRequiredRegistration(operation, A2AOperationKind.Streaming);
+        var registration = GetRequiredStreamingRegistration(operation);
         if (registration.Validator is A2AOperationValidator<TRequest> validator)
         {
             validator(request);
@@ -472,6 +482,54 @@ public sealed class A2AOperationCatalog
 
         var registration = GetRequiredRegistration(operation.Id, expectedKind);
         if (!ReferenceEquals(registration.Handle, operation))
+        {
+            throw new InvalidOperationException(
+                $"The A2A operation '{operation.Id.Value}' does not belong to this catalog.");
+        }
+
+        return registration;
+    }
+
+    private A2AOperationRegistration GetRequiredUnaryRegistration<TRequest, TResult>(
+        A2AOperation<TRequest, TResult> operation)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+
+        var registration = GetRequiredRegistration(operation.Id, A2AOperationKind.Unary);
+        if (registration.Handle is not A2AOperation<TRequest, TResult> typedOperation)
+        {
+            throw CreateTypeMismatchException(
+                operation.Id,
+                A2AOperationKind.Unary,
+                typeof(TRequest),
+                typeof(TResult));
+        }
+
+        if (!ReferenceEquals(typedOperation, operation))
+        {
+            throw new InvalidOperationException(
+                $"The A2A operation '{operation.Id.Value}' does not belong to this catalog.");
+        }
+
+        return registration;
+    }
+
+    private A2AOperationRegistration GetRequiredStreamingRegistration<TRequest, TEvent>(
+        A2AStreamingOperation<TRequest, TEvent> operation)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+
+        var registration = GetRequiredRegistration(operation.Id, A2AOperationKind.Streaming);
+        if (registration.Handle is not A2AStreamingOperation<TRequest, TEvent> typedOperation)
+        {
+            throw CreateTypeMismatchException(
+                operation.Id,
+                A2AOperationKind.Streaming,
+                typeof(TRequest),
+                typeof(TEvent));
+        }
+
+        if (!ReferenceEquals(typedOperation, operation))
         {
             throw new InvalidOperationException(
                 $"The A2A operation '{operation.Id.Value}' does not belong to this catalog.");
