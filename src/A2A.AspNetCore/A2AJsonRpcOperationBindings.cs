@@ -108,7 +108,7 @@ public sealed class A2AJsonRpcOperationBindingBuilder
         return new A2AJsonRpcOperationBindings(
             _bindings.ToDictionary(
                 pair => pair.Key,
-                pair => pair.Value.Build(operationCatalog),
+                pair => pair.Value.Build(pair.Key, operationCatalog),
                 StringComparer.Ordinal));
     }
 
@@ -254,7 +254,9 @@ internal interface IA2AJsonRpcOperationBindingRegistration
 {
     void AddErrorMapping(IA2AJsonRpcErrorMapping mapping);
 
-    IA2AJsonRpcOperationBinding Build(A2AOperationCatalog operationCatalog);
+    IA2AJsonRpcOperationBinding Build(
+        string method,
+        A2AOperationCatalog operationCatalog);
 }
 
 internal abstract class A2AJsonRpcOperationBindingRegistration
@@ -282,6 +284,7 @@ internal abstract class A2AJsonRpcOperationBindingRegistration
     }
 
     public IA2AJsonRpcOperationBinding Build(
+        string method,
         A2AOperationCatalog operationCatalog)
     {
         if (Operation is not IA2AOperationHandle operationHandle
@@ -301,6 +304,10 @@ internal abstract class A2AJsonRpcOperationBindingRegistration
             throw new InvalidOperationException(
                 $"The JSON-RPC binding for '{operationHandle.Id.Value}' uses incompatible operation types.");
         }
+
+        A2AStandardJsonRpcBindingBuilderExtensions.ValidateReservedMethodBinding(
+            method,
+            operationRegistration);
 
         foreach (var mapping in _errorMappings.Values)
         {

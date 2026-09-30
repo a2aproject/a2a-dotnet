@@ -53,23 +53,40 @@ public static class A2AJsonRpcProcessor
 
         try
         {
-            using var document = await JsonDocument.ParseAsync(
-                request.Body,
-                cancellationToken: cancellationToken).ConfigureAwait(false);
-            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            try
             {
-                throw new A2AException(
-                    "Invalid JSON-RPC request payload.",
-                    A2AErrorCode.InvalidRequest);
-            }
+                using var document = await JsonDocument.ParseAsync(
+                    request.Body,
+                    cancellationToken: cancellationToken).ConfigureAwait(false);
+                if (document.RootElement.ValueKind != JsonValueKind.Object)
+                {
+                    throw new A2AException(
+                        "Invalid JSON-RPC request payload.",
+                        A2AErrorCode.InvalidRequest);
+                }
 
-            parsedRequestId = TryReadRequestId(document.RootElement);
-            rpcRequest = document.RootElement.Deserialize(
-                (JsonTypeInfo<JsonRpcRequest>)A2AJsonUtilities.DefaultOptions
-                    .GetTypeInfo(typeof(JsonRpcRequest)));
-            if (rpcRequest is null)
+                parsedRequestId = TryReadRequestId(document.RootElement);
+                rpcRequest = document.RootElement.Deserialize(
+                    (JsonTypeInfo<JsonRpcRequest>)A2AJsonUtilities.DefaultOptions
+                        .GetTypeInfo(typeof(JsonRpcRequest)));
+                if (rpcRequest is null)
+                {
+                    throw new JsonException("The JSON-RPC request body is empty.");
+                }
+            }
+            catch (JsonException ex)
             {
-                throw new JsonException("The JSON-RPC request body is empty.");
+                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+                activity?.AddEvent(new ActivityEvent(
+                    "json.parse.error",
+                    tags: new ActivityTagsCollection
+                    {
+                        { "exception.type", ex.GetType().FullName },
+                        { "exception.message", ex.Message },
+                    }));
+                var errorId = GetErrorId(rpcRequest, parsedRequestId);
+                return new JsonRpcResponseResult(
+                    JsonRpcResponse.ParseErrorResponse(errorId));
             }
 
             activity?.SetTag("request.id", rpcRequest.Id.ToString());
@@ -108,22 +125,6 @@ public static class A2AJsonRpcProcessor
             return WrapScope(
                 new JsonRpcResponseResult(
                     JsonRpcResponse.CreateJsonRpcErrorResponse(errorId, ex)),
-                ref scope);
-        }
-        catch (JsonException ex)
-        {
-            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-            activity?.AddEvent(new ActivityEvent(
-                "json.parse.error",
-                tags: new ActivityTagsCollection
-                {
-                    { "exception.type", ex.GetType().FullName },
-                    { "exception.message", ex.Message },
-                }));
-            var errorId = GetErrorId(rpcRequest, parsedRequestId);
-            return WrapScope(
-                new JsonRpcResponseResult(
-                    JsonRpcResponse.ParseErrorResponse(errorId)),
                 ref scope);
         }
         catch (Exception ex)

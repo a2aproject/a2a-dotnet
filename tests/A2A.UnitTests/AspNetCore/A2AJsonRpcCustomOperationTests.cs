@@ -8,6 +8,14 @@ namespace A2A.UnitTests.AspNetCore;
 
 public class A2AJsonRpcCustomOperationTests
 {
+    public static TheoryData<string, JsonValueKind> NormalResponseRequestIds =>
+        new()
+        {
+            { "\"request-id\"", JsonValueKind.String },
+            { "42", JsonValueKind.Number },
+            { "null", JsonValueKind.Null },
+        };
+
     [Fact]
     public async Task ProcessRequestAsync_CustomOperationUsesRequestScopeUntilResponseExecution()
     {
@@ -86,6 +94,61 @@ public class A2AJsonRpcCustomOperationTests
         var customResult = response!.Result.Deserialize(
             CustomJsonContext.Default.CustomResult);
         Assert.Equal("handled:request", customResult!.Value);
+    }
+
+    [Theory]
+    [MemberData(nameof(NormalResponseRequestIds))]
+    public async Task ProcessRequestAsync_NormalResponsePreservesRequestIdTypeAndValue(
+        string requestIdJson,
+        JsonValueKind expectedValueKind)
+    {
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var operation = operationBuilder.DefineUnary<CustomRequest, CustomResult>(
+            new A2AOperationId("https://example.com/extensions/test#request-id"));
+        var operationCatalog = operationBuilder.Build();
+        var handlers = new A2AOperationHandlerCatalogBuilder()
+            .Map(
+                operation,
+                static (_, request, _) =>
+                    ValueTask.FromResult(new CustomResult(request.Value)))
+            .Build(operationCatalog);
+        var bindings = new A2AJsonRpcOperationBindingBuilder()
+            .Map(
+                "test/request-id",
+                operation,
+                CustomJsonContext.Default.CustomRequest,
+                CustomJsonContext.Default.CustomResult)
+            .Build(operationCatalog);
+        A2ARequestScopeFactory scopeFactory = (_, _) => ValueTask.FromResult(
+            new A2ARequestScope(
+                new A2AOperationContext(new TestRequestHandler())));
+        var httpContext = CreateHttpContext(
+            $$"""
+            {
+              "jsonrpc": "2.0",
+              "id": {{requestIdJson}},
+              "method": "test/request-id",
+              "params": {
+                "value": "request"
+              }
+            }
+            """);
+
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(
+            scopeFactory,
+            handlers,
+            bindings,
+            httpContext.Request,
+            CancellationToken.None);
+
+        using var responseBody = new MemoryStream();
+        httpContext.Response.Body = responseBody;
+        await result.ExecuteAsync(httpContext);
+        using var responseDocument = JsonDocument.Parse(responseBody.ToArray());
+        var responseId = responseDocument.RootElement.GetProperty("id");
+
+        Assert.Equal(expectedValueKind, responseId.ValueKind);
+        Assert.Equal(requestIdJson, responseId.GetRawText());
     }
 
     [Theory]
@@ -372,6 +435,202 @@ public class A2AJsonRpcCustomOperationTests
             response.Error?.Data?.GetProperty("authorizationRequestId").GetString());
     }
 
+    [Fact]
+    public async Task ProcessRequestAsync_ValidatorJsonExceptionReturnsGenericInternalError()
+    {
+        const string secretMessage = "secret validator JSON failure";
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var operation = operationBuilder.DefineUnary<CustomRequest, CustomResult>(
+            new A2AOperationId("https://example.com/extensions/test#validator-json"),
+            _ => throw new JsonException(secretMessage));
+        var operationCatalog = operationBuilder.Build();
+        var handlers = new A2AOperationHandlerCatalogBuilder()
+            .Map(
+                operation,
+                static (_, _, _) =>
+                    ValueTask.FromResult(new CustomResult("unexpected")))
+            .Build(operationCatalog);
+        var bindings = new A2AJsonRpcOperationBindingBuilder()
+            .Map(
+                "test/validator-json",
+                operation,
+                CustomJsonContext.Default.CustomRequest,
+                CustomJsonContext.Default.CustomResult)
+            .Build(operationCatalog);
+        var scopeCreateCount = 0;
+        A2ARequestScopeFactory scopeFactory = (_, _) =>
+        {
+            scopeCreateCount++;
+            return ValueTask.FromResult(
+                new A2ARequestScope(
+                    new A2AOperationContext(new TestRequestHandler())));
+        };
+        var httpContext = CreateHttpContext(
+            """
+            {
+              "jsonrpc": "2.0",
+              "id": "validator-json",
+              "method": "test/validator-json",
+              "params": {
+                "value": "request"
+              }
+            }
+            """);
+
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(
+            scopeFactory,
+            handlers,
+            bindings,
+            httpContext.Request,
+            CancellationToken.None);
+        var response = await ExecuteResponseAsync(httpContext, result);
+
+        Assert.Equal(0, scopeCreateCount);
+        Assert.Equal("validator-json", response.Id.AsString());
+        AssertGenericInternalError(response, secretMessage);
+    }
+
+    [Fact]
+    public async Task ProcessRequestAsync_ScopeFactoryJsonExceptionReturnsGenericInternalError()
+    {
+        const string secretMessage = "secret scope factory JSON failure";
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var operation = operationBuilder.DefineUnary<CustomRequest, CustomResult>(
+            new A2AOperationId("https://example.com/extensions/test#scope-json"));
+        var operationCatalog = operationBuilder.Build();
+        var handlers = new A2AOperationHandlerCatalogBuilder()
+            .Map(
+                operation,
+                static (_, request, _) =>
+                    ValueTask.FromResult(new CustomResult(request.Value)))
+            .Build(operationCatalog);
+        var bindings = new A2AJsonRpcOperationBindingBuilder()
+            .Map(
+                "test/scope-json",
+                operation,
+                CustomJsonContext.Default.CustomRequest,
+                CustomJsonContext.Default.CustomResult)
+            .Build(operationCatalog);
+        A2ARequestScopeFactory scopeFactory = (_, _) =>
+            throw new JsonException(secretMessage);
+        var httpContext = CreateHttpContext(
+            """
+            {
+              "jsonrpc": "2.0",
+              "id": "scope-json",
+              "method": "test/scope-json",
+              "params": {
+                "value": "request"
+              }
+            }
+            """);
+
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(
+            scopeFactory,
+            handlers,
+            bindings,
+            httpContext.Request,
+            CancellationToken.None);
+        var response = await ExecuteResponseAsync(httpContext, result);
+
+        Assert.Equal("scope-json", response.Id.AsString());
+        AssertGenericInternalError(response, secretMessage);
+    }
+
+    [Fact]
+    public async Task ProcessRequestAsync_HandlerJsonExceptionReturnsGenericInternalError()
+    {
+        const string secretMessage = "secret handler JSON failure";
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var operation = operationBuilder.DefineUnary<CustomRequest, CustomResult>(
+            new A2AOperationId("https://example.com/extensions/test#handler-json"));
+        var operationCatalog = operationBuilder.Build();
+        var handlers = new A2AOperationHandlerCatalogBuilder()
+            .Map<CustomRequest, CustomResult>(
+                operation,
+                (_, _, _) => throw new JsonException(secretMessage))
+            .Build(operationCatalog);
+        var bindings = new A2AJsonRpcOperationBindingBuilder()
+            .Map(
+                "test/handler-json",
+                operation,
+                CustomJsonContext.Default.CustomRequest,
+                CustomJsonContext.Default.CustomResult)
+            .Build(operationCatalog);
+        A2ARequestScopeFactory scopeFactory = (_, _) => ValueTask.FromResult(
+            new A2ARequestScope(
+                new A2AOperationContext(new TestRequestHandler())));
+        var httpContext = CreateHttpContext(
+            """
+            {
+              "jsonrpc": "2.0",
+              "id": "handler-json",
+              "method": "test/handler-json",
+              "params": {
+                "value": "request"
+              }
+            }
+            """);
+
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(
+            scopeFactory,
+            handlers,
+            bindings,
+            httpContext.Request,
+            CancellationToken.None);
+        var response = await ExecuteResponseAsync(httpContext, result);
+
+        Assert.Equal("handler-json", response.Id.AsString());
+        AssertGenericInternalError(response, secretMessage);
+    }
+
+    [Fact]
+    public async Task ProcessRequestAsync_UnaryResultSerializationJsonExceptionReturnsGenericInternalError()
+    {
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var operation = operationBuilder.DefineUnary<CustomRequest, ThrowingJsonResult>(
+            new A2AOperationId("https://example.com/extensions/test#result-json"));
+        var operationCatalog = operationBuilder.Build();
+        var handlers = new A2AOperationHandlerCatalogBuilder()
+            .Map(
+                operation,
+                static (_, _, _) =>
+                    ValueTask.FromResult(new ThrowingJsonResult()))
+            .Build(operationCatalog);
+        var bindings = new A2AJsonRpcOperationBindingBuilder()
+            .Map(
+                "test/result-json",
+                operation,
+                CustomJsonContext.Default.CustomRequest,
+                CustomJsonContext.Default.ThrowingJsonResult)
+            .Build(operationCatalog);
+        A2ARequestScopeFactory scopeFactory = (_, _) => ValueTask.FromResult(
+            new A2ARequestScope(
+                new A2AOperationContext(new TestRequestHandler())));
+        var httpContext = CreateHttpContext(
+            """
+            {
+              "jsonrpc": "2.0",
+              "id": "result-json",
+              "method": "test/result-json",
+              "params": {
+                "value": "request"
+              }
+            }
+            """);
+
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(
+            scopeFactory,
+            handlers,
+            bindings,
+            httpContext.Request,
+            CancellationToken.None);
+        var response = await ExecuteResponseAsync(httpContext, result);
+
+        Assert.Equal("result-json", response.Id.AsString());
+        AssertGenericInternalError(response, ThrowingJsonResult.FailureMessage);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -438,10 +697,20 @@ public class A2AJsonRpcCustomOperationTests
 
         Assert.Equal((int)A2AErrorCode.InternalError, response.Error?.Code);
         Assert.Equal("An internal error occurred.", response.Error?.Message);
+        var responseJson = JsonSerializer.Serialize(
+            response,
+            A2AJsonUtilities.DefaultOptions);
         Assert.DoesNotContain(
             secretMessage,
-            JsonSerializer.Serialize(response, A2AJsonUtilities.DefaultOptions),
+            responseJson,
             StringComparison.Ordinal);
+        if (mapErrorWithFailingDetails)
+        {
+            Assert.DoesNotContain(
+                ThrowingErrorDetails.FailureMessage,
+                responseJson,
+                StringComparison.Ordinal);
+        }
     }
 
     [Fact]
@@ -656,6 +925,67 @@ public class A2AJsonRpcCustomOperationTests
             response.Error?.Data?.GetProperty("authorizationRequestId").GetString());
     }
 
+    [Fact]
+    public async Task ProcessRequestAsync_LaterStreamingErrorPreservesOriginalRequestId()
+    {
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var operation = operationBuilder.DefineStreaming<CustomRequest, CustomStreamEvent>(
+            new A2AOperationId("https://example.com/extensions/test#later-stream-error"));
+        var operationCatalog = operationBuilder.Build();
+        var handlers = new A2AOperationHandlerCatalogBuilder()
+            .MapStreaming(
+                operation,
+                (_, request, _) => YieldThenThrowAsync(
+                    new CustomStreamEvent(request.Value),
+                    new InvalidOperationException("secret later stream failure")))
+            .Build(operationCatalog);
+        var bindings = new A2AJsonRpcOperationBindingBuilder()
+            .MapStreaming(
+                "test/later-stream-error",
+                operation,
+                CustomJsonContext.Default.CustomRequest,
+                CustomJsonContext.Default.CustomStreamEvent)
+            .Build(operationCatalog);
+        A2ARequestScopeFactory scopeFactory = (_, _) => ValueTask.FromResult(
+            new A2ARequestScope(
+                new A2AOperationContext(new TestRequestHandler())));
+        var httpContext = CreateHttpContext(
+            """
+            {
+              "jsonrpc": "2.0",
+              "id": "later-stream-error",
+              "method": "test/later-stream-error",
+              "params": {
+                "value": "event"
+              }
+            }
+            """);
+
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(
+            scopeFactory,
+            handlers,
+            bindings,
+            httpContext.Request,
+            CancellationToken.None);
+        using var responseBody = new MemoryStream();
+        httpContext.Response.Body = responseBody;
+        await result.ExecuteAsync(httpContext);
+
+        var dataLines = Encoding.UTF8.GetString(responseBody.ToArray())
+            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+            .Where(static line => line.StartsWith("data: ", StringComparison.Ordinal))
+            .ToArray();
+        Assert.Equal(2, dataLines.Length);
+        using var errorFrame = JsonDocument.Parse(dataLines[^1]["data: ".Length..]);
+        var responseId = errorFrame.RootElement.GetProperty("id");
+
+        Assert.Equal(JsonValueKind.String, responseId.ValueKind);
+        Assert.Equal("later-stream-error", responseId.GetString());
+        Assert.Equal(
+            (int)A2AErrorCode.InternalError,
+            errorFrame.RootElement.GetProperty("error").GetProperty("code").GetInt32());
+    }
+
     private static DefaultHttpContext CreateHttpContext(string requestJson)
     {
         var httpContext = new DefaultHttpContext();
@@ -703,11 +1033,50 @@ public class A2AJsonRpcCustomOperationTests
         yield break;
     }
 
+    private static async IAsyncEnumerable<T> YieldThenThrowAsync<T>(
+        T item,
+        Exception failure)
+    {
+        yield return item;
+        await Task.Yield();
+        throw failure;
+    }
+
+    private static void AssertGenericInternalError(
+        JsonRpcResponse response,
+        string secretMessage)
+    {
+        Assert.Equal((int)A2AErrorCode.InternalError, response.Error?.Code);
+        Assert.Equal("An internal error occurred.", response.Error?.Message);
+        Assert.DoesNotContain(
+            secretMessage,
+            JsonSerializer.Serialize(response, A2AJsonUtilities.DefaultOptions),
+            StringComparison.Ordinal);
+    }
+
     internal sealed record CustomRequest(
         [property: JsonPropertyName("value")] string Value);
 
     internal sealed record CustomResult(
         [property: JsonPropertyName("value")] string Value);
+
+    internal sealed class ThrowingJsonResult
+    {
+        internal const string FailureMessage =
+            "secret result serialization failure";
+
+        private readonly object _instanceMarker = new();
+
+        [JsonPropertyName("secret")]
+        public string Secret
+        {
+            get
+            {
+                _ = _instanceMarker;
+                throw new JsonException(FailureMessage);
+            }
+        }
+    }
 
     internal sealed record CustomStreamEvent(
         [property: JsonPropertyName("value")] string Value);
@@ -718,6 +1087,9 @@ public class A2AJsonRpcCustomOperationTests
 
     internal sealed class ThrowingErrorDetails
     {
+        internal const string FailureMessage =
+            "secret detail serialization failure";
+
         private readonly object _instanceMarker = new();
 
         [JsonPropertyName("secret")]
@@ -726,8 +1098,7 @@ public class A2AJsonRpcCustomOperationTests
             get
             {
                 _ = _instanceMarker;
-                throw new InvalidOperationException(
-                    "secret detail serialization failure");
+                throw new JsonException(FailureMessage);
             }
         }
     }
@@ -797,6 +1168,7 @@ public class A2AJsonRpcCustomOperationTests
 
 [JsonSerializable(typeof(A2AJsonRpcCustomOperationTests.CustomRequest))]
 [JsonSerializable(typeof(A2AJsonRpcCustomOperationTests.CustomResult))]
+[JsonSerializable(typeof(A2AJsonRpcCustomOperationTests.ThrowingJsonResult))]
 [JsonSerializable(typeof(A2AJsonRpcCustomOperationTests.CustomStreamEvent))]
 [JsonSerializable(typeof(A2AJsonRpcCustomOperationTests.CustomErrorDetails))]
 [JsonSerializable(typeof(A2AJsonRpcCustomOperationTests.ThrowingErrorDetails))]

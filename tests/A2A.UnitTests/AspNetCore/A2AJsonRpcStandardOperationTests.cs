@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 namespace A2A.UnitTests.AspNetCore;
 
@@ -79,6 +80,47 @@ public class A2AJsonRpcStandardOperationTests
         {
             Assert.DoesNotContain("\"result\"", responseText, StringComparison.Ordinal);
         }
+    }
+
+    [Fact]
+    public void Build_WhenStandardMethodMapsToDifferentStandardOperation_Throws()
+    {
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var standard = operationBuilder.AddStandardA2AOperations();
+        var operationCatalog = operationBuilder.Build();
+        var bindingBuilder = new A2AJsonRpcOperationBindingBuilder()
+            .Map(
+                A2AMethods.GetTask,
+                standard.CancelTask,
+                GetTypeInfo<CancelTaskRequest>(),
+                GetTypeInfo<AgentTask>());
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => bindingBuilder.Build(operationCatalog));
+
+        Assert.Contains(A2AMethods.GetTask, exception.Message, StringComparison.Ordinal);
+        Assert.Contains(standard.GetTask.Id.Value, exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Build_WhenStandardMethodMapsToExtensionOperation_Throws()
+    {
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var extensionOperation = operationBuilder.DefineUnary<GetTaskRequest, AgentTask>(
+            new A2AOperationId("https://a2a-protocol.org/operations/get-task"));
+        var operationCatalog = operationBuilder.Build();
+        var bindingBuilder = new A2AJsonRpcOperationBindingBuilder()
+            .Map(
+                A2AMethods.GetTask,
+                extensionOperation,
+                GetTypeInfo<GetTaskRequest>(),
+                GetTypeInfo<AgentTask>());
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => bindingBuilder.Build(operationCatalog));
+
+        Assert.Contains(A2AMethods.GetTask, exception.Message, StringComparison.Ordinal);
+        Assert.Contains("standard", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -500,6 +542,9 @@ public class A2AJsonRpcStandardOperationTests
                     A2AJsonUtilities.DefaultOptions)));
         return httpContext;
     }
+
+    private static JsonTypeInfo<T> GetTypeInfo<T>() =>
+        (JsonTypeInfo<T>)A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(T));
 
     private static async Task<JsonRpcResponse> ExecuteJsonResponseAsync(
         DefaultHttpContext httpContext,

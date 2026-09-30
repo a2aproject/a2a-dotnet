@@ -81,6 +81,52 @@ public static class A2AStandardJsonRpcBindingBuilderExtensions
     private static JsonTypeInfo<T> GetTypeInfo<T>() =>
         (JsonTypeInfo<T>)A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(T));
 
+    internal static void ValidateReservedMethodBinding(
+        string method,
+        A2AOperationRegistration registration)
+    {
+        var expectedOperationId = method switch
+        {
+            A2AMethods.SendMessage =>
+                "https://a2a-protocol.org/operations/send-message",
+            A2AMethods.SendStreamingMessage =>
+                "https://a2a-protocol.org/operations/send-message-stream",
+            A2AMethods.GetTask =>
+                "https://a2a-protocol.org/operations/get-task",
+            A2AMethods.ListTasks =>
+                "https://a2a-protocol.org/operations/list-tasks",
+            A2AMethods.CancelTask =>
+                "https://a2a-protocol.org/operations/cancel-task",
+            A2AMethods.SubscribeToTask =>
+                "https://a2a-protocol.org/operations/subscribe-to-task",
+            A2AMethods.CreateTaskPushNotificationConfig =>
+                "https://a2a-protocol.org/operations/create-task-push-notification-config",
+            A2AMethods.GetTaskPushNotificationConfig =>
+                "https://a2a-protocol.org/operations/get-task-push-notification-config",
+            A2AMethods.ListTaskPushNotificationConfigs =>
+                "https://a2a-protocol.org/operations/list-task-push-notification-configs",
+            A2AMethods.DeleteTaskPushNotificationConfig =>
+                "https://a2a-protocol.org/operations/delete-task-push-notification-config",
+            A2AMethods.GetExtendedAgentCard =>
+                "https://a2a-protocol.org/operations/get-extended-agent-card",
+            _ => null,
+        };
+        if (expectedOperationId is null)
+        {
+            return;
+        }
+
+        if (registration.Source != A2AOperationSource.Standard
+            || !string.Equals(
+                registration.Id.Value,
+                expectedOperationId,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"The reserved JSON-RPC method '{method}' must map to the standard A2A operation '{expectedOperationId}'.");
+        }
+    }
+
     private static async ValueTask ProbePushNotificationSupportAsync(
         A2AOperationContext context,
         CancellationToken cancellationToken)
