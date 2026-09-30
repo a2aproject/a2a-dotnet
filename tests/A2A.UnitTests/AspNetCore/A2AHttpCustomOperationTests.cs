@@ -37,9 +37,10 @@ public partial class A2AHttpCustomOperationTests
                 }));
         var builder = WebApplication.CreateBuilder();
         var app = builder.Build();
+        var operationCatalog = new A2AOperationCatalogBuilder().Build();
         app.MapHttpA2A(
             scopeFactory,
-            new A2AOperationHandlerCatalogBuilder().Build(),
+            new A2AOperationHandlerCatalogBuilder().Build(operationCatalog),
             new A2AHttpOperationBindingBuilder().Build());
         var endpoint = ((IEndpointRouteBuilder)app).DataSources
             .SelectMany(static dataSource => dataSource.Endpoints)
@@ -68,14 +69,16 @@ public partial class A2AHttpCustomOperationTests
     [Fact]
     public async Task MapHttpA2A_CustomOperationBindsRouteAndBodyAndDisposesRequestScope()
     {
-        var operation = new A2AOperation<ResumeRequest, ResumeResult>(
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var operation = operationBuilder.DefineUnary<ResumeRequest, ResumeResult>(
             new A2AOperationId("test.resumeAuth"));
+        var operationCatalog = operationBuilder.Build();
         var handlers = new A2AOperationHandlerCatalogBuilder()
             .Map(
                 operation,
                 static (_, request, _) => ValueTask.FromResult(
                     new ResumeResult($"{request.TaskId}:{request.Token}")))
-            .Build();
+            .Build(operationCatalog);
         var bindings = new A2AHttpOperationBindingBuilder()
             .Map(
                 HttpMethods.Post,
@@ -135,15 +138,17 @@ public partial class A2AHttpCustomOperationTests
     [Fact]
     public async Task MapHttpA2A_CustomOperationMapsA2AExceptionAndDisposesRequestScope()
     {
-        var operation = new A2AOperation<ResumeRequest, ResumeResult>(
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var operation = operationBuilder.DefineUnary<ResumeRequest, ResumeResult>(
             new A2AOperationId("test.resumeAuth"));
+        var operationCatalog = operationBuilder.Build();
         var handlers = new A2AOperationHandlerCatalogBuilder()
             .Map<ResumeRequest, ResumeResult>(
                 operation,
                 static (_, _, _) => throw new A2AException(
                     "Invalid resume request.",
                     A2AErrorCode.InvalidParams))
-            .Build();
+            .Build(operationCatalog);
         var bindings = new A2AHttpOperationBindingBuilder()
             .Map(
                 HttpMethods.Post,

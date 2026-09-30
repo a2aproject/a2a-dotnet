@@ -11,8 +11,10 @@ public class A2AJsonRpcCustomOperationTests
     [Fact]
     public async Task ProcessRequestAsync_CustomOperationUsesRequestScopeUntilResponseExecution()
     {
-        var operation = new A2AOperation<CustomRequest, CustomResult>(
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var operation = operationBuilder.DefineUnary<CustomRequest, CustomResult>(
             new A2AOperationId("https://example.com/extensions/test#execute"));
+        var operationCatalog = operationBuilder.Build();
         var handlers = new A2AOperationHandlerCatalogBuilder()
             .Map(
                 operation,
@@ -21,7 +23,7 @@ public class A2AJsonRpcCustomOperationTests
                     var prefix = context.Features.GetRequired<CustomFeature>().Prefix;
                     return ValueTask.FromResult(new CustomResult(prefix + request.Value));
                 })
-            .Build();
+            .Build(operationCatalog);
         var bindings = new A2AJsonRpcOperationBindingBuilder()
             .Map(
                 "test/execute",

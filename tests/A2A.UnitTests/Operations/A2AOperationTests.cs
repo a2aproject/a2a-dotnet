@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 namespace A2A.UnitTests.Operations;
 
@@ -302,9 +303,10 @@ public class A2AOperationTests
     [Fact]
     public async Task HandlerCatalog_InvokesTypedHandlerWithOperationContext()
     {
-        var operation = new A2AOperationCatalogBuilder()
-            .DefineUnary<TestRequest, TestResult>(
-                new A2AOperationId("https://example.com/extensions/test#execute"));
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var operation = operationBuilder.DefineUnary<TestRequest, TestResult>(
+            new A2AOperationId("https://example.com/extensions/test#execute"));
+        var operationCatalog = operationBuilder.Build();
         var features = new A2AFeatureCollection();
         features.Set(new TestFeature("tenant-1"));
         var context = new A2AOperationContext(new TestRequestHandler(), features);
@@ -318,7 +320,7 @@ public class A2AOperationTests
                     return ValueTask.FromResult(
                         new TestResult($"{feature.Value}:{request.Value}"));
                 })
-            .Build();
+            .Build(operationCatalog);
 
         var result = await handlers.InvokeAsync(
             operation,
@@ -327,6 +329,160 @@ public class A2AOperationTests
             CancellationToken.None);
 
         Assert.Equal("tenant-1:request-1", result.Value);
+    }
+
+    [Fact]
+    public async Task HandlerCatalog_InvokesStreamingHandler()
+    {
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var operation = operationBuilder.DefineStreaming<TestRequest, TestEvent>(
+            new A2AOperationId("https://example.com/extensions/test#stream"));
+        var operationCatalog = operationBuilder.Build();
+        var features = new A2AFeatureCollection();
+        features.Set(new TestFeature("tenant-1"));
+        var context = new A2AOperationContext(new TestRequestHandler(), features);
+        var expected = new TestEvent("tenant-1:request-1");
+        var handlers = new A2AOperationHandlerCatalogBuilder()
+            .MapStreaming(
+                operation,
+                (operationContext, request, cancellationToken) =>
+                {
+                    Assert.Equal(expected.Value, $"{operationContext.Features.GetRequired<TestFeature>().Value}:{request.Value}");
+                    return Yield(expected, cancellationToken);
+                })
+            .Build(operationCatalog);
+
+        var result = await ToListAsync(handlers.InvokeStreamingAsync(
+            operation,
+            context,
+            new TestRequest("request-1"),
+            CancellationToken.None));
+
+        Assert.Same(expected, Assert.Single(result));
+    }
+
+    [Fact]
+    public async Task HandlerCatalog_InvokesOperationValidatorBeforeHandler()
+    {
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var operation = operationBuilder.DefineUnary<TestRequest, TestResult>(
+            new A2AOperationId("https://example.com/extensions/test#validated"),
+            static request =>
+            {
+                if (request.Value == "invalid")
+                {
+                    throw new InvalidOperationException("invalid");
+                }
+            });
+        var operationCatalog = operationBuilder.Build();
+        var handlerInvoked = false;
+        var handlers = new A2AOperationHandlerCatalogBuilder()
+            .Map(
+                operation,
+                (_, _, _) =>
+                {
+                    handlerInvoked = true;
+                    throw new Xunit.Sdk.XunitException("handler should not run");
+                })
+            .Build(operationCatalog);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            handlers.InvokeAsync(
+                operation,
+                new A2AOperationContext(new TestRequestHandler()),
+                new TestRequest("invalid"),
+                CancellationToken.None).AsTask());
+
+        Assert.Equal("invalid", exception.Message);
+        Assert.False(handlerInvoked);
+    }
+
+    [Fact]
+    public async Task HandlerCatalog_PropagatesCancellationToStreamingHandler()
+    {
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var operation = operationBuilder.DefineStreaming<TestRequest, TestEvent>(
+            new A2AOperationId("https://example.com/extensions/test#cancellable-stream"));
+        var operationCatalog = operationBuilder.Build();
+        var handlers = new A2AOperationHandlerCatalogBuilder()
+            .MapStreaming(
+                operation,
+                (_, _, cancellationToken) => Yield(new TestEvent("ignored"), cancellationToken))
+            .Build(operationCatalog);
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            ToListAsync(
+                handlers.InvokeStreamingAsync(
+                    operation,
+                    new A2AOperationContext(new TestRequestHandler()),
+                    new TestRequest("request-1"),
+                    cts.Token),
+                cts.Token));
+    }
+
+    [Fact]
+    public void HandlerCatalog_BuildRejectsHandlersForOperationsAbsentFromCatalog()
+    {
+        var operationCatalog = new A2AOperationCatalogBuilder().Build();
+        var operation = new A2AOperation<TestRequest, TestResult>(
+            new A2AOperationId("https://example.com/extensions/test#missing"));
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+        {
+            new A2AOperationHandlerCatalogBuilder()
+                .Map(
+                    operation,
+                    static (_, _, _) => ValueTask.FromResult(new TestResult("result")))
+                .Build(operationCatalog);
+        });
+
+        Assert.Contains(operation.Id.Value, exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void HandlerCatalog_BuildRejectsHandlersWhenOperationKindDiffers()
+    {
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        _ = operationBuilder.DefineStreaming<TestRequest, TestEvent>(
+            new A2AOperationId("https://example.com/extensions/test#execute"));
+        var operationCatalog = operationBuilder.Build();
+        var unaryOperation = new A2AOperation<TestRequest, TestResult>(
+            new A2AOperationId("https://example.com/extensions/test#execute"));
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+        {
+            new A2AOperationHandlerCatalogBuilder()
+                .Map(
+                    unaryOperation,
+                    static (_, _, _) => ValueTask.FromResult(new TestResult("result")))
+                .Build(operationCatalog);
+        });
+
+        Assert.Contains(unaryOperation.Id.Value, exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void HandlerCatalog_BuildRejectsHandlersWhenOperationTypesDiffer()
+    {
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        _ = operationBuilder.DefineUnary<OtherRequest, OtherResult>(
+            new A2AOperationId("https://example.com/extensions/test#execute"));
+        var operationCatalog = operationBuilder.Build();
+        var typedOperation = new A2AOperation<TestRequest, TestResult>(
+            new A2AOperationId("https://example.com/extensions/test#execute"));
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+        {
+            new A2AOperationHandlerCatalogBuilder()
+                .Map(
+                    typedOperation,
+                    static (_, _, _) => ValueTask.FromResult(new TestResult("result")))
+                .Build(operationCatalog);
+        });
+
+        Assert.Contains(typedOperation.Id.Value, exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -399,6 +555,28 @@ public class A2AOperationTests
     private sealed record TestFeature(string Value);
 
     private sealed class OpenGeneric<T>;
+
+    private static async Task<List<T>> ToListAsync<T>(
+        IAsyncEnumerable<T> source,
+        CancellationToken cancellationToken = default)
+    {
+        var results = new List<T>();
+        await foreach (var item in source.WithCancellation(cancellationToken))
+        {
+            results.Add(item);
+        }
+
+        return results;
+    }
+
+    private static async IAsyncEnumerable<TestEvent> Yield(
+        TestEvent value,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        yield return value;
+        await Task.CompletedTask;
+    }
 
     private sealed class TestRequestHandler : IA2ARequestHandler
     {

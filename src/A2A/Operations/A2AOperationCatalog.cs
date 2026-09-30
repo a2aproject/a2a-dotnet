@@ -409,6 +409,11 @@ public sealed class A2AOperationCatalog
     internal A2AOperationSource GetSource(A2AOperationId id)
         => GetRequiredRegistration(id).Source;
 
+    internal bool TryGetRegistration(
+        A2AOperationId id,
+        out A2AOperationRegistration registration)
+        => _registrations.TryGetValue(id, out registration!);
+
     private A2AOperationError<TDetails> GetRequiredErrorCore<TDetails>(
         IA2AOperationHandle operation,
         string errorId,
