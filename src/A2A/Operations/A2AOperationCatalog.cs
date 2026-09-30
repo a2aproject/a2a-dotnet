@@ -185,8 +185,6 @@ public sealed class A2AOperationCatalogBuilder
         A2AOperationSource source)
     {
         ValidateOperationId(id);
-        ValidateClosedType(typeof(TRequest), nameof(TRequest));
-        ValidateClosedType(typeof(TResult), nameof(TResult));
 
         var operation = new A2AOperation<TRequest, TResult>(id);
         AddRegistration(new A2AOperationRegistrationBuilder(
@@ -206,8 +204,6 @@ public sealed class A2AOperationCatalogBuilder
         A2AOperationSource source)
     {
         ValidateOperationId(id);
-        ValidateClosedType(typeof(TRequest), nameof(TRequest));
-        ValidateClosedType(typeof(TEvent), nameof(TEvent));
 
         var operation = new A2AStreamingOperation<TRequest, TEvent>(id);
         AddRegistration(new A2AOperationRegistrationBuilder(
@@ -298,14 +294,6 @@ public sealed class A2AOperationCatalogBuilder
         }
     }
 
-    private static void ValidateClosedType(Type type, string paramName)
-    {
-        if (type.ContainsGenericParameters)
-        {
-            throw new InvalidOperationException(
-                $"The A2A operation type '{type.FullName}' for '{paramName}' must be closed.");
-        }
-    }
 }
 
 internal interface IA2AOperationHandle

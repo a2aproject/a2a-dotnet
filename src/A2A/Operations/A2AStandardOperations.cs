@@ -1,6 +1,10 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 namespace A2A;
 
 /// <summary>Represents an empty operation result.</summary>
+[JsonConverter(typeof(A2AEmptyResultJsonConverter))]
 public sealed class A2AEmptyResult
 {
     private A2AEmptyResult()
@@ -9,6 +13,32 @@ public sealed class A2AEmptyResult
 
     /// <summary>Gets the singleton empty result instance.</summary>
     public static A2AEmptyResult Instance { get; } = new();
+}
+
+internal sealed class A2AEmptyResultJsonConverter : JsonConverter<A2AEmptyResult>
+{
+    public override A2AEmptyResult Read(
+        ref Utf8JsonReader reader,
+        Type typeToConvert,
+        JsonSerializerOptions options)
+    {
+        using var document = JsonDocument.ParseValue(ref reader);
+        if (document.RootElement.ValueKind != JsonValueKind.Object)
+        {
+            throw new JsonException();
+        }
+
+        return A2AEmptyResult.Instance;
+    }
+
+    public override void Write(
+        Utf8JsonWriter writer,
+        A2AEmptyResult value,
+        JsonSerializerOptions options)
+    {
+        writer.WriteStartObject();
+        writer.WriteEndObject();
+    }
 }
 
 /// <summary>Provides typed handles for the built-in A2A operations.</summary>

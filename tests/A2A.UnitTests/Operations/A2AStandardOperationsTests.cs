@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace A2A.UnitTests.Operations;
 
 public class A2AStandardOperationsTests
@@ -88,6 +90,20 @@ public class A2AStandardOperationsTests
 
         Assert.Equal(A2AOperationSource.Extension, catalog.GetSource(extension.Id));
         Assert.Equal(A2AOperationSource.Standard, catalog.GetSource(standard.SendMessage.Id));
+    }
+
+    [Fact]
+    public void A2AEmptyResult_RoundTripsThroughDefaultJsonOptions()
+    {
+        var json = JsonSerializer.Serialize(A2AEmptyResult.Instance, A2AJsonUtilities.DefaultOptions);
+
+        Assert.Equal("{}", json);
+
+        var deserialized = JsonSerializer.Deserialize<A2AEmptyResult>(
+            json,
+            A2AJsonUtilities.DefaultOptions);
+
+        Assert.Same(A2AEmptyResult.Instance, deserialized);
     }
 
     private sealed record TestRequest(string Value);

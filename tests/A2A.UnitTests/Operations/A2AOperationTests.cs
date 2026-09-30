@@ -96,39 +96,26 @@ public class A2AOperationTests
     }
 
     [Fact]
-    public void DefineUnary_WhenRequestTypeIsOpenGeneric_Throws()
+    public void DefineUnary_WhenRequestTypeIsOpenGeneric_ReflectionRejectsInvocationBeforeRegistration()
     {
         var builder = new A2AOperationCatalogBuilder();
         var method = typeof(A2AOperationCatalogBuilder)
             .GetMethod(nameof(A2AOperationCatalogBuilder.DefineUnary))!
             .MakeGenericMethod(typeof(OpenGeneric<>), typeof(TestResult));
 
-        var exception = Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<InvalidOperationException>(() =>
         {
             method.Invoke(builder, [new A2AOperationId("open.request"), null]);
         });
 
-        Assert.Contains(
-            "ContainsGenericParameters",
-            exception.Message,
-            StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void DefineUnary_WhenResultTypeIsOpenGeneric_Throws()
-    {
-        var builder = new A2AOperationCatalogBuilder();
-        var method = typeof(A2AOperationCatalogBuilder)
-            .GetMethod(nameof(A2AOperationCatalogBuilder.DefineUnary))!
-            .MakeGenericMethod(typeof(TestRequest), typeof(OpenGeneric<>));
-
+        var catalog = builder.Build();
         var exception = Assert.Throws<InvalidOperationException>(() =>
         {
-            method.Invoke(builder, [new A2AOperationId("open.result"), null]);
+            catalog.GetRequired(new A2AOperationId("open.request"));
         });
 
         Assert.Contains(
-            "ContainsGenericParameters",
+            "open.request",
             exception.Message,
             StringComparison.Ordinal);
     }
