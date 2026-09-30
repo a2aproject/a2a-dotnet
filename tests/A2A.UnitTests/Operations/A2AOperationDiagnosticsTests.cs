@@ -44,7 +44,7 @@ public partial class A2AOperationDiagnosticsTests
                     {
                         foreach (var stage in new[]
                         {
-                            "enumerator", "stream", "stream-dispose", "cancel-stream",
+                            "enumerator", "stream", "later-stream", "stream-dispose", "cancel-stream",
                             "cancel-enumerator", "cancel-stream-dispose", "uncancelled-enumerator",
                             "uncancelled-stream", "uncancelled-stream-dispose",
                         })
@@ -163,6 +163,15 @@ public partial class A2AOperationDiagnosticsTests
             streaming, "extension", "server", transport, Outcome(stage));
         Assert.All(observed, item => Assert.Same(activity, item));
         capture.AssertNoSecrets();
+        if (transport == "jsonrpc" && stage is "validation" or "factory" or "handler"
+            or "serialization" or "write" or "dispose" or "enumerator" or "stream" or "later-stream" or "stream-dispose")
+        {
+            var diagnostic = Assert.Single(capture.Transports);
+            Assert.Equal("HandleA2ARequest", diagnostic.Name);
+            Assert.Equal(ActivityStatusCode.Error, diagnostic.Status);
+            Assert.Equal(stage == "write" ? "System.IO.IOException" : "System.InvalidOperationException",
+                diagnostic.Tags.GetValueOrDefault("error.type"));
+        }
 
         async ValueTask<Request> BindAsync(HttpContext http, CancellationToken cancellationToken)
         {
@@ -439,14 +448,24 @@ public partial class A2AOperationDiagnosticsTests
     {
         private readonly ActivityListener _listener;
         private readonly List<Activity> _activities = [];
+        internal List<(string Name, ActivityStatusCode Status, Dictionary<string, object?> Tags)> Transports { get; } = [];
 
-        public ActivityCapture()
+        public ActivityCapture(bool sampleOperations = true)
         {
             _listener = new ActivityListener
             {
                 ShouldListenTo = source => source.Name is "A2A" or "A2A.AspNetCore",
-                Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
-                ActivityStopped = activity => _activities.Add(activity),
+                Sample = (ref ActivityCreationOptions<ActivityContext> options) =>
+                    !sampleOperations && options.Name == "a2a.operation"
+                        ? ActivitySamplingResult.None : ActivitySamplingResult.AllData,
+                ActivityStopped = activity =>
+                {
+                    _activities.Add(activity);
+                    if (activity.OperationName != "a2a.operation")
+                    {
+                        Transports.Add((activity.OperationName, activity.Status, activity.TagObjects.ToDictionary()));
+                    }
+                },
             };
             ActivitySource.AddActivityListener(_listener);
         }
@@ -480,6 +499,11 @@ public partial class A2AOperationDiagnosticsTests
         public ValueTask<bool> MoveNextAsync()
         {
             Fail(stage, "stream", cancellation);
+            if (_moved)
+            {
+                Fail(stage, "later-stream", cancellation);
+            }
+
             var next = !_moved;
             _moved = true;
             return ValueTask.FromResult(next);

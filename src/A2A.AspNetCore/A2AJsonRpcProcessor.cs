@@ -42,7 +42,7 @@ public static class A2AJsonRpcProcessor
             return preflightResult;
         }
 
-        using var activity = A2AAspNetCoreDiagnostics.Source.StartActivity(
+        var activity = A2AAspNetCoreDiagnostics.Source.StartActivity(
             "HandleA2ARequest",
             ActivityKind.Server);
 
@@ -100,7 +100,7 @@ public static class A2AJsonRpcProcessor
                 A2AOperationDiagnostics.SetOutcome(operationActivity, "error");
                 return WrapScope(
                     new JsonRpcResponseResult(JsonRpcResponse.InvalidParamsResponse(rpcRequest.Id)),
-                    ref scope, ref operationActivity);
+                    ref scope, ref operationActivity, ref activity);
             }
 
             if (!hasBinding)
@@ -121,8 +121,9 @@ public static class A2AJsonRpcProcessor
                 scope.Context,
                 handlers,
                 operationActivity,
+                activity,
                 cancellationToken).ConfigureAwait(false);
-            return WrapScope(result, ref scope, ref operationActivity);
+            return WrapScope(result, ref scope, ref operationActivity, ref activity);
         }
         catch (A2AException ex)
         {
@@ -132,11 +133,11 @@ public static class A2AJsonRpcProcessor
             return WrapScope(
                 new JsonRpcResponseResult(
                     JsonRpcResponse.CreateJsonRpcErrorResponse(errorId, ex)),
-                ref scope, ref operationActivity);
+                ref scope, ref operationActivity, ref activity);
         }
         catch (Exception ex)
         {
-            activity?.SetStatus(ActivityStatusCode.Error);
+            A2AAspNetCoreDiagnostics.RecordException(activity, ex);
             A2AOperationDiagnostics.SetError(operationActivity, ex, cancellationToken);
             var errorId = GetErrorId(rpcRequest, parsedRequestId);
             var response = boundOperation?.CreateErrorResponse(
@@ -148,7 +149,7 @@ public static class A2AJsonRpcProcessor
                     "An internal error occurred.");
             return WrapScope(
                 new JsonRpcResponseResult(response),
-                ref scope, ref operationActivity);
+                ref scope, ref operationActivity, ref activity);
         }
         finally
         {
@@ -162,6 +163,7 @@ public static class A2AJsonRpcProcessor
             finally
             {
                 operationActivity?.Dispose();
+                activity?.Dispose();
             }
         }
     }
@@ -257,16 +259,18 @@ public static class A2AJsonRpcProcessor
     private static IResult WrapScope(
         IResult result,
         ref A2ARequestScope? scope,
-        ref Activity? operationActivity)
+        ref Activity? operationActivity,
+        ref Activity? transportActivity)
     {
-        if (scope is null && operationActivity is null)
+        if (scope is null && operationActivity is null && transportActivity is null)
         {
             return result;
         }
 
-        var scopedResult = new A2ARequestScopeResult(result, scope, operationActivity);
+        var scopedResult = new A2ARequestScopeResult(result, scope, operationActivity, transportActivity);
         scope = null;
         operationActivity = null;
+        transportActivity = null;
         return scopedResult;
     }
 }

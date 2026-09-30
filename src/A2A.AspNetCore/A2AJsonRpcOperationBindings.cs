@@ -411,6 +411,7 @@ internal interface IA2AJsonRpcBoundOperation
         A2AOperationContext context,
         A2AOperationHandlerCatalog handlers,
         Activity? operationActivity,
+        Activity? transportActivity,
         CancellationToken cancellationToken);
 
     JsonRpcResponse CreateErrorResponse(
@@ -515,6 +516,7 @@ internal sealed class A2AJsonRpcUnaryOperationBinding<TRequest, TResult>(
             A2AOperationContext context,
             A2AOperationHandlerCatalog handlers,
             Activity? operationActivity,
+            Activity? transportActivity,
             CancellationToken cancellationToken)
         {
             if (beforeInvoke is not null)
@@ -589,6 +591,7 @@ internal sealed class A2AJsonRpcStreamingOperationBinding<TRequest, TEvent>(
             A2AOperationContext context,
             A2AOperationHandlerCatalog handlers,
             Activity? operationActivity,
+            Activity? transportActivity,
             CancellationToken cancellationToken)
         {
             if (beforeInvoke is not null)
@@ -607,7 +610,8 @@ internal sealed class A2AJsonRpcStreamingOperationBinding<TRequest, TEvent>(
                 requestId,
                 eventTypeInfo,
                 createErrorResponse,
-                operationActivity);
+                operationActivity,
+                transportActivity);
         }
 
         public JsonRpcResponse CreateErrorResponse(
@@ -671,9 +675,8 @@ internal sealed class A2AJsonRpcErrorMapping<TDetails>(
             };
             return true;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            A2AOperationDiagnostics.SetError(Activity.Current, ex);
             response = null!;
             return false;
         }

@@ -267,9 +267,8 @@ internal sealed class A2AEventStreamResult<TEvent>(
             {
                 errorResult = createErrorResult(exception);
             }
-            catch (Exception mappingException)
+            catch (Exception)
             {
-                Activity.Current?.AddException(mappingException);
                 errorResult = new A2AErrorResult(
                     new A2AException(
                         "An internal error occurred.",

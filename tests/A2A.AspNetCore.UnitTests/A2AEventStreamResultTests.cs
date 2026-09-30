@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
@@ -8,6 +9,37 @@ namespace A2A.AspNetCore.Tests;
 
 public partial class A2AEventStreamResultTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ExecuteAsync_ErrorMapperFailureDoesNotRecordSecretException(bool ownsOperation)
+    {
+        const string secret = "secret-payload-token-feature";
+        using var ambient = new Activity("caller").Start();
+        using var operation = ownsOperation ? new Activity("a2a.operation").Start() : null;
+        var result = new A2AEventStreamResult<SerializationEvent>(
+            SerializationEventsAsync(new SerializationEvent("stream failed")),
+            EventStreamJsonContext.Default.SerializationEvent,
+            _ => throw new InvalidOperationException(secret),
+            operation);
+        var context = CreateHttpContext();
+
+        await result.ExecuteAsync(context);
+
+        Assert.Equal(500, context.Response.StatusCode);
+        Assert.DoesNotContain(secret, GetResponseBody(context));
+        Assert.Empty(ambient.Events);
+        Assert.Empty(ambient.TagObjects);
+        Assert.Equal(ActivityStatusCode.Unset, ambient.Status);
+        if (operation is not null)
+        {
+            Assert.Equal("error", operation.GetTagItem("a2a.operation.outcome"));
+            Assert.Equal(ActivityStatusCode.Error, operation.Status);
+            Assert.Empty(operation.Events);
+            Assert.Null(operation.StatusDescription);
+        }
+    }
+
     [Theory]
     [InlineData(A2AErrorCode.TaskNotFound, StatusCodes.Status404NotFound)]
     [InlineData(A2AErrorCode.UnsupportedOperation, StatusCodes.Status400BadRequest)]

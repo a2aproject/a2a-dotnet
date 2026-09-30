@@ -250,6 +250,10 @@ Exception messages, payloads,
 authorization headers, extension tokens, and feature values are not added to
 operation activities. Client transport activities record the server address
 and port instead of a full URL, which can contain private path or query values.
+JSON-RPC server transport activities remain active through response writing and
+scope disposal. Unexpected failures record `error.type` (the exception type only)
+on that transport activity, never exception messages or stack traces on the
+operation activity.
 
 Extension bindings use explicit source-generated `JsonTypeInfo` metadata; no
 runtime reflection or expression compilation is needed for operation dispatch.

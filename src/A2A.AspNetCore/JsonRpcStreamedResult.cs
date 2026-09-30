@@ -18,6 +18,7 @@ public sealed class JsonRpcStreamedResult : IResult
     private readonly JsonRpcId _requestId;
     private readonly Func<Exception, string, JsonRpcResponse> _createErrorResponse;
     private readonly Activity? _operationActivity;
+    private readonly Activity? _transportActivity;
 
     /// <summary>Initializes a new instance of the <see cref="JsonRpcStreamedResult"/> class.</summary>
     /// <param name="events">The stream of response events.</param>
@@ -46,12 +47,14 @@ public sealed class JsonRpcStreamedResult : IResult
         IAsyncEnumerable<JsonRpcResponse> responses,
         JsonRpcId requestId,
         Func<Exception, string, JsonRpcResponse> createErrorResponse,
-        Activity? operationActivity)
+        Activity? operationActivity,
+        Activity? transportActivity = null)
     {
         _responses = responses;
         _requestId = requestId;
         _createErrorResponse = createErrorResponse;
         _operationActivity = operationActivity;
+        _transportActivity = transportActivity;
     }
 
     internal static JsonRpcStreamedResult Create<TEvent>(
@@ -59,7 +62,8 @@ public sealed class JsonRpcStreamedResult : IResult
         JsonRpcId requestId,
         JsonTypeInfo<TEvent> eventTypeInfo,
         Func<JsonRpcId, Exception, string, JsonRpcResponse> createErrorResponse,
-        Activity? operationActivity)
+        Activity? operationActivity,
+        Activity? transportActivity = null)
     {
         ArgumentNullException.ThrowIfNull(events);
         ArgumentNullException.ThrowIfNull(eventTypeInfo);
@@ -73,7 +77,8 @@ public sealed class JsonRpcStreamedResult : IResult
                     requestId,
                     exception,
                     internalErrorMessage),
-            operationActivity);
+            operationActivity,
+            transportActivity);
     }
 
     /// <inheritdoc />
@@ -201,6 +206,7 @@ public sealed class JsonRpcStreamedResult : IResult
         Exception exception,
         bool streamStarted)
     {
+        A2AAspNetCoreDiagnostics.RecordException(_transportActivity, exception);
         JsonRpcResponse errorResponse;
         try
         {

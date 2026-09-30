@@ -987,9 +987,8 @@ internal sealed class A2AHttpErrorMapping<TDetails>(
                 details);
             return true;
         }
-        catch (Exception serializationException)
+        catch (Exception)
         {
-            A2AOperationDiagnostics.SetError(Activity.Current, serializationException);
             result = null!;
             return false;
         }
