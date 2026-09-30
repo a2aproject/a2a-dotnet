@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 namespace A2A.AspNetCore;
 
@@ -105,194 +106,69 @@ internal static class A2AHttpProcessor
 
     private static A2AErrorResult MapA2AExceptionToHttpResult(A2AException exception) =>
         new A2AErrorResult(exception);
-
-    // ======= REST API handler methods =======
-
-    // REST handler: Get task by ID
-    internal static Task<IResult> GetTaskRestAsync(
-        IA2ARequestHandler requestHandler, ILogger logger, string id, int? historyLength, CancellationToken cancellationToken)
-        => WithExceptionHandlingAsync(logger, "REST.GetTask", async ct =>
-        {
-            var result = await requestHandler.GetTaskAsync(
-                new GetTaskRequest { Id = id, HistoryLength = historyLength }, ct).ConfigureAwait(false);
-            return new A2AResponseResult(result);
-        }, id, cancellationToken);
-
-    // REST handler: Cancel task
-    internal static Task<IResult> CancelTaskRestAsync(
-        IA2ARequestHandler requestHandler, ILogger logger, string id, CancellationToken cancellationToken)
-        => WithExceptionHandlingAsync(logger, "REST.CancelTask", async ct =>
-        {
-            var result = await requestHandler.CancelTaskAsync(
-                new CancelTaskRequest { Id = id }, ct).ConfigureAwait(false);
-            return new A2AResponseResult(result);
-        }, id, cancellationToken);
-
-    // REST handler: Send message
-    internal static Task<IResult> SendMessageRestAsync(
-        IA2ARequestHandler requestHandler, ILogger logger, SendMessageRequest request, CancellationToken cancellationToken)
-        => WithExceptionHandlingAsync(logger, "REST.SendMessage", async ct =>
-        {
-            var result = await requestHandler.SendMessageAsync(request, ct).ConfigureAwait(false);
-            return new A2AResponseResult(result);
-        }, cancellationToken: cancellationToken);
-
-    // REST handler: Send streaming message
-    internal static IResult SendMessageStreamRest(
-        IA2ARequestHandler requestHandler, ILogger logger, SendMessageRequest request, CancellationToken cancellationToken)
-        => WithExceptionHandling(logger, "REST.SendMessageStream", () =>
-        {
-            var events = requestHandler.SendStreamingMessageAsync(request, cancellationToken);
-            return new A2AEventStreamResult(events);
-        });
-
-    // REST handler: Subscribe to task
-    internal static IResult SubscribeToTaskRest(
-        IA2ARequestHandler requestHandler, ILogger logger, string id, CancellationToken cancellationToken)
-        => WithExceptionHandling(logger, "REST.SubscribeToTask", () =>
-        {
-            var events = requestHandler.SubscribeToTaskAsync(
-                new SubscribeToTaskRequest { Id = id }, cancellationToken);
-            return new A2AEventStreamResult(events);
-        }, id);
-
-    // REST handler: List tasks
-    internal static Task<IResult> ListTasksRestAsync(
-        IA2ARequestHandler requestHandler, ILogger logger, string? contextId, string? status, int? pageSize,
-        string? pageToken, int? historyLength, CancellationToken cancellationToken)
-        => WithExceptionHandlingAsync(logger, "REST.ListTasks", async ct =>
-        {
-            var request = new ListTasksRequest
-            {
-                ContextId = contextId,
-                PageSize = pageSize,
-                PageToken = pageToken,
-                HistoryLength = historyLength,
-            };
-            if (!string.IsNullOrEmpty(status))
-            {
-                if (!Enum.TryParse<TaskState>(status, ignoreCase: true, out var taskState))
-                {
-                    return Results.Problem(
-                        detail: $"Invalid status filter: '{status}'. Valid values: {string.Join(", ", Enum.GetNames<TaskState>())}",
-                        statusCode: StatusCodes.Status400BadRequest);
-                }
-                request.Status = taskState;
-            }
-
-            var result = await requestHandler.ListTasksAsync(request, ct).ConfigureAwait(false);
-            return new A2AResponseResult(result);
-        }, cancellationToken: cancellationToken);
-
-    // REST handler: Get extended agent card
-    internal static Task<IResult> GetExtendedAgentCardRestAsync(
-        IA2ARequestHandler requestHandler, ILogger logger, CancellationToken cancellationToken)
-        => WithExceptionHandlingAsync(logger, "REST.GetExtendedAgentCard", async ct =>
-        {
-            var result = await requestHandler.GetExtendedAgentCardAsync(
-                new GetExtendedAgentCardRequest(), ct).ConfigureAwait(false);
-            return new A2AResponseResult(result);
-        }, cancellationToken: cancellationToken);
-
-    // REST handler: Create push notification config
-    internal static Task<IResult> CreatePushNotificationConfigRestAsync(
-        IA2ARequestHandler requestHandler, ILogger logger, string taskId, TaskPushNotificationConfig config, CancellationToken cancellationToken)
-        => WithExceptionHandlingAsync(logger, "REST.CreatePushNotificationConfig", async ct =>
-        {
-            // Route provides the authoritative taskId; override whatever the body sent
-            config.TaskId = taskId;
-            // This route has no tenant segment and does not support tenant routing.
-            config.Tenant = null;
-            var result = await requestHandler.CreateTaskPushNotificationConfigAsync(config, ct).ConfigureAwait(false);
-            return new A2AResponseResult(result);
-        }, taskId, cancellationToken);
-
-    // REST handler: List push notification configs for a task
-    internal static Task<IResult> ListPushNotificationConfigRestAsync(
-        IA2ARequestHandler requestHandler, ILogger logger, string taskId, int? pageSize, string? pageToken,
-        CancellationToken cancellationToken)
-        => WithExceptionHandlingAsync(logger, "REST.ListPushNotificationConfig", async ct =>
-        {
-            var request = new ListTaskPushNotificationConfigsRequest
-            {
-                TaskId = taskId,
-                PageSize = pageSize,
-                PageToken = pageToken,
-            };
-            var result = await requestHandler.ListTaskPushNotificationConfigsAsync(request, ct)
-                .ConfigureAwait(false);
-            return new A2AResponseResult(result);
-        }, taskId, cancellationToken);
-
-    // REST handler: Get push notification config
-    internal static Task<IResult> GetPushNotificationConfigRestAsync(
-        IA2ARequestHandler requestHandler, ILogger logger, string taskId, string configId, CancellationToken cancellationToken)
-        => WithExceptionHandlingAsync(logger, "REST.GetPushNotificationConfig", async ct =>
-        {
-            var request = new GetTaskPushNotificationConfigRequest { TaskId = taskId, Id = configId };
-            var result = await requestHandler.GetTaskPushNotificationConfigAsync(request, ct).ConfigureAwait(false);
-            return new A2AResponseResult(result);
-        }, taskId, cancellationToken);
-
-    // REST handler: Delete push notification config
-    internal static Task<IResult> DeletePushNotificationConfigRestAsync(
-        IA2ARequestHandler requestHandler, ILogger logger, string taskId, string configId, CancellationToken cancellationToken)
-        => WithExceptionHandlingAsync(logger, "REST.DeletePushNotificationConfig", async ct =>
-        {
-            var request = new DeleteTaskPushNotificationConfigRequest { TaskId = taskId, Id = configId };
-            await requestHandler.DeleteTaskPushNotificationConfigAsync(request, ct).ConfigureAwait(false);
-            return Results.NoContent();
-        }, taskId, cancellationToken);
-}
-
-/// <summary>IResult for REST API JSON responses.</summary>
-internal sealed class A2AResponseResult : IResult
-{
-    private readonly object _response;
-    private readonly Type _responseType;
-
-    internal A2AResponseResult(SendMessageResponse response) { _response = response; _responseType = typeof(SendMessageResponse); }
-    internal A2AResponseResult(AgentTask task) { _response = task; _responseType = typeof(AgentTask); }
-    internal A2AResponseResult(ListTasksResponse response) { _response = response; _responseType = typeof(ListTasksResponse); }
-    internal A2AResponseResult(AgentCard card) { _response = card; _responseType = typeof(AgentCard); }
-    internal A2AResponseResult(TaskPushNotificationConfig config) { _response = config; _responseType = typeof(TaskPushNotificationConfig); }
-    internal A2AResponseResult(ListTaskPushNotificationConfigsResponse response) { _response = response; _responseType = typeof(ListTaskPushNotificationConfigsResponse); }
-
-    public async Task ExecuteAsync(HttpContext httpContext)
-    {
-        httpContext.Response.ContentType = "application/json";
-        await JsonSerializer.SerializeAsync(httpContext.Response.Body, _response,
-            A2AJsonUtilities.DefaultOptions.GetTypeInfo(_responseType));
-    }
 }
 
 /// <summary>IResult for REST API Server-Sent Events streaming.</summary>
 internal sealed class A2AEventStreamResult : IResult
 {
-    private readonly IAsyncEnumerable<StreamResponse> _events;
+    private readonly A2AEventStreamResult<StreamResponse> _inner;
 
-    internal A2AEventStreamResult(IAsyncEnumerable<StreamResponse> events) => _events = events;
+    internal A2AEventStreamResult(IAsyncEnumerable<StreamResponse> events)
+    {
+        _inner = new A2AEventStreamResult<StreamResponse>(
+            events,
+            (JsonTypeInfo<StreamResponse>)A2AJsonUtilities.DefaultOptions
+                .GetTypeInfo(typeof(StreamResponse)),
+            static exception =>
+            {
+                var error = exception is A2AException a2aException
+                    ? a2aException
+                    : new A2AException(
+                        "An internal error occurred.",
+                        A2AErrorCode.InternalError);
+                return new A2AErrorResult(error);
+            },
+            diagnosticContext: null);
+    }
 
+    public Task ExecuteAsync(HttpContext httpContext) =>
+        _inner.ExecuteAsync(httpContext);
+}
+
+internal sealed class A2AEventStreamResult<TEvent>(
+    IAsyncEnumerable<TEvent> events,
+    JsonTypeInfo<TEvent> eventTypeInfo,
+    Func<Exception, IResult> createErrorResult,
+    A2AOperationDiagnosticContext? diagnosticContext)
+    : IResult
+{
     public async Task ExecuteAsync(HttpContext httpContext)
     {
-        IAsyncEnumerator<StreamResponse> enumerator;
+        using var operationActivity = diagnosticContext?.Start();
+        IAsyncEnumerator<TEvent> enumerator;
         try
         {
-            enumerator = _events.GetAsyncEnumerator(httpContext.RequestAborted);
+            enumerator = events.GetAsyncEnumerator(httpContext.RequestAborted);
         }
         catch (OperationCanceledException)
         {
+            A2AOperationDiagnostics.SetOutcome(operationActivity, "cancelled");
             return;
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            await WriteErrorAsync(httpContext, ex, streamStarted: false).ConfigureAwait(false);
+            A2AOperationDiagnostics.SetError(operationActivity, exception);
+            await WriteErrorAsync(
+                httpContext,
+                exception,
+                streamStarted: false).ConfigureAwait(false);
             return;
         }
 
         Exception? failure = null;
         var streamStarted = false;
         var completedWithoutEvents = false;
+        var cancelled = false;
         try
         {
             if (await enumerator.MoveNextAsync().ConfigureAwait(false))
@@ -302,10 +178,11 @@ internal sealed class A2AEventStreamResult : IResult
 
                 do
                 {
-                    #pragma warning disable VSTHRD103 // Serialize to string is not blocking I/O
-                    var json = JsonSerializer.Serialize(enumerator.Current,
-                        A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(StreamResponse)));
-                    #pragma warning restore VSTHRD103
+#pragma warning disable VSTHRD103 // Serialize to string is not blocking I/O
+                    var json = JsonSerializer.Serialize(
+                        enumerator.Current,
+                        eventTypeInfo);
+#pragma warning restore VSTHRD103
                     await httpContext.Response.BodyWriter.WriteAsync(
                         Encoding.UTF8.GetBytes($"data: {json}\n\n"), httpContext.RequestAborted);
                     await httpContext.Response.BodyWriter.FlushAsync(httpContext.RequestAborted);
@@ -319,11 +196,11 @@ internal sealed class A2AEventStreamResult : IResult
         }
         catch (OperationCanceledException)
         {
-            // Client disconnected — expected
+            cancelled = true;
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            failure = ex;
+            failure = exception;
         }
         finally
         {
@@ -333,21 +210,31 @@ internal sealed class A2AEventStreamResult : IResult
             }
             catch (OperationCanceledException)
             {
-                // Client disconnected — expected
+                cancelled = true;
             }
-            catch (Exception ex)
+            catch (Exception exception)
             {
-                failure ??= ex;
+                failure ??= exception;
             }
         }
 
         if (failure is not null)
         {
+            A2AOperationDiagnostics.SetError(operationActivity, failure);
             await WriteErrorAsync(httpContext, failure, streamStarted).ConfigureAwait(false);
         }
-        else if (completedWithoutEvents)
+        else if (cancelled)
         {
-            ConfigureSseResponse(httpContext);
+            A2AOperationDiagnostics.SetOutcome(operationActivity, "cancelled");
+        }
+        else
+        {
+            if (completedWithoutEvents)
+            {
+                ConfigureSseResponse(httpContext);
+            }
+
+            A2AOperationDiagnostics.SetOutcome(operationActivity, "success");
         }
     }
 
@@ -363,14 +250,28 @@ internal sealed class A2AEventStreamResult : IResult
         bufferingFeature.DisableBuffering();
     }
 
-    private static async Task WriteErrorAsync(HttpContext httpContext, Exception exception, bool streamStarted)
+    private async Task WriteErrorAsync(
+        HttpContext httpContext,
+        Exception exception,
+        bool streamStarted)
     {
         if (!streamStarted)
         {
-            var error = exception is A2AException a2aException
-                ? a2aException
-                : new A2AException("An internal error occurred.", A2AErrorCode.InternalError);
-            await new A2AErrorResult(error).ExecuteAsync(httpContext).ConfigureAwait(false);
+            IResult errorResult;
+            try
+            {
+                errorResult = createErrorResult(exception);
+            }
+            catch (Exception mappingException)
+            {
+                Activity.Current?.AddException(mappingException);
+                errorResult = new A2AErrorResult(
+                    new A2AException(
+                        "An internal error occurred.",
+                        A2AErrorCode.InternalError));
+            }
+
+            await errorResult.ExecuteAsync(httpContext).ConfigureAwait(false);
             return;
         }
 
@@ -381,9 +282,11 @@ internal sealed class A2AEventStreamResult : IResult
                 httpContext.RequestAborted);
             await httpContext.Response.BodyWriter.FlushAsync(httpContext.RequestAborted);
         }
-        catch
+        catch (OperationCanceledException)
         {
-            // Response body no longer writable
+        }
+        catch (IOException)
+        {
         }
     }
 }

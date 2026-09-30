@@ -136,7 +136,7 @@ public sealed class A2AOperationHandlerCatalogBuilder
             ValidateRegistration(operationCatalog, registration);
         }
 
-        return new(_registrations);
+        return new(_registrations, operationCatalog);
     }
 
     private static void ValidateRegistration(
@@ -176,10 +176,14 @@ public sealed class A2AOperationHandlerCatalog
     private readonly Dictionary<A2AOperationId, object> _registrations;
 
     internal A2AOperationHandlerCatalog(
-        IReadOnlyDictionary<A2AOperationId, object> registrations)
+        IReadOnlyDictionary<A2AOperationId, object> registrations,
+        A2AOperationCatalog operationCatalog)
     {
         _registrations = new Dictionary<A2AOperationId, object>(registrations);
+        OperationCatalog = operationCatalog;
     }
+
+    internal A2AOperationCatalog OperationCatalog { get; }
 
     /// <summary>Invokes the handler registered for an operation.</summary>
     /// <typeparam name="TRequest">The operation request type.</typeparam>

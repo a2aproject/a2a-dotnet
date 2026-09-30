@@ -1,8 +1,11 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Routing.Patterns;
 
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 
@@ -17,10 +20,20 @@ public delegate ValueTask<TRequest> A2AHttpRequestBinder<TRequest>(
     HttpContext httpContext,
     CancellationToken cancellationToken);
 
-/// <summary>Builds HTTP+JSON bindings for custom unary operations.</summary>
+/// <summary>Builds HTTP+JSON bindings for typed unary and streaming operations.</summary>
 public sealed class A2AHttpOperationBindingBuilder
 {
-    private readonly List<IA2AHttpOperationBinding> _bindings = [];
+    private readonly Dictionary<
+        A2AHttpOperationBindingKey,
+        IA2AHttpOperationBindingRegistration> _bindings = [];
+    private readonly Dictionary<
+        object,
+        List<IA2AHttpOperationBindingRegistration>> _bindingsByOperation =
+        new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<
+        object,
+        Dictionary<string, IA2AHttpErrorMapping>> _errorMappingsByOperation =
+        new(ReferenceEqualityComparer.Instance);
 
     /// <summary>Maps an HTTP route to a typed unary operation.</summary>
     /// <typeparam name="TRequest">The operation request type.</typeparam>
@@ -38,36 +51,192 @@ public sealed class A2AHttpOperationBindingBuilder
         A2AHttpRequestBinder<TRequest> requestBinder,
         JsonTypeInfo<TResult> resultTypeInfo)
     {
-        ArgumentException.ThrowIfNullOrEmpty(httpMethod);
-        ArgumentException.ThrowIfNullOrEmpty(route);
         ArgumentNullException.ThrowIfNull(operation);
         ArgumentNullException.ThrowIfNull(requestBinder);
         ArgumentNullException.ThrowIfNull(resultTypeInfo);
 
-        _bindings.Add(new A2AHttpOperationBinding<TRequest, TResult>(
+        AddBinding(
             httpMethod,
             route,
             operation,
-            requestBinder,
-            resultTypeInfo));
+            new A2AHttpUnaryOperationBindingRegistration<TRequest, TResult>(
+                operation,
+                requestBinder,
+                resultTypeInfo));
         return this;
     }
+
+    /// <summary>Maps an HTTP route to a typed streaming operation.</summary>
+    /// <typeparam name="TRequest">The operation request type.</typeparam>
+    /// <typeparam name="TEvent">The streamed event type.</typeparam>
+    /// <param name="httpMethod">The HTTP method.</param>
+    /// <param name="route">The route pattern.</param>
+    /// <param name="operation">The streaming operation definition.</param>
+    /// <param name="requestBinder">The request binder.</param>
+    /// <param name="eventTypeInfo">The event serialization metadata.</param>
+    /// <returns>This builder.</returns>
+    public A2AHttpOperationBindingBuilder MapStreaming<TRequest, TEvent>(
+        string httpMethod,
+        [StringSyntax("Route")] string route,
+        A2AStreamingOperation<TRequest, TEvent> operation,
+        A2AHttpRequestBinder<TRequest> requestBinder,
+        JsonTypeInfo<TEvent> eventTypeInfo)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        ArgumentNullException.ThrowIfNull(requestBinder);
+        ArgumentNullException.ThrowIfNull(eventTypeInfo);
+
+        AddBinding(
+            httpMethod,
+            route,
+            operation,
+            new A2AHttpStreamingOperationBindingRegistration<TRequest, TEvent>(
+                operation,
+                requestBinder,
+                eventTypeInfo));
+        return this;
+    }
+
+    /// <summary>Maps a declared unary operation error to an HTTP status.</summary>
+    /// <typeparam name="TRequest">The operation request type.</typeparam>
+    /// <typeparam name="TResult">The operation result type.</typeparam>
+    /// <typeparam name="TDetails">The error details type.</typeparam>
+    /// <param name="operation">The declaring unary operation.</param>
+    /// <param name="error">The declared operation error.</param>
+    /// <param name="statusCode">The HTTP error status.</param>
+    /// <param name="detailsTypeInfo">Error details serialization metadata.</param>
+    /// <returns>This builder.</returns>
+    public A2AHttpOperationBindingBuilder MapError<
+        TRequest,
+        TResult,
+        TDetails>(
+        A2AOperation<TRequest, TResult> operation,
+        A2AOperationError<TDetails> error,
+        int statusCode,
+        JsonTypeInfo<TDetails> detailsTypeInfo)
+        => MapErrorCore(operation, error, statusCode, detailsTypeInfo);
+
+    /// <summary>Maps a declared streaming operation error to an HTTP status.</summary>
+    /// <typeparam name="TRequest">The operation request type.</typeparam>
+    /// <typeparam name="TEvent">The streamed event type.</typeparam>
+    /// <typeparam name="TDetails">The error details type.</typeparam>
+    /// <param name="operation">The declaring streaming operation.</param>
+    /// <param name="error">The declared operation error.</param>
+    /// <param name="statusCode">The HTTP error status.</param>
+    /// <param name="detailsTypeInfo">Error details serialization metadata.</param>
+    /// <returns>This builder.</returns>
+    public A2AHttpOperationBindingBuilder MapError<
+        TRequest,
+        TEvent,
+        TDetails>(
+        A2AStreamingOperation<TRequest, TEvent> operation,
+        A2AOperationError<TDetails> error,
+        int statusCode,
+        JsonTypeInfo<TDetails> detailsTypeInfo)
+        => MapErrorCore(operation, error, statusCode, detailsTypeInfo);
 
     /// <summary>Builds the immutable HTTP operation bindings.</summary>
     /// <returns>The operation bindings.</returns>
     public A2AHttpOperationBindings Build()
-        => new(_bindings);
+        => new(_bindings.Values.ToArray());
+
+    private A2AHttpOperationBindingBuilder MapErrorCore<TDetails>(
+        object operation,
+        A2AOperationError<TDetails> error,
+        int statusCode,
+        JsonTypeInfo<TDetails> detailsTypeInfo)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        ArgumentNullException.ThrowIfNull(error);
+        ArgumentNullException.ThrowIfNull(detailsTypeInfo);
+        if (statusCode is < StatusCodes.Status400BadRequest or > 599)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(statusCode),
+                statusCode,
+                "An HTTP operation error status must be between 400 and 599.");
+        }
+
+        if (!_bindingsByOperation.TryGetValue(operation, out var registrations))
+        {
+            throw new InvalidOperationException(
+                "The A2A operation must have an HTTP binding before its errors can be mapped.");
+        }
+
+        if (!_errorMappingsByOperation.TryGetValue(
+                operation,
+                out var operationMappings))
+        {
+            operationMappings = new Dictionary<string, IA2AHttpErrorMapping>(
+                StringComparer.Ordinal);
+            _errorMappingsByOperation.Add(operation, operationMappings);
+        }
+
+        var mapping = new A2AHttpErrorMapping<TDetails>(
+            error,
+            statusCode,
+            detailsTypeInfo);
+        if (!operationMappings.TryAdd(mapping.ErrorId, mapping))
+        {
+            throw new InvalidOperationException(
+                $"The A2A operation error '{mapping.ErrorId}' already has an HTTP mapping.");
+        }
+
+        foreach (var registration in registrations)
+        {
+            registration.AddErrorMapping(mapping);
+        }
+
+        return this;
+    }
+
+    private void AddBinding(
+        string httpMethod,
+        [StringSyntax("Route")] string route,
+        object operation,
+        IA2AHttpOperationBindingRegistration registration)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(httpMethod);
+        ArgumentException.ThrowIfNullOrWhiteSpace(route);
+        RoutePatternFactory.Parse(route);
+
+        var key = new A2AHttpOperationBindingKey(httpMethod, route);
+        if (!_bindings.TryAdd(key, registration))
+        {
+            throw new InvalidOperationException(
+                $"An HTTP operation binding is already registered for '{httpMethod} {route}'.");
+        }
+
+        registration.SetRoute(key.HttpMethod, route);
+        if (!_bindingsByOperation.TryGetValue(operation, out var registrations))
+        {
+            registrations = [];
+            _bindingsByOperation.Add(operation, registrations);
+        }
+
+        registrations.Add(registration);
+        if (_errorMappingsByOperation.TryGetValue(
+                operation,
+                out var operationMappings))
+        {
+            foreach (var mapping in operationMappings.Values)
+            {
+                registration.AddErrorMapping(mapping);
+            }
+        }
+    }
 }
 
-/// <summary>Contains HTTP+JSON bindings for custom unary operations.</summary>
+/// <summary>Contains HTTP+JSON bindings for typed unary and streaming operations.</summary>
 public sealed class A2AHttpOperationBindings
 {
-    private readonly IReadOnlyList<IA2AHttpOperationBinding> _bindings;
+    private readonly IReadOnlyList<IA2AHttpOperationBindingRegistration>
+        _registrations;
 
     internal A2AHttpOperationBindings(
-        IReadOnlyList<IA2AHttpOperationBinding> bindings)
+        IReadOnlyList<IA2AHttpOperationBindingRegistration> registrations)
     {
-        _bindings = bindings.ToArray();
+        _registrations = registrations.ToArray();
     }
 
     internal void MapEndpoints(
@@ -75,11 +244,190 @@ public sealed class A2AHttpOperationBindings
         A2ARequestScopeFactory scopeFactory,
         A2AOperationHandlerCatalog handlers)
     {
-        foreach (var binding in _bindings)
+        foreach (var registration in _registrations)
         {
-            binding.MapEndpoint(routeGroup, scopeFactory, handlers);
+            registration.Build(handlers.OperationCatalog).MapEndpoint(
+                routeGroup,
+                scopeFactory,
+                handlers);
         }
     }
+}
+
+internal readonly record struct A2AHttpOperationBindingKey
+{
+    internal A2AHttpOperationBindingKey(string httpMethod, string route)
+    {
+        HttpMethod = httpMethod.ToUpperInvariant();
+        Route = A2AStandardHttpBindingBuilderExtensions
+            .NormalizeRoutePattern(route);
+    }
+
+    internal string HttpMethod { get; }
+
+    internal string Route { get; }
+}
+
+internal interface IA2AHttpOperationBindingRegistration
+{
+    void SetRoute(string httpMethod, string route);
+
+    void AddErrorMapping(IA2AHttpErrorMapping mapping);
+
+    IA2AHttpOperationBinding Build(A2AOperationCatalog operationCatalog);
+}
+
+internal abstract class A2AHttpOperationBindingRegistration
+    : IA2AHttpOperationBindingRegistration
+{
+    private readonly Dictionary<string, IA2AHttpErrorMapping> _errorMappings =
+        new(StringComparer.Ordinal);
+    private string? _httpMethod;
+    private string? _route;
+
+    protected abstract object Operation { get; }
+
+    protected abstract A2AOperationKind Kind { get; }
+
+    protected abstract Type RequestType { get; }
+
+    protected abstract Type ResponseType { get; }
+
+    public void SetRoute(string httpMethod, string route)
+    {
+        _httpMethod = httpMethod;
+        _route = route;
+    }
+
+    public void AddErrorMapping(IA2AHttpErrorMapping mapping)
+    {
+        ArgumentNullException.ThrowIfNull(mapping);
+        if (!_errorMappings.TryAdd(mapping.ErrorId, mapping))
+        {
+            throw new InvalidOperationException(
+                $"The A2A operation error '{mapping.ErrorId}' already has an HTTP mapping.");
+        }
+    }
+
+    public IA2AHttpOperationBinding Build(A2AOperationCatalog operationCatalog)
+    {
+        if (Operation is not IA2AOperationHandle operationHandle
+            || !operationCatalog.TryGetRegistration(
+                operationHandle.Id,
+                out var operationRegistration)
+            || !ReferenceEquals(operationRegistration.Handle, Operation))
+        {
+            throw new InvalidOperationException(
+                "The HTTP binding operation is not defined by the supplied operation catalog.");
+        }
+
+        if (operationRegistration.Kind != Kind
+            || operationRegistration.RequestType != RequestType
+            || operationRegistration.ResponseType != ResponseType)
+        {
+            throw new InvalidOperationException(
+                $"The HTTP binding for '{operationHandle.Id.Value}' uses incompatible operation types.");
+        }
+
+        var httpMethod = _httpMethod
+            ?? throw new InvalidOperationException("The HTTP binding has no method.");
+        var route = _route
+            ?? throw new InvalidOperationException("The HTTP binding has no route.");
+        A2AStandardHttpBindingBuilderExtensions.ValidateReservedRouteBinding(
+            httpMethod,
+            route,
+            operationRegistration);
+
+        foreach (var mapping in _errorMappings.Values)
+        {
+            if (!operationRegistration.DeclaredErrors.TryGetValue(
+                    mapping.ErrorId,
+                    out var declaredError)
+                || !ReferenceEquals(declaredError, mapping.Error))
+            {
+                throw new InvalidOperationException(
+                    $"The A2A operation '{operationHandle.Id.Value}' does not declare error '{mapping.ErrorId}' with the mapped details type.");
+            }
+        }
+
+        return BuildCore(
+            httpMethod,
+            route,
+            operationCatalog,
+            operationRegistration,
+            new Dictionary<string, IA2AHttpErrorMapping>(
+                _errorMappings,
+                StringComparer.Ordinal));
+    }
+
+    protected abstract IA2AHttpOperationBinding BuildCore(
+        string httpMethod,
+        string route,
+        A2AOperationCatalog operationCatalog,
+        A2AOperationRegistration operationRegistration,
+        IReadOnlyDictionary<string, IA2AHttpErrorMapping> errorMappings);
+}
+
+internal sealed class A2AHttpUnaryOperationBindingRegistration<TRequest, TResult>(
+    A2AOperation<TRequest, TResult> operation,
+    A2AHttpRequestBinder<TRequest> requestBinder,
+    JsonTypeInfo<TResult> resultTypeInfo)
+    : A2AHttpOperationBindingRegistration
+{
+    protected override object Operation => operation;
+
+    protected override A2AOperationKind Kind => A2AOperationKind.Unary;
+
+    protected override Type RequestType => typeof(TRequest);
+
+    protected override Type ResponseType => typeof(TResult);
+
+    protected override IA2AHttpOperationBinding BuildCore(
+        string httpMethod,
+        string route,
+        A2AOperationCatalog operationCatalog,
+        A2AOperationRegistration operationRegistration,
+        IReadOnlyDictionary<string, IA2AHttpErrorMapping> errorMappings)
+        => new A2AHttpUnaryOperationBinding<TRequest, TResult>(
+            httpMethod,
+            route,
+            operationCatalog,
+            operationRegistration.Source,
+            operation,
+            requestBinder,
+            resultTypeInfo,
+            errorMappings);
+}
+
+internal sealed class A2AHttpStreamingOperationBindingRegistration<TRequest, TEvent>(
+    A2AStreamingOperation<TRequest, TEvent> operation,
+    A2AHttpRequestBinder<TRequest> requestBinder,
+    JsonTypeInfo<TEvent> eventTypeInfo)
+    : A2AHttpOperationBindingRegistration
+{
+    protected override object Operation => operation;
+
+    protected override A2AOperationKind Kind => A2AOperationKind.Streaming;
+
+    protected override Type RequestType => typeof(TRequest);
+
+    protected override Type ResponseType => typeof(TEvent);
+
+    protected override IA2AHttpOperationBinding BuildCore(
+        string httpMethod,
+        string route,
+        A2AOperationCatalog operationCatalog,
+        A2AOperationRegistration operationRegistration,
+        IReadOnlyDictionary<string, IA2AHttpErrorMapping> errorMappings)
+        => new A2AHttpStreamingOperationBinding<TRequest, TEvent>(
+            httpMethod,
+            route,
+            operationCatalog,
+            operationRegistration.Source,
+            operation,
+            requestBinder,
+            eventTypeInfo,
+            errorMappings);
 }
 
 internal interface IA2AHttpOperationBinding
@@ -90,12 +438,18 @@ internal interface IA2AHttpOperationBinding
         A2AOperationHandlerCatalog handlers);
 }
 
-internal sealed class A2AHttpOperationBinding<TRequest, TResult>(
+internal interface IA2AHttpBoundOperation
+{
+    ValueTask<IResult> InvokeAsync(
+        A2AOperationContext context,
+        A2AOperationHandlerCatalog handlers,
+        CancellationToken cancellationToken);
+}
+
+internal abstract class A2AHttpOperationBinding(
     string httpMethod,
     string route,
-    A2AOperation<TRequest, TResult> operation,
-    A2AHttpRequestBinder<TRequest> requestBinder,
-    JsonTypeInfo<TResult> resultTypeInfo)
+    IReadOnlyDictionary<string, IA2AHttpErrorMapping> errorMappings)
     : IA2AHttpOperationBinding
 {
     public void MapEndpoint(
@@ -114,38 +468,77 @@ internal sealed class A2AHttpOperationBinding<TRequest, TResult>(
                     cancellationToken));
     }
 
+    protected abstract ValueTask<IA2AHttpBoundOperation> BindAsync(
+        HttpContext httpContext,
+        CancellationToken cancellationToken);
+
+    protected IResult CreateErrorResult(Exception exception)
+    {
+        if (exception is A2AException a2aException)
+        {
+            return new A2AErrorResult(a2aException);
+        }
+
+        if (exception is A2AOperationException operationException
+            && errorMappings.TryGetValue(
+                operationException.ErrorId,
+                out var mapping)
+            && mapping.TryCreateResult(
+                operationException,
+                out var mappedResult))
+        {
+            return mappedResult;
+        }
+
+        return CreateInternalErrorResult();
+    }
+
     private async Task<IResult> InvokeAsync(
         HttpContext httpContext,
         A2ARequestScopeFactory scopeFactory,
         A2AOperationHandlerCatalog handlers,
         CancellationToken cancellationToken)
     {
+        using var activity = A2AAspNetCoreDiagnostics.Source.StartActivity(
+            "HandleA2AHttpRequest",
+            ActivityKind.Server);
+        activity?.SetTag("http.request.method", httpMethod);
+        activity?.SetTag("http.route", route);
+
         A2ARequestScope? scope = null;
         try
         {
+            var boundOperation = await BindAsync(
+                httpContext,
+                cancellationToken).ConfigureAwait(false);
+
             scope = await scopeFactory(
                 httpContext,
                 cancellationToken).ConfigureAwait(false);
             ArgumentNullException.ThrowIfNull(scope);
 
-            var request = await requestBinder(
-                httpContext,
-                cancellationToken).ConfigureAwait(false);
-            var result = await handlers.InvokeAsync(
-                operation,
+            var result = await boundOperation.InvokeAsync(
                 scope.Context,
-                request,
+                handlers,
                 cancellationToken).ConfigureAwait(false);
-
-            return WrapScope(
-                new A2AHttpOperationResult<TResult>(result, resultTypeInfo),
-                ref scope);
+            return WrapScope(result, ref scope);
         }
-        catch (A2AException exception)
+        catch (A2AHttpBindingException exception)
         {
-            return WrapScope(
-                new A2AErrorResult(exception),
-                ref scope);
+            activity?.SetStatus(ActivityStatusCode.Error);
+            return WrapScope(exception.Result, ref scope);
+        }
+        catch (OperationCanceledException)
+            when (cancellationToken.IsCancellationRequested)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, "cancelled");
+            throw;
+        }
+        catch (Exception exception)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, exception.Message);
+            activity?.AddException(exception);
+            return WrapScope(CreateErrorResult(exception), ref scope);
         }
         finally
         {
@@ -156,14 +549,322 @@ internal sealed class A2AHttpOperationBinding<TRequest, TResult>(
         }
     }
 
-    private static A2ARequestScopeResult WrapScope(
+    private static A2AErrorResult CreateInternalErrorResult() =>
+        new A2AErrorResult(
+            new A2AException(
+                "An internal error occurred.",
+                A2AErrorCode.InternalError));
+
+    private static IResult WrapScope(
         IResult result,
         ref A2ARequestScope? scope)
     {
-        var scopedResult = new A2ARequestScopeResult(result, scope!);
+        if (scope is null)
+        {
+            return result;
+        }
+
+        var scopedResult = new A2ARequestScopeResult(result, scope);
         scope = null;
         return scopedResult;
     }
+}
+
+internal sealed class A2AHttpUnaryOperationBinding<TRequest, TResult>(
+    string httpMethod,
+    string route,
+    A2AOperationCatalog operationCatalog,
+    A2AOperationSource operationSource,
+    A2AOperation<TRequest, TResult> operation,
+    A2AHttpRequestBinder<TRequest> requestBinder,
+    JsonTypeInfo<TResult> resultTypeInfo,
+    IReadOnlyDictionary<string, IA2AHttpErrorMapping> errorMappings)
+    : A2AHttpOperationBinding(httpMethod, route, errorMappings)
+{
+    protected override async ValueTask<IA2AHttpBoundOperation> BindAsync(
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        var request = await BindRequestAsync(
+            requestBinder,
+            httpContext,
+            cancellationToken).ConfigureAwait(false);
+        operationCatalog.Validate(operation, request);
+        return new BoundOperation(
+            operationSource,
+            operation,
+            request,
+            resultTypeInfo);
+    }
+
+    private sealed class BoundOperation(
+        A2AOperationSource operationSource,
+        A2AOperation<TRequest, TResult> operation,
+        TRequest request,
+        JsonTypeInfo<TResult> resultTypeInfo)
+        : IA2AHttpBoundOperation
+    {
+        public async ValueTask<IResult> InvokeAsync(
+            A2AOperationContext context,
+            A2AOperationHandlerCatalog handlers,
+            CancellationToken cancellationToken)
+        {
+            using var activity = A2AOperationDiagnostics.Start(
+                operation.Id,
+                A2AOperationKind.Unary,
+                operationSource,
+                "http-json");
+            try
+            {
+                var result = await handlers.InvokeAsync(
+                    operation,
+                    context,
+                    request,
+                    cancellationToken).ConfigureAwait(false);
+                A2AOperationDiagnostics.SetOutcome(activity, "success");
+                return result is A2AEmptyResult
+                    ? Results.NoContent()
+                    : new A2AHttpOperationResult<TResult>(
+                        result,
+                        resultTypeInfo);
+            }
+            catch (OperationCanceledException)
+            {
+                A2AOperationDiagnostics.SetOutcome(activity, "cancelled");
+                throw;
+            }
+            catch (Exception exception)
+            {
+                A2AOperationDiagnostics.SetError(activity, exception);
+                throw;
+            }
+        }
+    }
+
+    private static async ValueTask<TRequest> BindRequestAsync(
+        A2AHttpRequestBinder<TRequest> binder,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var request = await binder(
+                httpContext,
+                cancellationToken).ConfigureAwait(false);
+            if (request is null)
+            {
+                throw new A2AException(
+                    $"Failed to bind the HTTP request as {typeof(TRequest).Name}.",
+                    A2AErrorCode.InvalidParams);
+            }
+
+            return request;
+        }
+        catch (A2AException)
+        {
+            throw;
+        }
+        catch (JsonException exception)
+        {
+            throw new A2AException(
+                $"Invalid HTTP request body for {typeof(TRequest).Name}.",
+                exception,
+                A2AErrorCode.InvalidParams);
+        }
+        catch (FormatException exception)
+        {
+            throw new A2AException(
+                $"Invalid HTTP request value for {typeof(TRequest).Name}.",
+                exception,
+                A2AErrorCode.InvalidParams);
+        }
+        catch (OverflowException exception)
+        {
+            throw new A2AException(
+                $"Invalid HTTP request value for {typeof(TRequest).Name}.",
+                exception,
+                A2AErrorCode.InvalidParams);
+        }
+    }
+}
+
+internal sealed class A2AHttpStreamingOperationBinding<TRequest, TEvent>(
+    string httpMethod,
+    string route,
+    A2AOperationCatalog operationCatalog,
+    A2AOperationSource operationSource,
+    A2AStreamingOperation<TRequest, TEvent> operation,
+    A2AHttpRequestBinder<TRequest> requestBinder,
+    JsonTypeInfo<TEvent> eventTypeInfo,
+    IReadOnlyDictionary<string, IA2AHttpErrorMapping> errorMappings)
+    : A2AHttpOperationBinding(httpMethod, route, errorMappings)
+{
+    protected override async ValueTask<IA2AHttpBoundOperation> BindAsync(
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        var request = await BindRequestAsync(
+            requestBinder,
+            httpContext,
+            cancellationToken).ConfigureAwait(false);
+        operationCatalog.ValidateStreaming(operation, request);
+        return new BoundOperation(
+            operationSource,
+            operation,
+            request,
+            eventTypeInfo,
+            CreateErrorResult);
+    }
+
+    private sealed class BoundOperation(
+        A2AOperationSource operationSource,
+        A2AStreamingOperation<TRequest, TEvent> operation,
+        TRequest request,
+        JsonTypeInfo<TEvent> eventTypeInfo,
+        Func<Exception, IResult> createErrorResult)
+        : IA2AHttpBoundOperation
+    {
+        public ValueTask<IResult> InvokeAsync(
+            A2AOperationContext context,
+            A2AOperationHandlerCatalog handlers,
+            CancellationToken cancellationToken)
+        {
+            IAsyncEnumerable<TEvent> events;
+            try
+            {
+                events = handlers.InvokeStreamingAsync(
+                    operation,
+                    context,
+                    request,
+                    cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                using var activity = A2AOperationDiagnostics.Start(
+                    operation.Id,
+                    A2AOperationKind.Streaming,
+                    operationSource,
+                    "http-json");
+                A2AOperationDiagnostics.SetError(activity, exception);
+                throw;
+            }
+
+            return ValueTask.FromResult<IResult>(
+                new A2AEventStreamResult<TEvent>(
+                    events,
+                    eventTypeInfo,
+                    createErrorResult,
+                    new A2AOperationDiagnosticContext(
+                        operation.Id,
+                        A2AOperationKind.Streaming,
+                        operationSource,
+                        "http-json")));
+        }
+    }
+
+    private static async ValueTask<TRequest> BindRequestAsync(
+        A2AHttpRequestBinder<TRequest> binder,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var request = await binder(
+                httpContext,
+                cancellationToken).ConfigureAwait(false);
+            if (request is null)
+            {
+                throw new A2AException(
+                    $"Failed to bind the HTTP request as {typeof(TRequest).Name}.",
+                    A2AErrorCode.InvalidParams);
+            }
+
+            return request;
+        }
+        catch (A2AException)
+        {
+            throw;
+        }
+        catch (JsonException exception)
+        {
+            throw new A2AException(
+                $"Invalid HTTP request body for {typeof(TRequest).Name}.",
+                exception,
+                A2AErrorCode.InvalidParams);
+        }
+        catch (FormatException exception)
+        {
+            throw new A2AException(
+                $"Invalid HTTP request value for {typeof(TRequest).Name}.",
+                exception,
+                A2AErrorCode.InvalidParams);
+        }
+        catch (OverflowException exception)
+        {
+            throw new A2AException(
+                $"Invalid HTTP request value for {typeof(TRequest).Name}.",
+                exception,
+                A2AErrorCode.InvalidParams);
+        }
+    }
+}
+
+internal interface IA2AHttpErrorMapping
+{
+    string ErrorId { get; }
+
+    object Error { get; }
+
+    bool TryCreateResult(
+        A2AOperationException exception,
+        out IResult result);
+}
+
+internal sealed class A2AHttpErrorMapping<TDetails>(
+    A2AOperationError<TDetails> error,
+    int statusCode,
+    JsonTypeInfo<TDetails> detailsTypeInfo)
+    : IA2AHttpErrorMapping
+{
+    public string ErrorId => error.ErrorId;
+
+    public object Error => error;
+
+    public bool TryCreateResult(
+        A2AOperationException exception,
+        out IResult result)
+    {
+        if (exception is not A2AOperationException<TDetails> typedException
+            || !ReferenceEquals(typedException.Error, error))
+        {
+            result = null!;
+            return false;
+        }
+
+        try
+        {
+            var details = JsonSerializer.SerializeToElement(
+                typedException.Details,
+                detailsTypeInfo);
+            result = new A2AHttpOperationErrorResult(
+                statusCode,
+                typedException.Message,
+                error.ErrorId,
+                details);
+            return true;
+        }
+        catch (Exception serializationException)
+        {
+            Activity.Current?.AddException(serializationException);
+            result = null!;
+            return false;
+        }
+    }
+}
+
+internal sealed class A2AHttpBindingException(IResult result) : Exception
+{
+    internal IResult Result { get; } = result;
 }
 
 internal sealed class A2AHttpOperationResult<TResult>(
@@ -171,13 +872,112 @@ internal sealed class A2AHttpOperationResult<TResult>(
     JsonTypeInfo<TResult> resultTypeInfo)
     : IResult
 {
-    public Task ExecuteAsync(HttpContext httpContext)
+    public async Task ExecuteAsync(HttpContext httpContext)
     {
+        using var buffer = new MemoryStream();
+        try
+        {
+            await JsonSerializer.SerializeAsync(
+                buffer,
+                result,
+                resultTypeInfo,
+                httpContext.RequestAborted).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+            when (httpContext.RequestAborted.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception exception)
+        {
+            Activity.Current?.AddException(exception);
+            await new A2AErrorResult(
+                new A2AException(
+                    "An internal error occurred.",
+                    A2AErrorCode.InternalError))
+                .ExecuteAsync(httpContext).ConfigureAwait(false);
+            return;
+        }
+
+        buffer.Position = 0;
+        httpContext.Response.StatusCode = StatusCodes.Status200OK;
         httpContext.Response.ContentType = "application/json";
-        return JsonSerializer.SerializeAsync(
+        await buffer.CopyToAsync(
             httpContext.Response.Body,
-            result,
-            resultTypeInfo,
-            httpContext.RequestAborted);
+            httpContext.RequestAborted).ConfigureAwait(false);
     }
+}
+
+internal sealed class A2AHttpOperationErrorResult(
+    int statusCode,
+    string message,
+    string errorId,
+    JsonElement details)
+    : IResult,
+      IStatusCodeHttpResult
+{
+    public int? StatusCode => statusCode;
+
+    public async Task ExecuteAsync(HttpContext httpContext)
+    {
+        httpContext.Response.StatusCode = statusCode;
+        httpContext.Response.ContentType = "application/json";
+
+        using var buffer = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(buffer))
+        {
+            writer.WriteStartObject();
+            writer.WritePropertyName("error");
+            writer.WriteStartObject();
+            writer.WriteNumber("code", statusCode);
+            writer.WriteString("status", GetStatusName(statusCode));
+            writer.WriteString("message", message);
+            writer.WritePropertyName("details");
+            writer.WriteStartArray();
+            writer.WriteStartObject();
+            writer.WriteString("@type", errorId);
+            if (details.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var property in details.EnumerateObject())
+                {
+                    if (!property.NameEquals("@type"))
+                    {
+                        property.WriteTo(writer);
+                    }
+                }
+            }
+            else
+            {
+                writer.WritePropertyName("value");
+                details.WriteTo(writer);
+            }
+
+            writer.WriteEndObject();
+            writer.WriteEndArray();
+            writer.WriteEndObject();
+            writer.WriteEndObject();
+        }
+
+        buffer.Position = 0;
+        await buffer.CopyToAsync(
+            httpContext.Response.Body,
+            httpContext.RequestAborted).ConfigureAwait(false);
+    }
+
+    private static string GetStatusName(int value) =>
+        value switch
+        {
+            StatusCodes.Status400BadRequest => "INVALID_ARGUMENT",
+            StatusCodes.Status401Unauthorized => "UNAUTHENTICATED",
+            StatusCodes.Status403Forbidden => "PERMISSION_DENIED",
+            StatusCodes.Status404NotFound => "NOT_FOUND",
+            StatusCodes.Status409Conflict => "ABORTED",
+            StatusCodes.Status429TooManyRequests => "RESOURCE_EXHAUSTED",
+            StatusCodes.Status499ClientClosedRequest => "CANCELLED",
+            StatusCodes.Status500InternalServerError => "INTERNAL",
+            StatusCodes.Status501NotImplemented => "UNIMPLEMENTED",
+            StatusCodes.Status503ServiceUnavailable => "UNAVAILABLE",
+            StatusCodes.Status504GatewayTimeout => "DEADLINE_EXCEEDED",
+            _ => "UNKNOWN",
+        };
 }

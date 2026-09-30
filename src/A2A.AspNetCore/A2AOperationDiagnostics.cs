@@ -5,10 +5,11 @@ namespace A2A.AspNetCore;
 internal readonly record struct A2AOperationDiagnosticContext(
     A2AOperationId OperationId,
     A2AOperationKind Kind,
-    A2AOperationSource Source)
+    A2AOperationSource Source,
+    string Transport = "jsonrpc")
 {
     internal Activity? Start() =>
-        A2AOperationDiagnostics.Start(OperationId, Kind, Source);
+        A2AOperationDiagnostics.Start(OperationId, Kind, Source, Transport);
 }
 
 internal static class A2AOperationDiagnostics
@@ -16,7 +17,8 @@ internal static class A2AOperationDiagnostics
     internal static Activity? Start(
         A2AOperationId operationId,
         A2AOperationKind kind,
-        A2AOperationSource source)
+        A2AOperationSource source,
+        string transport = "jsonrpc")
     {
         var activity = A2AAspNetCoreDiagnostics.Source.StartActivity(
             "a2a.operation",
@@ -29,7 +31,7 @@ internal static class A2AOperationDiagnostics
             "a2a.operation.source",
             source == A2AOperationSource.Standard ? "standard" : "extension");
         activity?.SetTag("a2a.operation.role", "server");
-        activity?.SetTag("a2a.transport", "jsonrpc");
+        activity?.SetTag("a2a.transport", transport);
         return activity;
     }
 
