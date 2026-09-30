@@ -11,6 +11,7 @@ public sealed class A2AClient : IA2AClient, IDisposable
 {
     internal static readonly HttpClient s_sharedClient = new();
     private readonly HttpClient _httpClient;
+    private readonly A2AClientOperationBindings _operationBindings;
     private readonly string _url;
 
     /// <summary>Initializes a new instance of the <see cref="A2AClient"/> class.</summary>
@@ -18,13 +19,56 @@ public sealed class A2AClient : IA2AClient, IDisposable
     /// <param name="httpClient">The HTTP client to use for requests.</param>
     public A2AClient(Uri baseUrl, HttpClient? httpClient = null)
     {
+        ArgumentNullException.ThrowIfNull(baseUrl);
+
+        _url = baseUrl.ToString();
+        _operationBindings = A2AClientOperationBindings.Empty;
+        _httpClient = httpClient ?? s_sharedClient;
+    }
+
+    /// <summary>Initializes a client with custom operation bindings.</summary>
+    /// <param name="baseUrl">The base url of the agent's hosting service.</param>
+    /// <param name="operationBindings">The custom operation bindings.</param>
+    /// <param name="httpClient">The HTTP client to use for requests.</param>
+    public A2AClient(
+        Uri baseUrl,
+        A2AClientOperationBindings operationBindings,
+        HttpClient httpClient)
+    {
         if (baseUrl is null)
         {
             throw new ArgumentNullException(nameof(baseUrl), "Base URL cannot be null.");
         }
+        ArgumentNullException.ThrowIfNull(operationBindings);
+        ArgumentNullException.ThrowIfNull(httpClient);
 
         _url = baseUrl.ToString();
-        _httpClient = httpClient ?? s_sharedClient;
+        _operationBindings = operationBindings;
+        _httpClient = httpClient;
+    }
+
+    /// <inheritdoc />
+    public async Task<TResult> InvokeAsync<TRequest, TResult>(
+        A2AOperation<TRequest, TResult> operation,
+        TRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var binding = _operationBindings.GetJsonRpc(operation);
+        var parameters = JsonSerializer.SerializeToElement(
+            request,
+            binding.RequestTypeInfo);
+        var response = await SendJsonRpcRequestCoreAsync(
+            binding.Method,
+            parameters,
+            binding.RequestCustomizer is null
+                ? null
+                : message => binding.RequestCustomizer(message, request),
+            cancellationToken).ConfigureAwait(false);
+
+        return response.Result.Deserialize(binding.ResultTypeInfo)
+            ?? throw new A2AException(
+                "Failed to deserialize JSON-RPC result.",
+                A2AErrorCode.InternalError);
     }
 
     /// <inheritdoc />
@@ -131,6 +175,24 @@ public sealed class A2AClient : IA2AClient, IDisposable
     [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "All types are registered in source-generated JsonContext.")]
     private async Task<JsonRpcResponse> SendJsonRpcRequestCoreAsync(string method, object? @params, CancellationToken cancellationToken)
     {
+        var parameters = @params is not null
+            ? JsonSerializer.SerializeToElement(
+                @params,
+                A2AJsonUtilities.DefaultOptions)
+            : (JsonElement?)null;
+        return await SendJsonRpcRequestCoreAsync(
+            method,
+            parameters,
+            requestCustomizer: null,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<JsonRpcResponse> SendJsonRpcRequestCoreAsync(
+        string method,
+        JsonElement? parameters,
+        Action<HttpRequestMessage>? requestCustomizer,
+        CancellationToken cancellationToken)
+    {
         using var activity = A2ADiagnostics.Source.StartActivity($"A2AClient/{method}", ActivityKind.Client);
         var stopwatch = Stopwatch.StartNew();
 
@@ -138,7 +200,7 @@ public sealed class A2AClient : IA2AClient, IDisposable
         {
             Method = method,
             Id = new JsonRpcId(Guid.NewGuid().ToString()),
-            Params = @params is not null ? JsonSerializer.SerializeToElement(@params, A2AJsonUtilities.DefaultOptions) : null,
+            Params = parameters,
         };
 
         activity?.SetTag("rpc.system", "jsonrpc");
@@ -153,11 +215,15 @@ public sealed class A2AClient : IA2AClient, IDisposable
             using var content = new JsonRpcContent(rpcRequest);
             using var requestMessage = new HttpRequestMessage(HttpMethod.Post, _url) { Content = content };
             requestMessage.Headers.TryAddWithoutValidation("A2A-Version", "1.0");
+            requestCustomizer?.Invoke(requestMessage);
             using var response = await _httpClient.SendAsync(requestMessage, cancellationToken).ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
 
             using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-            var rpcResponse = await JsonSerializer.DeserializeAsync<JsonRpcResponse>(stream, A2AJsonUtilities.DefaultOptions, cancellationToken).ConfigureAwait(false)
+            var rpcResponse = (JsonRpcResponse?)await JsonSerializer.DeserializeAsync(
+                stream,
+                A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcResponse)),
+                cancellationToken).ConfigureAwait(false)
                 ?? throw new A2AException("Failed to deserialize JSON-RPC response.", A2AErrorCode.InternalError);
 
             if (rpcResponse.Error is { } error)

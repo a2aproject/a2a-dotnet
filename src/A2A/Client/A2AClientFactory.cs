@@ -10,14 +10,26 @@ namespace A2A;
 /// The factory ships with built-in support for <see cref="ProtocolBindingNames.HttpJson"/> and
 /// <see cref="ProtocolBindingNames.JsonRpc"/>. Additional bindings (including
 /// <see cref="ProtocolBindingNames.Grpc"/> and custom bindings) can be registered via
-/// <see cref="Register"/>.
+/// <c>A2AClientFactory.Register</c>.
 /// </remarks>
 public static class A2AClientFactory
 {
-    private static readonly ConcurrentDictionary<string, Func<Uri, HttpClient?, IA2AClient>> s_bindings = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly ConcurrentDictionary<string, Func<Uri, HttpClient?, A2AClientOperationBindings?, IA2AClient>> s_bindings = new(StringComparer.OrdinalIgnoreCase)
     {
-        [ProtocolBindingNames.HttpJson] = (url, httpClient) => new A2AHttpJsonClient(url, httpClient),
-        [ProtocolBindingNames.JsonRpc] = (url, httpClient) => new A2AClient(url, httpClient),
+        [ProtocolBindingNames.HttpJson] = (url, httpClient, operationBindings) =>
+            operationBindings is null
+                ? new A2AHttpJsonClient(url, httpClient)
+                : new A2AHttpJsonClient(
+                    url,
+                    operationBindings,
+                    httpClient ?? A2AClient.s_sharedClient),
+        [ProtocolBindingNames.JsonRpc] = (url, httpClient, operationBindings) =>
+            operationBindings is null
+                ? new A2AClient(url, httpClient)
+                : new A2AClient(
+                    url,
+                    operationBindings,
+                    httpClient ?? A2AClient.s_sharedClient),
     };
 
     /// <summary>
@@ -33,6 +45,31 @@ public static class A2AClientFactory
     /// Thrown when <paramref name="protocolBinding"/> or <paramref name="clientFactory"/> is <see langword="null"/>.
     /// </exception>
     public static void Register(string protocolBinding, Func<Uri, HttpClient?, IA2AClient> clientFactory)
+    {
+        ArgumentNullException.ThrowIfNull(protocolBinding);
+        ArgumentNullException.ThrowIfNull(clientFactory);
+        s_bindings[protocolBinding] =
+            (url, httpClient, _) => clientFactory(url, httpClient);
+    }
+
+    /// <summary>
+    /// Registers a custom protocol binding that supports custom operation bindings.
+    /// </summary>
+    /// <param name="protocolBinding">
+    /// The protocol binding name. Matching is case-insensitive.
+    /// </param>
+    /// <param name="clientFactory">
+    /// A delegate that creates an <see cref="A2A.IA2AClient"/> from the interface URL,
+    /// optional <see cref="System.Net.Http.HttpClient"/>, and optional
+    /// <see cref="A2A.A2AClientOperationBindings"/>.
+    /// </param>
+    /// <exception cref="System.ArgumentNullException">
+    /// Thrown when <paramref name="protocolBinding"/> or <paramref name="clientFactory"/> is
+    /// <see langword="null"/>.
+    /// </exception>
+    public static void RegisterWithOperationBindings(
+        string protocolBinding,
+        Func<Uri, HttpClient?, A2AClientOperationBindings?, IA2AClient> clientFactory)
     {
         ArgumentNullException.ThrowIfNull(protocolBinding);
         ArgumentNullException.ThrowIfNull(clientFactory);
@@ -61,6 +98,39 @@ public static class A2AClientFactory
     /// wins when multiple bindings are mutually supported.
     /// </remarks>
     public static IA2AClient Create(AgentCard agentCard, HttpClient? httpClient = null, A2AClientOptions? options = null)
+        => CreateCore(
+            agentCard,
+            httpClient,
+            options,
+            operationBindings: null);
+
+    /// <summary>
+    /// Creates an <see cref="IA2AClient"/> with custom operation bindings.
+    /// </summary>
+    /// <param name="agentCard">The agent card describing the supported interfaces.</param>
+    /// <param name="operationBindings">The custom operation bindings.</param>
+    /// <param name="httpClient">The HTTP client to use for requests.</param>
+    /// <param name="options">Optional protocol binding preferences.</param>
+    /// <returns>A client configured for the selected protocol binding.</returns>
+    public static IA2AClient Create(
+        AgentCard agentCard,
+        A2AClientOperationBindings operationBindings,
+        HttpClient? httpClient = null,
+        A2AClientOptions? options = null)
+    {
+        ArgumentNullException.ThrowIfNull(operationBindings);
+        return CreateCore(
+            agentCard,
+            httpClient,
+            options,
+            operationBindings);
+    }
+
+    private static IA2AClient CreateCore(
+        AgentCard agentCard,
+        HttpClient? httpClient,
+        A2AClientOptions? options,
+        A2AClientOperationBindings? operationBindings)
     {
         ArgumentNullException.ThrowIfNull(agentCard);
 
@@ -80,7 +150,7 @@ public static class A2AClientFactory
 
             if (s_bindings.TryGetValue(agentInterface.ProtocolBinding, out var factory))
             {
-                return factory(url, httpClient);
+                return factory(url, httpClient, operationBindings);
             }
 
             throw new A2AException(

@@ -14,6 +14,8 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
 {
     private readonly HttpClient _httpClient;
     private readonly string _baseUrl;
+    private readonly Uri _endpoint;
+    private readonly A2AClientOperationBindings _operationBindings;
 
     /// <summary>Initializes a new instance of the <see cref="A2AHttpJsonClient"/> class.</summary>
     /// <param name="baseUrl">
@@ -26,7 +28,59 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
         ArgumentNullException.ThrowIfNull(baseUrl);
 
         _baseUrl = baseUrl.ToString().TrimEnd('/');
+        _endpoint = baseUrl;
+        _operationBindings = A2AClientOperationBindings.Empty;
         _httpClient = httpClient ?? A2AClient.s_sharedClient;
+    }
+
+    /// <summary>Initializes a client with custom operation bindings.</summary>
+    /// <param name="baseUrl">The base URL of the HTTP+JSON interface.</param>
+    /// <param name="operationBindings">The custom operation bindings.</param>
+    /// <param name="httpClient">The HTTP client to use for requests.</param>
+    public A2AHttpJsonClient(
+        Uri baseUrl,
+        A2AClientOperationBindings operationBindings,
+        HttpClient httpClient)
+    {
+        ArgumentNullException.ThrowIfNull(baseUrl);
+        ArgumentNullException.ThrowIfNull(operationBindings);
+        ArgumentNullException.ThrowIfNull(httpClient);
+
+        _baseUrl = baseUrl.ToString().TrimEnd('/');
+        _endpoint = baseUrl;
+        _operationBindings = operationBindings;
+        _httpClient = httpClient;
+    }
+
+    /// <inheritdoc />
+    public async Task<TResult> InvokeAsync<TRequest, TResult>(
+        A2AOperation<TRequest, TResult> operation,
+        TRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var binding = _operationBindings.GetHttp(operation);
+        using var requestMessage = await binding.RequestMapper(
+            _endpoint,
+            request,
+            cancellationToken).ConfigureAwait(false);
+        requestMessage.Headers.TryAddWithoutValidation("A2A-Version", "1.0");
+
+        using var response = await _httpClient.SendAsync(
+            requestMessage,
+            cancellationToken).ConfigureAwait(false);
+        await EnsureSuccessOrThrowA2AExceptionAsync(
+            response,
+            cancellationToken).ConfigureAwait(false);
+
+        using var stream = await response.Content.ReadAsStreamAsync(
+            cancellationToken).ConfigureAwait(false);
+        return await JsonSerializer.DeserializeAsync(
+            stream,
+            binding.ResultTypeInfo,
+            cancellationToken).ConfigureAwait(false)
+            ?? throw new A2AException(
+                "Failed to deserialize REST response.",
+                A2AErrorCode.InternalError);
     }
 
     /// <inheritdoc />

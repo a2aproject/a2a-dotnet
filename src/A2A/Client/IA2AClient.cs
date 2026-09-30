@@ -3,6 +3,18 @@ namespace A2A;
 /// <summary>Defines the client interface for communicating with an A2A agent.</summary>
 public interface IA2AClient
 {
+    /// <summary>Invokes a custom typed unary operation.</summary>
+    /// <typeparam name="TRequest">The operation request type.</typeparam>
+    /// <typeparam name="TResult">The operation result type.</typeparam>
+    /// <param name="operation">The operation definition.</param>
+    /// <param name="request">The operation request.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The operation result.</returns>
+    Task<TResult> InvokeAsync<TRequest, TResult>(
+        A2AOperation<TRequest, TResult> operation,
+        TRequest request,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Sends a message to the agent.</summary>
     /// <param name="request">The send message request.</param>
     /// <param name="cancellationToken">A cancellation token.</param>

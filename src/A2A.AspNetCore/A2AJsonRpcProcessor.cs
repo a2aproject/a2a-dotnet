@@ -10,6 +10,144 @@ namespace A2A.AspNetCore;
 /// </summary>
 public static class A2AJsonRpcProcessor
 {
+    /// <summary>
+    /// Processes an A2A JSON-RPC request using request-specific state and custom unary operation bindings.
+    /// </summary>
+    /// <param name="scopeFactory">The request-scope factory.</param>
+    /// <param name="handlers">The custom operation handlers.</param>
+    /// <param name="bindings">The JSON-RPC custom operation bindings.</param>
+    /// <param name="request">The HTTP request.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The deferred HTTP result.</returns>
+    public static async Task<IResult> ProcessRequestAsync(
+        A2ARequestScopeFactory scopeFactory,
+        A2AOperationHandlerCatalog handlers,
+        A2AJsonRpcOperationBindings bindings,
+        HttpRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(scopeFactory);
+        ArgumentNullException.ThrowIfNull(handlers);
+        ArgumentNullException.ThrowIfNull(bindings);
+        ArgumentNullException.ThrowIfNull(request);
+
+        var preflightResult = CheckPreflight(request);
+        if (preflightResult != null)
+        {
+            return preflightResult;
+        }
+
+        using var activity = A2AAspNetCoreDiagnostics.Source.StartActivity(
+            "HandleA2ARequest",
+            ActivityKind.Server);
+
+        JsonRpcRequest? rpcRequest = null;
+        A2ARequestScope? scope = null;
+
+        try
+        {
+            rpcRequest = (JsonRpcRequest?)await JsonSerializer.DeserializeAsync(
+                request.Body,
+                A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcRequest)),
+                cancellationToken).ConfigureAwait(false);
+            if (rpcRequest is null)
+            {
+                throw new JsonException("The JSON-RPC request body is empty.");
+            }
+
+            activity?.SetTag("request.id", rpcRequest.Id.ToString());
+            activity?.SetTag("request.method", rpcRequest.Method);
+
+            if (rpcRequest.Params is null)
+            {
+                return new JsonRpcResponseResult(
+                    JsonRpcResponse.InvalidParamsResponse(rpcRequest.Id));
+            }
+
+            scope = await scopeFactory(
+                request.HttpContext,
+                cancellationToken).ConfigureAwait(false);
+            ArgumentNullException.ThrowIfNull(scope);
+
+            IResult result;
+            if (bindings.TryGetBinding(rpcRequest.Method, out var binding))
+            {
+                var response = await binding.InvokeAsync(
+                    rpcRequest.Id,
+                    rpcRequest.Params.Value,
+                    scope.Context,
+                    handlers,
+                    cancellationToken).ConfigureAwait(false);
+                result = new JsonRpcResponseResult(response);
+            }
+            else if (A2AMethods.IsStreamingMethod(rpcRequest.Method))
+            {
+                result = StreamResponse(
+                    scope.Context.RequestHandler,
+                    rpcRequest.Id,
+                    rpcRequest.Method,
+                    rpcRequest.Params,
+                    cancellationToken);
+            }
+            else
+            {
+                result = await SingleResponseAsync(
+                    scope.Context.RequestHandler,
+                    rpcRequest.Id,
+                    rpcRequest.Method,
+                    rpcRequest.Params,
+                    cancellationToken).ConfigureAwait(false);
+            }
+
+            var scopedResult = new A2ARequestScopeResult(result, scope);
+            scope = null;
+            return scopedResult;
+        }
+        catch (A2AException ex)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            var errorId = rpcRequest?.Id ?? new JsonRpcId(ex.GetRequestId());
+            return WrapScope(
+                new JsonRpcResponseResult(
+                    JsonRpcResponse.CreateJsonRpcErrorResponse(errorId, ex)),
+                ref scope);
+        }
+        catch (JsonException ex)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            activity?.AddEvent(new ActivityEvent(
+                "json.parse.error",
+                tags: new ActivityTagsCollection
+                {
+                    { "exception.type", ex.GetType().FullName },
+                    { "exception.message", ex.Message },
+                }));
+            var errorId = rpcRequest?.Id ?? new JsonRpcId((string?)null);
+            return WrapScope(
+                new JsonRpcResponseResult(
+                    JsonRpcResponse.ParseErrorResponse(errorId)),
+                ref scope);
+        }
+        catch (Exception ex)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            var errorId = rpcRequest?.Id ?? new JsonRpcId((string?)null);
+            return WrapScope(
+                new JsonRpcResponseResult(
+                    JsonRpcResponse.InternalErrorResponse(
+                        errorId,
+                        "An internal error occurred.")),
+                ref scope);
+        }
+        finally
+        {
+            if (scope is not null)
+            {
+                await scope.DisposeAsync().ConfigureAwait(false);
+            }
+        }
+    }
+
     internal static IResult? CheckPreflight(HttpRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -233,5 +371,19 @@ public static class A2AJsonRpcProcessor
                 activity?.SetStatus(ActivityStatusCode.Error, "Invalid method");
                 return new JsonRpcResponseResult(JsonRpcResponse.MethodNotFoundResponse(requestId));
         }
+    }
+
+    private static IResult WrapScope(
+        IResult result,
+        ref A2ARequestScope? scope)
+    {
+        if (scope is null)
+        {
+            return result;
+        }
+
+        var scopedResult = new A2ARequestScopeResult(result, scope);
+        scope = null;
+        return scopedResult;
     }
 }

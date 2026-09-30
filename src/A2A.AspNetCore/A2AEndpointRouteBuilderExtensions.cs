@@ -56,6 +56,40 @@ public static class A2ARouteBuilderExtensions
         return routeGroup;
     }
 
+    /// <summary>Enables request-scoped JSON-RPC A2A endpoints with custom operations.</summary>
+    /// <param name="endpoints">The endpoint route builder.</param>
+    /// <param name="scopeFactory">The request-scope factory.</param>
+    /// <param name="handlers">The custom operation handlers.</param>
+    /// <param name="bindings">The custom JSON-RPC operation bindings.</param>
+    /// <param name="path">The route path for the A2A endpoint.</param>
+    /// <returns>An endpoint convention builder for further configuration.</returns>
+    public static IEndpointConventionBuilder MapA2A(
+        this IEndpointRouteBuilder endpoints,
+        A2ARequestScopeFactory scopeFactory,
+        A2AOperationHandlerCatalog handlers,
+        A2AJsonRpcOperationBindings bindings,
+        [StringSyntax("Route")] string path)
+    {
+        ArgumentNullException.ThrowIfNull(endpoints);
+        ArgumentNullException.ThrowIfNull(scopeFactory);
+        ArgumentNullException.ThrowIfNull(handlers);
+        ArgumentNullException.ThrowIfNull(bindings);
+        ArgumentException.ThrowIfNullOrEmpty(path);
+
+        var routeGroup = endpoints.MapGroup("");
+        routeGroup.MapPost(
+            path,
+            (HttpRequest request, CancellationToken cancellationToken) =>
+                A2AJsonRpcProcessor.ProcessRequestAsync(
+                    scopeFactory,
+                    handlers,
+                    bindings,
+                    request,
+                    cancellationToken));
+
+        return routeGroup;
+    }
+
     /// <summary>Enables the well-known agent card endpoint for agent discovery.</summary>
     /// <param name="endpoints">The endpoint route builder.</param>
     /// <param name="agentCard">The agent card to serve.</param>
@@ -177,5 +211,193 @@ public static class A2ARouteBuilderExtensions
             => A2AHttpProcessor.GetExtendedAgentCardRestAsync(requestHandler, logger, ct));
 
         return routeGroup;
+    }
+
+    /// <summary>Maps standard and custom HTTP+JSON operations using request-specific state.</summary>
+    /// <param name="endpoints">The endpoint route builder.</param>
+    /// <param name="scopeFactory">The request-scope factory.</param>
+    /// <param name="handlers">The custom operation handlers.</param>
+    /// <param name="bindings">The custom HTTP operation bindings.</param>
+    /// <param name="path">The route prefix for all operations.</param>
+    /// <returns>An endpoint convention builder for further configuration.</returns>
+    public static IEndpointConventionBuilder MapHttpA2A(
+        this IEndpointRouteBuilder endpoints,
+        A2ARequestScopeFactory scopeFactory,
+        A2AOperationHandlerCatalog handlers,
+        A2AHttpOperationBindings bindings,
+        [StringSyntax("Route")] string path = "")
+    {
+        ArgumentNullException.ThrowIfNull(endpoints);
+        ArgumentNullException.ThrowIfNull(scopeFactory);
+        ArgumentNullException.ThrowIfNull(handlers);
+        ArgumentNullException.ThrowIfNull(bindings);
+        ArgumentNullException.ThrowIfNull(path);
+
+        var routeGroup = endpoints.MapGroup(path);
+        var logger = endpoints.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("A2A.REST");
+
+        routeGroup.MapGet(
+            "/tasks/{id}",
+            (HttpContext context, string id, [FromQuery] int? historyLength, CancellationToken ct) =>
+                CreateScopedResultAsync(
+                    scopeFactory,
+                    context,
+                    (handler, cancellationToken) =>
+                        A2AHttpProcessor.GetTaskRestAsync(handler, logger, id, historyLength, cancellationToken),
+                    ct));
+
+        routeGroup.MapPost(
+            "/tasks/{id}:cancel",
+            (HttpContext context, string id, CancellationToken ct) =>
+                CreateScopedResultAsync(
+                    scopeFactory,
+                    context,
+                    (handler, cancellationToken) =>
+                        A2AHttpProcessor.CancelTaskRestAsync(handler, logger, id, cancellationToken),
+                    ct));
+
+        routeGroup.MapPost(
+            "/tasks/{id}:subscribe",
+            (HttpContext context, string id, CancellationToken ct) =>
+                CreateScopedResultAsync(
+                    scopeFactory,
+                    context,
+                    (handler, cancellationToken) =>
+                        Task.FromResult(A2AHttpProcessor.SubscribeToTaskRest(handler, logger, id, cancellationToken)),
+                    ct));
+
+        routeGroup.MapGet(
+            "/tasks",
+            (HttpContext context, [FromQuery] string? contextId, [FromQuery] string? status,
+                [FromQuery] int? pageSize, [FromQuery] string? pageToken, [FromQuery] int? historyLength,
+                CancellationToken ct) =>
+                CreateScopedResultAsync(
+                    scopeFactory,
+                    context,
+                    (handler, cancellationToken) =>
+                        A2AHttpProcessor.ListTasksRestAsync(
+                            handler,
+                            logger,
+                            contextId,
+                            status,
+                            pageSize,
+                            pageToken,
+                            historyLength,
+                            cancellationToken),
+                    ct));
+
+        routeGroup.MapPost(
+            "/message:send",
+            (HttpContext context, [FromBody] SendMessageRequest request, CancellationToken ct) =>
+                CreateScopedResultAsync(
+                    scopeFactory,
+                    context,
+                    (handler, cancellationToken) =>
+                        A2AHttpProcessor.SendMessageRestAsync(handler, logger, request, cancellationToken),
+                    ct));
+
+        routeGroup.MapPost(
+            "/message:stream",
+            (HttpContext context, [FromBody] SendMessageRequest request, CancellationToken ct) =>
+                CreateScopedResultAsync(
+                    scopeFactory,
+                    context,
+                    (handler, cancellationToken) =>
+                        Task.FromResult(A2AHttpProcessor.SendMessageStreamRest(handler, logger, request, cancellationToken)),
+                    ct));
+
+        routeGroup.MapPost(
+            "/tasks/{id}/pushNotificationConfigs",
+            (HttpContext context, string id, [FromBody] TaskPushNotificationConfig config, CancellationToken ct) =>
+                CreateScopedResultAsync(
+                    scopeFactory,
+                    context,
+                    (handler, cancellationToken) =>
+                        A2AHttpProcessor.CreatePushNotificationConfigRestAsync(
+                            handler,
+                            logger,
+                            id,
+                            config,
+                            cancellationToken),
+                    ct));
+
+        routeGroup.MapGet(
+            "/tasks/{id}/pushNotificationConfigs",
+            (HttpContext context, string id, [FromQuery] int? pageSize, [FromQuery] string? pageToken,
+                CancellationToken ct) =>
+                CreateScopedResultAsync(
+                    scopeFactory,
+                    context,
+                    (handler, cancellationToken) =>
+                        A2AHttpProcessor.ListPushNotificationConfigRestAsync(
+                            handler,
+                            logger,
+                            id,
+                            pageSize,
+                            pageToken,
+                            cancellationToken),
+                    ct));
+
+        routeGroup.MapGet(
+            "/tasks/{id}/pushNotificationConfigs/{configId}",
+            (HttpContext context, string id, string configId, CancellationToken ct) =>
+                CreateScopedResultAsync(
+                    scopeFactory,
+                    context,
+                    (handler, cancellationToken) =>
+                        A2AHttpProcessor.GetPushNotificationConfigRestAsync(
+                            handler,
+                            logger,
+                            id,
+                            configId,
+                            cancellationToken),
+                    ct));
+
+        routeGroup.MapDelete(
+            "/tasks/{id}/pushNotificationConfigs/{configId}",
+            (HttpContext context, string id, string configId, CancellationToken ct) =>
+                CreateScopedResultAsync(
+                    scopeFactory,
+                    context,
+                    (handler, cancellationToken) =>
+                        A2AHttpProcessor.DeletePushNotificationConfigRestAsync(
+                            handler,
+                            logger,
+                            id,
+                            configId,
+                            cancellationToken),
+                    ct));
+
+        routeGroup.MapGet(
+            "/extendedAgentCard",
+            (HttpContext context, CancellationToken ct) =>
+                CreateScopedResultAsync(
+                    scopeFactory,
+                    context,
+                    (handler, cancellationToken) =>
+                        A2AHttpProcessor.GetExtendedAgentCardRestAsync(handler, logger, cancellationToken),
+                    ct));
+
+        bindings.MapEndpoints(routeGroup, scopeFactory, handlers);
+        return routeGroup;
+    }
+
+    private static async Task<IResult> CreateScopedResultAsync(
+        A2ARequestScopeFactory scopeFactory,
+        HttpContext httpContext,
+        Func<IA2ARequestHandler, CancellationToken, Task<IResult>> createResult,
+        CancellationToken cancellationToken)
+    {
+        var scope = await scopeFactory(httpContext, cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var result = await createResult(scope.Context.RequestHandler, cancellationToken).ConfigureAwait(false);
+            return new A2ARequestScopeResult(result, scope);
+        }
+        catch
+        {
+            await scope.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
     }
 }
