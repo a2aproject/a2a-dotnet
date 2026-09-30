@@ -246,6 +246,9 @@ records `cancelled` only when the invocation's request, caller, or enumeration
 token is cancelled; otherwise it records `error`, including timeout failures.
 Disposing a client stream before completion records `cancelled` only when its
 caller or enumeration token is cancelled, and `error` otherwise.
+Server streams suppress cancellation output only when `RequestAborted` is
+cancelled; uncancelled cancellation and timeout failures use the transport's
+generic error response.
 Exception messages, payloads,
 authorization headers, extension tokens, and feature values are not added to
 operation activities. Client transport activities record the server address

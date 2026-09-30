@@ -74,6 +74,37 @@ public partial class A2AEventStreamResultTests
         Assert.DoesNotContain("sensitive details", GetResponseBody(httpContext));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ExecuteAsync_UncancelledCancellationBeforeFirstEvent_ReturnsInternalError(
+        bool timeout)
+    {
+        var result = new A2AEventStreamResult(
+            ThrowingAsyncEnumerable(CreateUncancelledCancellation(timeout)));
+        var httpContext = CreateHttpContext();
+
+        await result.ExecuteAsync(httpContext);
+
+        Assert.Equal(StatusCodes.Status500InternalServerError, httpContext.Response.StatusCode);
+        Assert.Equal("application/json", httpContext.Response.ContentType);
+        Assert.Contains("An internal error occurred.", GetResponseBody(httpContext));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_RequestAbortedBeforeFirstEvent_WritesNoError()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var result = new A2AEventStreamResult(
+            CancelAndThrowAsyncEnumerable(cancellation, yieldEvent: false));
+        var httpContext = CreateHttpContext();
+        httpContext.RequestAborted = cancellation.Token;
+
+        await result.ExecuteAsync(httpContext);
+
+        Assert.Empty(GetResponseBody(httpContext));
+    }
+
     [Fact]
     public async Task ExecuteAsync_MultipleEvents_EmitsSseEventsOnceAndInOrder()
     {
@@ -121,6 +152,41 @@ public partial class A2AEventStreamResultTests
         Assert.Contains("\"task-1\"", body);
         Assert.Contains("An internal error occurred during streaming.", body);
         Assert.DoesNotContain("Subscription failed.", body);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ExecuteAsync_UncancelledCancellationAfterFirstEvent_ReturnsSseError(
+        bool timeout)
+    {
+        var result = new A2AEventStreamResult(
+            YieldThenThrowAsyncEnumerable(CreateUncancelledCancellation(timeout)));
+        var httpContext = CreateHttpContext();
+
+        await result.ExecuteAsync(httpContext);
+
+        var body = GetResponseBody(httpContext);
+        Assert.Equal(StatusCodes.Status200OK, httpContext.Response.StatusCode);
+        Assert.Equal("text/event-stream", httpContext.Response.ContentType);
+        Assert.Contains("\"task-1\"", body);
+        Assert.Contains("An internal error occurred during streaming.", body);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_RequestAbortedAfterFirstEvent_WritesNoError()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var result = new A2AEventStreamResult(
+            CancelAndThrowAsyncEnumerable(cancellation, yieldEvent: true));
+        var httpContext = CreateHttpContext();
+        httpContext.RequestAborted = cancellation.Token;
+
+        await result.ExecuteAsync(httpContext);
+
+        var body = GetResponseBody(httpContext);
+        Assert.Contains("\"task-1\"", body);
+        Assert.DoesNotContain("\"error\"", body);
     }
 
     [Fact]
@@ -197,6 +263,20 @@ public partial class A2AEventStreamResultTests
 #pragma warning restore CS0162
     }
 
+    private static async IAsyncEnumerable<StreamResponse> CancelAndThrowAsyncEnumerable(
+        CancellationTokenSource cancellation,
+        bool yieldEvent,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        if (yieldEvent)
+        {
+            yield return CreateTaskResponse("task-1");
+        }
+
+        await cancellation.CancelAsync();
+        throw new OperationCanceledException(cancellation.Token);
+    }
+
     private static async IAsyncEnumerable<StreamResponse> EmptyAsyncEnumerable(
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -241,6 +321,14 @@ public partial class A2AEventStreamResultTests
                 Status = new TaskStatus { State = TaskState.Working },
             },
         };
+
+    private static Exception CreateUncancelledCancellation(bool timeout) =>
+        timeout
+            ? new TaskCanceledException(
+                "Timed out.",
+                new TimeoutException("Timed out."),
+                CancellationToken.None)
+            : new OperationCanceledException("Cancelled.", CancellationToken.None);
 
     private sealed class SerializationEvent(string? failureMessage = null, string? value = null)
     {

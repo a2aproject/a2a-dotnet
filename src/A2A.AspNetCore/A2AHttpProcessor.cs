@@ -151,6 +151,7 @@ internal sealed class A2AEventStreamResult<TEvent>(
             enumerator = events.GetAsyncEnumerator(httpContext.RequestAborted);
         }
         catch (OperationCanceledException exception)
+            when (httpContext.RequestAborted.IsCancellationRequested)
         {
             A2AOperationDiagnostics.SetError(operationActivity, exception, httpContext.RequestAborted);
             return;
@@ -231,6 +232,13 @@ internal sealed class A2AEventStreamResult<TEvent>(
         else if (cancellation is not null)
         {
             A2AOperationDiagnostics.SetError(operationActivity, cancellation, httpContext.RequestAborted);
+            if (!httpContext.RequestAborted.IsCancellationRequested)
+            {
+                await WriteErrorAsync(
+                    httpContext,
+                    cancellation,
+                    streamStarted).ConfigureAwait(false);
+            }
         }
         else
         {
@@ -239,7 +247,6 @@ internal sealed class A2AEventStreamResult<TEvent>(
                 ConfigureSseResponse(httpContext);
             }
 
-            A2AOperationDiagnostics.SetOutcome(operationActivity, "success");
         }
     }
 
@@ -288,6 +295,7 @@ internal sealed class A2AEventStreamResult<TEvent>(
             await httpContext.Response.BodyWriter.FlushAsync(httpContext.RequestAborted);
         }
         catch (OperationCanceledException)
+            when (httpContext.RequestAborted.IsCancellationRequested)
         {
         }
         catch (IOException)

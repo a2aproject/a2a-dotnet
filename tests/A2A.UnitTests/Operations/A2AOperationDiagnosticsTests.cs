@@ -69,6 +69,7 @@ public partial class A2AOperationDiagnosticsTests
         var observed = new List<Activity?>();
         var scopeCreated = false;
         var scopeDisposed = false;
+        object? outcomeDuringScopeDisposal = null;
         var builder = new A2AOperationCatalogBuilder();
         void Validate(Request request)
         {
@@ -106,6 +107,8 @@ public partial class A2AOperationDiagnosticsTests
                 {
                     observed.Add(Activity.Current);
                     scopeDisposed = true;
+                    outcomeDuringScopeDisposal =
+                        Activity.Current?.GetTagItem("a2a.operation.outcome");
                     Fail(stage, "dispose", cancellation);
                     return ValueTask.CompletedTask;
                 }));
@@ -159,6 +162,12 @@ public partial class A2AOperationDiagnosticsTests
 
         var activity = Assert.Single(capture.Operations);
         Assert.Equal(scopeCreated, scopeDisposed);
+        if (streaming && stage is "success" or "dispose"
+            or "cancel-dispose" or "uncancelled-dispose")
+        {
+            Assert.Null(outcomeDuringScopeDisposal);
+        }
+
         AssertOperation(activity, streaming ? "test.stream" : "test.unary",
             streaming, "extension", "server", transport, Outcome(stage));
         Assert.All(observed, item => Assert.Same(activity, item));

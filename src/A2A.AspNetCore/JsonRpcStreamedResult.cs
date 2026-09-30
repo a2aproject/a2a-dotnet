@@ -94,6 +94,7 @@ public sealed class JsonRpcStreamedResult : IResult
                 httpContext.RequestAborted);
         }
         catch (OperationCanceledException ex)
+            when (httpContext.RequestAborted.IsCancellationRequested)
         {
             A2AOperationDiagnostics.SetError(operationActivity, ex, httpContext.RequestAborted);
             return;
@@ -182,6 +183,13 @@ public sealed class JsonRpcStreamedResult : IResult
         else if (cancellation is not null)
         {
             A2AOperationDiagnostics.SetError(operationActivity, cancellation, httpContext.RequestAborted);
+            if (!httpContext.RequestAborted.IsCancellationRequested)
+            {
+                await WriteErrorAsync(
+                    httpContext,
+                    cancellation,
+                    streamStarted).ConfigureAwait(false);
+            }
         }
         else
         {
@@ -190,7 +198,6 @@ public sealed class JsonRpcStreamedResult : IResult
                 ConfigureSseResponse(httpContext);
             }
 
-            A2AOperationDiagnostics.SetOutcome(operationActivity, "success");
         }
     }
 
@@ -250,6 +257,7 @@ public sealed class JsonRpcStreamedResult : IResult
                 httpContext.RequestAborted);
         }
         catch (OperationCanceledException)
+            when (httpContext.RequestAborted.IsCancellationRequested)
         {
         }
         catch (IOException)

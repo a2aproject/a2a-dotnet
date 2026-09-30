@@ -127,6 +127,105 @@ public partial class A2AOperationDiagnosticsTests
             ValueTask.FromResult(new HttpRequestMessage(HttpMethod.Post, endpoint));
     }
 
+    [Theory]
+    [InlineData("jsonrpc")]
+    [InlineData("http-json")]
+    public async Task Client_MalformedErrorDetailsDoNotMutateCallerWhenA2ASourceIsUnsampled(
+        string transport)
+    {
+        using var listener = CreateUnsampledA2AListener();
+        using var caller = new Activity("caller").Start();
+        var builder = new A2AOperationCatalogBuilder();
+        var operation = builder.DefineUnary<Request, Result>(new("test.unary"));
+        var error = builder.DeclareError<Request, Result, FaultingErrorDetails>(
+            operation,
+            "test.error");
+        var bindings = new A2AClientOperationBindingBuilder()
+            .MapJsonRpc(
+                operation,
+                "test/unary",
+                TestJsonContext.Default.Request,
+                TestJsonContext.Default.Result)
+            .MapJsonRpcError(
+                operation,
+                error,
+                -32042,
+                EdgeJsonContext.Default.FaultingErrorDetails)
+            .MapHttp(
+                operation,
+                static (endpoint, _, _) =>
+                    ValueTask.FromResult(
+                        new HttpRequestMessage(HttpMethod.Post, endpoint)),
+                TestJsonContext.Default.Result)
+            .MapHttpError(
+                operation,
+                error,
+                409,
+                EdgeJsonContext.Default.FaultingErrorDetails)
+            .Build(builder.Build());
+        using var httpClient = new HttpClient(
+            new ErrorDetailsHandler(transport, cancelled: false));
+        IA2AClient client = transport == "jsonrpc"
+            ? new A2AClient(new Uri("http://localhost"), bindings, httpClient)
+            : new A2AHttpJsonClient(
+                new Uri("http://localhost"),
+                bindings,
+                httpClient);
+
+        await Assert.ThrowsAsync<A2AException>(
+            () => client.InvokeAsync(operation, new Request("request")));
+
+        Assert.Same(caller, Activity.Current);
+        Assert.Equal(ActivityStatusCode.Unset, caller.Status);
+        Assert.Empty(caller.TagObjects);
+        Assert.Empty(caller.Events);
+    }
+
+    [Fact]
+    public async Task HttpClient_MalformedErrorBodyDoesNotMutateCallerWhenA2ASourceIsUnsampled()
+    {
+        using var listener = CreateUnsampledA2AListener();
+        using var caller = new Activity("caller").Start();
+        var builder = new A2AOperationCatalogBuilder();
+        var operation = builder.DefineUnary<Request, Result>(new("test.unary"));
+        var bindings = new A2AClientOperationBindingBuilder()
+            .MapHttp(
+                operation,
+                static (endpoint, _, _) =>
+                    ValueTask.FromResult(
+                        new HttpRequestMessage(HttpMethod.Post, endpoint)),
+                TestJsonContext.Default.Result)
+            .Build(builder.Build());
+        using var httpClient = new HttpClient(new MalformedHttpErrorHandler());
+        var client = new A2AHttpJsonClient(
+            new Uri("http://localhost"),
+            bindings,
+            httpClient);
+
+        await Assert.ThrowsAsync<A2AException>(
+            () => client.InvokeAsync(operation, new Request("request")));
+
+        Assert.Same(caller, Activity.Current);
+        Assert.Equal(ActivityStatusCode.Unset, caller.Status);
+        Assert.Empty(caller.TagObjects);
+        Assert.Empty(caller.Events);
+    }
+
+    private static ActivityListener CreateUnsampledA2AListener()
+    {
+        var listener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == "A2A",
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) =>
+                ActivitySamplingResult.None,
+            SampleUsingParentId =
+                (ref ActivityCreationOptions<string> _) =>
+                    ActivitySamplingResult.None,
+        };
+        ActivitySource.AddActivityListener(listener);
+        return listener;
+    }
+
     private sealed class ErrorDetailsHandler(string transport, bool cancelled) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -141,6 +240,20 @@ public partial class A2AOperationDiagnosticsTests
                     Encoding.UTF8, "application/json"),
             });
         }
+    }
+
+    private sealed class MalformedHttpErrorHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError)
+            {
+                Content = new StringContent(
+                    "{malformed",
+                    Encoding.UTF8,
+                    "application/json"),
+            });
     }
 
     internal sealed class FaultingErrorDetails

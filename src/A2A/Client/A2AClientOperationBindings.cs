@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 
@@ -1075,7 +1074,6 @@ internal sealed class A2AJsonRpcClientErrorMapping<TDetails>(
         }
         catch (Exception)
         {
-            Activity.Current?.SetStatus(ActivityStatusCode.Error);
             exception = null!;
             return false;
         }
@@ -1143,7 +1141,6 @@ internal sealed class A2AHttpClientErrorMapping<TDetails>(
         }
         catch (Exception)
         {
-            Activity.Current?.SetStatus(ActivityStatusCode.Error);
             exception = null!;
             return false;
         }

@@ -374,7 +374,7 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
         }
         catch (Exception)
         {
-            Activity.Current?.SetStatus(ActivityStatusCode.Error);
+            body = null;
         }
 
         var contentType = response.Content.Headers.ContentType?.MediaType;
@@ -436,7 +436,8 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
         }
         catch (Exception)
         {
-            Activity.Current?.SetStatus(ActivityStatusCode.Error);
+            detail = null;
+            reasonErrorCode = null;
         }
 
         var errorCode = reasonErrorCode ?? response.StatusCode switch
@@ -513,7 +514,8 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
         }
         catch (Exception)
         {
-            Activity.Current?.SetStatus(ActivityStatusCode.Error);
+            exception = null!;
+            return false;
         }
 
         exception = null!;
