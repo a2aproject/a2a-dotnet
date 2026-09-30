@@ -223,6 +223,35 @@ Command-line tool for interacting with A2A agents:
 
 For detailed instructions and advanced scenarios, see the individual README files linked above.
 
+## Operation diagnostics and Native AOT
+
+Subscribe to the `A2A` (client) and `A2A.AspNetCore` (server) activity sources
+to observe unified operation dispatch. Each invocation emits one
+`a2a.operation` activity, in addition to transport activities, with these tags:
+
+| Tag | Values |
+| --- | --- |
+| `a2a.operation.id` | Registered operation ID |
+| `a2a.operation.kind` | `unary`, `streaming` |
+| `a2a.operation.source` | `standard`, `extension` |
+| `a2a.operation.role` | `client`, `server` |
+| `a2a.transport` | `jsonrpc`, `http-json` |
+| `a2a.operation.outcome` | `success`, `error`, `cancelled` |
+
+Server activities include binding, validation, scope creation, handler
+execution, response writing, stream enumeration, and scope disposal. Client
+activities include binding lookup, validation, serialization, transport,
+response deserialization, and stream disposal. Disposing a client stream
+before completion records `cancelled`. Exception messages, payloads,
+authorization headers, extension tokens, and feature values are not added to
+operation activities. Client transport activities record the server address
+and port instead of a full URL, which can contain private path or query values.
+
+Extension bindings use explicit source-generated `JsonTypeInfo` metadata; no
+runtime reflection or expression compilation is needed for operation dispatch.
+See the [Native AOT validation executable](tests/A2A.AotTests/README.md) for
+both transports' unary, streaming, and declared-error serialization coverage.
+
 ## Further Reading
 
 To learn more about the A2A protocol, explore these additional resources:
@@ -239,4 +268,3 @@ This library builds upon [Darrel Miller's](https://github.com/darrelmiller) [sha
 ## License
 
 This project is licensed under the [Apache 2.0 License](LICENSE).
-

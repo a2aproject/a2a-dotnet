@@ -399,6 +399,8 @@ internal sealed class A2AJsonRpcStreamingOperationBindingRegistration<
 
 internal interface IA2AJsonRpcOperationBinding
 {
+    A2AOperationDiagnosticContext Diagnostics { get; }
+
     IA2AJsonRpcBoundOperation Bind(JsonElement parameters);
 }
 
@@ -408,6 +410,7 @@ internal interface IA2AJsonRpcBoundOperation
         JsonRpcId requestId,
         A2AOperationContext context,
         A2AOperationHandlerCatalog handlers,
+        Activity? operationActivity,
         CancellationToken cancellationToken);
 
     JsonRpcResponse CreateErrorResponse(
@@ -484,12 +487,14 @@ internal sealed class A2AJsonRpcUnaryOperationBinding<TRequest, TResult>(
     IReadOnlyDictionary<string, IA2AJsonRpcErrorMapping> errorMappings)
     : A2AJsonRpcOperationBinding(errorMappings), IA2AJsonRpcOperationBinding
 {
+    public A2AOperationDiagnosticContext Diagnostics =>
+        new(operation.Id, A2AOperationKind.Unary, operationSource);
+
     public IA2AJsonRpcBoundOperation Bind(JsonElement parameters)
     {
         var request = Deserialize(parameters, requestTypeInfo);
         operationCatalog.Validate(operation, request);
         return new BoundOperation(
-            operationSource,
             operation,
             request,
             resultTypeInfo,
@@ -498,7 +503,6 @@ internal sealed class A2AJsonRpcUnaryOperationBinding<TRequest, TResult>(
     }
 
     private sealed class BoundOperation(
-        A2AOperationSource operationSource,
         A2AOperation<TRequest, TResult> operation,
         TRequest request,
         JsonTypeInfo<TResult> resultTypeInfo,
@@ -510,47 +514,30 @@ internal sealed class A2AJsonRpcUnaryOperationBinding<TRequest, TResult>(
             JsonRpcId requestId,
             A2AOperationContext context,
             A2AOperationHandlerCatalog handlers,
+            Activity? operationActivity,
             CancellationToken cancellationToken)
         {
-            using var activity = A2AOperationDiagnostics.Start(
-                operation.Id,
-                A2AOperationKind.Unary,
-                operationSource);
-            try
+            if (beforeInvoke is not null)
             {
-                if (beforeInvoke is not null)
-                {
-                    await beforeInvoke(context, cancellationToken)
-                        .ConfigureAwait(false);
-                }
+                await beforeInvoke(context, cancellationToken)
+                    .ConfigureAwait(false);
+            }
 
-                var result = await handlers.InvokeAsync(
-                    operation,
-                    context,
-                    request,
-                    cancellationToken).ConfigureAwait(false);
-                A2AOperationDiagnostics.SetOutcome(activity, "success");
+            var result = await handlers.InvokeAsync(
+                operation,
+                context,
+                request,
+                cancellationToken).ConfigureAwait(false);
 
-                var response = result is A2AEmptyResult
-                    ? JsonRpcResponse.CreateJsonRpcResponse<object?>(
-                        requestId,
-                        null)
-                    : JsonRpcResponse.CreateJsonRpcResponse(
-                        requestId,
-                        result,
-                        resultTypeInfo);
-                return new JsonRpcResponseResult(response);
-            }
-            catch (OperationCanceledException)
-            {
-                A2AOperationDiagnostics.SetOutcome(activity, "cancelled");
-                throw;
-            }
-            catch (Exception ex)
-            {
-                A2AOperationDiagnostics.SetError(activity, ex);
-                throw;
-            }
+            var response = result is A2AEmptyResult
+                ? JsonRpcResponse.CreateJsonRpcResponse<object?>(
+                    requestId,
+                    null)
+                : JsonRpcResponse.CreateJsonRpcResponse(
+                    requestId,
+                    result,
+                    resultTypeInfo);
+            return new JsonRpcResponseResult(response);
         }
 
         public JsonRpcResponse CreateErrorResponse(
@@ -574,12 +561,14 @@ internal sealed class A2AJsonRpcStreamingOperationBinding<TRequest, TEvent>(
     IReadOnlyDictionary<string, IA2AJsonRpcErrorMapping> errorMappings)
     : A2AJsonRpcOperationBinding(errorMappings), IA2AJsonRpcOperationBinding
 {
+    public A2AOperationDiagnosticContext Diagnostics =>
+        new(operation.Id, A2AOperationKind.Streaming, operationSource);
+
     public IA2AJsonRpcBoundOperation Bind(JsonElement parameters)
     {
         var request = Deserialize(parameters, requestTypeInfo);
         operationCatalog.ValidateStreaming(operation, request);
         return new BoundOperation(
-            operationSource,
             operation,
             request,
             eventTypeInfo,
@@ -588,7 +577,6 @@ internal sealed class A2AJsonRpcStreamingOperationBinding<TRequest, TEvent>(
     }
 
     private sealed class BoundOperation(
-        A2AOperationSource operationSource,
         A2AStreamingOperation<TRequest, TEvent> operation,
         TRequest request,
         JsonTypeInfo<TEvent> eventTypeInfo,
@@ -600,6 +588,7 @@ internal sealed class A2AJsonRpcStreamingOperationBinding<TRequest, TEvent>(
             JsonRpcId requestId,
             A2AOperationContext context,
             A2AOperationHandlerCatalog handlers,
+            Activity? operationActivity,
             CancellationToken cancellationToken)
         {
             if (beforeInvoke is not null)
@@ -618,10 +607,7 @@ internal sealed class A2AJsonRpcStreamingOperationBinding<TRequest, TEvent>(
                 requestId,
                 eventTypeInfo,
                 createErrorResponse,
-                new A2AOperationDiagnosticContext(
-                    operation.Id,
-                    A2AOperationKind.Streaming,
-                    operationSource));
+                operationActivity);
         }
 
         public JsonRpcResponse CreateErrorResponse(
@@ -687,7 +673,7 @@ internal sealed class A2AJsonRpcErrorMapping<TDetails>(
         }
         catch (Exception ex)
         {
-            Activity.Current?.AddException(ex);
+            A2AOperationDiagnostics.SetError(Activity.Current, ex);
             response = null!;
             return false;
         }

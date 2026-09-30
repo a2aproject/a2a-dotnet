@@ -101,7 +101,7 @@ public partial class A2AEventStreamResultTests
                 new A2AException(
                     "An internal error occurred.",
                     A2AErrorCode.InternalError)),
-            diagnosticContext: null);
+            operationActivity: null);
         var httpContext = CreateHttpContext();
 
         await result.ExecuteAsync(httpContext);
@@ -128,7 +128,7 @@ public partial class A2AEventStreamResultTests
                 new A2AException(
                     "An internal error occurred.",
                     A2AErrorCode.InternalError)),
-            diagnosticContext: null);
+            operationActivity: null);
         var httpContext = CreateHttpContext();
 
         await result.ExecuteAsync(httpContext);

@@ -57,10 +57,21 @@ public sealed class A2AClient : IA2AClient, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<TResult> InvokeAsync<TRequest, TResult>(
+    public Task<TResult> InvokeAsync<TRequest, TResult>(
         A2AOperation<TRequest, TResult> operation,
         TRequest request,
         CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        return A2AOperationDiagnostics.InvokeAsync(
+            operation.Id, _operationBindings.GetSource(operation.Id), "jsonrpc",
+            token => InvokeCoreAsync(operation, request, token), cancellationToken);
+    }
+
+    private async Task<TResult> InvokeCoreAsync<TRequest, TResult>(
+        A2AOperation<TRequest, TResult> operation,
+        TRequest request,
+        CancellationToken cancellationToken)
     {
         var binding = _operationBindings.GetJsonRpc(operation);
         binding.Validate(request);
@@ -84,10 +95,21 @@ public sealed class A2AClient : IA2AClient, IDisposable
     }
 
     /// <inheritdoc />
-    public async IAsyncEnumerable<TEvent> InvokeStreamingAsync<TRequest, TEvent>(
+    public IAsyncEnumerable<TEvent> InvokeStreamingAsync<TRequest, TEvent>(
         A2AStreamingOperation<TRequest, TEvent> operation,
         TRequest request,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        return A2AOperationDiagnostics.InvokeStreamingAsync(
+            operation.Id, _operationBindings.GetSource(operation.Id), "jsonrpc",
+            () => InvokeStreamingCoreAsync(operation, request, cancellationToken), cancellationToken);
+    }
+
+    private async IAsyncEnumerable<TEvent> InvokeStreamingCoreAsync<TRequest, TEvent>(
+        A2AStreamingOperation<TRequest, TEvent> operation,
+        TRequest request,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var binding = _operationBindings.GetJsonRpcStreaming(operation);
         binding.Validate(request);
@@ -245,7 +267,8 @@ public sealed class A2AClient : IA2AClient, IDisposable
 
         activity?.SetTag("rpc.system", "jsonrpc");
         activity?.SetTag("rpc.method", method);
-        activity?.SetTag("url.full", _url);
+        activity?.SetTag("server.address", new Uri(_url).Host);
+        activity?.SetTag("server.port", new Uri(_url).Port);
         activity?.SetTag(
             "rpc.jsonrpc.request_id",
             rpcRequest.Id.ToString());
@@ -297,12 +320,10 @@ public sealed class A2AClient : IA2AClient, IDisposable
 
             return rpcResponse;
         }
-        catch (Exception exception)
+        catch (Exception)
         {
             A2ADiagnostics.ClientErrorCount.Add(1);
-            activity?.SetStatus(
-                ActivityStatusCode.Error,
-                exception.Message);
+            activity?.SetStatus(ActivityStatusCode.Error);
             throw;
         }
         finally
@@ -336,7 +357,8 @@ public sealed class A2AClient : IA2AClient, IDisposable
 
         activity?.SetTag("rpc.system", "jsonrpc");
         activity?.SetTag("rpc.method", method);
-        activity?.SetTag("url.full", _url);
+        activity?.SetTag("server.address", new Uri(_url).Host);
+        activity?.SetTag("server.port", new Uri(_url).Port);
         activity?.SetTag(
             "rpc.jsonrpc.request_id",
             rpcRequest.Id.ToString());
@@ -368,13 +390,27 @@ public sealed class A2AClient : IA2AClient, IDisposable
 
             stream = await response.Content.ReadAsStreamAsync(
                 cancellationToken).ConfigureAwait(false);
+            if (string.Equals(response.Content.Headers.ContentType?.MediaType,
+                "application/json", StringComparison.OrdinalIgnoreCase))
+            {
+                var rpcResponse = (JsonRpcResponse?)await JsonSerializer.DeserializeAsync(
+                    stream, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcResponse)),
+                    cancellationToken).ConfigureAwait(false);
+                if (rpcResponse?.Error is { } error)
+                {
+                    throw mapOperationError(error)
+                        ?? (Exception)new A2AException(error.Message, (A2AErrorCode)error.Code);
+                }
+
+                throw new A2AException(
+                    "Expected a JSON-RPC event stream or error response.",
+                    A2AErrorCode.InternalError);
+            }
         }
-        catch (Exception exception)
+        catch (Exception)
         {
             A2ADiagnostics.ClientErrorCount.Add(1);
-            activity?.SetStatus(
-                ActivityStatusCode.Error,
-                exception.Message);
+            activity?.SetStatus(ActivityStatusCode.Error);
             response?.Dispose();
             throw;
         }

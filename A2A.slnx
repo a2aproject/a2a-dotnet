@@ -31,6 +31,7 @@
      <File Path="logo.png" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/A2A.AotTests/A2A.AotTests.csproj" />
     <Project Path="tests/A2A.AspNetCore.UnitTests/A2A.AspNetCore.UnitTests.csproj" />
     <Project Path="tests/A2A.UnitTests/A2A.UnitTests.csproj" />
     <Project Path="tests/A2A.V0_3.UnitTests/A2A.V0_3.UnitTests.csproj" />

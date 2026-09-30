@@ -508,6 +508,11 @@ public sealed class A2AClientOperationBindings
 
     internal A2AStandardOperations? StandardOperations { get; }
 
+    internal A2AOperationSource GetSource(A2AOperationId id) =>
+        _registrations.TryGetValue(id, out var registration)
+            ? registration.Source
+            : A2AOperationSource.Extension;
+
     internal A2AJsonRpcClientOperationBinding<TRequest, TResult> GetJsonRpc<
         TRequest,
         TResult>(
@@ -638,6 +643,7 @@ internal interface IA2AClientOperationRegistrationBuilder
 
 internal interface IA2AClientOperationRegistration
 {
+    A2AOperationSource Source { get; }
 }
 
 internal sealed class A2AClientUnaryOperationRegistrationBuilder<
@@ -682,6 +688,7 @@ internal sealed class A2AClientUnaryOperationRegistrationBuilder<
         ValidateStandardBindings(operationRegistration, JsonRpc, Http);
         return new A2AClientUnaryOperationRegistration<TRequest, TResult>(
             operation,
+            operationRegistration?.Source ?? A2AOperationSource.Extension,
             JsonRpc?.Build(
                 operationCatalog is null
                     ? null
@@ -799,6 +806,7 @@ internal sealed class A2AClientStreamingOperationRegistrationBuilder<
 
         return new A2AClientStreamingOperationRegistration<TRequest, TEvent>(
             operation,
+            operationRegistration?.Source ?? A2AOperationSource.Extension,
             JsonRpc?.Build(
                 operationCatalog is null
                     ? null
@@ -818,12 +826,14 @@ internal sealed class A2AClientStreamingOperationRegistrationBuilder<
 
 internal sealed record A2AClientUnaryOperationRegistration<TRequest, TResult>(
     A2AOperation<TRequest, TResult> Operation,
+    A2AOperationSource Source,
     A2AJsonRpcClientOperationBinding<TRequest, TResult>? JsonRpc,
     A2AHttpClientOperationBinding<TRequest, TResult>? Http)
     : IA2AClientOperationRegistration;
 
 internal sealed record A2AClientStreamingOperationRegistration<TRequest, TEvent>(
     A2AStreamingOperation<TRequest, TEvent> Operation,
+    A2AOperationSource Source,
     A2AJsonRpcClientOperationBinding<TRequest, TEvent>? JsonRpc,
     A2AHttpClientOperationBinding<TRequest, TEvent>? Http)
     : IA2AClientOperationRegistration;
@@ -1059,9 +1069,13 @@ internal sealed class A2AJsonRpcClientErrorMapping<TDetails>(
                 details);
             return true;
         }
-        catch (Exception deserializationException)
+        catch (OperationCanceledException)
         {
-            Activity.Current?.AddException(deserializationException);
+            throw;
+        }
+        catch (Exception)
+        {
+            Activity.Current?.SetStatus(ActivityStatusCode.Error);
             exception = null!;
             return false;
         }
@@ -1123,9 +1137,13 @@ internal sealed class A2AHttpClientErrorMapping<TDetails>(
                 typedDetails);
             return true;
         }
-        catch (Exception deserializationException)
+        catch (OperationCanceledException)
         {
-            Activity.Current?.AddException(deserializationException);
+            throw;
+        }
+        catch (Exception)
+        {
+            Activity.Current?.SetStatus(ActivityStatusCode.Error);
             exception = null!;
             return false;
         }

@@ -554,6 +554,7 @@ internal interface IA2AHttpBoundOperation
     ValueTask<IResult> InvokeAsync(
         A2AOperationContext context,
         A2AOperationHandlerCatalog handlers,
+        Activity? operationActivity,
         CancellationToken cancellationToken);
 }
 
@@ -585,6 +586,8 @@ internal abstract class A2AHttpOperationBinding(
         HttpContext httpContext,
         ILogger logger,
         CancellationToken cancellationToken);
+
+    protected abstract A2AOperationDiagnosticContext Diagnostics { get; }
 
     protected IResult CreateErrorResult(
         Exception exception,
@@ -648,6 +651,7 @@ internal abstract class A2AHttpOperationBinding(
         activity?.SetTag("http.route", route);
 
         A2ARequestScope? scope = null;
+        Activity? operationActivity = Diagnostics.Start();
         try
         {
             var boundOperation = await BindAsync(
@@ -663,33 +667,43 @@ internal abstract class A2AHttpOperationBinding(
             var result = await boundOperation.InvokeAsync(
                 scope.Context,
                 handlers,
+                operationActivity,
                 cancellationToken).ConfigureAwait(false);
-            return WrapScope(result, ref scope);
+            return WrapScope(result, ref scope, ref operationActivity);
         }
         catch (A2AHttpBindingException exception)
         {
             activity?.SetStatus(ActivityStatusCode.Error);
-            return WrapScope(exception.Result, ref scope);
+            A2AOperationDiagnostics.SetError(operationActivity, exception);
+            return WrapScope(exception.Result, ref scope, ref operationActivity);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException exception)
             when (cancellationToken.IsCancellationRequested)
         {
             activity?.SetStatus(ActivityStatusCode.Error, "cancelled");
+            A2AOperationDiagnostics.SetError(operationActivity, exception);
             throw;
         }
         catch (Exception exception)
         {
-            activity?.SetStatus(ActivityStatusCode.Error, exception.Message);
-            activity?.AddException(exception);
+            activity?.SetStatus(ActivityStatusCode.Error);
+            A2AOperationDiagnostics.SetError(operationActivity, exception);
             return WrapScope(
                 CreateErrorResult(exception, logger),
-                ref scope);
+                ref scope, ref operationActivity);
         }
         finally
         {
-            if (scope is not null)
+            try
             {
-                await scope.DisposeAsync().ConfigureAwait(false);
+                if (scope is not null)
+                {
+                    await A2AOperationDiagnostics.DisposeAsync(scope, operationActivity).ConfigureAwait(false);
+                }
+            }
+            finally
+            {
+                operationActivity?.Dispose();
             }
         }
     }
@@ -702,15 +716,17 @@ internal abstract class A2AHttpOperationBinding(
 
     private static IResult WrapScope(
         IResult result,
-        ref A2ARequestScope? scope)
+        ref A2ARequestScope? scope,
+        ref Activity? operationActivity)
     {
-        if (scope is null)
+        if (scope is null && operationActivity is null)
         {
             return result;
         }
 
-        var scopedResult = new A2ARequestScopeResult(result, scope);
+        var scopedResult = new A2ARequestScopeResult(result, scope, operationActivity);
         scope = null;
+        operationActivity = null;
         return scopedResult;
     }
 }
@@ -726,6 +742,9 @@ internal sealed class A2AHttpUnaryOperationBinding<TRequest, TResult>(
     IReadOnlyDictionary<string, IA2AHttpErrorMapping> errorMappings)
     : A2AHttpOperationBinding(httpMethod, route, errorMappings)
 {
+    protected override A2AOperationDiagnosticContext Diagnostics =>
+        new(operation.Id, A2AOperationKind.Unary, operationSource, "http-json");
+
     protected override async ValueTask<IA2AHttpBoundOperation> BindAsync(
         HttpContext httpContext,
         ILogger logger,
@@ -737,14 +756,12 @@ internal sealed class A2AHttpUnaryOperationBinding<TRequest, TResult>(
             cancellationToken).ConfigureAwait(false);
         operationCatalog.Validate(operation, request);
         return new BoundOperation(
-            operationSource,
             operation,
             request,
             resultTypeInfo);
     }
 
     private sealed class BoundOperation(
-        A2AOperationSource operationSource,
         A2AOperation<TRequest, TResult> operation,
         TRequest request,
         JsonTypeInfo<TResult> resultTypeInfo)
@@ -753,37 +770,20 @@ internal sealed class A2AHttpUnaryOperationBinding<TRequest, TResult>(
         public async ValueTask<IResult> InvokeAsync(
             A2AOperationContext context,
             A2AOperationHandlerCatalog handlers,
+            Activity? operationActivity,
             CancellationToken cancellationToken)
         {
-            using var activity = A2AOperationDiagnostics.Start(
-                operation.Id,
-                A2AOperationKind.Unary,
-                operationSource,
-                "http-json");
-            try
-            {
-                var result = await handlers.InvokeAsync(
-                    operation,
-                    context,
-                    request,
-                    cancellationToken).ConfigureAwait(false);
-                A2AOperationDiagnostics.SetOutcome(activity, "success");
-                return result is A2AEmptyResult
-                    ? Results.NoContent()
-                    : new A2AHttpOperationResult<TResult>(
-                        result,
-                        resultTypeInfo);
-            }
-            catch (OperationCanceledException)
-            {
-                A2AOperationDiagnostics.SetOutcome(activity, "cancelled");
-                throw;
-            }
-            catch (Exception exception)
-            {
-                A2AOperationDiagnostics.SetError(activity, exception);
-                throw;
-            }
+            var result = await handlers.InvokeAsync(
+                operation,
+                context,
+                request,
+                cancellationToken).ConfigureAwait(false);
+            return result is A2AEmptyResult
+                ? Results.NoContent()
+                : new A2AHttpOperationResult<TResult>(
+                    result,
+                    resultTypeInfo,
+                    operationActivity);
         }
     }
 
@@ -845,6 +845,9 @@ internal sealed class A2AHttpStreamingOperationBinding<TRequest, TEvent>(
     IReadOnlyDictionary<string, IA2AHttpErrorMapping> errorMappings)
     : A2AHttpOperationBinding(httpMethod, route, errorMappings)
 {
+    protected override A2AOperationDiagnosticContext Diagnostics =>
+        new(operation.Id, A2AOperationKind.Streaming, operationSource, "http-json");
+
     protected override async ValueTask<IA2AHttpBoundOperation> BindAsync(
         HttpContext httpContext,
         ILogger logger,
@@ -856,7 +859,6 @@ internal sealed class A2AHttpStreamingOperationBinding<TRequest, TEvent>(
             cancellationToken).ConfigureAwait(false);
         operationCatalog.ValidateStreaming(operation, request);
         return new BoundOperation(
-            operationSource,
             operation,
             request,
             eventTypeInfo,
@@ -865,7 +867,6 @@ internal sealed class A2AHttpStreamingOperationBinding<TRequest, TEvent>(
     }
 
     private sealed class BoundOperation(
-        A2AOperationSource operationSource,
         A2AStreamingOperation<TRequest, TEvent> operation,
         TRequest request,
         JsonTypeInfo<TEvent> eventTypeInfo,
@@ -876,38 +877,21 @@ internal sealed class A2AHttpStreamingOperationBinding<TRequest, TEvent>(
         public ValueTask<IResult> InvokeAsync(
             A2AOperationContext context,
             A2AOperationHandlerCatalog handlers,
+            Activity? operationActivity,
             CancellationToken cancellationToken)
         {
-            IAsyncEnumerable<TEvent> events;
-            try
-            {
-                events = handlers.InvokeStreamingAsync(
+            var events = handlers.InvokeStreamingAsync(
                     operation,
                     context,
                     request,
                     cancellationToken);
-            }
-            catch (Exception exception)
-            {
-                using var activity = A2AOperationDiagnostics.Start(
-                    operation.Id,
-                    A2AOperationKind.Streaming,
-                    operationSource,
-                    "http-json");
-                A2AOperationDiagnostics.SetError(activity, exception);
-                throw;
-            }
 
             return ValueTask.FromResult<IResult>(
                 new A2AEventStreamResult<TEvent>(
                     events,
                     eventTypeInfo,
                     createErrorResult,
-                    new A2AOperationDiagnosticContext(
-                        operation.Id,
-                        A2AOperationKind.Streaming,
-                        operationSource,
-                        "http-json"),
+                    operationActivity,
                     logStreamException));
         }
     }
@@ -1005,7 +989,7 @@ internal sealed class A2AHttpErrorMapping<TDetails>(
         }
         catch (Exception serializationException)
         {
-            Activity.Current?.AddException(serializationException);
+            A2AOperationDiagnostics.SetError(Activity.Current, serializationException);
             result = null!;
             return false;
         }
@@ -1019,7 +1003,8 @@ internal sealed class A2AHttpBindingException(IResult result) : Exception
 
 internal sealed class A2AHttpOperationResult<TResult>(
     TResult result,
-    JsonTypeInfo<TResult> resultTypeInfo)
+    JsonTypeInfo<TResult> resultTypeInfo,
+    Activity? operationActivity)
     : IResult
 {
     public async Task ExecuteAsync(HttpContext httpContext)
@@ -1033,14 +1018,15 @@ internal sealed class A2AHttpOperationResult<TResult>(
                 resultTypeInfo,
                 httpContext.RequestAborted).ConfigureAwait(false);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException exception)
             when (httpContext.RequestAborted.IsCancellationRequested)
         {
+            A2AOperationDiagnostics.SetError(operationActivity, exception);
             return;
         }
         catch (Exception exception)
         {
-            Activity.Current?.AddException(exception);
+            A2AOperationDiagnostics.SetError(operationActivity, exception);
             await new A2AErrorResult(
                 new A2AException(
                     "An internal error occurred.",

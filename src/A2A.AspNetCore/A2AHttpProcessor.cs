@@ -128,7 +128,7 @@ internal sealed class A2AEventStreamResult : IResult
                         A2AErrorCode.InternalError);
                 return new A2AErrorResult(error);
             },
-            diagnosticContext: null);
+            operationActivity: null);
     }
 
     public Task ExecuteAsync(HttpContext httpContext) =>
@@ -139,13 +139,12 @@ internal sealed class A2AEventStreamResult<TEvent>(
     IAsyncEnumerable<TEvent> events,
     JsonTypeInfo<TEvent> eventTypeInfo,
     Func<Exception, IResult> createErrorResult,
-    A2AOperationDiagnosticContext? diagnosticContext,
+    Activity? operationActivity,
     Action<Exception>? logStreamException = null)
     : IResult
 {
     public async Task ExecuteAsync(HttpContext httpContext)
     {
-        using var operationActivity = diagnosticContext?.Start();
         IAsyncEnumerator<TEvent> enumerator;
         try
         {

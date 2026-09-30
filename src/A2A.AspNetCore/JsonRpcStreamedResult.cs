@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using System.Diagnostics;
 using System.Net.ServerSentEvents;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -16,7 +17,7 @@ public sealed class JsonRpcStreamedResult : IResult
     private readonly IAsyncEnumerable<JsonRpcResponse> _responses;
     private readonly JsonRpcId _requestId;
     private readonly Func<Exception, string, JsonRpcResponse> _createErrorResponse;
-    private readonly A2AOperationDiagnosticContext? _diagnosticContext;
+    private readonly Activity? _operationActivity;
 
     /// <summary>Initializes a new instance of the <see cref="JsonRpcStreamedResult"/> class.</summary>
     /// <param name="events">The stream of response events.</param>
@@ -36,7 +37,7 @@ public sealed class JsonRpcStreamedResult : IResult
                     requestId,
                     exception,
                     internalErrorMessage),
-            diagnosticContext: null)
+            operationActivity: null)
     {
         ArgumentNullException.ThrowIfNull(events);
     }
@@ -45,12 +46,12 @@ public sealed class JsonRpcStreamedResult : IResult
         IAsyncEnumerable<JsonRpcResponse> responses,
         JsonRpcId requestId,
         Func<Exception, string, JsonRpcResponse> createErrorResponse,
-        A2AOperationDiagnosticContext? diagnosticContext)
+        Activity? operationActivity)
     {
         _responses = responses;
         _requestId = requestId;
         _createErrorResponse = createErrorResponse;
-        _diagnosticContext = diagnosticContext;
+        _operationActivity = operationActivity;
     }
 
     internal static JsonRpcStreamedResult Create<TEvent>(
@@ -58,7 +59,7 @@ public sealed class JsonRpcStreamedResult : IResult
         JsonRpcId requestId,
         JsonTypeInfo<TEvent> eventTypeInfo,
         Func<JsonRpcId, Exception, string, JsonRpcResponse> createErrorResponse,
-        A2AOperationDiagnosticContext diagnosticContext)
+        Activity? operationActivity)
     {
         ArgumentNullException.ThrowIfNull(events);
         ArgumentNullException.ThrowIfNull(eventTypeInfo);
@@ -72,7 +73,7 @@ public sealed class JsonRpcStreamedResult : IResult
                     requestId,
                     exception,
                     internalErrorMessage),
-            diagnosticContext);
+            operationActivity);
     }
 
     /// <inheritdoc />
@@ -80,7 +81,7 @@ public sealed class JsonRpcStreamedResult : IResult
     {
         ArgumentNullException.ThrowIfNull(httpContext);
 
-        using var operationActivity = _diagnosticContext?.Start();
+        var operationActivity = _operationActivity;
         IAsyncEnumerator<JsonRpcResponse> enumerator;
         try
         {

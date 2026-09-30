@@ -70,10 +70,21 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<TResult> InvokeAsync<TRequest, TResult>(
+    public Task<TResult> InvokeAsync<TRequest, TResult>(
         A2AOperation<TRequest, TResult> operation,
         TRequest request,
         CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        return A2AOperationDiagnostics.InvokeAsync(
+            operation.Id, _operationBindings.GetSource(operation.Id), "http-json",
+            token => InvokeCoreAsync(operation, request, token), cancellationToken);
+    }
+
+    private async Task<TResult> InvokeCoreAsync<TRequest, TResult>(
+        A2AOperation<TRequest, TResult> operation,
+        TRequest request,
+        CancellationToken cancellationToken)
     {
         var binding = _operationBindings.GetHttp(operation);
         binding.Validate(request);
@@ -90,9 +101,8 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
             ActivityKind.Client);
         var stopwatch = Stopwatch.StartNew();
         activity?.SetTag("http.method", requestMessage.Method.Method);
-        activity?.SetTag(
-            "url.full",
-            requestMessage.RequestUri?.ToString());
+        activity?.SetTag("server.address", requestMessage.RequestUri?.Host);
+        activity?.SetTag("server.port", requestMessage.RequestUri?.Port);
 
         try
         {
@@ -128,12 +138,10 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
         {
             throw;
         }
-        catch (Exception exception)
+        catch (Exception)
         {
             A2ADiagnostics.ClientErrorCount.Add(1);
-            activity?.SetStatus(
-                ActivityStatusCode.Error,
-                exception.Message);
+            activity?.SetStatus(ActivityStatusCode.Error);
             throw;
         }
         finally
@@ -144,10 +152,21 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
     }
 
     /// <inheritdoc />
-    public async IAsyncEnumerable<TEvent> InvokeStreamingAsync<TRequest, TEvent>(
+    public IAsyncEnumerable<TEvent> InvokeStreamingAsync<TRequest, TEvent>(
         A2AStreamingOperation<TRequest, TEvent> operation,
         TRequest request,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        return A2AOperationDiagnostics.InvokeStreamingAsync(
+            operation.Id, _operationBindings.GetSource(operation.Id), "http-json",
+            () => InvokeStreamingCoreAsync(operation, request, cancellationToken), cancellationToken);
+    }
+
+    private async IAsyncEnumerable<TEvent> InvokeStreamingCoreAsync<TRequest, TEvent>(
+        A2AStreamingOperation<TRequest, TEvent> operation,
+        TRequest request,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var binding = _operationBindings.GetHttpStreaming(operation);
         binding.Validate(request);
@@ -167,9 +186,8 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
         A2ADiagnostics.ClientRequestCount.Add(1);
         var eventCount = 0;
         activity?.SetTag("http.method", requestMessage.Method.Method);
-        activity?.SetTag(
-            "url.full",
-            requestMessage.RequestUri?.ToString());
+        activity?.SetTag("server.address", requestMessage.RequestUri?.Host);
+        activity?.SetTag("server.port", requestMessage.RequestUri?.Port);
 
         HttpResponseMessage? response = null;
         Stream? stream = null;
@@ -196,12 +214,10 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
             response?.Dispose();
             throw;
         }
-        catch (Exception exception)
+        catch (Exception)
         {
             A2ADiagnostics.ClientErrorCount.Add(1);
-            activity?.SetStatus(
-                ActivityStatusCode.Error,
-                exception.Message);
+            activity?.SetStatus(ActivityStatusCode.Error);
             response?.Dispose();
             throw;
         }
@@ -353,13 +369,12 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
                 cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
-            when (cancellationToken.IsCancellationRequested)
         {
             throw;
         }
-        catch (Exception readException)
+        catch (Exception)
         {
-            Activity.Current?.AddException(readException);
+            Activity.Current?.SetStatus(ActivityStatusCode.Error);
         }
 
         var contentType = response.Content.Headers.ContentType?.MediaType;
@@ -415,9 +430,13 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
                 detail = body;
             }
         }
-        catch (Exception parseException)
+        catch (OperationCanceledException)
         {
-            Activity.Current?.AddException(parseException);
+            throw;
+        }
+        catch (Exception)
+        {
+            Activity.Current?.SetStatus(ActivityStatusCode.Error);
         }
 
         var errorCode = reasonErrorCode ?? response.StatusCode switch
@@ -488,9 +507,13 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
                 }
             }
         }
-        catch (Exception parseException)
+        catch (OperationCanceledException)
         {
-            Activity.Current?.AddException(parseException);
+            throw;
+        }
+        catch (Exception)
+        {
+            Activity.Current?.SetStatus(ActivityStatusCode.Error);
         }
 
         exception = null!;

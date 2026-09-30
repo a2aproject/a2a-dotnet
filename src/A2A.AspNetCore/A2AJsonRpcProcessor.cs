@@ -50,6 +50,7 @@ public static class A2AJsonRpcProcessor
         JsonRpcId? parsedRequestId = null;
         IA2AJsonRpcBoundOperation? boundOperation = null;
         A2ARequestScope? scope = null;
+        Activity? operationActivity = null;
 
         try
         {
@@ -92,13 +93,17 @@ public static class A2AJsonRpcProcessor
             activity?.SetTag("request.id", rpcRequest.Id.ToString());
             activity?.SetTag("request.method", rpcRequest.Method);
 
+            var hasBinding = bindings.TryGetBinding(rpcRequest.Method, out var binding);
+            operationActivity = hasBinding ? binding.Diagnostics.Start() : null;
             if (rpcRequest.Params is null)
             {
-                return new JsonRpcResponseResult(
-                    JsonRpcResponse.InvalidParamsResponse(rpcRequest.Id));
+                A2AOperationDiagnostics.SetOutcome(operationActivity, "error");
+                return WrapScope(
+                    new JsonRpcResponseResult(JsonRpcResponse.InvalidParamsResponse(rpcRequest.Id)),
+                    ref scope, ref operationActivity);
             }
 
-            if (!bindings.TryGetBinding(rpcRequest.Method, out var binding))
+            if (!hasBinding)
             {
                 return new JsonRpcResponseResult(
                     JsonRpcResponse.MethodNotFoundResponse(rpcRequest.Id));
@@ -115,22 +120,24 @@ public static class A2AJsonRpcProcessor
                 rpcRequest.Id,
                 scope.Context,
                 handlers,
+                operationActivity,
                 cancellationToken).ConfigureAwait(false);
-            return WrapScope(result, ref scope);
+            return WrapScope(result, ref scope, ref operationActivity);
         }
         catch (A2AException ex)
         {
-            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            activity?.SetStatus(ActivityStatusCode.Error);
+            A2AOperationDiagnostics.SetError(operationActivity, ex);
             var errorId = GetErrorId(rpcRequest, parsedRequestId, ex);
             return WrapScope(
                 new JsonRpcResponseResult(
                     JsonRpcResponse.CreateJsonRpcErrorResponse(errorId, ex)),
-                ref scope);
+                ref scope, ref operationActivity);
         }
         catch (Exception ex)
         {
-            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-            activity?.AddException(ex);
+            activity?.SetStatus(ActivityStatusCode.Error);
+            A2AOperationDiagnostics.SetError(operationActivity, ex);
             var errorId = GetErrorId(rpcRequest, parsedRequestId);
             var response = boundOperation?.CreateErrorResponse(
                 errorId,
@@ -141,13 +148,20 @@ public static class A2AJsonRpcProcessor
                     "An internal error occurred.");
             return WrapScope(
                 new JsonRpcResponseResult(response),
-                ref scope);
+                ref scope, ref operationActivity);
         }
         finally
         {
-            if (scope is not null)
+            try
             {
-                await scope.DisposeAsync().ConfigureAwait(false);
+                if (scope is not null)
+                {
+                    await A2AOperationDiagnostics.DisposeAsync(scope, operationActivity).ConfigureAwait(false);
+                }
+            }
+            finally
+            {
+                operationActivity?.Dispose();
             }
         }
     }
@@ -242,15 +256,17 @@ public static class A2AJsonRpcProcessor
 
     private static IResult WrapScope(
         IResult result,
-        ref A2ARequestScope? scope)
+        ref A2ARequestScope? scope,
+        ref Activity? operationActivity)
     {
-        if (scope is null)
+        if (scope is null && operationActivity is null)
         {
             return result;
         }
 
-        var scopedResult = new A2ARequestScopeResult(result, scope);
+        var scopedResult = new A2ARequestScopeResult(result, scope, operationActivity);
         scope = null;
+        operationActivity = null;
         return scopedResult;
     }
 }
