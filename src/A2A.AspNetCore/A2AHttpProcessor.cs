@@ -159,7 +159,8 @@ internal static class A2AHttpProcessor
     // REST handler: List tasks
     internal static Task<IResult> ListTasksRestAsync(
         IA2ARequestHandler requestHandler, ILogger logger, string? contextId, string? status, int? pageSize,
-        string? pageToken, int? historyLength, CancellationToken cancellationToken)
+        string? pageToken, int? historyLength, DateTimeOffset? statusTimestampAfter,
+        bool? includeArtifacts, CancellationToken cancellationToken)
         => WithExceptionHandlingAsync(logger, "REST.ListTasks", async ct =>
         {
             var request = new ListTasksRequest
@@ -171,18 +172,32 @@ internal static class A2AHttpProcessor
             };
             if (!string.IsNullOrEmpty(status))
             {
-                if (!Enum.TryParse<TaskState>(status, ignoreCase: true, out var taskState))
+                if (!TryParseTaskState(status, out var taskState))
                 {
-                    return Results.Problem(
-                        detail: $"Invalid status filter: '{status}'. Valid values: {string.Join(", ", Enum.GetNames<TaskState>())}",
-                        statusCode: StatusCodes.Status400BadRequest);
+                    return new A2AErrorResult(new A2AException(
+                        $"Invalid status filter: '{status}'.",
+                        A2AErrorCode.InvalidParams));
                 }
                 request.Status = taskState;
             }
+            request.StatusTimestampAfter = statusTimestampAfter;
+            request.IncludeArtifacts = includeArtifacts;
 
             var result = await requestHandler.ListTasksAsync(request, ct).ConfigureAwait(false);
             return new A2AResponseResult(result);
         }, cancellationToken: cancellationToken);
+
+    private static bool TryParseTaskState(string value, out TaskState state)
+    {
+        if (Enum.TryParse(value, ignoreCase: true, out state))
+        {
+            return true;
+        }
+
+        const string wirePrefix = "TASK_STATE_";
+        return value.StartsWith(wirePrefix, StringComparison.Ordinal) &&
+            Enum.TryParse(value[wirePrefix.Length..], ignoreCase: true, out state);
+    }
 
     // REST handler: Get extended agent card
     internal static Task<IResult> GetExtendedAgentCardRestAsync(

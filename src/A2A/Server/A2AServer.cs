@@ -829,6 +829,16 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
         await agentTask.ConfigureAwait(false);
 #pragma warning restore VSTHRD003
 
+        // A continuation may legitimately emit only status/artifact updates.
+        // Those events are applied to the task store above, but they do not
+        // themselves populate `result`. Return the persisted task instead of
+        // reporting a completed continuation as an invalid agent response.
+        var persistedTask = await _taskStore.GetTaskAsync(context.TaskId, cancellationToken).ConfigureAwait(false);
+        if (persistedTask is not null)
+        {
+            return new SendMessageResponse { Task = persistedTask };
+        }
+
         throw new A2AException(
             "Agent handler did not produce any response events.",
             A2AErrorCode.InvalidAgentResponse);

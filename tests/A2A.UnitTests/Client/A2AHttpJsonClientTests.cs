@@ -605,6 +605,21 @@ public class A2AHttpJsonClientErrorInfoTests
     }
 
     [Fact]
+    public async Task ErrorInfo_ApplicationA2AJson_ParsesReason()
+    {
+        var sut = CreateErrorInfoClient(HttpStatusCode.BadRequest,
+            "INVALID_PARAMS", "Invalid parameters", "application/a2a+json");
+
+        var ex = await Assert.ThrowsAsync<A2AException>(() =>
+            sut.SendMessageAsync(new SendMessageRequest
+            {
+                Message = new Message { Parts = [], Role = Role.User, MessageId = "m" }
+            }));
+
+        Assert.Equal(A2AErrorCode.InvalidParams, ex.ErrorCode);
+    }
+
+    [Fact]
     public async Task ErrorInfo_VersionNotSupported_DistinguishesFrom400()
     {
         var sut = CreateErrorInfoClient(HttpStatusCode.BadRequest,
@@ -670,7 +685,8 @@ public class A2AHttpJsonClientErrorInfoTests
         Assert.Contains("404", ex.Message);
     }
 
-    private static A2AHttpJsonClient CreateErrorInfoClient(HttpStatusCode statusCode, string reason, string message)
+    private static A2AHttpJsonClient CreateErrorInfoClient(
+        HttpStatusCode statusCode, string reason, string message, string mediaType = "application/json")
     {
         var errorJson = JsonSerializer.Serialize(new
         {
@@ -692,7 +708,7 @@ public class A2AHttpJsonClientErrorInfoTests
         });
         var response = new HttpResponseMessage(statusCode)
         {
-            Content = new StringContent(errorJson, Encoding.UTF8, "application/json")
+            Content = new StringContent(errorJson, Encoding.UTF8, mediaType)
         };
 
         var handler = new MockHttpMessageHandler(response);
