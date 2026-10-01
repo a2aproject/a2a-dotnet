@@ -671,10 +671,13 @@ internal abstract class A2AHttpOperationBinding(
                 cancellationToken).ConfigureAwait(false);
             return WrapScope(result, ref scope, ref operationActivity);
         }
-        catch (A2AHttpBindingException exception)
+        catch (A2AHttpBindingResultException exception)
         {
             activity?.SetStatus(ActivityStatusCode.Error);
-            A2AOperationDiagnostics.SetError(operationActivity, exception, cancellationToken);
+            A2AOperationDiagnostics.SetError(
+                operationActivity,
+                exception.BindingException,
+                cancellationToken);
             return WrapScope(exception.Result, ref scope, ref operationActivity);
         }
         catch (OperationCanceledException exception)
@@ -806,6 +809,10 @@ internal sealed class A2AHttpUnaryOperationBinding<TRequest, TResult>(
 
             return request;
         }
+        catch (A2AHttpBindingException exception)
+        {
+            throw new A2AHttpBindingResultException(exception);
+        }
         catch (A2AException)
         {
             throw;
@@ -915,6 +922,10 @@ internal sealed class A2AHttpStreamingOperationBinding<TRequest, TEvent>(
 
             return request;
         }
+        catch (A2AHttpBindingException exception)
+        {
+            throw new A2AHttpBindingResultException(exception);
+        }
         catch (A2AException)
         {
             throw;
@@ -995,9 +1006,38 @@ internal sealed class A2AHttpErrorMapping<TDetails>(
     }
 }
 
-internal sealed class A2AHttpBindingException(IResult result) : Exception
+/// <summary>
+/// Represents an HTTP request binding failure that returns an exact HTTP result.
+/// </summary>
+/// <remarks>
+/// Throw this exception from an <see cref="A2AHttpRequestBinder{TRequest}"/> to
+/// reject transport input before an A2A request scope is created. Exceptions
+/// thrown after the request binder completes are handled as operation failures.
+/// </remarks>
+public sealed class A2AHttpBindingException : Exception
 {
-    internal IResult Result { get; } = result;
+    /// <summary>
+    /// Initializes a new instance of the <see cref="A2AHttpBindingException"/>
+    /// class.
+    /// </summary>
+    /// <param name="result">The exact HTTP result to return.</param>
+    public A2AHttpBindingException(IResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        Result = result;
+    }
+
+    internal IResult Result { get; }
+}
+
+internal sealed class A2AHttpBindingResultException(
+    A2AHttpBindingException bindingException)
+    : Exception(bindingException.Message, bindingException)
+{
+    internal A2AHttpBindingException BindingException { get; } =
+        bindingException;
+
+    internal IResult Result => BindingException.Result;
 }
 
 internal sealed class A2AHttpOperationResult<TResult>(

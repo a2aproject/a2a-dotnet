@@ -435,6 +435,97 @@ public partial class A2AHttpCustomOperationTests
     }
 
     [Fact]
+    public void A2AHttpBindingException_NullResultIsRejected()
+    {
+        Assert.Throws<ArgumentNullException>(
+            () => new A2AHttpBindingException(null!));
+    }
+
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData("text/plain", false)]
+    [InlineData("application/json", true)]
+    public async Task MapHttpA2A_CustomBindingContentTypeValidationOccursBeforeScopeCreation(
+        string? contentType,
+        bool shouldDispatch)
+    {
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var operation = operationBuilder.DefineUnary<ResumeRequest, ResumeResult>(
+            new A2AOperationId("test.content-type-binding"));
+        var operationCatalog = operationBuilder.Build();
+        var handlerCallCount = 0;
+        var handlers = new A2AOperationHandlerCatalogBuilder()
+            .Map(
+                operation,
+                (_, request, _) =>
+                {
+                    handlerCallCount++;
+                    return ValueTask.FromResult(new ResumeResult(request.Token));
+                })
+            .Build(operationCatalog);
+        var bindings = new A2AHttpOperationBindingBuilder()
+            .Map(
+                HttpMethods.Post,
+                "/tasks/{id}:contentType",
+                operation,
+                static (httpContext, _) =>
+                {
+                    if (!httpContext.Request.HasJsonContentType())
+                    {
+                        throw new A2AHttpBindingException(
+                            Results.StatusCode(
+                                StatusCodes.Status415UnsupportedMediaType));
+                    }
+
+                    return ValueTask.FromResult(
+                        new ResumeRequest(
+                            (string)httpContext.Request.RouteValues["id"]!,
+                            "opaque-token"));
+                },
+                CustomHttpJsonContext.Default.ResumeResult)
+            .Build();
+        var scopeCreateCount = 0;
+        A2ARequestScopeFactory scopeFactory = (_, _) =>
+        {
+            scopeCreateCount++;
+            return ValueTask.FromResult(
+                new A2ARequestScope(
+                    new A2AOperationContext(
+                        new A2AJsonRpcCustomOperationTests.TestRequestHandler())));
+        };
+        var app = WebApplication.CreateBuilder().Build();
+        app.MapHttpA2A(scopeFactory, handlers, bindings);
+        var httpContext = CreateHttpContext(app, "/tasks/{id}:contentType");
+        httpContext.Request.ContentType = contentType;
+
+        await GetEndpoint(
+            app,
+            HttpMethods.Post,
+            "/tasks/{id}:contentType").RequestDelegate!(httpContext);
+
+        var expectedDispatchCount = shouldDispatch ? 1 : 0;
+        Assert.Equal(expectedDispatchCount, handlerCallCount);
+        Assert.Equal(expectedDispatchCount, scopeCreateCount);
+        Assert.Equal(
+            shouldDispatch
+                ? StatusCodes.Status200OK
+                : StatusCodes.Status415UnsupportedMediaType,
+            httpContext.Response.StatusCode);
+        if (shouldDispatch)
+        {
+            Assert.Contains(
+                "opaque-token",
+                GetResponseBody(httpContext),
+                StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.Null(httpContext.Response.ContentType);
+            Assert.Empty(GetResponseBody(httpContext));
+        }
+    }
+
+    [Fact]
     public async Task MapHttpA2A_CustomValidatorRunsBeforeRequestScopeCreation()
     {
         var operationBuilder = new A2AOperationCatalogBuilder();
@@ -485,6 +576,72 @@ public partial class A2AHttpCustomOperationTests
             "resume request is invalid",
             GetResponseBody(httpContext),
             StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task MapHttpA2A_CustomValidatorCannotReturnRawBindingFailure()
+    {
+        var expectedException = new A2AHttpBindingException(
+            Results.StatusCode(StatusCodes.Status409Conflict));
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var operation = operationBuilder.DefineUnary<ResumeRequest, ResumeResult>(
+            new A2AOperationId("test.validation-binding-failure"),
+            _ => throw expectedException);
+        var operationCatalog = operationBuilder.Build();
+        var handlerCallCount = 0;
+        var handlers = new A2AOperationHandlerCatalogBuilder()
+            .Map(
+                operation,
+                (_, request, _) =>
+                {
+                    handlerCallCount++;
+                    return ValueTask.FromResult(new ResumeResult(request.Token));
+                })
+            .Build(operationCatalog);
+        var bindings = new A2AHttpOperationBindingBuilder()
+            .Map(
+                HttpMethods.Post,
+                "/tasks/{id}:validationBindingFailure",
+                operation,
+                static (context, _) => ValueTask.FromResult(
+                    new ResumeRequest(
+                        (string)context.Request.RouteValues["id"]!,
+                        "opaque-token")),
+                CustomHttpJsonContext.Default.ResumeResult)
+            .Build();
+        var scopeCreateCount = 0;
+        A2ARequestScopeFactory scopeFactory = (_, _) =>
+        {
+            scopeCreateCount++;
+            return ValueTask.FromResult(
+                new A2ARequestScope(
+                    new A2AOperationContext(
+                        new A2AJsonRpcCustomOperationTests.TestRequestHandler())));
+        };
+        var loggerProvider = new CapturingLoggerProvider();
+        var builder = WebApplication.CreateBuilder();
+        builder.Logging.AddProvider(loggerProvider);
+        var app = builder.Build();
+        app.MapHttpA2A(scopeFactory, handlers, bindings);
+        var httpContext = CreateHttpContext(
+            app,
+            "/tasks/{id}:validationBindingFailure");
+
+        await GetEndpoint(
+            app,
+            HttpMethods.Post,
+            "/tasks/{id}:validationBindingFailure").RequestDelegate!(httpContext);
+
+        Assert.Equal(0, handlerCallCount);
+        Assert.Equal(0, scopeCreateCount);
+        Assert.Equal(
+            StatusCodes.Status500InternalServerError,
+            httpContext.Response.StatusCode);
+        Assert.Contains(
+            loggerProvider.Entries,
+            entry =>
+                entry.LogLevel == LogLevel.Error
+                && ReferenceEquals(entry.Exception, expectedException));
     }
 
     [Fact]
@@ -747,15 +904,21 @@ public partial class A2AHttpCustomOperationTests
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    [InlineData(false, true)]
     public async Task MapHttpA2A_UnexpectedDispatchExceptionIsLogged(
-        bool throwFromScopeFactory)
+        bool throwFromScopeFactory,
+        bool throwBindingException)
     {
-        var expectedException = new InvalidOperationException(
-            throwFromScopeFactory
-                ? "secret scope factory failure"
-                : "secret handler failure");
+        Exception expectedException = throwBindingException
+            ? new A2AHttpBindingException(
+                Results.StatusCode(StatusCodes.Status409Conflict))
+            : new InvalidOperationException(
+                throwFromScopeFactory
+                    ? "secret scope factory failure"
+                    : "secret handler failure");
         var operationBuilder = new A2AOperationCatalogBuilder();
         var operation = operationBuilder.DefineUnary<ResumeRequest, ResumeResult>(
             new A2AOperationId("test.logging"));
