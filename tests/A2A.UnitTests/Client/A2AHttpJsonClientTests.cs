@@ -578,6 +578,17 @@ public class A2AHttpJsonClientErrorInfoTests
     }
 
     [Fact]
+    public async Task ErrorInfo_MethodNotFound_ParsesReason()
+    {
+        var sut = CreateErrorInfoClient(HttpStatusCode.NotFound, "METHOD_NOT_FOUND", "Method not found");
+
+        var ex = await Assert.ThrowsAsync<A2AException>(() =>
+            sut.GetTaskAsync(new GetTaskRequest { Id = "missing" }));
+
+        Assert.Equal(A2AErrorCode.MethodNotFound, ex.ErrorCode);
+    }
+
+    [Fact]
     public async Task ErrorInfo_PushNotificationNotSupported_DistinguishesFrom400()
     {
         var sut = CreateErrorInfoClient(HttpStatusCode.BadRequest,

@@ -400,6 +400,7 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
         ["INVALID_PARAMS"] = A2AErrorCode.InvalidParams,
         ["PARSE_ERROR"] = A2AErrorCode.ParseError,
         ["INTERNAL_ERROR"] = A2AErrorCode.InternalError,
+        ["METHOD_NOT_FOUND"] = A2AErrorCode.MethodNotFound,
     };
 
     [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "Error types are registered in source-generated JsonContext.")]

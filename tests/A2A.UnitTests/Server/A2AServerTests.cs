@@ -150,6 +150,37 @@ public class A2AServerTests
     }
 
     [Fact]
+    public async Task GivenContinuation_WhenHandlerEmitsNoEvents_ThenInvalidAgentResponseIsThrown()
+    {
+        var (server, store, handler) = CreateServer();
+        await store.SaveTaskAsync("t1", new AgentTask
+        {
+            Id = "t1",
+            ContextId = "ctx-1",
+            Status = new TaskStatus { State = TaskState.InputRequired },
+        });
+        handler.OnExecute = (ctx, eq, ct) =>
+        {
+            eq.Complete();
+            return Task.CompletedTask;
+        };
+
+        var ex = await Assert.ThrowsAsync<A2AException>(() => server.SendMessageAsync(new SendMessageRequest
+        {
+            Message = new Message
+            {
+                MessageId = "u2",
+                TaskId = "t1",
+                ContextId = "ctx-1",
+                Parts = [Part.FromText("continue")],
+                Role = Role.User,
+            },
+        }));
+
+        Assert.Equal(A2AErrorCode.InvalidAgentResponse, ex.ErrorCode);
+    }
+
+    [Fact]
     public async Task GivenExistingTask_WhenSendMessage_ThenHistoryAppended()
     {
         // Arrange

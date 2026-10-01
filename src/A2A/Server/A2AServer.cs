@@ -791,10 +791,12 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
         AgentEventQueue eventQueue, Task agentTask, RequestContext context, CancellationToken cancellationToken)
     {
         SendMessageResponse? result = null;
+        bool appliedTaskUpdate = false;
 
         await foreach (var response in eventQueue.WithCancellation(cancellationToken).ConfigureAwait(false))
         {
             await ApplyEventAsync(response, context, cancellationToken).ConfigureAwait(false);
+            appliedTaskUpdate |= response.StatusUpdate is not null || response.ArtifactUpdate is not null;
 
             // Capture the first Task or Message as the synchronous response
             if (result is null)
@@ -833,10 +835,13 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
         // Those events are applied to the task store above, but they do not
         // themselves populate `result`. Return the persisted task instead of
         // reporting a completed continuation as an invalid agent response.
-        var persistedTask = await _taskStore.GetTaskAsync(context.TaskId, cancellationToken).ConfigureAwait(false);
-        if (persistedTask is not null)
+        if (appliedTaskUpdate)
         {
-            return new SendMessageResponse { Task = persistedTask };
+            var persistedTask = await _taskStore.GetTaskAsync(context.TaskId, cancellationToken).ConfigureAwait(false);
+            if (persistedTask is not null)
+            {
+                return new SendMessageResponse { Task = persistedTask };
+            }
         }
 
         throw new A2AException(

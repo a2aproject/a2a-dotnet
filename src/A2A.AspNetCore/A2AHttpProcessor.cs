@@ -189,14 +189,16 @@ internal static class A2AHttpProcessor
 
     private static bool TryParseTaskState(string value, out TaskState state)
     {
-        if (Enum.TryParse(value, ignoreCase: true, out state))
+        if (Enum.TryParse(value, ignoreCase: true, out state) &&
+            Enum.IsDefined(state))
         {
             return true;
         }
 
         const string wirePrefix = "TASK_STATE_";
         return value.StartsWith(wirePrefix, StringComparison.Ordinal) &&
-            Enum.TryParse(value[wirePrefix.Length..], ignoreCase: true, out state);
+            Enum.TryParse(value[wirePrefix.Length..], ignoreCase: true, out state) &&
+            Enum.IsDefined(state);
     }
 
     // REST handler: Get extended agent card

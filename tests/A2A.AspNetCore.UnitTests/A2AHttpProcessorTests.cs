@@ -183,4 +183,27 @@ public class A2AHttpProcessorTests
         Assert.NotNull(result);
         Assert.Equal(StatusCodes.Status500InternalServerError, ((IStatusCodeHttpResult)result).StatusCode);
     }
+
+    [Theory]
+    [InlineData("999")]
+    [InlineData("TASK_STATE_999")]
+    public async Task ListTasks_WithUndefinedNumericStatus_ShouldReturnInvalidParams(string status)
+    {
+        var requestHandler = new Mock<IA2ARequestHandler>(MockBehavior.Strict);
+
+        var result = await A2AHttpProcessor.ListTasksRestAsync(
+            requestHandler.Object,
+            NullLogger.Instance,
+            null,
+            status,
+            null,
+            null,
+            null,
+            null,
+            null,
+            CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, ((IStatusCodeHttpResult)result).StatusCode);
+        requestHandler.VerifyNoOtherCalls();
+    }
 }
