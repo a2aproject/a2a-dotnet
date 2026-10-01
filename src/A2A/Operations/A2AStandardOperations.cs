@@ -81,7 +81,8 @@ public sealed class A2AStandardOperations
 
     /// <summary>Gets the standard send-streaming-message operation.</summary>
     public A2AStreamingOperation<SendMessageRequest, StreamResponse>
-        SendStreamingMessage { get; }
+        SendStreamingMessage
+    { get; }
 
     /// <summary>Gets the standard get-task operation.</summary>
     public A2AOperation<GetTaskRequest, AgentTask> GetTask { get; }
@@ -94,15 +95,18 @@ public sealed class A2AStandardOperations
 
     /// <summary>Gets the standard subscribe-to-task operation.</summary>
     public A2AStreamingOperation<SubscribeToTaskRequest, StreamResponse>
-        SubscribeToTask { get; }
+        SubscribeToTask
+    { get; }
 
     /// <summary>Gets the standard create-task-push-notification-config operation.</summary>
     public A2AOperation<TaskPushNotificationConfig, TaskPushNotificationConfig>
-        CreateTaskPushNotificationConfig { get; }
+        CreateTaskPushNotificationConfig
+    { get; }
 
     /// <summary>Gets the standard get-task-push-notification-config operation.</summary>
     public A2AOperation<GetTaskPushNotificationConfigRequest, TaskPushNotificationConfig>
-        GetTaskPushNotificationConfig { get; }
+        GetTaskPushNotificationConfig
+    { get; }
 
     /// <summary>Gets the standard list-task-push-notification-configs operation.</summary>
     public A2AOperation<
@@ -114,7 +118,8 @@ public sealed class A2AStandardOperations
 
     /// <summary>Gets the standard delete-task-push-notification-config operation.</summary>
     public A2AOperation<DeleteTaskPushNotificationConfigRequest, A2AEmptyResult>
-        DeleteTaskPushNotificationConfig { get; }
+        DeleteTaskPushNotificationConfig
+    { get; }
 
     /// <summary>Gets the standard get-extended-agent-card operation.</summary>
     public A2AOperation<GetExtendedAgentCardRequest, AgentCard> GetExtendedAgentCard

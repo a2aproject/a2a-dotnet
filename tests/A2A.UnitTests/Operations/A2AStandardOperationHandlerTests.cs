@@ -361,37 +361,48 @@ public class A2AStandardOperationHandlerTests
         private readonly Dictionary<string, int> _callCounts = new(StringComparer.Ordinal);
 
         public Func<SendMessageRequest, CancellationToken, Task<SendMessageResponse>>?
-            OnSendMessageAsync { get; set; }
+            OnSendMessageAsync
+        { get; set; }
 
         public Func<SendMessageRequest, CancellationToken, IAsyncEnumerable<StreamResponse>>?
-            OnSendStreamingMessageAsync { get; set; }
+            OnSendStreamingMessageAsync
+        { get; set; }
 
         public Func<GetTaskRequest, CancellationToken, Task<AgentTask>>?
-            OnGetTaskAsync { get; set; }
+            OnGetTaskAsync
+        { get; set; }
 
         public Func<ListTasksRequest, CancellationToken, Task<ListTasksResponse>>?
-            OnListTasksAsync { get; set; }
+            OnListTasksAsync
+        { get; set; }
 
         public Func<CancelTaskRequest, CancellationToken, Task<AgentTask>>?
-            OnCancelTaskAsync { get; set; }
+            OnCancelTaskAsync
+        { get; set; }
 
         public Func<SubscribeToTaskRequest, CancellationToken, IAsyncEnumerable<StreamResponse>>?
-            OnSubscribeToTaskAsync { get; set; }
+            OnSubscribeToTaskAsync
+        { get; set; }
 
         public Func<TaskPushNotificationConfig, CancellationToken, Task<TaskPushNotificationConfig>>?
-            OnCreateTaskPushNotificationConfigAsync { get; set; }
+            OnCreateTaskPushNotificationConfigAsync
+        { get; set; }
 
         public Func<GetTaskPushNotificationConfigRequest, CancellationToken, Task<TaskPushNotificationConfig>>?
-            OnGetTaskPushNotificationConfigAsync { get; set; }
+            OnGetTaskPushNotificationConfigAsync
+        { get; set; }
 
         public Func<ListTaskPushNotificationConfigsRequest, CancellationToken, Task<ListTaskPushNotificationConfigsResponse>>?
-            OnListTaskPushNotificationConfigsAsync { get; set; }
+            OnListTaskPushNotificationConfigsAsync
+        { get; set; }
 
         public Func<DeleteTaskPushNotificationConfigRequest, CancellationToken, Task>?
-            OnDeleteTaskPushNotificationConfigAsync { get; set; }
+            OnDeleteTaskPushNotificationConfigAsync
+        { get; set; }
 
         public Func<GetExtendedAgentCardRequest, CancellationToken, Task<AgentCard>>?
-            OnGetExtendedAgentCardAsync { get; set; }
+            OnGetExtendedAgentCardAsync
+        { get; set; }
 
         public void AssertNoCalls()
             => Assert.All(_callCounts.Values, count => Assert.Equal(0, count));

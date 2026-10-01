@@ -548,12 +548,14 @@ public class A2AJsonRpcProcessorTests
         ["Invalid JSON payload", "Invalid JSON-RPC request payload."];
 
     /// <summary>Creates a test A2AServer with in-memory store and default callbacks.</summary>
+    /// <param name="options"></param>
     private static IA2ARequestHandler CreateTestServer(A2AServerOptions? options = null)
     {
         return CreateTestServerWithStore(options).requestHandler;
     }
 
     /// <summary>Creates a test A2AServer with store exposed for pre-populating data.</summary>
+    /// <param name="options"></param>
     private static (IA2ARequestHandler requestHandler, InMemoryTaskStore store) CreateTestServerWithStore(
         A2AServerOptions? options = null)
     {

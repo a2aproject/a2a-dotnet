@@ -12,7 +12,8 @@ public static class A2AStandardHttpBindingBuilderExtensions
 {
     internal static IReadOnlyDictionary<
         A2AHttpOperationBindingKey,
-        A2AOperationId> CanonicalRouteOperationIds { get; } =
+        A2AOperationId> CanonicalRouteOperationIds
+    { get; } =
         new Dictionary<A2AHttpOperationBindingKey, A2AOperationId>
         {
             [new(HttpMethods.Get, "/tasks/{id}")] =
