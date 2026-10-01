@@ -309,6 +309,52 @@ public class A2AJsonRpcStandardOperationTests
     }
 
     [Fact]
+    public async Task ProcessRequestAsync_NullMessageReturnsInvalidParamsBeforeScopeCreation()
+    {
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var standard = operationBuilder.AddStandardA2AOperations();
+        var operationCatalog = operationBuilder.Build();
+        var handlers = new A2AOperationHandlerCatalogBuilder()
+            .Map(
+                standard.SendMessage,
+                static (_, _, _) =>
+                    ValueTask.FromResult(new SendMessageResponse()))
+            .Build(operationCatalog);
+        var bindings = new A2AJsonRpcOperationBindingBuilder()
+            .AddStandardA2AJsonRpcBindings(standard)
+            .Build(operationCatalog);
+        var scopeCreateCount = 0;
+        A2ARequestScopeFactory scopeFactory = (_, _) =>
+        {
+            scopeCreateCount++;
+            return ValueTask.FromResult(
+                new A2ARequestScope(
+                    new A2AOperationContext(new ThrowingRequestHandler())));
+        };
+        var parameters = JsonDocument.Parse(
+            """
+            {
+              "message": null
+            }
+            """).RootElement.Clone();
+        var httpContext = CreateHttpContext(
+            A2AMethods.SendMessage,
+            parameters,
+            "null-message");
+
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(
+            scopeFactory,
+            handlers,
+            bindings,
+            httpContext.Request,
+            CancellationToken.None);
+        var response = await ExecuteJsonResponseAsync(httpContext, result);
+
+        Assert.Equal(0, scopeCreateCount);
+        Assert.Equal((int)A2AErrorCode.InvalidParams, response.Error?.Code);
+    }
+
+    [Fact]
     public async Task ProcessRequestAsync_PushNotificationSupportProbePreservesNotSupportedError()
     {
         var operationBuilder = new A2AOperationCatalogBuilder();
@@ -338,6 +384,54 @@ public class A2AJsonRpcStandardOperationTests
 
         Assert.Equal(1, requestHandler.ProbeCallCount);
         Assert.Equal(0, requestHandler.CreateCallCount);
+        Assert.Equal(
+            (int)A2AErrorCode.PushNotificationNotSupported,
+            response.Error?.Code);
+    }
+
+    [Fact]
+    public async Task ProcessRequestAsync_PushNotificationProbeRunsBeforeParameterBinding()
+    {
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var standard = operationBuilder.AddStandardA2AOperations();
+        var operationCatalog = operationBuilder.Build();
+        var handlers = new A2AOperationHandlerCatalogBuilder()
+            .AddStandardA2AHandlers(standard)
+            .Build(operationCatalog);
+        var bindings = new A2AJsonRpcOperationBindingBuilder()
+            .AddStandardA2AJsonRpcBindings(standard)
+            .Build(operationCatalog);
+        var requestHandler = new PushNotificationNotSupportedRequestHandler();
+        var scopeCreateCount = 0;
+        A2ARequestScopeFactory scopeFactory = (_, _) =>
+        {
+            scopeCreateCount++;
+            return ValueTask.FromResult(
+                new A2ARequestScope(new A2AOperationContext(requestHandler)));
+        };
+        var parameters = JsonDocument.Parse(
+            """
+            {
+              "id": {
+                "invalid": true
+              }
+            }
+            """).RootElement.Clone();
+        var httpContext = CreateHttpContext(
+            A2AMethods.GetTaskPushNotificationConfig,
+            parameters,
+            "push-probe-precedence");
+
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(
+            scopeFactory,
+            handlers,
+            bindings,
+            httpContext.Request,
+            CancellationToken.None);
+        var response = await ExecuteJsonResponseAsync(httpContext, result);
+
+        Assert.Equal(1, scopeCreateCount);
+        Assert.Equal(1, requestHandler.ProbeCallCount);
         Assert.Equal(
             (int)A2AErrorCode.PushNotificationNotSupported,
             response.Error?.Code);

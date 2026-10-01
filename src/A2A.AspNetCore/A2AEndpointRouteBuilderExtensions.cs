@@ -73,6 +73,8 @@ public static class A2ARouteBuilderExtensions
         ArgumentNullException.ThrowIfNull(bindings);
         ArgumentException.ThrowIfNullOrEmpty(path);
 
+        bindings.Validate(handlers.OperationCatalog);
+
         var routeGroup = endpoints.MapGroup("");
         routeGroup.MapPost(
             path,

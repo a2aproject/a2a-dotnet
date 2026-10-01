@@ -422,6 +422,8 @@ public class A2AHttpStandardOperationTests
     [Theory]
     [InlineData("/TASKS/{taskId}")]
     [InlineData("TASKS/{taskId}")]
+    [InlineData("/tasks/{taskId:int}")]
+    [InlineData(@"/tasks/{taskId:regex(^\d{{3}}$)}")]
     public void MapHttpA2A_WhenReservedRouteMapsToExtensionOperation_Throws(
         string route)
     {

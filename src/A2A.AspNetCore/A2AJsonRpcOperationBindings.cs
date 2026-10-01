@@ -5,7 +5,7 @@ using System.Text.Json.Serialization.Metadata;
 
 namespace A2A.AspNetCore;
 
-internal delegate ValueTask A2AJsonRpcBeforeInvoke(
+internal delegate ValueTask A2AJsonRpcBeforeBind(
     A2AOperationContext context,
     CancellationToken cancellationToken);
 
@@ -37,7 +37,7 @@ public sealed class A2AJsonRpcOperationBindingBuilder
             operation,
             requestTypeInfo,
             resultTypeInfo,
-            beforeInvoke: null);
+            beforeBind: null);
 
     /// <summary>Maps a JSON-RPC method to a typed streaming operation.</summary>
     /// <typeparam name="TRequest">The operation request type.</typeparam>
@@ -57,7 +57,7 @@ public sealed class A2AJsonRpcOperationBindingBuilder
             operation,
             requestTypeInfo,
             eventTypeInfo,
-            beforeInvoke: null);
+            beforeBind: null);
 
     /// <summary>Maps a declared unary operation error to a JSON-RPC error code.</summary>
     /// <typeparam name="TRequest">The operation request type.</typeparam>
@@ -117,7 +117,7 @@ public sealed class A2AJsonRpcOperationBindingBuilder
         A2AOperation<TRequest, TResult> operation,
         JsonTypeInfo<TRequest> requestTypeInfo,
         JsonTypeInfo<TResult> resultTypeInfo,
-        A2AJsonRpcBeforeInvoke? beforeInvoke)
+        A2AJsonRpcBeforeBind? beforeBind)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(method);
         ArgumentNullException.ThrowIfNull(operation);
@@ -131,7 +131,7 @@ public sealed class A2AJsonRpcOperationBindingBuilder
                 operation,
                 requestTypeInfo,
                 resultTypeInfo,
-                beforeInvoke));
+                beforeBind));
         return this;
     }
 
@@ -140,7 +140,7 @@ public sealed class A2AJsonRpcOperationBindingBuilder
         A2AStreamingOperation<TRequest, TEvent> operation,
         JsonTypeInfo<TRequest> requestTypeInfo,
         JsonTypeInfo<TEvent> eventTypeInfo,
-        A2AJsonRpcBeforeInvoke? beforeInvoke)
+        A2AJsonRpcBeforeBind? beforeBind)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(method);
         ArgumentNullException.ThrowIfNull(operation);
@@ -154,7 +154,7 @@ public sealed class A2AJsonRpcOperationBindingBuilder
                 operation,
                 requestTypeInfo,
                 eventTypeInfo,
-                beforeInvoke));
+                beforeBind));
         return this;
     }
 
@@ -248,6 +248,15 @@ public sealed class A2AJsonRpcOperationBindings
         string method,
         out IA2AJsonRpcOperationBinding binding)
         => _bindings.TryGetValue(method, out binding!);
+
+    internal void Validate(A2AOperationCatalog operationCatalog)
+    {
+        ArgumentNullException.ThrowIfNull(operationCatalog);
+        foreach (var binding in _bindings.Values)
+        {
+            binding.Validate(operationCatalog);
+        }
+    }
 }
 
 internal interface IA2AJsonRpcOperationBindingRegistration
@@ -341,7 +350,7 @@ internal sealed class A2AJsonRpcUnaryOperationBindingRegistration<
     A2AOperation<TRequest, TResult> operation,
     JsonTypeInfo<TRequest> requestTypeInfo,
     JsonTypeInfo<TResult> resultTypeInfo,
-    A2AJsonRpcBeforeInvoke? beforeInvoke)
+    A2AJsonRpcBeforeBind? beforeBind)
     : A2AJsonRpcOperationBindingRegistration
 {
     protected override object Operation => operation;
@@ -362,7 +371,7 @@ internal sealed class A2AJsonRpcUnaryOperationBindingRegistration<
             operation,
             requestTypeInfo,
             resultTypeInfo,
-            beforeInvoke,
+            beforeBind,
             errorMappings);
 }
 
@@ -372,7 +381,7 @@ internal sealed class A2AJsonRpcStreamingOperationBindingRegistration<
     A2AStreamingOperation<TRequest, TEvent> operation,
     JsonTypeInfo<TRequest> requestTypeInfo,
     JsonTypeInfo<TEvent> eventTypeInfo,
-    A2AJsonRpcBeforeInvoke? beforeInvoke)
+    A2AJsonRpcBeforeBind? beforeBind)
     : A2AJsonRpcOperationBindingRegistration
 {
     protected override object Operation => operation;
@@ -393,13 +402,17 @@ internal sealed class A2AJsonRpcStreamingOperationBindingRegistration<
             operation,
             requestTypeInfo,
             eventTypeInfo,
-            beforeInvoke,
+            beforeBind,
             errorMappings);
 }
 
 internal interface IA2AJsonRpcOperationBinding
 {
     A2AOperationDiagnosticContext Diagnostics { get; }
+
+    A2AJsonRpcBeforeBind? BeforeBind { get; }
+
+    void Validate(A2AOperationCatalog operationCatalog);
 
     IA2AJsonRpcBoundOperation Bind(JsonElement parameters);
 }
@@ -423,6 +436,44 @@ internal interface IA2AJsonRpcBoundOperation
 internal abstract class A2AJsonRpcOperationBinding(
     IReadOnlyDictionary<string, IA2AJsonRpcErrorMapping> errorMappings)
 {
+    protected void ValidateOperation(
+        A2AOperationCatalog operationCatalog,
+        object operation,
+        A2AOperationKind kind,
+        Type requestType,
+        Type responseType)
+    {
+        if (operation is not IA2AOperationHandle operationHandle
+            || !operationCatalog.TryGetRegistration(
+                operationHandle.Id,
+                out var operationRegistration)
+            || !ReferenceEquals(operationRegistration.Handle, operation))
+        {
+            throw new InvalidOperationException(
+                "The JSON-RPC binding operation is not defined by the handler operation catalog.");
+        }
+
+        if (operationRegistration.Kind != kind
+            || operationRegistration.RequestType != requestType
+            || operationRegistration.ResponseType != responseType)
+        {
+            throw new InvalidOperationException(
+                $"The JSON-RPC binding for '{operationHandle.Id.Value}' uses incompatible operation types.");
+        }
+
+        foreach (var mapping in errorMappings.Values)
+        {
+            if (!operationRegistration.DeclaredErrors.TryGetValue(
+                    mapping.ErrorId,
+                    out var declaredError)
+                || !ReferenceEquals(declaredError, mapping.Error))
+            {
+                throw new InvalidOperationException(
+                    $"The A2A operation '{operationHandle.Id.Value}' does not declare error '{mapping.ErrorId}' with the mapped details type.");
+            }
+        }
+    }
+
     protected JsonRpcResponse CreateErrorResponse(
         JsonRpcId requestId,
         Exception exception,
@@ -484,12 +535,22 @@ internal sealed class A2AJsonRpcUnaryOperationBinding<TRequest, TResult>(
     A2AOperation<TRequest, TResult> operation,
     JsonTypeInfo<TRequest> requestTypeInfo,
     JsonTypeInfo<TResult> resultTypeInfo,
-    A2AJsonRpcBeforeInvoke? beforeInvoke,
+    A2AJsonRpcBeforeBind? beforeBind,
     IReadOnlyDictionary<string, IA2AJsonRpcErrorMapping> errorMappings)
     : A2AJsonRpcOperationBinding(errorMappings), IA2AJsonRpcOperationBinding
 {
     public A2AOperationDiagnosticContext Diagnostics =>
         new(operation.Id, A2AOperationKind.Unary, operationSource);
+
+    public A2AJsonRpcBeforeBind? BeforeBind => beforeBind;
+
+    public void Validate(A2AOperationCatalog operationCatalog) =>
+        ValidateOperation(
+            operationCatalog,
+            operation,
+            A2AOperationKind.Unary,
+            typeof(TRequest),
+            typeof(TResult));
 
     public IA2AJsonRpcBoundOperation Bind(JsonElement parameters)
     {
@@ -499,7 +560,6 @@ internal sealed class A2AJsonRpcUnaryOperationBinding<TRequest, TResult>(
             operation,
             request,
             resultTypeInfo,
-            beforeInvoke,
             CreateErrorResponse);
     }
 
@@ -507,7 +567,6 @@ internal sealed class A2AJsonRpcUnaryOperationBinding<TRequest, TResult>(
         A2AOperation<TRequest, TResult> operation,
         TRequest request,
         JsonTypeInfo<TResult> resultTypeInfo,
-        A2AJsonRpcBeforeInvoke? beforeInvoke,
         Func<JsonRpcId, Exception, string, JsonRpcResponse> createErrorResponse)
         : IA2AJsonRpcBoundOperation
     {
@@ -519,12 +578,6 @@ internal sealed class A2AJsonRpcUnaryOperationBinding<TRequest, TResult>(
             Activity? transportActivity,
             CancellationToken cancellationToken)
         {
-            if (beforeInvoke is not null)
-            {
-                await beforeInvoke(context, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-
             var result = await handlers.InvokeAsync(
                 operation,
                 context,
@@ -559,12 +612,22 @@ internal sealed class A2AJsonRpcStreamingOperationBinding<TRequest, TEvent>(
     A2AStreamingOperation<TRequest, TEvent> operation,
     JsonTypeInfo<TRequest> requestTypeInfo,
     JsonTypeInfo<TEvent> eventTypeInfo,
-    A2AJsonRpcBeforeInvoke? beforeInvoke,
+    A2AJsonRpcBeforeBind? beforeBind,
     IReadOnlyDictionary<string, IA2AJsonRpcErrorMapping> errorMappings)
     : A2AJsonRpcOperationBinding(errorMappings), IA2AJsonRpcOperationBinding
 {
     public A2AOperationDiagnosticContext Diagnostics =>
         new(operation.Id, A2AOperationKind.Streaming, operationSource);
+
+    public A2AJsonRpcBeforeBind? BeforeBind => beforeBind;
+
+    public void Validate(A2AOperationCatalog operationCatalog) =>
+        ValidateOperation(
+            operationCatalog,
+            operation,
+            A2AOperationKind.Streaming,
+            typeof(TRequest),
+            typeof(TEvent));
 
     public IA2AJsonRpcBoundOperation Bind(JsonElement parameters)
     {
@@ -574,7 +637,6 @@ internal sealed class A2AJsonRpcStreamingOperationBinding<TRequest, TEvent>(
             operation,
             request,
             eventTypeInfo,
-            beforeInvoke,
             CreateErrorResponse);
     }
 
@@ -582,7 +644,6 @@ internal sealed class A2AJsonRpcStreamingOperationBinding<TRequest, TEvent>(
         A2AStreamingOperation<TRequest, TEvent> operation,
         TRequest request,
         JsonTypeInfo<TEvent> eventTypeInfo,
-        A2AJsonRpcBeforeInvoke? beforeInvoke,
         Func<JsonRpcId, Exception, string, JsonRpcResponse> createErrorResponse)
         : IA2AJsonRpcBoundOperation
     {
@@ -594,12 +655,6 @@ internal sealed class A2AJsonRpcStreamingOperationBinding<TRequest, TEvent>(
             Activity? transportActivity,
             CancellationToken cancellationToken)
         {
-            if (beforeInvoke is not null)
-            {
-                await beforeInvoke(context, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-
             var events = handlers.InvokeStreamingAsync(
                 operation,
                 context,

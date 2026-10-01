@@ -1,4 +1,5 @@
 using A2A.AspNetCore;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using System.Text;
 using System.Text.Json;
@@ -15,6 +16,53 @@ public class A2AJsonRpcCustomOperationTests
             { "42", JsonValueKind.Number },
             { "null", JsonValueKind.Null },
         };
+
+    [Fact]
+    public void MapA2A_WhenBindingsUseDifferentOperationHandles_Throws()
+    {
+        var handlerOperationBuilder = new A2AOperationCatalogBuilder();
+        var handlerOperation = handlerOperationBuilder.DefineUnary<
+            CustomRequest,
+            CustomResult>(
+                new A2AOperationId("https://example.com/extensions/test#catalog"));
+        var handlerOperationCatalog = handlerOperationBuilder.Build();
+        var handlers = new A2AOperationHandlerCatalogBuilder()
+            .Map(
+                handlerOperation,
+                static (_, request, _) =>
+                    ValueTask.FromResult(new CustomResult(request.Value)))
+            .Build(handlerOperationCatalog);
+
+        var bindingOperationBuilder = new A2AOperationCatalogBuilder();
+        var bindingOperation = bindingOperationBuilder.DefineUnary<
+            CustomRequest,
+            CustomResult>(
+                handlerOperation.Id);
+        var bindingOperationCatalog = bindingOperationBuilder.Build();
+        var bindings = new A2AJsonRpcOperationBindingBuilder()
+            .Map(
+                "test/catalog",
+                bindingOperation,
+                CustomJsonContext.Default.CustomRequest,
+                CustomJsonContext.Default.CustomResult)
+            .Build(bindingOperationCatalog);
+        A2ARequestScopeFactory scopeFactory = (_, _) => ValueTask.FromResult(
+            new A2ARequestScope(
+                new A2AOperationContext(new TestRequestHandler())));
+        var app = WebApplication.CreateBuilder().Build();
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => app.MapA2A(
+                scopeFactory,
+                handlers,
+                bindings,
+                "/rpc"));
+
+        Assert.Contains(
+            "operation catalog",
+            exception.Message,
+            StringComparison.OrdinalIgnoreCase);
+    }
 
     [Fact]
     public async Task ProcessRequestAsync_CustomOperationUsesRequestScopeUntilResponseExecution()

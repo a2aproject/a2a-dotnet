@@ -265,11 +265,14 @@ public sealed class A2AHttpOperationBindings
 
 internal readonly record struct A2AHttpOperationBindingKey
 {
-    internal A2AHttpOperationBindingKey(string httpMethod, string route)
+    internal A2AHttpOperationBindingKey(
+        string httpMethod,
+        string route,
+        bool includeParameterPolicies = true)
     {
         HttpMethod = httpMethod.ToUpperInvariant();
         Route = A2AStandardHttpBindingBuilderExtensions
-            .NormalizeRoutePattern(route);
+            .NormalizeRoutePattern(route, includeParameterPolicies);
     }
 
     internal string HttpMethod { get; }

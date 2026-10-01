@@ -140,7 +140,10 @@ public static class A2AStandardHttpBindingBuilderExtensions
         A2AOperationRegistration registration)
     {
         if (!CanonicalRouteOperationIds.TryGetValue(
-                new A2AHttpOperationBindingKey(httpMethod, route),
+                new A2AHttpOperationBindingKey(
+                    httpMethod,
+                    route,
+                    includeParameterPolicies: false),
                 out var expectedOperationId))
         {
             return;
@@ -157,7 +160,9 @@ public static class A2AStandardHttpBindingBuilderExtensions
         }
     }
 
-    internal static string NormalizeRoutePattern(string route)
+    internal static string NormalizeRoutePattern(
+        string route,
+        bool includeParameterPolicies = true)
     {
         var normalized = new StringBuilder(route.Length + 1);
         if (route[0] != '/')
@@ -186,6 +191,33 @@ public static class A2AStandardHttpBindingBuilderExtensions
                 && route[index] is not ':' and not '?' and not '=' and not '}')
             {
                 index++;
+            }
+
+            if (!includeParameterPolicies)
+            {
+                while (index < route.Length)
+                {
+                    if (index + 1 < route.Length
+                        && route[index] == route[index + 1]
+                        && route[index] is '{' or '}')
+                    {
+                        index += 2;
+                        continue;
+                    }
+
+                    if (route[index] == '}')
+                    {
+                        break;
+                    }
+
+                    index++;
+                }
+
+                if (index < route.Length)
+                {
+                    normalized.Append('}');
+                }
+                continue;
             }
 
             for (; index < route.Length; index++)

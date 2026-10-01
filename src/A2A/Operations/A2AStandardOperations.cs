@@ -180,6 +180,13 @@ public static class A2AStandardOperationCatalogBuilderExtensions
 
     private static void ValidateSendMessage(SendMessageRequest request)
     {
+        if (request.Message is null)
+        {
+            throw new A2AException(
+                "Message is required",
+                A2AErrorCode.InvalidParams);
+        }
+
         if (request.Message.Parts.Count == 0)
         {
             throw new A2AException(

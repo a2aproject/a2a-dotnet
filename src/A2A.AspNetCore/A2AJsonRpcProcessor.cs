@@ -109,12 +109,26 @@ public static class A2AJsonRpcProcessor
                     JsonRpcResponse.MethodNotFoundResponse(rpcRequest.Id));
             }
 
+            if (binding.BeforeBind is not null)
+            {
+                scope = await scopeFactory(
+                    request.HttpContext,
+                    cancellationToken).ConfigureAwait(false);
+                ArgumentNullException.ThrowIfNull(scope);
+                await binding.BeforeBind(
+                    scope.Context,
+                    cancellationToken).ConfigureAwait(false);
+            }
+
             boundOperation = binding.Bind(rpcRequest.Params.Value);
 
-            scope = await scopeFactory(
-                request.HttpContext,
-                cancellationToken).ConfigureAwait(false);
-            ArgumentNullException.ThrowIfNull(scope);
+            if (scope is null)
+            {
+                scope = await scopeFactory(
+                    request.HttpContext,
+                    cancellationToken).ConfigureAwait(false);
+                ArgumentNullException.ThrowIfNull(scope);
+            }
 
             var result = await boundOperation.InvokeAsync(
                 rpcRequest.Id,
