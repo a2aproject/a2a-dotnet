@@ -42,8 +42,8 @@ public class A2AJsonRpcProcessorTests
         var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
 
         // Assert
-        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
-        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+        var (StatusCode, ContentType, BodyContent) =
+            await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(result);
 
         Assert.Equal(StatusCodes.Status200OK, StatusCode);
         Assert.Equal("application/json", ContentType);
@@ -84,8 +84,8 @@ public class A2AJsonRpcProcessorTests
 
         var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
 
-        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
-        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+        var (StatusCode, ContentType, BodyContent) =
+            await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(result);
 
         Assert.Equal(StatusCodes.Status200OK, StatusCode);
         Assert.Equal("application/json", ContentType);
@@ -127,8 +127,8 @@ public class A2AJsonRpcProcessorTests
         var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
 
         // Assert
-        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
-        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+        var (StatusCode, ContentType, BodyContent) =
+            await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(result);
 
         Assert.Equal(StatusCodes.Status200OK, StatusCode);
         Assert.Equal("application/json", ContentType);
@@ -172,8 +172,8 @@ public class A2AJsonRpcProcessorTests
         var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
 
         // Assert
-        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
-        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+        var (StatusCode, ContentType, BodyContent) =
+            await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(result);
 
         Assert.Equal(StatusCodes.Status200OK, StatusCode);
         Assert.Equal("application/json", ContentType);
@@ -250,9 +250,8 @@ public class A2AJsonRpcProcessorTests
         var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
 
         // Assert
-        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
-
-        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+        var (StatusCode, ContentType, BodyContent) =
+            await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(result);
 
         Assert.Equal(StatusCodes.Status200OK, StatusCode);
         Assert.Equal("application/json", ContentType);
@@ -287,9 +286,8 @@ public class A2AJsonRpcProcessorTests
         var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
 
         // Assert
-        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
-
-        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+        var (StatusCode, ContentType, BodyContent) =
+            await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(result);
 
         Assert.Equal(StatusCodes.Status200OK, StatusCode); // JSON-RPC errors return 200 with error in body
         Assert.Equal("application/json", ContentType);
@@ -317,13 +315,22 @@ public class A2AJsonRpcProcessorTests
 
         var getTaskRequest = new GetTaskRequest { Id = task.Id };
 
+        var httpRequest = CreateHttpRequest(new JsonRpcRequest
+        {
+            Id = "4",
+            Method = A2AMethods.GetTask,
+            Params = ToJsonElement(getTaskRequest),
+        });
+
         // Act
-        var result = await A2AJsonRpcProcessor.SingleResponseAsync(requestHandler, "4", A2AMethods.GetTask, ToJsonElement(getTaskRequest), CancellationToken.None);
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(
+            requestHandler,
+            httpRequest,
+            CancellationToken.None);
 
         // Assert
-        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
-
-        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+        var (StatusCode, ContentType, BodyContent) =
+            await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(result);
 
         Assert.Equal(StatusCodes.Status200OK, StatusCode);
         Assert.Equal("application/json", ContentType);
@@ -349,10 +356,28 @@ public class A2AJsonRpcProcessorTests
         await store.SaveTaskAsync(task.Id, task);
         GetTaskRequest getTaskRequest = new() { Id = task.Id, HistoryLength = -1 };
 
-        // Act & Assert — A2AServer.GetTaskAsync throws InvalidParams for negative historyLength
-        var ex = await Assert.ThrowsAsync<A2AException>(() =>
-            A2AJsonRpcProcessor.SingleResponseAsync(requestHandler, "4", A2AMethods.GetTask, ToJsonElement(getTaskRequest), CancellationToken.None));
-        Assert.Equal(A2AErrorCode.InvalidParams, ex.ErrorCode);
+        var httpRequest = CreateHttpRequest(new JsonRpcRequest
+        {
+            Id = "4",
+            Method = A2AMethods.GetTask,
+            Params = ToJsonElement(getTaskRequest),
+        });
+
+        // Act
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(
+            requestHandler,
+            httpRequest,
+            CancellationToken.None);
+
+        // Assert
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+        await result.ExecuteAsync(context);
+        context.Response.Body.Position = 0;
+        var response = await JsonSerializer.DeserializeAsync<JsonRpcResponse>(
+            context.Response.Body,
+            A2AJsonUtilities.DefaultOptions);
+        Assert.Equal((int)A2AErrorCode.InvalidParams, response?.Error?.Code);
     }
 
     [Fact]
@@ -369,13 +394,22 @@ public class A2AJsonRpcProcessorTests
         await store.SaveTaskAsync(newTask.Id, newTask);
         var cancelRequest = new CancelTaskRequest { Id = newTask.Id };
 
+        var httpRequest = CreateHttpRequest(new JsonRpcRequest
+        {
+            Id = "5",
+            Method = A2AMethods.CancelTask,
+            Params = ToJsonElement(cancelRequest),
+        });
+
         // Act
-        var result = await A2AJsonRpcProcessor.SingleResponseAsync(requestHandler, "5", A2AMethods.CancelTask, ToJsonElement(cancelRequest), CancellationToken.None);
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(
+            requestHandler,
+            httpRequest,
+            CancellationToken.None);
 
         // Assert
-        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
-
-        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+        var (StatusCode, ContentType, BodyContent) =
+            await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(result);
 
         Assert.Equal(StatusCodes.Status200OK, StatusCode);
         Assert.Equal("application/json", ContentType);
@@ -392,8 +426,18 @@ public class A2AJsonRpcProcessorTests
         // Arrange
         var requestHandler = CreateTestServer();
 
+        var httpRequest = CreateHttpRequest(new JsonRpcRequest
+        {
+            Id = "10",
+            Method = A2AMethods.SendStreamingMessage,
+            Params = null,
+        });
+
         // Act
-        var result = A2AJsonRpcProcessor.StreamResponse(requestHandler, "10", A2AMethods.SendStreamingMessage, null, CancellationToken.None);
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(
+            requestHandler,
+            httpRequest,
+            CancellationToken.None);
 
         // Assert
         var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
@@ -424,10 +468,18 @@ public class A2AJsonRpcProcessorTests
         });
         var parameters = ToJsonElement(new SubscribeToTaskRequest { Id = "terminal-task" });
 
+        var httpRequest = CreateHttpRequest(new JsonRpcRequest
+        {
+            Id = "10",
+            Method = A2AMethods.SubscribeToTask,
+            Params = parameters,
+        });
+
         // Act
-        var result = A2AJsonRpcProcessor.StreamResponse(
-            requestHandler, "10", A2AMethods.SubscribeToTask, parameters, CancellationToken.None);
-        var responseResult = Assert.IsType<JsonRpcStreamedResult>(result);
+        var responseResult = await A2AJsonRpcProcessor.ProcessRequestAsync(
+            requestHandler,
+            httpRequest,
+            CancellationToken.None);
         var context = new DefaultHttpContext();
         context.Response.Body = new MemoryStream();
         await responseResult.ExecuteAsync(context);
@@ -496,12 +548,14 @@ public class A2AJsonRpcProcessorTests
         ["Invalid JSON payload", "Invalid JSON-RPC request payload."];
 
     /// <summary>Creates a test A2AServer with in-memory store and default callbacks.</summary>
+    /// <param name="options"></param>
     private static IA2ARequestHandler CreateTestServer(A2AServerOptions? options = null)
     {
         return CreateTestServerWithStore(options).requestHandler;
     }
 
     /// <summary>Creates a test A2AServer with store exposed for pre-populating data.</summary>
+    /// <param name="options"></param>
     private static (IA2ARequestHandler requestHandler, InMemoryTaskStore store) CreateTestServerWithStore(
         A2AServerOptions? options = null)
     {
@@ -578,8 +632,8 @@ public class A2AJsonRpcProcessorTests
         var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
 
         // Assert
-        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
-        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+        var (StatusCode, ContentType, BodyContent) =
+            await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(result);
 
         Assert.Equal(StatusCodes.Status200OK, StatusCode);
         Assert.Equal("application/json", ContentType);
@@ -673,8 +727,8 @@ public class A2AJsonRpcProcessorTests
         var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
 
         // Assert
-        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
-        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+        var (StatusCode, ContentType, BodyContent) =
+            await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(result);
 
         Assert.Equal(StatusCodes.Status200OK, StatusCode);
         Assert.Equal("application/json", ContentType);
@@ -703,8 +757,8 @@ public class A2AJsonRpcProcessorTests
         var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
 
         // Assert
-        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
-        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+        var (StatusCode, ContentType, BodyContent) =
+            await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(result);
 
         Assert.Equal(StatusCodes.Status200OK, StatusCode);
         Assert.Equal("application/json", ContentType);
@@ -733,8 +787,8 @@ public class A2AJsonRpcProcessorTests
         var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
 
         // Assert
-        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
-        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+        var (StatusCode, ContentType, BodyContent) =
+            await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(result);
 
         Assert.Equal(StatusCodes.Status200OK, StatusCode);
         Assert.Equal("application/json", ContentType);
@@ -769,8 +823,8 @@ public class A2AJsonRpcProcessorTests
         var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
 
         // Assert
-        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
-        var (StatusCode, _, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+        var (StatusCode, _, BodyContent) =
+            await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(result);
 
         Assert.Equal(StatusCodes.Status200OK, StatusCode);
         Assert.NotNull(BodyContent.Result);
@@ -808,8 +862,8 @@ public class A2AJsonRpcProcessorTests
         var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
 
         // Assert
-        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
-        var (StatusCode, _, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+        var (StatusCode, _, BodyContent) =
+            await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(result);
 
         Assert.Equal(StatusCodes.Status200OK, StatusCode);
         Assert.NotNull(BodyContent.Result);
@@ -847,8 +901,8 @@ public class A2AJsonRpcProcessorTests
         var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
 
         // Assert
-        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
-        var (StatusCode, _, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+        var (StatusCode, _, BodyContent) =
+            await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(result);
 
         Assert.Equal(StatusCodes.Status200OK, StatusCode);
         Assert.NotNull(BodyContent.Result);
@@ -897,7 +951,7 @@ public class A2AJsonRpcProcessorTests
         Assert.Contains("2.0", BodyContent.Error.Message);
     }
 
-    private static async Task<(int StatusCode, string? ContentType, TBody BodyContent)> GetJsonRpcResponseHttpDetails<TBody>(JsonRpcResponseResult responseResult)
+    private static async Task<(int StatusCode, string? ContentType, TBody BodyContent)> GetJsonRpcResponseHttpDetails<TBody>(IResult responseResult)
     {
         HttpContext context = new DefaultHttpContext();
         using var memoryStream = new MemoryStream();

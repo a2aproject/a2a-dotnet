@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Http;
-
 using System.Diagnostics;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 namespace A2A.AspNetCore;
 
@@ -10,228 +10,281 @@ namespace A2A.AspNetCore;
 /// </summary>
 public static class A2AJsonRpcProcessor
 {
+    private static readonly Lazy<(
+        A2AOperationHandlerCatalog Handlers,
+        A2AJsonRpcOperationBindings Bindings)> StandardDispatch =
+        new(CreateStandardDispatch);
+
+    /// <summary>
+    /// Processes an A2A JSON-RPC request using request-specific state and typed operation bindings.
+    /// </summary>
+    /// <param name="scopeFactory">The request-scope factory.</param>
+    /// <param name="handlers">The operation handlers.</param>
+    /// <param name="bindings">The JSON-RPC operation bindings.</param>
+    /// <param name="request">The HTTP request.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The deferred HTTP result.</returns>
+    public static async Task<IResult> ProcessRequestAsync(
+        A2ARequestScopeFactory scopeFactory,
+        A2AOperationHandlerCatalog handlers,
+        A2AJsonRpcOperationBindings bindings,
+        HttpRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(scopeFactory);
+        ArgumentNullException.ThrowIfNull(handlers);
+        ArgumentNullException.ThrowIfNull(bindings);
+        ArgumentNullException.ThrowIfNull(request);
+
+        var preflightResult = CheckPreflight(request);
+        if (preflightResult is not null)
+        {
+            return preflightResult;
+        }
+
+        var activity = A2AAspNetCoreDiagnostics.Source.StartActivity(
+            "HandleA2ARequest",
+            ActivityKind.Server);
+
+        JsonRpcRequest? rpcRequest = null;
+        JsonRpcId? parsedRequestId = null;
+        IA2AJsonRpcBoundOperation? boundOperation = null;
+        A2ARequestScope? scope = null;
+        Activity? operationActivity = null;
+
+        try
+        {
+            try
+            {
+                using var document = await JsonDocument.ParseAsync(
+                    request.Body,
+                    cancellationToken: cancellationToken).ConfigureAwait(false);
+                if (document.RootElement.ValueKind != JsonValueKind.Object)
+                {
+                    throw new A2AException(
+                        "Invalid JSON-RPC request payload.",
+                        A2AErrorCode.InvalidRequest);
+                }
+
+                parsedRequestId = TryReadRequestId(document.RootElement);
+                rpcRequest = document.RootElement.Deserialize(
+                    (JsonTypeInfo<JsonRpcRequest>)A2AJsonUtilities.DefaultOptions
+                        .GetTypeInfo(typeof(JsonRpcRequest)));
+                if (rpcRequest is null)
+                {
+                    throw new JsonException("The JSON-RPC request body is empty.");
+                }
+            }
+            catch (JsonException ex)
+            {
+                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+                activity?.AddEvent(new ActivityEvent(
+                    "json.parse.error",
+                    tags: new ActivityTagsCollection
+                    {
+                        { "exception.type", ex.GetType().FullName },
+                        { "exception.message", ex.Message },
+                    }));
+                var errorId = GetErrorId(rpcRequest, parsedRequestId);
+                return new JsonRpcResponseResult(
+                    JsonRpcResponse.ParseErrorResponse(errorId));
+            }
+
+            activity?.SetTag("request.id", rpcRequest.Id.ToString());
+            activity?.SetTag("request.method", rpcRequest.Method);
+
+            var hasBinding = bindings.TryGetBinding(rpcRequest.Method, out var binding);
+            operationActivity = hasBinding ? binding.Diagnostics.Start() : null;
+            if (rpcRequest.Params is null)
+            {
+                A2AOperationDiagnostics.SetOutcome(operationActivity, "error");
+                return WrapScope(
+                    new JsonRpcResponseResult(JsonRpcResponse.InvalidParamsResponse(rpcRequest.Id)),
+                    ref scope, ref operationActivity, ref activity);
+            }
+
+            if (!hasBinding)
+            {
+                return new JsonRpcResponseResult(
+                    JsonRpcResponse.MethodNotFoundResponse(rpcRequest.Id));
+            }
+
+            if (binding.BeforeBind is not null)
+            {
+                scope = await scopeFactory(
+                    request.HttpContext,
+                    cancellationToken).ConfigureAwait(false);
+                ArgumentNullException.ThrowIfNull(scope);
+                await binding.BeforeBind(
+                    scope.Context,
+                    cancellationToken).ConfigureAwait(false);
+            }
+
+            boundOperation = binding.Bind(rpcRequest.Params.Value);
+
+            if (scope is null)
+            {
+                scope = await scopeFactory(
+                    request.HttpContext,
+                    cancellationToken).ConfigureAwait(false);
+                ArgumentNullException.ThrowIfNull(scope);
+            }
+
+            var result = await boundOperation.InvokeAsync(
+                rpcRequest.Id,
+                scope.Context,
+                handlers,
+                operationActivity,
+                activity,
+                cancellationToken).ConfigureAwait(false);
+            return WrapScope(result, ref scope, ref operationActivity, ref activity);
+        }
+        catch (A2AException ex)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error);
+            A2AOperationDiagnostics.SetError(operationActivity, ex, cancellationToken);
+            var errorId = GetErrorId(rpcRequest, parsedRequestId, ex);
+            return WrapScope(
+                new JsonRpcResponseResult(
+                    JsonRpcResponse.CreateJsonRpcErrorResponse(errorId, ex)),
+                ref scope, ref operationActivity, ref activity);
+        }
+        catch (Exception ex)
+        {
+            A2AAspNetCoreDiagnostics.RecordException(activity, ex);
+            A2AOperationDiagnostics.SetError(operationActivity, ex, cancellationToken);
+            var errorId = GetErrorId(rpcRequest, parsedRequestId);
+            var response = boundOperation?.CreateErrorResponse(
+                errorId,
+                ex,
+                "An internal error occurred.")
+                ?? JsonRpcResponse.InternalErrorResponse(
+                    errorId,
+                    "An internal error occurred.");
+            return WrapScope(
+                new JsonRpcResponseResult(response),
+                ref scope, ref operationActivity, ref activity);
+        }
+        finally
+        {
+            try
+            {
+                if (scope is not null)
+                {
+                    await A2AOperationDiagnostics.DisposeAsync(scope, operationActivity, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            finally
+            {
+                operationActivity?.Dispose();
+                activity?.Dispose();
+            }
+        }
+    }
+
     internal static IResult? CheckPreflight(HttpRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
         var version = request.Headers["A2A-Version"].FirstOrDefault();
-        if (!string.IsNullOrEmpty(version) && version != "1.0" && version != "0.3")
+        if (!string.IsNullOrEmpty(version)
+            && version != "1.0"
+            && version != "0.3")
         {
-            return new JsonRpcResponseResult(JsonRpcResponse.CreateJsonRpcErrorResponse(
-                new JsonRpcId((string?)null),
-                new A2AException(
-                    $"Protocol version '{version}' is not supported. Supported versions: 0.3, 1.0",
-                    A2AErrorCode.VersionNotSupported)));
+            return new JsonRpcResponseResult(
+                JsonRpcResponse.CreateJsonRpcErrorResponse(
+                    new JsonRpcId((string?)null),
+                    new A2AException(
+                        $"Protocol version '{version}' is not supported. Supported versions: 0.3, 1.0",
+                        A2AErrorCode.VersionNotSupported)));
         }
+
         return null;
     }
 
-    internal static async Task<IResult> ProcessRequestAsync(IA2ARequestHandler requestHandler, HttpRequest request, CancellationToken cancellationToken)
+    internal static Task<IResult> ProcessRequestAsync(
+        IA2ARequestHandler requestHandler,
+        HttpRequest request,
+        CancellationToken cancellationToken)
     {
-        var preflightResult = CheckPreflight(request);
-        if (preflightResult != null) return preflightResult;
-
-        using var activity = A2AAspNetCoreDiagnostics.Source.StartActivity("HandleA2ARequest", ActivityKind.Server);
-
-        JsonRpcRequest? rpcRequest = null;
-
-        try
-        {
-            rpcRequest = (JsonRpcRequest?)await JsonSerializer.DeserializeAsync(request.Body, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcRequest)), cancellationToken).ConfigureAwait(false);
-
-            activity?.SetTag("request.id", rpcRequest!.Id.ToString());
-            activity?.SetTag("request.method", rpcRequest!.Method);
-
-            if (A2AMethods.IsStreamingMethod(rpcRequest!.Method))
-            {
-                return StreamResponse(requestHandler, rpcRequest.Id, rpcRequest.Method, rpcRequest.Params, cancellationToken);
-            }
-
-            return await SingleResponseAsync(requestHandler, rpcRequest.Id, rpcRequest.Method, rpcRequest.Params, cancellationToken).ConfigureAwait(false);
-        }
-        catch (A2AException ex)
-        {
-            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-            var errorId = rpcRequest?.Id ?? new JsonRpcId(ex.GetRequestId());
-            return new JsonRpcResponseResult(JsonRpcResponse.CreateJsonRpcErrorResponse(errorId, ex));
-        }
-        catch (JsonException ex)
-        {
-            // Never leak System.Text.Json parser details (paths, line numbers, library
-            // names) to the client. The raw message is kept for observability
-            // via the activity; the client receives a generic parse error.
-            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-            activity?.AddEvent(new ActivityEvent("json.parse.error",
-                tags: new ActivityTagsCollection
-                {
-                    { "exception.type", ex.GetType().FullName },
-                    { "exception.message", ex.Message },
-                }));
-            var errorId = rpcRequest?.Id ?? new JsonRpcId((string?)null);
-            return new JsonRpcResponseResult(JsonRpcResponse.ParseErrorResponse(errorId));
-        }
-        catch (Exception ex)
-        {
-            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-            var errorId = rpcRequest?.Id ?? new JsonRpcId((string?)null);
-            return new JsonRpcResponseResult(JsonRpcResponse.InternalErrorResponse(errorId, "An internal error occurred."));
-        }
+        ArgumentNullException.ThrowIfNull(requestHandler);
+        var dispatch = StandardDispatch.Value;
+        A2ARequestScopeFactory scopeFactory = (_, _) => ValueTask.FromResult(
+            new A2ARequestScope(
+                new A2AOperationContext(requestHandler)));
+        return ProcessRequestAsync(
+            scopeFactory,
+            dispatch.Handlers,
+            dispatch.Bindings,
+            request,
+            cancellationToken);
     }
 
-    internal static async Task<JsonRpcResponseResult> SingleResponseAsync(IA2ARequestHandler requestHandler, JsonRpcId requestId, string method, JsonElement? parameters, CancellationToken cancellationToken)
+    internal static (
+        A2AOperationHandlerCatalog Handlers,
+        A2AJsonRpcOperationBindings Bindings) CreateStandardDispatch()
     {
-        using var activity = A2AAspNetCoreDiagnostics.Source.StartActivity($"SingleResponse/{method}", ActivityKind.Server);
-        activity?.SetTag("request.id", requestId.ToString());
-        activity?.SetTag("request.method", method);
-
-        JsonRpcResponse? response = null;
-
-        if (parameters == null)
-        {
-            activity?.SetStatus(ActivityStatusCode.Error, "Invalid parameters");
-            return new JsonRpcResponseResult(JsonRpcResponse.InvalidParamsResponse(requestId));
-        }
-
-        // For push notification methods, check if push notifications are supported
-        // BEFORE deserializing params. DeserializeAndValidate would throw InvalidParams
-        // for malformed requests, masking the PushNotificationNotSupported error.
-        if (A2AMethods.IsPushNotificationMethod(method))
-        {
-            try
-            {
-                await requestHandler.GetTaskPushNotificationConfigAsync(null!, cancellationToken).ConfigureAwait(false);
-            }
-            catch (A2AException ex) when (ex.ErrorCode == A2AErrorCode.PushNotificationNotSupported)
-            {
-                throw;
-            }
-            catch
-            {
-                // Any other exception means push notifications are supported;
-                // continue with normal deserialization and handling.
-            }
-        }
-
-        switch (method)
-        {
-            case A2AMethods.SendMessage:
-                var sendRequest = DeserializeAndValidate<SendMessageRequest>(parameters.Value);
-                var sendResult = await requestHandler.SendMessageAsync(sendRequest, cancellationToken).ConfigureAwait(false);
-                response = JsonRpcResponse.CreateJsonRpcResponse(requestId, sendResult);
-                break;
-            case A2AMethods.GetTask:
-                var getTaskRequest = DeserializeAndValidate<GetTaskRequest>(parameters.Value);
-                var agentTask = await requestHandler.GetTaskAsync(getTaskRequest, cancellationToken).ConfigureAwait(false);
-                response = JsonRpcResponse.CreateJsonRpcResponse(requestId, agentTask);
-                break;
-            case A2AMethods.ListTasks:
-                var listTasksRequest = DeserializeAndValidate<ListTasksRequest>(parameters.Value);
-
-                // Validate pageSize: must be 1-100 if specified
-                if (listTasksRequest.PageSize is { } ps && (ps <= 0 || ps > 100))
-                {
-                    throw new A2AException(
-                        $"Invalid pageSize: {ps}. Must be between 1 and 100.",
-                        A2AErrorCode.InvalidParams);
-                }
-
-                // Validate historyLength: must be >= 0 if specified
-                if (listTasksRequest.HistoryLength is { } hl && hl < 0)
-                {
-                    throw new A2AException(
-                        $"Invalid historyLength: {hl}. Must be non-negative.",
-                        A2AErrorCode.InvalidParams);
-                }
-
-                var listResult = await requestHandler.ListTasksAsync(listTasksRequest, cancellationToken).ConfigureAwait(false);
-                response = JsonRpcResponse.CreateJsonRpcResponse(requestId, listResult);
-                break;
-            case A2AMethods.CancelTask:
-                var cancelRequest = DeserializeAndValidate<CancelTaskRequest>(parameters.Value);
-                var cancelledTask = await requestHandler.CancelTaskAsync(cancelRequest, cancellationToken).ConfigureAwait(false);
-                response = JsonRpcResponse.CreateJsonRpcResponse(requestId, cancelledTask);
-                break;
-            case A2AMethods.CreateTaskPushNotificationConfig:
-                var createPnConfig = DeserializeAndValidate<TaskPushNotificationConfig>(parameters.Value);
-                var createdConfig = await requestHandler.CreateTaskPushNotificationConfigAsync(createPnConfig, cancellationToken).ConfigureAwait(false);
-                response = JsonRpcResponse.CreateJsonRpcResponse(requestId, createdConfig);
-                break;
-            case A2AMethods.GetTaskPushNotificationConfig:
-                var getPnConfig = DeserializeAndValidate<GetTaskPushNotificationConfigRequest>(parameters.Value);
-                var gotConfig = await requestHandler.GetTaskPushNotificationConfigAsync(getPnConfig, cancellationToken).ConfigureAwait(false);
-                response = JsonRpcResponse.CreateJsonRpcResponse(requestId, gotConfig);
-                break;
-            case A2AMethods.ListTaskPushNotificationConfigs:
-                var listPnConfig = DeserializeAndValidate<ListTaskPushNotificationConfigsRequest>(parameters.Value);
-                var listPnResult = await requestHandler.ListTaskPushNotificationConfigsAsync(listPnConfig, cancellationToken).ConfigureAwait(false);
-                response = JsonRpcResponse.CreateJsonRpcResponse(requestId, listPnResult);
-                break;
-            case A2AMethods.DeleteTaskPushNotificationConfig:
-                var deletePnConfig = DeserializeAndValidate<DeleteTaskPushNotificationConfigRequest>(parameters.Value);
-                await requestHandler.DeleteTaskPushNotificationConfigAsync(deletePnConfig, cancellationToken).ConfigureAwait(false);
-                response = JsonRpcResponse.CreateJsonRpcResponse(requestId, (object?)null);
-                break;
-            case A2AMethods.GetExtendedAgentCard:
-                var getCardRequest = DeserializeAndValidate<GetExtendedAgentCardRequest>(parameters.Value);
-                var extCard = await requestHandler.GetExtendedAgentCardAsync(getCardRequest, cancellationToken).ConfigureAwait(false);
-                response = JsonRpcResponse.CreateJsonRpcResponse(requestId, extCard);
-                break;
-            default:
-                response = JsonRpcResponse.MethodNotFoundResponse(requestId);
-                break;
-        }
-
-        return new JsonRpcResponseResult(response);
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var standard = operationBuilder.AddStandardA2AOperations();
+        var operations = operationBuilder.Build();
+        var handlers = new A2AOperationHandlerCatalogBuilder()
+            .AddStandardA2AHandlers(standard)
+            .Build(operations);
+        var bindings = new A2AJsonRpcOperationBindingBuilder()
+            .AddStandardA2AJsonRpcBindings(standard)
+            .Build(operations);
+        return (handlers, bindings);
     }
 
-    private static T DeserializeAndValidate<T>(JsonElement jsonParamValue) where T : class
+    private static JsonRpcId? TryReadRequestId(JsonElement request)
     {
-        T? parms;
-        try
+        if (!request.TryGetProperty("id", out var id))
         {
-            parms = jsonParamValue.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(T))) as T;
-        }
-        catch (JsonException ex)
-        {
-            throw new A2AException($"Invalid parameters: request body could not be deserialized as {typeof(T).Name}.", ex, A2AErrorCode.InvalidParams);
+            return null;
         }
 
-        if (parms is null)
+        return id.ValueKind switch
         {
-            throw new A2AException($"Failed to deserialize parameters as {typeof(T).Name}", A2AErrorCode.InvalidParams);
-        }
-
-        if (parms is SendMessageRequest sendMsgRequest && sendMsgRequest.Message.Parts.Count == 0)
-        {
-            throw new A2AException("Message parts cannot be empty", A2AErrorCode.InvalidParams);
-        }
-
-        return parms;
+            JsonValueKind.String => new JsonRpcId(id.GetString()),
+            JsonValueKind.Number when id.TryGetInt64(out var value) =>
+                new JsonRpcId(value),
+            JsonValueKind.Null => new JsonRpcId((string?)null),
+            _ => null,
+        };
     }
 
-    internal static IResult StreamResponse(IA2ARequestHandler requestHandler, JsonRpcId requestId, string method, JsonElement? parameters, CancellationToken cancellationToken)
+    private static JsonRpcId GetErrorId(
+        JsonRpcRequest? rpcRequest,
+        JsonRpcId? parsedRequestId,
+        A2AException? exception = null)
     {
-        using var activity = A2AAspNetCoreDiagnostics.Source.StartActivity("StreamResponse", ActivityKind.Server);
-        activity?.SetTag("request.id", requestId.ToString());
-
-        if (parameters == null)
+        if (rpcRequest is not null)
         {
-            activity?.SetStatus(ActivityStatusCode.Error, "Invalid parameters");
-            return new JsonRpcResponseResult(JsonRpcResponse.InvalidParamsResponse(requestId));
+            return rpcRequest.Id;
         }
 
-        switch (method)
+        if (parsedRequestId.HasValue)
         {
-            case A2AMethods.SubscribeToTask:
-                var subscribeRequest = DeserializeAndValidate<SubscribeToTaskRequest>(parameters.Value);
-                var taskEvents = requestHandler.SubscribeToTaskAsync(subscribeRequest, cancellationToken);
-                return new JsonRpcStreamedResult(taskEvents, requestId);
-            case A2AMethods.SendStreamingMessage:
-                var sendRequest = DeserializeAndValidate<SendMessageRequest>(parameters.Value);
-                var sendEvents = requestHandler.SendStreamingMessageAsync(sendRequest, cancellationToken);
-                return new JsonRpcStreamedResult(sendEvents, requestId);
-            default:
-                activity?.SetStatus(ActivityStatusCode.Error, "Invalid method");
-                return new JsonRpcResponseResult(JsonRpcResponse.MethodNotFoundResponse(requestId));
+            return parsedRequestId.Value;
         }
+
+        return new JsonRpcId(exception?.GetRequestId());
+    }
+
+    private static IResult WrapScope(
+        IResult result,
+        ref A2ARequestScope? scope,
+        ref Activity? operationActivity,
+        ref Activity? transportActivity)
+    {
+        if (scope is null && operationActivity is null && transportActivity is null)
+        {
+            return result;
+        }
+
+        var scopedResult = new A2ARequestScopeResult(result, scope, operationActivity, transportActivity);
+        scope = null;
+        operationActivity = null;
+        transportActivity = null;
+        return scopedResult;
     }
 }

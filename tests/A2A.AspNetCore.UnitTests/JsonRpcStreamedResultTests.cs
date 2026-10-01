@@ -80,21 +80,37 @@ public class JsonRpcStreamedResultTests
         Assert.Equal("An internal error occurred.", response.Error.Message);
     }
 
-    [Fact]
-    public async Task ExecuteAsync_OperationCanceledException_WritesNoErrorEvent()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ExecuteAsync_UncancelledCancellationBeforeFirstEvent_ReturnsInternalError(
+        bool timeout)
     {
-        // Arrange
         var requestId = new JsonRpcId("req-4");
-        var events = ThrowingAsyncEnumerable(new OperationCanceledException());
+        var events = ThrowingAsyncEnumerable(CreateUncancelledCancellation(timeout));
         var result = new JsonRpcStreamedResult(events, requestId);
         var httpContext = CreateHttpContext();
 
-        // Act
         await result.ExecuteAsync(httpContext);
 
-        // Assert — body should contain no error SSE data line
-        var body = GetResponseBody(httpContext);
-        Assert.DoesNotContain("\"error\"", body);
+        var response = ParseJsonRpcResponse(GetResponseBody(httpContext));
+        Assert.Equal("application/json", httpContext.Response.ContentType);
+        Assert.Equal((int)A2AErrorCode.InternalError, response.Error?.Code);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_RequestAbortedBeforeFirstEvent_WritesNoError()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var result = new JsonRpcStreamedResult(
+            CancelAndThrowAsyncEnumerable(cancellation, yieldEvent: false),
+            new JsonRpcId("req-4-cancelled"));
+        var httpContext = CreateHttpContext();
+        httpContext.RequestAborted = cancellation.Token;
+
+        await result.ExecuteAsync(httpContext);
+
+        Assert.Empty(GetResponseBody(httpContext));
     }
 
     [Fact]
@@ -137,6 +153,45 @@ public class JsonRpcStreamedResultTests
         var doc = JsonDocument.Parse(json);
         Assert.Equal("2.0", doc.RootElement.GetProperty("jsonrpc").GetString());
         Assert.Equal((int)A2AErrorCode.InvalidParams, doc.RootElement.GetProperty("error").GetProperty("code").GetInt32());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ExecuteAsync_UncancelledCancellationAfterFirstEvent_ReturnsSseError(
+        bool timeout)
+    {
+        var result = new JsonRpcStreamedResult(
+            YieldThenThrowAsyncEnumerable(CreateUncancelledCancellation(timeout)),
+            new JsonRpcId("req-6-cancel"));
+        var httpContext = CreateHttpContext();
+
+        await result.ExecuteAsync(httpContext);
+
+        var body = GetResponseBody(httpContext);
+        Assert.Contains("\"task-1\"", body);
+        var response = ParseSseDataLine(body);
+        Assert.Equal((int)A2AErrorCode.InternalError, response.Error?.Code);
+        Assert.Equal(
+            "An internal error occurred during streaming.",
+            response.Error?.Message);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_RequestAbortedAfterFirstEvent_WritesNoError()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var result = new JsonRpcStreamedResult(
+            CancelAndThrowAsyncEnumerable(cancellation, yieldEvent: true),
+            new JsonRpcId("req-6-cancelled"));
+        var httpContext = CreateHttpContext();
+        httpContext.RequestAborted = cancellation.Token;
+
+        await result.ExecuteAsync(httpContext);
+
+        var body = GetResponseBody(httpContext);
+        Assert.Contains("\"task-1\"", body);
+        Assert.DoesNotContain("\"error\"", body);
     }
 
     [Fact]
@@ -269,6 +324,20 @@ public class JsonRpcStreamedResultTests
 #pragma warning restore CS0162
     }
 
+    private static async IAsyncEnumerable<StreamResponse> CancelAndThrowAsyncEnumerable(
+        CancellationTokenSource cancellation,
+        bool yieldEvent,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        if (yieldEvent)
+        {
+            yield return CreateTaskResponse("task-1");
+        }
+
+        await cancellation.CancelAsync();
+        throw new OperationCanceledException(cancellation.Token);
+    }
+
     private static async IAsyncEnumerable<StreamResponse> EmptyAsyncEnumerable(
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -320,6 +389,14 @@ public class JsonRpcStreamedResultTests
                 Status = new TaskStatus { State = TaskState.Working },
             },
         };
+
+    private static Exception CreateUncancelledCancellation(bool timeout) =>
+        timeout
+            ? new TaskCanceledException(
+                "Timed out.",
+                new TimeoutException("Timed out."),
+                CancellationToken.None)
+            : new OperationCanceledException("Cancelled.", CancellationToken.None);
 
     private sealed class ThrowingGetAsyncEnumerable : IAsyncEnumerable<StreamResponse>
     {

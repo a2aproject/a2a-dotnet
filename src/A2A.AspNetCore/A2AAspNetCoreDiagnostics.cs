@@ -12,4 +12,10 @@ internal static class A2AAspNetCoreDiagnostics
 
     /// <summary>Activity source for HTTP/JSON-RPC protocol processing.</summary>
     internal static readonly ActivitySource Source = new("A2A.AspNetCore", Version);
+
+    internal static void RecordException(Activity? transportActivity, Exception exception)
+    {
+        transportActivity?.SetStatus(ActivityStatusCode.Error);
+        transportActivity?.SetTag("error.type", exception.GetType().FullName);
+    }
 }

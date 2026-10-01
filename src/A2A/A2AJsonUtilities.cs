@@ -111,6 +111,7 @@ public static partial class A2AJsonUtilities
     [JsonSerializable(typeof(ListTaskPushNotificationConfigsRequest))]
     [JsonSerializable(typeof(DeleteTaskPushNotificationConfigRequest))]
     [JsonSerializable(typeof(GetExtendedAgentCardRequest))]
+    [JsonSerializable(typeof(A2AEmptyResult))]
 
     // Push notification types
     [JsonSerializable(typeof(PushNotificationConfig))]

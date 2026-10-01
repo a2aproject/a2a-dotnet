@@ -49,7 +49,7 @@ This library contains the core A2A protocol implementation. It includes the foll
 - **`A2AClient`**: Primary client for making A2A requests to agents. Supports both streaming and non-streaming communication, task management, and push notifications.
 - **`A2ACardResolver`**: Resolves agent card information from A2A-compatible endpoints to discover agent capabilities and metadata.
 
-### Server Classes  
+### Server Classes
 - **`A2AServer`**: Core server that handles A2A JSON-RPC requests, manages task lifecycle via `TaskProjection`, and coordinates streaming/non-streaming responses. Implements `IA2ARequestHandler`.
 - **`IAgentHandler`**: Interface that agents implement. Provides `ExecuteAsync()` for message handling and `CancelAsync()` for task cancellation.
 - **`TaskUpdater`**: Convenience API for emitting task lifecycle events (Submit, StartWork, AddArtifact, Complete, Fail, Cancel, RequireInput).
@@ -223,6 +223,38 @@ Command-line tool for interacting with A2A agents:
 
 For detailed instructions and advanced scenarios, see the individual README files linked above.
 
+## Operation diagnostics and Native AOT
+
+Subscribe to the `A2A.AspNetCore` activity source to observe unified server
+operation dispatch. Each dispatched operation emits one `a2a.operation`
+activity, in addition to transport activities, with these tags:
+
+| Tag | Values |
+| --- | --- |
+| `a2a.operation.id` | Registered operation ID |
+| `a2a.operation.kind` | `unary`, `streaming` |
+| `a2a.operation.source` | `standard`, `extension` |
+| `a2a.operation.role` | `server` |
+| `a2a.transport` | `jsonrpc`, `http-json` |
+| `a2a.operation.outcome` | `success`, `error`, `cancelled` |
+
+Server activities include binding, validation, scope creation, handler
+execution, response writing, stream enumeration, and scope disposal. An
+`OperationCanceledException` records `cancelled` only when the request's
+`RequestAborted` token is cancelled; uncancelled cancellation and timeout
+failures record `error` and use the transport's generic error response.
+Exception messages, payloads,
+authorization headers, extension tokens, and feature values are not added to
+operation activities. JSON-RPC server transport activities remain active
+through response writing and scope disposal. Unexpected failures record
+`error.type` (the exception type only) on that transport activity, never
+exception messages or stack traces on the operation activity.
+
+Extension bindings use explicit source-generated `JsonTypeInfo` metadata; no
+runtime reflection or expression compilation is needed for operation dispatch.
+See the [Native AOT validation executable](tests/A2A.AotTests/README.md) for
+both transports' unary, streaming, and declared-error serialization coverage.
+
 ## Further Reading
 
 To learn more about the A2A protocol, explore these additional resources:
@@ -239,4 +271,3 @@ This library builds upon [Darrel Miller's](https://github.com/darrelmiller) [sha
 ## License
 
 This project is licensed under the [Apache 2.0 License](LICENSE).
-

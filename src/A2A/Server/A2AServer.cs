@@ -360,8 +360,22 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
                         // Await the handler so it can observe the cancellation before
                         // the finally block disposes the CTS.
 #pragma warning disable VSTHRD003 // Intentional: agentTask runs the agent handler in the background
-                        try { await capturedAgentTask.ConfigureAwait(false); }
-                        catch { /* Handler may propagate OperationCanceledException */ }
+                        try
+                        {
+                            await capturedAgentTask.ConfigureAwait(false);
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            // The handler observed the same background cancellation.
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.BackgroundEventProcessingFailed(
+                                ex,
+                                capturedContext.TaskId);
+                            await TryTransitionToFailedAsync(capturedContext)
+                                .ConfigureAwait(false);
+                        }
 #pragma warning restore VSTHRD003
                     }
                     catch (Exception ex)
@@ -740,8 +754,19 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
                     // Await the handler so it can observe the cancellation before
                     // the finally block disposes the CTS.
 #pragma warning disable VSTHRD003 // Intentional: agentTask runs the agent handler in the background
-                    try { await agentTask.ConfigureAwait(false); }
-                    catch { /* Handler may propagate OperationCanceledException */ }
+                    try
+                    {
+                        await agentTask.ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // The handler observed the same background cancellation.
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.BackgroundEventProcessingFailed(ex, context.TaskId);
+                        await TryTransitionToFailedAsync(context).ConfigureAwait(false);
+                    }
 #pragma warning restore VSTHRD003
                 }
                 catch (Exception ex)
