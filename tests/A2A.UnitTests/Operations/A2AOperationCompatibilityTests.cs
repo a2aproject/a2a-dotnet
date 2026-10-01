@@ -11,7 +11,7 @@ namespace A2A.UnitTests.Operations;
 public class A2AOperationCompatibilityTests
 {
     [Fact]
-    public async Task ExistingEndpointAndClientFactoryOverloadsRemainCallable()
+    public async Task ExistingEndpointOverloadsRemainCallable()
     {
         var handler = new A2AJsonRpcCustomOperationTests.TestRequestHandler();
         var builder = WebApplication.CreateBuilder();
@@ -29,21 +29,6 @@ public class A2AOperationCompatibilityTests
         Assert.IsAssignableFrom<IEndpointConventionBuilder>(app.MapHttpA2A(factory, handlers,
             new A2AHttpOperationBindingBuilder().Build(), "/scoped-http"));
 
-        var card = new AgentCard
-        {
-            Name = "compatibility",
-            Description = "compatibility",
-            Version = "1",
-            SupportedInterfaces = [new AgentInterface { ProtocolBinding = "JSONRPC", Url = "http://localhost" }],
-        };
-        using var http = new HttpClient();
-        var bindings = new A2AClientOperationBindingBuilder().Build();
-        Assert.IsType<A2AClient>(A2AClientFactory.Create(card));
-        Assert.IsType<A2AClient>(A2AClientFactory.Create(card, http));
-        Assert.IsType<A2AClient>(A2AClientFactory.Create(card, http, new A2AClientOptions()));
-        Assert.IsType<A2AClient>(A2AClientFactory.Create(card, bindings));
-        Assert.IsType<A2AClient>(A2AClientFactory.Create(card, bindings, http));
-        Assert.IsType<A2AClient>(A2AClientFactory.Create(card, bindings, http, new A2AClientOptions()));
     }
 
     [Fact]
@@ -78,21 +63,9 @@ public class A2AOperationCompatibilityTests
             new A2AHttpOperationBindingBuilder()
                 .Map("POST", "/test", foreign, BindAsync, TestJsonContext.Default.Result).Build()));
 
-        var client = new A2AClientOperationBindingBuilder()
-            .MapJsonRpc(operation, "test/unary", TestJsonContext.Default.Request, TestJsonContext.Default.Result)
-            .MapHttp(operation, MapAsync, TestJsonContext.Default.Result);
-        Assert.Throws<InvalidOperationException>(() => client
-            .MapJsonRpc(operation, "test/unary", TestJsonContext.Default.Request, TestJsonContext.Default.Result));
-        Assert.Throws<InvalidOperationException>(() => client.MapHttp(operation, MapAsync, TestJsonContext.Default.Result));
-        Assert.Throws<InvalidOperationException>(() => new A2AClientOperationBindingBuilder()
-            .MapJsonRpc(foreign, "test/unary", TestJsonContext.Default.Request, TestJsonContext.Default.Result).Build(catalog));
-        Assert.Throws<InvalidOperationException>(() => new A2AClientOperationBindingBuilder()
-            .MapHttp(foreign, MapAsync, TestJsonContext.Default.Result).Build(catalog));
     }
 
     private static ValueTask<Request> BindAsync(HttpContext context, CancellationToken cancellationToken) =>
         ValueTask.FromResult(new Request("test"));
 
-    private static ValueTask<HttpRequestMessage> MapAsync(Uri endpoint, Request request, CancellationToken cancellationToken) =>
-        ValueTask.FromResult(new HttpRequestMessage(HttpMethod.Post, endpoint));
 }

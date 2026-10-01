@@ -247,52 +247,19 @@ public sealed class A2AHttpOperationBindings
     internal void MapEndpoints(
         RouteGroupBuilder routeGroup,
         A2ARequestScopeFactory scopeFactory,
-        A2AOperationHandlerCatalog handlers,
-        IReadOnlySet<A2AHttpOperationBindingKey>? routeKeys = null)
+        A2AOperationHandlerCatalog handlers)
     {
         var logger = ((IEndpointRouteBuilder)routeGroup).ServiceProvider
             .GetRequiredService<ILoggerFactory>()
             .CreateLogger("A2A.REST");
         foreach (var registration in _registrations)
         {
-            if (routeKeys is not null
-                && !routeKeys.Contains(registration.RouteKey))
-            {
-                continue;
-            }
-
             registration.Build(handlers.OperationCatalog).MapEndpoint(
                 routeGroup,
                 scopeFactory,
                 handlers,
                 logger);
         }
-    }
-
-    internal IReadOnlySet<A2AHttpOperationBindingKey>
-        GetMissingCanonicalStandardRouteKeys(
-        A2AOperationCatalog operationCatalog)
-    {
-        var missingRouteKeys = new HashSet<A2AHttpOperationBindingKey>(
-            A2AStandardHttpBindingBuilderExtensions
-                .CanonicalRouteOperationIds.Keys);
-        foreach (var registration in _registrations)
-        {
-            _ = registration.Build(operationCatalog);
-            if (A2AStandardHttpBindingBuilderExtensions
-                    .CanonicalRouteOperationIds.TryGetValue(
-                        registration.RouteKey,
-                        out var expectedOperationId)
-                && registration.TryGetStandardOperationId(
-                    operationCatalog,
-                    out var operationId)
-                && operationId == expectedOperationId)
-            {
-                missingRouteKeys.Remove(registration.RouteKey);
-            }
-        }
-
-        return missingRouteKeys;
     }
 }
 
@@ -319,10 +286,6 @@ internal interface IA2AHttpOperationBindingRegistration
     void AddErrorMapping(IA2AHttpErrorMapping mapping);
 
     IA2AHttpOperationBindingRegistration Freeze();
-
-    bool TryGetStandardOperationId(
-        A2AOperationCatalog operationCatalog,
-        out A2AOperationId operationId);
 
     IA2AHttpOperationBinding Build(A2AOperationCatalog operationCatalog);
 }
@@ -384,25 +347,6 @@ internal abstract class A2AHttpOperationBindingRegistration
         }
 
         return clone;
-    }
-
-    public bool TryGetStandardOperationId(
-        A2AOperationCatalog operationCatalog,
-        out A2AOperationId operationId)
-    {
-        if (Operation is IA2AOperationHandle operationHandle
-            && operationCatalog.TryGetRegistration(
-                operationHandle.Id,
-                out var registration)
-            && ReferenceEquals(registration.Handle, Operation)
-            && registration.Source == A2AOperationSource.Standard)
-        {
-            operationId = registration.Id;
-            return true;
-        }
-
-        operationId = default;
-        return false;
     }
 
     public IA2AHttpOperationBinding Build(A2AOperationCatalog operationCatalog)

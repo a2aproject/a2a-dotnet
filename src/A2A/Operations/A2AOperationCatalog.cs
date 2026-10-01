@@ -186,9 +186,7 @@ public sealed class A2AOperationCatalogBuilder
     {
         ValidateOperationId(id);
 
-        var operation = new A2AOperation<TRequest, TResult>(
-            id,
-            requiresCatalog: true);
+        var operation = new A2AOperation<TRequest, TResult>(id);
         AddRegistration(new A2AOperationRegistrationBuilder(
             id,
             A2AOperationKind.Unary,
@@ -207,9 +205,7 @@ public sealed class A2AOperationCatalogBuilder
     {
         ValidateOperationId(id);
 
-        var operation = new A2AStreamingOperation<TRequest, TEvent>(
-            id,
-            requiresCatalog: true);
+        var operation = new A2AStreamingOperation<TRequest, TEvent>(id);
         AddRegistration(new A2AOperationRegistrationBuilder(
             id,
             A2AOperationKind.Streaming,
@@ -320,13 +316,13 @@ public sealed class A2AOperationCatalog
     /// <summary>Gets the registered unary operation handle for an identifier.</summary>
     /// <param name="id">The operation identifier.</param>
     /// <returns>The registered unary operation handle.</returns>
-    public object GetRequired(A2AOperationId id)
+    internal object GetRequired(A2AOperationId id)
         => GetRequiredRegistration(id, A2AOperationKind.Unary).Handle;
 
     /// <summary>Gets the registered streaming operation handle for an identifier.</summary>
     /// <param name="id">The operation identifier.</param>
     /// <returns>The registered streaming operation handle.</returns>
-    public object GetRequiredStreaming(A2AOperationId id)
+    internal object GetRequiredStreaming(A2AOperationId id)
         => GetRequiredRegistration(id, A2AOperationKind.Streaming).Handle;
 
     /// <summary>Gets the registered typed unary operation handle for an identifier.</summary>
@@ -334,7 +330,7 @@ public sealed class A2AOperationCatalog
     /// <typeparam name="TResult">The operation result type.</typeparam>
     /// <param name="id">The operation identifier.</param>
     /// <returns>The registered unary operation handle.</returns>
-    public A2AOperation<TRequest, TResult> GetRequired<TRequest, TResult>(
+    internal A2AOperation<TRequest, TResult> GetRequired<TRequest, TResult>(
         A2AOperationId id)
     {
         var registration = GetRequiredRegistration(id, A2AOperationKind.Unary);
@@ -351,7 +347,7 @@ public sealed class A2AOperationCatalog
     /// <typeparam name="TEvent">The streamed event type.</typeparam>
     /// <param name="id">The operation identifier.</param>
     /// <returns>The registered streaming operation handle.</returns>
-    public A2AStreamingOperation<TRequest, TEvent>
+    internal A2AStreamingOperation<TRequest, TEvent>
         GetRequiredStreaming<TRequest, TEvent>(A2AOperationId id)
     {
         var registration = GetRequiredRegistration(id, A2AOperationKind.Streaming);
@@ -370,7 +366,7 @@ public sealed class A2AOperationCatalog
     /// <param name="operation">The declaring operation.</param>
     /// <param name="errorId">The error identifier.</param>
     /// <returns>The declared typed error handle.</returns>
-    public A2AOperationError<TDetails> GetRequiredError<TRequest, TResult, TDetails>(
+    internal A2AOperationError<TDetails> GetRequiredError<TRequest, TResult, TDetails>(
         A2AOperation<TRequest, TResult> operation,
         string errorId)
         => GetRequiredErrorCore<TDetails>(operation, errorId, A2AOperationKind.Unary);
@@ -382,7 +378,7 @@ public sealed class A2AOperationCatalog
     /// <param name="operation">The declaring streaming operation.</param>
     /// <param name="errorId">The error identifier.</param>
     /// <returns>The declared typed error handle.</returns>
-    public A2AOperationError<TDetails>
+    internal A2AOperationError<TDetails>
         GetRequiredStreamingError<TRequest, TEvent, TDetails>(
             A2AStreamingOperation<TRequest, TEvent> operation,
             string errorId)
@@ -393,7 +389,7 @@ public sealed class A2AOperationCatalog
     /// <typeparam name="TResult">The operation result type.</typeparam>
     /// <param name="operation">The registered operation definition.</param>
     /// <param name="request">The request to validate.</param>
-    public void Validate<TRequest, TResult>(
+    internal void Validate<TRequest, TResult>(
         A2AOperation<TRequest, TResult> operation,
         TRequest request)
     {
@@ -409,7 +405,7 @@ public sealed class A2AOperationCatalog
     /// <typeparam name="TEvent">The streamed event type.</typeparam>
     /// <param name="operation">The registered streaming operation definition.</param>
     /// <param name="request">The request to validate.</param>
-    public void ValidateStreaming<TRequest, TEvent>(
+    internal void ValidateStreaming<TRequest, TEvent>(
         A2AStreamingOperation<TRequest, TEvent> operation,
         TRequest request)
     {

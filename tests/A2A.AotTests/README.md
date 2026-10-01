@@ -1,10 +1,10 @@
 # Native AOT operation validation
 
-This executable exercises both JSON-RPC and HTTP+JSON endpoint delegates and
-clients with source-generated extension request, result, event, and declared
-error metadata. It checks successful unary/streaming calls, declared errors
-before the first event, and request-scope disposal. Serialization reflection
-is disabled. Failed assertions terminate the process with a nonzero exit code.
+This executable exercises standard and custom JSON-RPC and HTTP+JSON server
+endpoint delegates with source-generated serialization metadata. It checks
+successful unary/streaming calls, declared extension errors before the first
+event, and request-scope disposal. Serialization reflection is disabled.
+Failed assertions terminate the process with a nonzero exit code.
 
 Run the managed validation:
 

@@ -332,12 +332,7 @@ public class A2AHttpJsonClientTests
         var ex = await Assert.ThrowsAsync<A2AException>(() =>
             sut.SendMessageAsync(new SendMessageRequest
             {
-                Message = new Message
-                {
-                    Parts = [Part.FromText("test")],
-                    Role = Role.User,
-                    MessageId = "m",
-                }
+                Message = new Message { Parts = [], Role = Role.User, MessageId = "m" }
             }));
 
         Assert.Equal(A2AErrorCode.InvalidRequest, ex.ErrorCode);
@@ -376,12 +371,7 @@ public class A2AHttpJsonClientTests
         var ex = await Assert.ThrowsAsync<A2AException>(() =>
             sut.SendMessageAsync(new SendMessageRequest
             {
-                Message = new Message
-                {
-                    Parts = [Part.FromText("test")],
-                    Role = Role.User,
-                    MessageId = "m",
-                }
+                Message = new Message { Parts = [], Role = Role.User, MessageId = "m" }
             }));
 
         Assert.Equal(A2AErrorCode.ContentTypeNotSupported, ex.ErrorCode);
@@ -608,12 +598,7 @@ public class A2AHttpJsonClientErrorInfoTests
         var ex = await Assert.ThrowsAsync<A2AException>(() =>
             sut.SendMessageAsync(new SendMessageRequest
             {
-                Message = new Message
-                {
-                    Parts = [Part.FromText("test")],
-                    Role = Role.User,
-                    MessageId = "m",
-                }
+                Message = new Message { Parts = [], Role = Role.User, MessageId = "m" }
             }));
 
         Assert.Equal(A2AErrorCode.UnsupportedOperation, ex.ErrorCode);

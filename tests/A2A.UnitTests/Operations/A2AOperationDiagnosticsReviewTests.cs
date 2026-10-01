@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using System.Diagnostics;
-using System.Net;
 using System.Text;
 using System.Text.Json;
 
@@ -119,52 +118,44 @@ public partial class A2AOperationDiagnosticsTests
         var bindings = new A2AJsonRpcOperationBindingBuilder().AddStandardA2AJsonRpcBindings(standard).Build(catalog);
         A2ARequestScopeFactory factory = (_, _) => ValueTask.FromResult(new A2ARequestScope(
             new A2AOperationContext(new A2AJsonRpcCustomOperationTests.TestRequestHandler())));
-        using var http = new HttpClient(new StandardPreStreamHandler(factory, handlers, bindings, code));
-        var client = new A2AClient(new Uri("http://localhost"), http);
+        var context = new DefaultHttpContext();
+        context.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(
+            """{"jsonrpc":"2.0","id":"standard-id","method":"SubscribeToTask","params":{"id":"missing"}}"""));
+        using var output = new MemoryStream();
+        context.Response.Body = output;
 
-        var exception = await Assert.ThrowsAsync<A2AException>(() =>
-            client.SubscribeToTaskAsync(new SubscribeToTaskRequest { Id = "missing" }).ToListAsync().AsTask());
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(
+            factory,
+            handlers,
+            bindings,
+            context.Request,
+            default);
+        await result.ExecuteAsync(context);
 
-        Assert.Equal(code, (int)exception.ErrorCode);
-        Assert.Equal("Subscription rejected.", exception.Message);
-        Assert.Equal(2, capture.Operations.Count());
-        foreach (var role in new[] { "client", "server" })
+        Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
+        Assert.Equal("application/json", context.Response.ContentType);
+        using (var outgoing = JsonDocument.Parse(output.ToArray()))
         {
-            AssertOperation(Assert.Single(capture.Operations, activity => Equals(activity.GetTagItem("a2a.operation.role"), role)),
-                "https://a2a-protocol.org/operations/subscribe-to-task", true, "standard", role, "jsonrpc", "error");
+            Assert.Equal(
+                "2.0",
+                outgoing.RootElement.GetProperty("jsonrpc").GetString());
+            Assert.Equal(
+                "standard-id",
+                outgoing.RootElement.GetProperty("id").GetString());
+            Assert.Equal(
+                code,
+                outgoing.RootElement.GetProperty("error")
+                    .GetProperty("code").GetInt32());
         }
-    }
 
-    private sealed class StandardPreStreamHandler(
-        A2ARequestScopeFactory factory, A2AOperationHandlerCatalog handlers,
-        A2AJsonRpcOperationBindings bindings, int code) : HttpMessageHandler
-    {
-        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            var bytes = await request.Content!.ReadAsByteArrayAsync(cancellationToken);
-            using var incoming = JsonDocument.Parse(bytes);
-            var requestId = incoming.RootElement.GetProperty("id").GetString();
-            Assert.False(string.IsNullOrEmpty(requestId));
-            Assert.Equal("SubscribeToTask", incoming.RootElement.GetProperty("method").GetString());
-            var context = new DefaultHttpContext { RequestAborted = cancellationToken };
-            using var input = new MemoryStream(bytes);
-            using var output = new MemoryStream();
-            context.Request.Body = input;
-            context.Response.Body = output;
-            var result = await A2AJsonRpcProcessor.ProcessRequestAsync(factory, handlers, bindings, context.Request, cancellationToken);
-            await result.ExecuteAsync(context);
-
-            Assert.Equal(200, context.Response.StatusCode);
-            Assert.Equal("application/json", context.Response.ContentType);
-            using var outgoing = JsonDocument.Parse(output.ToArray());
-            Assert.Equal("2.0", outgoing.RootElement.GetProperty("jsonrpc").GetString());
-            Assert.Equal(requestId, outgoing.RootElement.GetProperty("id").GetString());
-            Assert.Equal(code, outgoing.RootElement.GetProperty("error").GetProperty("code").GetInt32());
-            return new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent(Encoding.UTF8.GetString(output.ToArray()), Encoding.UTF8, "application/json"),
-            };
-        }
+        AssertOperation(
+            Assert.Single(capture.Operations),
+            "https://a2a-protocol.org/operations/subscribe-to-task",
+            true,
+            "standard",
+            "server",
+            "jsonrpc",
+            "error");
     }
 
     private static async IAsyncEnumerable<Result> ThrowBeforeEventAsync(Exception exception)

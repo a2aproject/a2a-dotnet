@@ -5,6 +5,22 @@ namespace A2A.UnitTests.Operations;
 
 public class A2AOperationTests
 {
+    [Theory]
+    [InlineData(nameof(A2AFeatureCollection.Set))]
+    [InlineData(nameof(A2AFeatureCollection.Get))]
+    [InlineData(nameof(A2AFeatureCollection.GetRequired))]
+    public void FeatureMethods_RequireReferenceTypes(string methodName)
+    {
+        var method = typeof(A2AFeatureCollection)
+            .GetMethod(methodName)!;
+        var attributes = method
+            .GetGenericArguments()[0]
+            .GenericParameterAttributes;
+
+        Assert.True(
+            attributes.HasFlag(GenericParameterAttributes.ReferenceTypeConstraint));
+    }
+
     [Fact]
     public void Build_WhenOperationIdsAreUnique_ReturnsImmutableCatalog()
     {
@@ -582,6 +598,24 @@ public class A2AOperationTests
         });
 
         Assert.Contains(first.Id.Value, exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FeatureCollection_GetReturnsRegisteredFeature()
+    {
+        var features = new A2AFeatureCollection();
+        var feature = new TestFeature("value");
+        features.Set(feature);
+
+        Assert.Same(feature, features.Get<TestFeature>());
+    }
+
+    [Fact]
+    public void FeatureCollection_GetReturnsNullForMissingFeature()
+    {
+        var features = new A2AFeatureCollection();
+
+        Assert.Null(features.Get<TestFeature>());
     }
 
     [Fact]

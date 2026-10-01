@@ -40,21 +40,14 @@ public sealed class A2AOperation<TRequest, TResult> : IA2AOperationHandle
 {
     /// <summary>Initializes a new typed operation.</summary>
     /// <param name="id">The transport-neutral operation identifier.</param>
-    /// <param name="requiresCatalog">
-    /// Whether client bindings for this operation require catalog validation.
-    /// </param>
-    internal A2AOperation(
-        A2AOperationId id,
-        bool requiresCatalog = false)
+    internal A2AOperation(A2AOperationId id)
     {
         Id = id;
-        RequiresCatalog = requiresCatalog;
     }
 
     /// <summary>Gets the transport-neutral operation identifier.</summary>
     public A2AOperationId Id { get; }
 
-    internal bool RequiresCatalog { get; }
 }
 
 /// <summary>Defines a typed streaming A2A operation.</summary>
@@ -64,19 +57,12 @@ public sealed class A2AStreamingOperation<TRequest, TEvent> : IA2AOperationHandl
 {
     /// <summary>Initializes a new typed streaming operation.</summary>
     /// <param name="id">The transport-neutral operation identifier.</param>
-    /// <param name="requiresCatalog">
-    /// Whether client bindings for this operation require catalog validation.
-    /// </param>
-    internal A2AStreamingOperation(
-        A2AOperationId id,
-        bool requiresCatalog = false)
+    internal A2AStreamingOperation(A2AOperationId id)
     {
         Id = id;
-        RequiresCatalog = requiresCatalog;
     }
 
     /// <summary>Gets the transport-neutral operation identifier.</summary>
     public A2AOperationId Id { get; }
 
-    internal bool RequiresCatalog { get; }
 }

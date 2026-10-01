@@ -75,7 +75,7 @@ public partial class A2AHttpCustomOperationTests
     }
 
     [Fact]
-    public async Task MapHttpA2A_CustomOnlyCatalogAlsoMapsEveryStandardRoute()
+    public void MapHttpA2A_CustomOnlyCatalogMapsOnlySuppliedRoute()
     {
         var operationBuilder = new A2AOperationCatalogBuilder();
         var customOperation = operationBuilder.DefineUnary<
@@ -117,40 +117,21 @@ public partial class A2AHttpCustomOperationTests
 
         app.MapHttpA2A(scopeFactory, handlers, bindings);
 
-        foreach (var route in A2AHttpStandardOperationTests.StandardRoutes)
-        {
-            Assert.NotNull(GetEndpoint(
-                app,
-                Assert.IsType<string>(route[0]),
-                Assert.IsType<string>(route[1])));
-        }
-
-        var standardContext = CreateHttpContext(app, "/tasks/{id}");
-        standardContext.Request.Method = HttpMethods.Get;
-        await GetEndpoint(
-            app,
-            HttpMethods.Get,
-            "/tasks/{id}").RequestDelegate!(standardContext);
-        var customContext = CreateHttpContext(app, "/tasks/{id}:resumeAuth");
-        await GetEndpoint(
-            app,
+        var endpoint = Assert.Single(
+            ((IEndpointRouteBuilder)app).DataSources
+                .SelectMany(static dataSource => dataSource.Endpoints)
+                .OfType<RouteEndpoint>());
+        Assert.Equal(
+            "/tasks/{id}:resumeAuth",
+            endpoint.RoutePattern.RawText);
+        Assert.Contains(
             HttpMethods.Post,
-            "/tasks/{id}:resumeAuth").RequestDelegate!(customContext);
-
-        Assert.Equal(StatusCodes.Status200OK, standardContext.Response.StatusCode);
-        Assert.Contains(
-            "\"id\":\"task-1\"",
-            GetResponseBody(standardContext),
-            StringComparison.Ordinal);
-        Assert.Equal(StatusCodes.Status200OK, customContext.Response.StatusCode);
-        Assert.Contains(
-            "opaque-token",
-            GetResponseBody(customContext),
-            StringComparison.Ordinal);
+            endpoint.Metadata.GetRequiredMetadata<HttpMethodMetadata>()
+                .HttpMethods);
     }
 
     [Fact]
-    public async Task MapHttpA2A_PartialStandardAndCustomCatalogMapsEachCanonicalRouteOnce()
+    public async Task MapHttpA2A_PartialStandardAndCustomCatalogMapsOnlySuppliedRoutes()
     {
         var operationBuilder = new A2AOperationCatalogBuilder();
         var standard = operationBuilder.AddStandardA2AOperations();
@@ -159,6 +140,7 @@ public partial class A2AHttpCustomOperationTests
             ResumeResult>(new A2AOperationId("test.partial-compatibility"));
         var operationCatalog = operationBuilder.Build();
         var suppliedStandardDispatchCount = 0;
+        var customDispatchCount = 0;
         var handlers = new A2AOperationHandlerCatalogBuilder()
             .Map(
                 standard.ListTasks,
@@ -169,8 +151,12 @@ public partial class A2AHttpCustomOperationTests
                 })
             .Map(
                 customOperation,
-                static (_, request, _) => ValueTask.FromResult(
-                    new ResumeResult(request.Token)))
+                (_, request, _) =>
+                {
+                    customDispatchCount++;
+                    return ValueTask.FromResult(
+                        new ResumeResult(request.Token));
+                })
             .Build(operationCatalog);
         var bindings = new A2AHttpOperationBindingBuilder()
             .Map(
@@ -212,32 +198,19 @@ public partial class A2AHttpCustomOperationTests
             .SelectMany(static dataSource => dataSource.Endpoints)
             .OfType<RouteEndpoint>()
             .ToArray();
-        foreach (var route in A2AHttpStandardOperationTests.StandardRoutes)
-        {
-            var httpMethod = Assert.IsType<string>(route[0]);
-            var routePattern = Assert.IsType<string>(route[1]);
-            Assert.Single(
-                endpoints,
-                endpoint =>
-                    endpoint.RoutePattern.RawText == routePattern
-                    && endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!
-                        .HttpMethods.Contains(httpMethod));
-        }
+        Assert.Collection(
+            endpoints.OrderBy(static endpoint => endpoint.RoutePattern.RawText),
+            endpoint => Assert.Equal("/tasks", endpoint.RoutePattern.RawText),
+            endpoint => Assert.Equal(
+                "/tasks/{id}:resumeAuth",
+                endpoint.RoutePattern.RawText));
 
-        var suppliedStandardContext = CreateHttpContext(app, "/tasks");
-        suppliedStandardContext.Request.Method = HttpMethods.Get;
+        var standardContext = CreateHttpContext(app, "/tasks");
+        standardContext.Request.Method = HttpMethods.Get;
         await GetEndpoint(
             app,
             HttpMethods.Get,
-            "/tasks").RequestDelegate!(suppliedStandardContext);
-        var synthesizedStandardContext = CreateHttpContext(
-            app,
-            "/tasks/{id}");
-        synthesizedStandardContext.Request.Method = HttpMethods.Get;
-        await GetEndpoint(
-            app,
-            HttpMethods.Get,
-            "/tasks/{id}").RequestDelegate!(synthesizedStandardContext);
+            "/tasks").RequestDelegate!(standardContext);
         var customContext = CreateHttpContext(app, "/tasks/{id}:resumeAuth");
         await GetEndpoint(
             app,
@@ -245,21 +218,7 @@ public partial class A2AHttpCustomOperationTests
             "/tasks/{id}:resumeAuth").RequestDelegate!(customContext);
 
         Assert.Equal(1, suppliedStandardDispatchCount);
-        Assert.Equal(
-            StatusCodes.Status200OK,
-            suppliedStandardContext.Response.StatusCode);
-        Assert.Equal(
-            StatusCodes.Status200OK,
-            synthesizedStandardContext.Response.StatusCode);
-        Assert.Contains(
-            "synthesized-standard",
-            GetResponseBody(synthesizedStandardContext),
-            StringComparison.Ordinal);
-        Assert.Equal(StatusCodes.Status200OK, customContext.Response.StatusCode);
-        Assert.Contains(
-            "opaque-token",
-            GetResponseBody(customContext),
-            StringComparison.Ordinal);
+        Assert.Equal(1, customDispatchCount);
     }
 
     [Fact]

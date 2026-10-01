@@ -49,7 +49,7 @@ This library contains the core A2A protocol implementation. It includes the foll
 - **`A2AClient`**: Primary client for making A2A requests to agents. Supports both streaming and non-streaming communication, task management, and push notifications.
 - **`A2ACardResolver`**: Resolves agent card information from A2A-compatible endpoints to discover agent capabilities and metadata.
 
-### Server Classes  
+### Server Classes
 - **`A2AServer`**: Core server that handles A2A JSON-RPC requests, manages task lifecycle via `TaskProjection`, and coordinates streaming/non-streaming responses. Implements `IA2ARequestHandler`.
 - **`IAgentHandler`**: Interface that agents implement. Provides `ExecuteAsync()` for message handling and `CancelAsync()` for task cancellation.
 - **`TaskUpdater`**: Convenience API for emitting task lifecycle events (Submit, StartWork, AddArtifact, Complete, Fail, Cancel, RequireInput).
@@ -225,38 +225,30 @@ For detailed instructions and advanced scenarios, see the individual README file
 
 ## Operation diagnostics and Native AOT
 
-Subscribe to the `A2A` (client) and `A2A.AspNetCore` (server) activity sources
-to observe unified operation dispatch. Each invocation emits one
-`a2a.operation` activity, in addition to transport activities, with these tags:
+Subscribe to the `A2A.AspNetCore` activity source to observe unified server
+operation dispatch. Each dispatched operation emits one `a2a.operation`
+activity, in addition to transport activities, with these tags:
 
 | Tag | Values |
 | --- | --- |
 | `a2a.operation.id` | Registered operation ID |
 | `a2a.operation.kind` | `unary`, `streaming` |
 | `a2a.operation.source` | `standard`, `extension` |
-| `a2a.operation.role` | `client`, `server` |
+| `a2a.operation.role` | `server` |
 | `a2a.transport` | `jsonrpc`, `http-json` |
 | `a2a.operation.outcome` | `success`, `error`, `cancelled` |
 
 Server activities include binding, validation, scope creation, handler
-execution, response writing, stream enumeration, and scope disposal. Client
-activities include binding lookup, validation, serialization, transport,
-response deserialization, and stream disposal. An `OperationCanceledException`
-records `cancelled` only when the invocation's request, caller, or enumeration
-token is cancelled; otherwise it records `error`, including timeout failures.
-Disposing a client stream before completion records `cancelled` only when its
-caller or enumeration token is cancelled, and `error` otherwise.
-Server streams suppress cancellation output only when `RequestAborted` is
-cancelled; uncancelled cancellation and timeout failures use the transport's
-generic error response.
+execution, response writing, stream enumeration, and scope disposal. An
+`OperationCanceledException` records `cancelled` only when the request's
+`RequestAborted` token is cancelled; uncancelled cancellation and timeout
+failures record `error` and use the transport's generic error response.
 Exception messages, payloads,
 authorization headers, extension tokens, and feature values are not added to
-operation activities. Client transport activities record the server address
-and port instead of a full URL, which can contain private path or query values.
-JSON-RPC server transport activities remain active through response writing and
-scope disposal. Unexpected failures record `error.type` (the exception type only)
-on that transport activity, never exception messages or stack traces on the
-operation activity.
+operation activities. JSON-RPC server transport activities remain active
+through response writing and scope disposal. Unexpected failures record
+`error.type` (the exception type only) on that transport activity, never
+exception messages or stack traces on the operation activity.
 
 Extension bindings use explicit source-generated `JsonTypeInfo` metadata; no
 runtime reflection or expression compilation is needed for operation dispatch.

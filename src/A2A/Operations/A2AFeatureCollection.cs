@@ -13,18 +13,27 @@ public sealed class A2AFeatureCollection
     /// <typeparam name="TFeature">The feature type.</typeparam>
     /// <param name="feature">The feature instance.</param>
     public void Set<TFeature>(TFeature feature)
-        where TFeature : notnull
+        where TFeature : class
     {
         ArgumentNullException.ThrowIfNull(feature);
         _features[typeof(TFeature)] = feature;
     }
+
+    /// <summary>Gets an optional feature.</summary>
+    /// <typeparam name="TFeature">The feature type.</typeparam>
+    /// <returns>The registered feature, or <see langword="null"/>.</returns>
+    public TFeature? Get<TFeature>()
+        where TFeature : class
+        => _features.TryGetValue(typeof(TFeature), out var feature)
+            ? (TFeature)feature
+            : null;
 
     /// <summary>Gets a required feature.</summary>
     /// <typeparam name="TFeature">The feature type.</typeparam>
     /// <returns>The registered feature.</returns>
     /// <exception cref="InvalidOperationException">The feature is not registered.</exception>
     public TFeature GetRequired<TFeature>()
-        where TFeature : notnull
+        where TFeature : class
     {
         if (_features.TryGetValue(typeof(TFeature), out var feature))
         {

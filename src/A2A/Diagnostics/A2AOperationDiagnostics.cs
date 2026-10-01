@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
 
 namespace A2A;
 
@@ -38,81 +37,6 @@ internal static class A2AOperationDiagnostics
         Activity? activity, Exception exception, CancellationToken cancellationToken = default) =>
         SetOutcome(activity, exception is OperationCanceledException && cancellationToken.IsCancellationRequested
             ? "cancelled" : "error");
-
-    internal static async Task<TResult> InvokeAsync<TResult>(
-        A2AOperationId id,
-        A2AOperationSource source,
-        string transport,
-        Func<CancellationToken, Task<TResult>> invoke,
-        CancellationToken cancellationToken)
-    {
-        using var activity = Start(A2ADiagnostics.Source, id, A2AOperationKind.Unary, source, "client", transport);
-        try
-        {
-            var result = await invoke(cancellationToken).ConfigureAwait(false);
-            SetOutcome(activity, "success");
-            return result;
-        }
-        catch (Exception exception)
-        {
-            SetError(activity, exception, cancellationToken);
-            throw;
-        }
-    }
-
-    internal static async IAsyncEnumerable<TEvent> InvokeStreamingAsync<TEvent>(
-        A2AOperationId id,
-        A2AOperationSource source,
-        string transport,
-        Func<IAsyncEnumerable<TEvent>> invoke,
-        [EnumeratorCancellation] CancellationToken cancellationToken)
-    {
-        using var activity = Start(A2ADiagnostics.Source, id, A2AOperationKind.Streaming, source, "client", transport);
-        IAsyncEnumerator<TEvent> enumerator;
-        try
-        {
-            enumerator = invoke().GetAsyncEnumerator(cancellationToken);
-        }
-        catch (Exception exception)
-        {
-            SetError(activity, exception, cancellationToken);
-            throw;
-        }
-
-        var completed = false;
-        try
-        {
-            while (true)
-            {
-                TEvent current;
-                try
-                {
-                    if (!await enumerator.MoveNextAsync().ConfigureAwait(false))
-                    {
-                        completed = true;
-                        break;
-                    }
-
-                    current = enumerator.Current;
-                }
-                catch (Exception exception)
-                {
-                    SetError(activity, exception, cancellationToken);
-                    throw;
-                }
-
-                yield return current;
-            }
-        }
-        finally
-        {
-            await DisposeAsync(enumerator, activity, cancellationToken).ConfigureAwait(false);
-            if (activity?.GetTagItem("a2a.operation.outcome") is null)
-            {
-                SetOutcome(activity, completed ? "success" : cancellationToken.IsCancellationRequested ? "cancelled" : "error");
-            }
-        }
-    }
 
     internal static async ValueTask DisposeAsync(
         IAsyncDisposable resource, Activity? activity, CancellationToken cancellationToken)

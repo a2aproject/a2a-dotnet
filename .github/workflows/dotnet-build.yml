@@ -49,3 +49,15 @@ jobs:
         run: dotnet build --framework net10.0
       - name: TestLibs
         run: dotnet test --no-build --verbosity normal --framework net10.0
+  nativeAot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Setup .NET 10.x
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.x
+      - name: Publish Native AOT validation
+        run: dotnet publish ./tests/A2A.AotTests/A2A.AotTests.csproj --configuration Release --runtime linux-x64
+      - name: Run Native AOT validation
+        run: ./tests/A2A.AotTests/bin/Release/net10.0/linux-x64/publish/A2A.AotTests
