@@ -187,7 +187,7 @@ internal static class A2AHttpProcessor
             return new A2AResponseResult(result);
         }, cancellationToken: cancellationToken);
 
-    private static readonly IReadOnlyDictionary<string, TaskState> s_taskStateWireNames =
+    private static readonly Dictionary<string, TaskState> s_taskStateWireNames =
         new Dictionary<string, TaskState>(StringComparer.OrdinalIgnoreCase)
         {
             ["TASK_STATE_UNSPECIFIED"] = TaskState.Unspecified,
