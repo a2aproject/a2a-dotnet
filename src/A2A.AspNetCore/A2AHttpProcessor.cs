@@ -187,18 +187,28 @@ internal static class A2AHttpProcessor
             return new A2AResponseResult(result);
         }, cancellationToken: cancellationToken);
 
+    private static readonly IReadOnlyDictionary<string, TaskState> s_taskStateWireNames =
+        new Dictionary<string, TaskState>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["TASK_STATE_UNSPECIFIED"] = TaskState.Unspecified,
+            ["TASK_STATE_SUBMITTED"] = TaskState.Submitted,
+            ["TASK_STATE_WORKING"] = TaskState.Working,
+            ["TASK_STATE_COMPLETED"] = TaskState.Completed,
+            ["TASK_STATE_FAILED"] = TaskState.Failed,
+            ["TASK_STATE_CANCELED"] = TaskState.Canceled,
+            ["TASK_STATE_INPUT_REQUIRED"] = TaskState.InputRequired,
+            ["TASK_STATE_REJECTED"] = TaskState.Rejected,
+            ["TASK_STATE_AUTH_REQUIRED"] = TaskState.AuthRequired,
+        };
+
     private static bool TryParseTaskState(string value, out TaskState state)
     {
-        if (Enum.TryParse(value, ignoreCase: true, out state) &&
-            Enum.IsDefined(state))
+        if (s_taskStateWireNames.TryGetValue(value, out state))
         {
             return true;
         }
 
-        const string wirePrefix = "TASK_STATE_";
-        return value.StartsWith(wirePrefix, StringComparison.Ordinal) &&
-            Enum.TryParse(value[wirePrefix.Length..], ignoreCase: true, out state) &&
-            Enum.IsDefined(state);
+        return Enum.TryParse(value, ignoreCase: true, out state) && Enum.IsDefined(state);
     }
 
     // REST handler: Get extended agent card
