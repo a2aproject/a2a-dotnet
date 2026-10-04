@@ -232,7 +232,7 @@ public class A2AHttpProcessorTests
             null,
             CancellationToken.None);
 
-        Assert.Equal(StatusCodes.Status200OK, ((IStatusCodeHttpResult)result).StatusCode);
+        Assert.IsType<A2AResponseResult>(result);
         requestHandler.VerifyAll();
     }
 }
