@@ -13,14 +13,12 @@ public static class A2AJsonRpcProcessor
     internal static IResult? CheckPreflight(HttpRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var version = request.Headers["A2A-Version"].FirstOrDefault();
-        if (!string.IsNullOrEmpty(version) && version != "1.0" && version != "0.3")
+        var error = A2AVersionHeader.Validate(request.Headers[A2AVersionHeader.HeaderName]);
+        if (error is not null)
         {
             return new JsonRpcResponseResult(JsonRpcResponse.CreateJsonRpcErrorResponse(
                 new JsonRpcId((string?)null),
-                new A2AException(
-                    $"Protocol version '{version}' is not supported. Supported versions: 0.3, 1.0",
-                    A2AErrorCode.VersionNotSupported)));
+                error));
         }
         return null;
     }
