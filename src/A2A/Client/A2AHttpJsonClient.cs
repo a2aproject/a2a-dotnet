@@ -102,11 +102,13 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
 
     /// <inheritdoc />
     public async Task<TaskPushNotificationConfig> CreateTaskPushNotificationConfigAsync(
-        CreateTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default)
+        TaskPushNotificationConfig config, CancellationToken cancellationToken = default)
     {
-        return await PostJsonAsync<PushNotificationConfig, TaskPushNotificationConfig>(
-            $"/tasks/{Uri.EscapeDataString(request.TaskId)}/pushNotificationConfigs",
-            request.Config, "CreateTaskPushNotificationConfig", cancellationToken).ConfigureAwait(false);
+        ArgumentException.ThrowIfNullOrEmpty(config.TaskId, nameof(config.TaskId));
+
+        return await PostJsonAsync<TaskPushNotificationConfig, TaskPushNotificationConfig>(
+            $"/tasks/{Uri.EscapeDataString(config.TaskId)}/pushNotificationConfigs",
+            config, "CreateTaskPushNotificationConfig", cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -119,16 +121,16 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<ListTaskPushNotificationConfigResponse> ListTaskPushNotificationConfigAsync(
-        ListTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default)
+    public async Task<ListTaskPushNotificationConfigsResponse> ListTaskPushNotificationConfigsAsync(
+        ListTaskPushNotificationConfigsRequest request, CancellationToken cancellationToken = default)
     {
         var query = BuildQueryString(
             ("pageSize", request.PageSize?.ToString(System.Globalization.CultureInfo.InvariantCulture)),
             ("pageToken", request.PageToken));
 
-        return await GetJsonAsync<ListTaskPushNotificationConfigResponse>(
+        return await GetJsonAsync<ListTaskPushNotificationConfigsResponse>(
             $"/tasks/{Uri.EscapeDataString(request.TaskId)}/pushNotificationConfigs{query}",
-            "ListTaskPushNotificationConfig", cancellationToken).ConfigureAwait(false);
+            "ListTaskPushNotificationConfigs", cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />

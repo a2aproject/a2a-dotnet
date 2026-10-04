@@ -12,6 +12,7 @@
   <ItemGroup>
     <ProjectReference Include="../src/A2A/A2A.csproj" />
     <ProjectReference Include="../src/A2A.AspNetCore/A2A.AspNetCore.csproj" />
+    <ProjectReference Include="../src/A2A.V0_3Compat/A2A.V0_3Compat.csproj" />
   </ItemGroup>
 
   <ItemGroup>

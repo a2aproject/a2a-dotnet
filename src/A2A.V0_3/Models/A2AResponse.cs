@@ -19,7 +19,15 @@ public abstract class A2AEvent(string kind)
     /// <summary>
     /// The 'kind' discriminator value
     /// </summary>
-    [JsonRequired, JsonPropertyName(BaseKindDiscriminatorConverter<A2AEvent>.DiscriminatorPropertyName), JsonInclude, JsonPropertyOrder(int.MinValue)]
+    /// <remarks>
+    /// Not <c>[JsonRequired]</c>: presence of the discriminator is already enforced by
+    /// <see cref="BaseKindDiscriminatorConverter{TBase}.Read"/> for polymorphic deserialization
+    /// (through <see cref="A2AEvent"/> or <see cref="A2AResponse"/>). Requiring it here as well
+    /// broke deserialization of a concretely-typed <see cref="AgentMessage"/>, such as
+    /// <see cref="AgentTaskStatus.Message"/>, where the converter never runs and some producers
+    /// omit the redundant discriminator.
+    /// </remarks>
+    [JsonPropertyName(BaseKindDiscriminatorConverter<A2AEvent>.DiscriminatorPropertyName), JsonInclude, JsonPropertyOrder(int.MinValue)]
     public string Kind { get; internal set; } = kind;
 }
 

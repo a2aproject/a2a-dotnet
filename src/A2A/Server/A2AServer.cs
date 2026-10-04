@@ -299,12 +299,21 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
                 {
                     await ApplyEventAsync(response, context!, cancellationToken).ConfigureAwait(false);
                 }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    // Caller-requested cancellation is not a failure: propagate it as
+                    // cancellation (classified by the caller token, not by exception type),
+                    // and let the finally block drain remaining events in the background.
+                    throw;
+                }
                 catch (Exception ex)
                 {
+                    // A failure to read or persist authoritative task state must surface
+                    // to the caller, not be converted into a normal end-of-stream (#495).
                     A2ADiagnostics.ErrorCount.Add(1);
                     activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
                     RecordException(activity, ex);
-                    yield break;
+                    throw;
                 }
 
                 eventCount++;
@@ -517,7 +526,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
 
     /// <inheritdoc />
     public virtual Task<TaskPushNotificationConfig> CreateTaskPushNotificationConfigAsync(
-        CreateTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default)
+        TaskPushNotificationConfig config, CancellationToken cancellationToken = default)
     {
         throw new A2AException("Push notifications not supported.", A2AErrorCode.PushNotificationNotSupported);
     }
@@ -530,8 +539,8 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
     }
 
     /// <inheritdoc />
-    public virtual Task<ListTaskPushNotificationConfigResponse> ListTaskPushNotificationConfigAsync(
-        ListTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default)
+    public virtual Task<ListTaskPushNotificationConfigsResponse> ListTaskPushNotificationConfigsAsync(
+        ListTaskPushNotificationConfigsRequest request, CancellationToken cancellationToken = default)
     {
         throw new A2AException("Push notifications not supported.", A2AErrorCode.PushNotificationNotSupported);
     }
@@ -547,7 +556,12 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
     public virtual Task<AgentCard> GetExtendedAgentCardAsync(
         GetExtendedAgentCardRequest request, CancellationToken cancellationToken = default)
     {
-        throw new A2AException("Extended agent card not configured.", A2AErrorCode.ExtendedAgentCardNotConfigured);
+        if (_options.SupportsExtendedAgentCard)
+        {
+            throw new A2AException("Extended agent card not configured.", A2AErrorCode.ExtendedAgentCardNotConfigured);
+        }
+
+        throw new A2AException("Extended agent card not supported.", A2AErrorCode.UnsupportedOperation);
     }
 
     // ─── Private Helpers ───
@@ -630,6 +644,20 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
         {
             var currentTask = await _taskStore.GetTaskAsync(context.TaskId, cancellationToken)
                 .ConfigureAwait(false);
+
+            // First persisted terminal state wins (issue #401). Callers such as
+            // CancelTaskAsync and TryTransitionToFailedAsync check IsTerminal before
+            // taking the lock, but a concurrent writer can persist a terminal state in
+            // that window. This re-check under the lock is the atomic enforcement that
+            // stops any forced terminal writer from overwriting an already-terminal
+            // state with a different one, for every writer that funnels through here.
+            if (currentTask is not null
+                && currentTask.Status.State.IsTerminal()
+                && response.StatusUpdate is { } racingStatus
+                && racingStatus.Status.State != currentTask.Status.State)
+            {
+                return;
+            }
 
             var updatedTask = TaskProjection.Apply(currentTask, response);
 

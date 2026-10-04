@@ -89,13 +89,13 @@ internal sealed class V03ClientAdapter : A2A.IA2AClient, IDisposable
 
     /// <inheritdoc />
     public async Task<A2A.TaskPushNotificationConfig> CreateTaskPushNotificationConfigAsync(
-        A2A.CreateTaskPushNotificationConfigRequest request,
+        A2A.TaskPushNotificationConfig config,
         CancellationToken cancellationToken = default)
     {
         var v03Config = new V03.TaskPushNotificationConfig
         {
-            TaskId = request.TaskId,
-            PushNotificationConfig = V03TypeConverter.ToV03PushNotificationConfig(request.Config),
+            TaskId = config.TaskId ?? string.Empty,
+            PushNotificationConfig = V03TypeConverter.ToV03PushNotificationConfigFromTask(config),
         };
         var v03Result = await _v03Client.SetPushNotificationAsync(v03Config, cancellationToken).ConfigureAwait(false);
         return V03TypeConverter.ToV1TaskPushNotificationConfig(v03Result);
@@ -116,8 +116,8 @@ internal sealed class V03ClientAdapter : A2A.IA2AClient, IDisposable
     }
 
     /// <inheritdoc />
-    public Task<A2A.ListTaskPushNotificationConfigResponse> ListTaskPushNotificationConfigAsync(
-        A2A.ListTaskPushNotificationConfigRequest request,
+    public Task<A2A.ListTaskPushNotificationConfigsResponse> ListTaskPushNotificationConfigsAsync(
+        A2A.ListTaskPushNotificationConfigsRequest request,
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("v0.3 does not support listing push notification configs.");
 

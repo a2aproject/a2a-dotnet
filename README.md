@@ -167,6 +167,9 @@ switch (response.PayloadCase)
 }
 ```
 
+> [!IMPORTANT]
+> `A2AClient`, `A2AHttpJsonClient`, and `A2ACardResolver` use a shared default `HttpClient` when one is not supplied. In multi-user or multi-tenant applications, inject a client configured with `HttpClientHandler.UseCookies = false`. If cookie-based sessions are required, isolate the `HttpClientHandler` and `CookieContainer` per user or security context. See [Client Cookie Isolation](docs/security.md#2-client-cookie-isolation).
+
 ## Samples
 
 The repository includes several sample projects demonstrating different aspects of the A2A protocol implementation. Each sample includes its own README with detailed setup and usage instructions.

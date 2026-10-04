@@ -5,6 +5,10 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 
 namespace A2A.AspNetCore;
 
@@ -56,17 +60,49 @@ public static class A2ARouteBuilderExtensions
     /// <param name="endpoints">The endpoint route builder.</param>
     /// <param name="agentCard">The agent card to serve.</param>
     /// <param name="path">An optional route prefix. When provided, the agent card is served at <c>{path}/.well-known/agent-card.json</c>.</param>
+    /// <param name="cacheOptions">Optional Agent Card HTTP caching configuration.</param>
     /// <returns>An endpoint convention builder for further configuration.</returns>
-    public static IEndpointConventionBuilder MapWellKnownAgentCard(this IEndpointRouteBuilder endpoints, AgentCard agentCard, [StringSyntax("Route")] string path = "")
+    public static IEndpointConventionBuilder MapWellKnownAgentCard(
+        this IEndpointRouteBuilder endpoints,
+        AgentCard agentCard,
+        [StringSyntax("Route")] string path = "",
+        AgentCardCacheOptions? cacheOptions = null)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(agentCard);
 
         var routeGroup = endpoints.MapGroup(path);
+        var lastModified = DateTimeOffset.UtcNow.ToString("R", CultureInfo.InvariantCulture);
+        var cacheControl = GetAgentCardCacheControl(cacheOptions);
 
-        routeGroup.MapGet(".well-known/agent-card.json", () => Results.Ok(agentCard));
+        routeGroup.MapGet(".well-known/agent-card.json", (HttpResponse response) =>
+        {
+            var json = JsonSerializer.Serialize(
+                agentCard,
+                A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(AgentCard)));
+            var jsonBytes = Encoding.UTF8.GetBytes(json);
+
+            response.Headers.CacheControl = cacheControl;
+            response.Headers.ETag = $"\"{Convert.ToHexString(SHA256.HashData(jsonBytes))}\"";
+            response.Headers.LastModified = lastModified;
+            return Results.Bytes(jsonBytes, "application/json");
+        });
 
         return routeGroup;
+    }
+
+    private static string GetAgentCardCacheControl(AgentCardCacheOptions? cacheOptions)
+    {
+        var maxAge = cacheOptions?.MaxAge ?? TimeSpan.FromHours(1);
+        if (maxAge < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(cacheOptions),
+                maxAge,
+                "Agent Card cache max-age cannot be negative.");
+        }
+
+        return $"public, max-age={(long)Math.Ceiling(maxAge.TotalSeconds)}";
     }
 
     /// <summary>
@@ -75,11 +111,12 @@ public static class A2ARouteBuilderExtensions
     /// <remarks>
     /// <para>Routes follow the A2A specification (e.g., <c>/tasks/{id}</c>, <c>/message:send</c>).
     /// Use the <paramref name="path"/> parameter to add a base path prefix if needed.</para>
-    /// <para><strong>Limitation:</strong> Multi-tenant route variants
-    /// (<c>/{tenant}/tasks/{id}</c>) defined in the A2A specification are not currently
-    /// supported. The <c>Tenant</c> field on request types will always be <c>null</c>
-    /// for REST API calls. Use the JSON-RPC binding with explicit tenant parameters
-    /// if multi-tenant routing is required.</para>
+    /// <para>For JSON-RPC and HTTP+JSON, select a tenant-specific agent through its URL,
+    /// with routing configured by the host application. Explicit tenant parameters are
+    /// intended for the gRPC binding, not tenant selection in the HTTP bindings.</para>
+    /// <para><strong>Limitation:</strong> This method does not automatically register
+    /// tenant-parameter route variants or implement tenant selection from request fields.
+    /// The host application is responsible for mapping tenant-specific agent URLs.</para>
     /// </remarks>
     /// <param name="endpoints">The endpoint route builder.</param>
     /// <param name="requestHandler">The A2A request handler.</param>
@@ -120,7 +157,7 @@ public static class A2ARouteBuilderExtensions
 
         // Push notification config operations
         routeGroup.MapPost("/tasks/{id}/pushNotificationConfigs",
-            (string id, [FromBody] PushNotificationConfig config, CancellationToken ct)
+            (string id, [FromBody] TaskPushNotificationConfig config, CancellationToken ct)
             => A2AHttpProcessor.CreatePushNotificationConfigRestAsync(requestHandler, logger, id, config, ct));
 
         routeGroup.MapGet("/tasks/{id}/pushNotificationConfigs",

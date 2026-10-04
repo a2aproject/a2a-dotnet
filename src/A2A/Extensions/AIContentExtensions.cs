@@ -97,7 +97,7 @@ public static class AIContentExtensions
         {
             content = new DataContent(
                 JsonSerializer.SerializeToUtf8Bytes(data, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonElement))),
-                "application/json");
+                IsJsonMediaType(part.MediaType) ? part.MediaType! : "application/json");
         }
 
         content ??= new AIContent();
@@ -140,7 +140,15 @@ public static class AIContentExtensions
                 break;
 
             case DataContent dataContent:
-                part = Part.FromRaw(dataContent.Data.ToArray(), dataContent.MediaType);
+                if (IsJsonMediaType(dataContent.MediaType))
+                {
+                    part = Part.FromData(ParseJson(dataContent.Data));
+                    part.MediaType = dataContent.MediaType;
+                }
+                else
+                {
+                    part = Part.FromRaw(dataContent.Data.ToArray(), dataContent.MediaType);
+                }
                 break;
         }
 
@@ -160,5 +168,34 @@ public static class AIContentExtensions
         }
 
         return part;
+    }
+
+    private static bool IsJsonMediaType(string? mediaType)
+    {
+        if (mediaType is null)
+        {
+            return false;
+        }
+
+        ReadOnlySpan<char> mediaTypeName = mediaType.AsSpan();
+
+        // "application/json; charset=utf-8" becomes "application/json".
+        int parameterIndex = mediaTypeName.IndexOf(';');
+        if (parameterIndex >= 0)
+        {
+            mediaTypeName = mediaTypeName[..parameterIndex];
+        }
+
+        mediaTypeName = mediaTypeName.Trim();
+
+        // Include structured syntax suffixes such as "application/problem+json".
+        return mediaTypeName.Equals("application/json", StringComparison.OrdinalIgnoreCase) ||
+            mediaTypeName.EndsWith("+json", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static JsonElement ParseJson(ReadOnlyMemory<byte> data)
+    {
+        using JsonDocument document = JsonDocument.Parse(data);
+        return document.RootElement.Clone();
     }
 }
