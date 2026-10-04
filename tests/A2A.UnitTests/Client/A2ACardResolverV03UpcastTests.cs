@@ -1,5 +1,7 @@
 using System.Net;
 using System.Text;
+using System.Text.Json;
+using Microsoft.Extensions.Logging;
 
 namespace A2A.UnitTests.Client;
 
@@ -11,7 +13,7 @@ namespace A2A.UnitTests.Client;
 /// </summary>
 public class A2ACardResolverV03UpcastTests
 {
-    private static A2ACardResolver CreateResolver(string cardJson)
+    private static A2ACardResolver CreateResolver(string cardJson, ILogger? logger = null)
     {
         var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -19,7 +21,7 @@ public class A2ACardResolverV03UpcastTests
         };
         var handler = new MockHttpMessageHandler(response);
         var httpClient = new HttpClient(handler);
-        return new A2ACardResolver(new Uri("http://localhost"), httpClient);
+        return new A2ACardResolver(new Uri("http://localhost"), httpClient, logger: logger);
     }
 
     [Fact]
@@ -48,12 +50,15 @@ public class A2ACardResolverV03UpcastTests
         }
         """;
 
-        var resolver = CreateResolver(cardJson);
+        var logger = new RecordingLogger();
+        var resolver = CreateResolver(cardJson, logger);
 
         var card = await resolver.GetAgentCardAsync();
 
         Assert.NotNull(card);
         Assert.Equal(3, card.SupportedInterfaces.Count);
+        Assert.Single(logger.Entries, entry => entry.EventId.Id == 5);
+        Assert.DoesNotContain(logger.Entries, entry => entry.Level == LogLevel.Error);
 
         var primary = card.SupportedInterfaces[0];
         Assert.Equal("http://localhost/rpc", primary.Url);
@@ -134,7 +139,7 @@ public class A2ACardResolverV03UpcastTests
     }
 
     [Fact]
-    public async Task UpcastsV03Card_MapsSignatures()
+    public async Task UpcastsV03Card_DropsSignaturesBoundToOriginalPayload()
     {
         const string cardJson = """
         {
@@ -160,10 +165,7 @@ public class A2ACardResolverV03UpcastTests
         var card = await resolver.GetAgentCardAsync();
 
         Assert.NotNull(card);
-        Assert.NotNull(card.Signatures);
-        Assert.Single(card.Signatures);
-        Assert.Equal("eyJhbGciOiJSUzI1NiJ9", card.Signatures[0].Protected);
-        Assert.Equal("abc123", card.Signatures[0].Signature);
+        Assert.Null(card.Signatures);
     }
 
     [Fact]
@@ -320,12 +322,103 @@ public class A2ACardResolverV03UpcastTests
     [Fact]
     public async Task GetAgentCardAsync_ThrowsA2AExceptionWhenV03FallbackJsonIsMalformed()
     {
-        var resolver = CreateResolver("""{"protocolVersion":"0.3","url":""");
+        var logger = new RecordingLogger();
+        var resolver = CreateResolver("""{"protocolVersion":"0.3","url":""", logger);
 
         var exception = await Assert.ThrowsAsync<A2AException>(() => resolver.GetAgentCardAsync());
 
         Assert.Contains("Failed to parse JSON", exception.Message);
         Assert.IsAssignableFrom<System.Text.Json.JsonException>(exception.InnerException);
+        var error = Assert.Single(logger.Entries, entry => entry.Level == LogLevel.Error);
+        Assert.Same(exception.InnerException, error.Exception);
+        Assert.DoesNotContain(logger.Entries, entry => entry.EventId.Id == 5);
+    }
+
+    [Fact]
+    public async Task GetAgentCardAsync_WhenNotV03_PreservesOriginalV1ParsingFailure()
+    {
+        const string json = """{"name":"Invalid v1 card"}""";
+        var expected = Assert.Throws<JsonException>(() =>
+            JsonSerializer.Deserialize(json, A2AJsonUtilities.JsonContext.Default.AgentCard));
+        var logger = new RecordingLogger();
+
+        var exception = await Assert.ThrowsAsync<A2AException>(() => CreateResolver(json, logger).GetAgentCardAsync());
+
+        var original = Assert.IsAssignableFrom<JsonException>(exception.InnerException);
+        Assert.Equal(expected.Message, original.Message);
+        Assert.Contains("JsonSerializer", original.StackTrace);
+        Assert.Same(original, Assert.Single(logger.Entries, entry => entry.Level == LogLevel.Error).Exception);
+        Assert.DoesNotContain(logger.Entries, entry => entry.EventId.Id == 5);
+    }
+
+    [Theory]
+    [InlineData("apiKey", "name", "42")]
+    [InlineData("apiKey", "in", "true")]
+    [InlineData("apiKey", "description", "{}")]
+    [InlineData("http", "scheme", "[]")]
+    [InlineData("http", "bearerFormat", "42")]
+    [InlineData("http", "description", "false")]
+    [InlineData("openIdConnect", "openIdConnectUrl", "{}")]
+    [InlineData("openIdConnect", "description", "42")]
+    [InlineData("mutualTLS", "description", "[]")]
+    public async Task UpcastsV03Card_MalformedSecuritySchemeString_LogsAndThrowsA2AException(
+        string type, string property, string value)
+    {
+        var json = $$"""
+        {
+          "protocolVersion": "0.3",
+          "url": "http://localhost/rpc",
+          "securitySchemes": { "auth": { "type": "{{type}}", "{{property}}": {{value}} } }
+        }
+        """;
+        var logger = new RecordingLogger();
+
+        var exception = await Assert.ThrowsAsync<A2AException>(() => CreateResolver(json, logger).GetAgentCardAsync());
+
+        Assert.IsAssignableFrom<JsonException>(exception.InnerException);
+        Assert.Contains(property, exception.Message);
+        Assert.Same(exception.InnerException, Assert.Single(logger.Entries, entry => entry.Level == LogLevel.Error).Exception);
+        Assert.DoesNotContain(logger.Entries, entry => entry.EventId.Id == 5);
+    }
+
+    [Fact]
+    public async Task GetAgentCardAsync_V1Card_PreservesSignaturesAndDoesNotUpcast()
+    {
+        const string json = """
+        {
+          "name": "V1 agent",
+          "description": "A v1 agent",
+          "version": "1.0",
+          "supportedInterfaces": [{ "url": "http://localhost", "protocolBinding": "JSONRPC", "protocolVersion": "1.0" }],
+          "capabilities": { "extendedAgentCard": true },
+          "defaultInputModes": [],
+          "defaultOutputModes": [],
+          "skills": [],
+          "signatures": [{ "protected": "header", "signature": "abc123" }]
+        }
+        """;
+        var logger = new RecordingLogger();
+
+        var card = await CreateResolver(json, logger).GetAgentCardAsync();
+
+        var signature = Assert.Single(card.Signatures!);
+        Assert.Equal("header", signature.Protected);
+        Assert.Equal("abc123", signature.Signature);
+        Assert.True(card.Capabilities.ExtendedAgentCard);
+        Assert.DoesNotContain(logger.Entries, entry => entry.EventId.Id == 5 || entry.Level == LogLevel.Error);
+    }
+
+    [Fact]
+    public async Task GetAgentCardAsync_CanceledToken_PropagatesCancellation()
+    {
+        var logger = new RecordingLogger();
+        using var cancellation = new CancellationTokenSource();
+        await cancellation.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            CreateResolver("not-json", logger).GetAgentCardAsync(cancellation.Token));
+
+        Assert.Empty(logger.Entries);
     }
 
     [Fact]
@@ -344,7 +437,14 @@ public class A2ACardResolverV03UpcastTests
             { "transport": "HTTP+JSON", "url": "http://localhost/http" },
             { "transport": "GRPC" },
             "not-an-object",
-            { "transport": "HTTP+JSON", "url": 42 }
+            { "transport": "HTTP+JSON", "url": 42 },
+            { "url": "http://localhost/missing-transport" },
+            { "transport": null, "url": "http://localhost/null-transport" },
+            { "transport": 42, "url": "http://localhost/numeric-transport" },
+            { "transport": "", "url": "http://localhost/empty-transport" },
+            { "transport": { "value": "GRPC" }, "url": "http://localhost/object-transport" },
+            { "transport": true, "url": "http://localhost/boolean-transport" },
+            { "transport": [], "url": "http://localhost/array-transport" }
           ],
           "capabilities": {},
           "defaultInputModes": ["text/plain"],
@@ -362,5 +462,18 @@ public class A2ACardResolverV03UpcastTests
         Assert.Equal(2, card.SupportedInterfaces.Count);
         Assert.Equal("http://localhost/http", card.SupportedInterfaces[1].Url);
         Assert.Equal(ProtocolBindingNames.HttpJson, card.SupportedInterfaces[1].ProtocolBinding);
+    }
+
+    private sealed class RecordingLogger : ILogger
+    {
+        public List<(LogLevel Level, EventId EventId, Exception? Exception)> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state,
+            Exception? exception, Func<TState, Exception?, string> formatter)
+            => Entries.Add((logLevel, eventId, exception));
     }
 }
