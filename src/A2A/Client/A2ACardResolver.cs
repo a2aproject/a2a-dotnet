@@ -80,8 +80,17 @@ public sealed class A2ACardResolver
             {
                 // v1.0 deserialization failed — attempt v0.3 upcast
                 _logger.AttemptingV03AgentCardUpcast(ex);
-                return UpcastV03AgentCard(bytes)
-                    ?? throw new A2AException($"Failed to parse JSON: {ex.Message}");
+                try
+                {
+                    return UpcastV03AgentCard(bytes)
+                        ?? throw new A2AException($"Failed to parse JSON: {ex.Message}");
+                }
+                catch (JsonException upcastException)
+                {
+                    activity?.SetStatus(ActivityStatusCode.Error, upcastException.Message);
+                    _logger.FailedToParseAgentCardJson(upcastException);
+                    throw new A2AException($"Failed to parse JSON: {upcastException.Message}", upcastException);
+                }
             }
         }
         catch (JsonException ex)
@@ -224,6 +233,12 @@ public sealed class A2ACardResolver
                 card.Capabilities.PushNotifications = push.ValueKind == JsonValueKind.True;
         }
 
+        if (root.TryGetProperty("supportsAuthenticatedExtendedCard", out var extendedCard)
+            && extendedCard.ValueKind is JsonValueKind.True or JsonValueKind.False)
+        {
+            card.Capabilities.ExtendedAgentCard = extendedCard.GetBoolean();
+        }
+
         // Parse default modes if present
         if (root.TryGetProperty("defaultInputModes", out var inputModes) && inputModes.ValueKind == JsonValueKind.Array)
         {
@@ -249,6 +264,13 @@ public sealed class A2ACardResolver
                 var skill = JsonSerializer.Deserialize(skillElement.GetRawText(), A2AJsonUtilities.JsonContext.Default.AgentSkill);
                 if (skill is not null)
                 {
+                    if (skillElement.ValueKind == JsonValueKind.Object
+                        && skillElement.TryGetProperty("security", out var skillSecurity)
+                        && skillSecurity.ValueKind == JsonValueKind.Array)
+                    {
+                        skill.SecurityRequirements = MapV03SecurityRequirements(skillSecurity);
+                    }
+
                     card.Skills.Add(skill);
                 }
             }
@@ -299,34 +321,41 @@ public sealed class A2ACardResolver
         // v1 uses List<SecurityRequirement> where each has a Schemes dictionary.
         if (root.TryGetProperty("security", out var security) && security.ValueKind == JsonValueKind.Array)
         {
-            card.SecurityRequirements = [];
-            foreach (var reqElement in security.EnumerateArray())
-            {
-                if (reqElement.ValueKind != JsonValueKind.Object)
-                {
-                    continue;
-                }
-
-                var requirement = new SecurityRequirement { Schemes = [] };
-                foreach (var prop in reqElement.EnumerateObject())
-                {
-                    var scopes = new StringList();
-                    if (prop.Value.ValueKind == JsonValueKind.Array)
-                    {
-                        scopes.List = prop.Value.EnumerateArray()
-                            .Where(e => e.ValueKind == JsonValueKind.String)
-                            .Select(e => e.GetString()!)
-                            .ToList();
-                    }
-
-                    requirement.Schemes[prop.Name] = scopes;
-                }
-
-                card.SecurityRequirements.Add(requirement);
-            }
+            card.SecurityRequirements = MapV03SecurityRequirements(security);
         }
 
         return card;
+    }
+
+    private static List<SecurityRequirement> MapV03SecurityRequirements(JsonElement security)
+    {
+        var requirements = new List<SecurityRequirement>();
+        foreach (var reqElement in security.EnumerateArray())
+        {
+            if (reqElement.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            var requirement = new SecurityRequirement { Schemes = [] };
+            foreach (var prop in reqElement.EnumerateObject())
+            {
+                var scopes = new StringList();
+                if (prop.Value.ValueKind == JsonValueKind.Array)
+                {
+                    scopes.List = prop.Value.EnumerateArray()
+                        .Where(e => e.ValueKind == JsonValueKind.String)
+                        .Select(e => e.GetString()!)
+                        .ToList();
+                }
+
+                requirement.Schemes[prop.Name] = scopes;
+            }
+
+            requirements.Add(requirement);
+        }
+
+        return requirements;
     }
 
     /// <summary>

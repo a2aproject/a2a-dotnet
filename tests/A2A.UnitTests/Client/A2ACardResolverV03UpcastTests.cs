@@ -277,6 +277,58 @@ public class A2ACardResolverV03UpcastTests
     }
 
     [Fact]
+    public async Task UpcastsV03Card_MapsSkillSecurityAndAuthenticatedExtendedCardCapability()
+    {
+        const string cardJson = """
+        {
+          "protocolVersion": "0.3",
+          "name": "Test Agent",
+          "description": "A v0.3 test agent",
+          "version": "1.0.0",
+          "url": "http://localhost/rpc",
+          "supportsAuthenticatedExtendedCard": true,
+          "capabilities": {},
+          "defaultInputModes": ["text/plain"],
+          "defaultOutputModes": ["text/plain"],
+          "skills": [
+            {
+              "id": "secure-skill",
+              "name": "Secure Skill",
+              "description": "A skill with security requirements",
+              "tags": ["secure"],
+              "security": [
+                { "oauth": ["read", "write"] },
+                { "apiKey": [] }
+              ]
+            }
+          ]
+        }
+        """;
+
+        var resolver = CreateResolver(cardJson);
+        var card = await resolver.GetAgentCardAsync();
+
+        Assert.NotNull(card);
+        Assert.True(card.Capabilities.ExtendedAgentCard);
+        var skill = Assert.Single(card.Skills);
+        Assert.NotNull(skill.SecurityRequirements);
+        Assert.Equal(2, skill.SecurityRequirements.Count);
+        Assert.Equal(["read", "write"], skill.SecurityRequirements[0].Schemes!["oauth"].List);
+        Assert.Empty(skill.SecurityRequirements[1].Schemes!["apiKey"].List);
+    }
+
+    [Fact]
+    public async Task GetAgentCardAsync_ThrowsA2AExceptionWhenV03FallbackJsonIsMalformed()
+    {
+        var resolver = CreateResolver("""{"protocolVersion":"0.3","url":""");
+
+        var exception = await Assert.ThrowsAsync<A2AException>(() => resolver.GetAgentCardAsync());
+
+        Assert.Contains("Failed to parse JSON", exception.Message);
+        Assert.IsAssignableFrom<System.Text.Json.JsonException>(exception.InnerException);
+    }
+
+    [Fact]
     public async Task UpcastsV03Card_SkipsMalformedAdditionalInterfaceEntries()
     {
         // Entries without a string url, or that aren't objects, must be skipped
