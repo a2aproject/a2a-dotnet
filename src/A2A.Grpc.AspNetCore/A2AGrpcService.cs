@@ -5,21 +5,52 @@ using global::Grpc.Core;
 
 /// <summary>
 /// gRPC service implementation that adapts the generated <see cref="Protos.A2AService.A2AServiceBase"/>
-/// onto the shared <see cref="IA2ARequestHandler"/> pipeline. All business logic (task lifecycle,
-/// history, streaming, cancellation) lives in the handler; this type only performs protocol translation
+/// onto the same <see cref="A2AOperationCatalog"/> / <see cref="A2AOperationHandlerCatalog"/> pipeline used
+/// by the JSON-RPC and HTTP+JSON bindings. Each RPC validates its request against the catalog's semantic
+/// validator and dispatches through the shared handler catalog, so gRPC gets the exact same validation and
+/// dispatch behavior as the other transports. This type otherwise only performs protocol translation
 /// and maps <see cref="A2AException"/> to gRPC <see cref="RpcException"/>.
 /// </summary>
+/// <remarks>
+/// Standard operations (those backed by a fixed RPC in the vendored <c>.proto</c>) are routed through the
+/// catalog here. Custom/extension operations registered dynamically via
+/// <see cref="A2AOperationCatalogBuilder.DefineUnary{TRequest,TResult}"/>/<c>DefineStreaming</c> are not
+/// reachable from this fixed-contract service; see <c>A2AGrpcExtensionService</c> for the generic envelope
+/// binding that lets such operations run over gRPC without changing the vendored protocol.
+/// </remarks>
 internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
 {
     private const string VersionHeader = "a2a-version";
     private const string SupportedVersion = "1.0";
 
-    private readonly IA2ARequestHandler _handler;
+    private static readonly Lazy<(
+        A2AOperationHandlerCatalog Handlers,
+        A2AStandardOperations Standard)> StandardDispatch = new(CreateStandardDispatch);
+
+    private readonly A2AOperationContext _context;
+    private readonly A2AOperationHandlerCatalog _handlers;
+    private readonly A2AStandardOperations _standard;
 
     public A2AGrpcService(IA2ARequestHandler handler)
     {
         ArgumentNullException.ThrowIfNull(handler);
-        _handler = handler;
+        _context = new A2AOperationContext(handler);
+        var dispatch = StandardDispatch.Value;
+        _handlers = dispatch.Handlers;
+        _standard = dispatch.Standard;
+    }
+
+    private static (
+        A2AOperationHandlerCatalog Handlers,
+        A2AStandardOperations Standard) CreateStandardDispatch()
+    {
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var standard = operationBuilder.AddStandardA2AOperations();
+        var operationCatalog = operationBuilder.Build();
+        var handlers = new A2AOperationHandlerCatalogBuilder()
+            .AddStandardA2AHandlers(standard)
+            .Build(operationCatalog);
+        return (handlers, standard);
     }
 
     // Rejects requests declaring a protocol version this endpoint does not implement.
@@ -42,7 +73,7 @@ internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
         try
         {
             EnsureSupportedVersion(context);
-            var response = await _handler.SendMessageAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false);
+            var response = await InvokeAsync(_standard.SendMessage, request, ProtoMap.ToDomain, context.CancellationToken).ConfigureAwait(false);
             return ProtoMap.ToProto(response);
         }
         catch (A2AException exception)
@@ -56,7 +87,7 @@ internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
         try
         {
             EnsureSupportedVersion(context);
-            var task = await _handler.GetTaskAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false);
+            var task = await InvokeAsync(_standard.GetTask, request, ProtoMap.ToDomain, context.CancellationToken).ConfigureAwait(false);
             return ProtoMap.ToProto(task);
         }
         catch (A2AException exception)
@@ -70,7 +101,7 @@ internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
         try
         {
             EnsureSupportedVersion(context);
-            var response = await _handler.ListTasksAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false);
+            var response = await InvokeAsync(_standard.ListTasks, request, ProtoMap.ToDomain, context.CancellationToken).ConfigureAwait(false);
             return ProtoMap.ToProto(response);
         }
         catch (A2AException exception)
@@ -84,7 +115,7 @@ internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
         try
         {
             EnsureSupportedVersion(context);
-            var task = await _handler.CancelTaskAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false);
+            var task = await InvokeAsync(_standard.CancelTask, request, ProtoMap.ToDomain, context.CancellationToken).ConfigureAwait(false);
             return ProtoMap.ToProto(task);
         }
         catch (A2AException exception)
@@ -98,7 +129,7 @@ internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
         try
         {
             EnsureSupportedVersion(context);
-            var config = await _handler.CreateTaskPushNotificationConfigAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false);
+            var config = await InvokeAsync(_standard.CreateTaskPushNotificationConfig, request, ProtoMap.ToDomain, context.CancellationToken).ConfigureAwait(false);
             return ProtoMap.ToProto(config);
         }
         catch (A2AException exception)
@@ -112,7 +143,7 @@ internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
         try
         {
             EnsureSupportedVersion(context);
-            var config = await _handler.GetTaskPushNotificationConfigAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false);
+            var config = await InvokeAsync(_standard.GetTaskPushNotificationConfig, request, ProtoMap.ToDomain, context.CancellationToken).ConfigureAwait(false);
             return ProtoMap.ToProto(config);
         }
         catch (A2AException exception)
@@ -126,7 +157,7 @@ internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
         try
         {
             EnsureSupportedVersion(context);
-            var response = await _handler.ListTaskPushNotificationConfigsAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false);
+            var response = await InvokeAsync(_standard.ListTaskPushNotificationConfigs, request, ProtoMap.ToDomain, context.CancellationToken).ConfigureAwait(false);
             return ProtoMap.ToProto(response);
         }
         catch (A2AException exception)
@@ -140,7 +171,7 @@ internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
         try
         {
             EnsureSupportedVersion(context);
-            await _handler.DeleteTaskPushNotificationConfigAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false);
+            await InvokeAsync(_standard.DeleteTaskPushNotificationConfig, request, ProtoMap.ToDomain, context.CancellationToken).ConfigureAwait(false);
             return new Empty();
         }
         catch (A2AException exception)
@@ -154,7 +185,7 @@ internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
         try
         {
             EnsureSupportedVersion(context);
-            var card = await _handler.GetExtendedAgentCardAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false);
+            var card = await InvokeAsync(_standard.GetExtendedAgentCard, request, ProtoMap.ToDomain, context.CancellationToken).ConfigureAwait(false);
             return ProtoMap.ToProto(card);
         }
         catch (A2AException exception)
@@ -168,7 +199,7 @@ internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
         try
         {
             EnsureSupportedVersion(context);
-            await foreach (var streamEvent in _handler.SendStreamingMessageAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false))
+            await foreach (var streamEvent in InvokeStreaming(_standard.SendStreamingMessage, request, ProtoMap.ToDomain, context.CancellationToken).ConfigureAwait(false))
             {
                 await responseStream.WriteAsync(ProtoMap.ToProto(streamEvent)).ConfigureAwait(false);
             }
@@ -184,7 +215,7 @@ internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
         try
         {
             EnsureSupportedVersion(context);
-            await foreach (var streamEvent in _handler.SubscribeToTaskAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false))
+            await foreach (var streamEvent in InvokeStreaming(_standard.SubscribeToTask, request, ProtoMap.ToDomain, context.CancellationToken).ConfigureAwait(false))
             {
                 await responseStream.WriteAsync(ProtoMap.ToProto(streamEvent)).ConfigureAwait(false);
             }
@@ -193,5 +224,30 @@ internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
         {
             throw GrpcErrorMapping.ToRpcException(exception);
         }
+    }
+
+    // Validates the domain request against the same catalog-owned semantic validator used by the
+    // JSON-RPC/HTTP+JSON bindings, then dispatches through the shared handler catalog, so all three
+    // transports enforce identical validation/dispatch behavior for standard operations.
+    private ValueTask<TResult> InvokeAsync<TProto, TRequest, TResult>(
+        A2AOperation<TRequest, TResult> operation,
+        TProto protoRequest,
+        Func<TProto, TRequest> toDomain,
+        CancellationToken cancellationToken)
+    {
+        var request = toDomain(protoRequest);
+        _handlers.OperationCatalog.Validate(operation, request);
+        return _handlers.InvokeAsync(operation, _context, request, cancellationToken);
+    }
+
+    private IAsyncEnumerable<TEvent> InvokeStreaming<TProto, TRequest, TEvent>(
+        A2AStreamingOperation<TRequest, TEvent> operation,
+        TProto protoRequest,
+        Func<TProto, TRequest> toDomain,
+        CancellationToken cancellationToken)
+    {
+        var request = toDomain(protoRequest);
+        _handlers.OperationCatalog.ValidateStreaming(operation, request);
+        return _handlers.InvokeStreamingAsync(operation, _context, request, cancellationToken);
     }
 }
