@@ -8,19 +8,26 @@ AI) who are not yet familiar with this part of the codebase.
 ## Why an operations catalog?
 
 A2A exposes the same logical operations (`send-message`, `get-task`, etc.)
-over multiple transports: JSON-RPC and HTTP+JSON REST. Rather than
+over multiple transports: JSON-RPC, HTTP+JSON REST, and gRPC. Rather than
 duplicating request validation, dispatch, and error handling per transport,
 the SDK defines each operation **once**, in a transport-neutral way, and then
 separately **binds** that definition to each transport.
 
-> **Note on gRPC:** the `A2A.Grpc`/`A2A.Grpc.AspNetCore` packages
-> intentionally do **not** use this catalog. The gRPC contract is a fixed,
-> code-generated surface (from the vendored `.proto`), so `A2AGrpcService`
-> binds directly to `IA2ARequestHandler` with one method per RPC, and gets
-> per-method dispatch, routing, and tracing for free from the gRPC/ASP.NET
-> Core stack. The catalog exists to solve a problem gRPC doesn't have:
-> multiplexing many dynamically-registered operations (including custom
-> extensions) behind a single JSON-RPC/HTTP endpoint.
+> **Note on gRPC:** the `A2A.Grpc`/`A2A.Grpc.AspNetCore` packages have a
+> fixed, code-generated contract (from the vendored `.proto`), so there is no
+> `A2AJsonRpcOperationBindings`/`A2AHttpOperationBindings`-style dynamic
+> transport binding for gRPC — each RPC method in `A2AGrpcService` is wired
+> to its standard operation explicitly. However, `A2AGrpcService` **does**
+> dispatch through the same operation catalog and handler catalog as
+> JSON-RPC/HTTP+JSON: each RPC method maps the incoming proto message to the
+> operation's domain request type, validates it with the operation catalog's
+> semantic validator (`A2AOperationCatalog.Validate`/`ValidateStreaming`),
+> and invokes the shared `A2AOperationHandlerCatalog`. This means all three
+> transports enforce identical validation and dispatch behavior for standard
+> operations — see `src/A2A.Grpc.AspNetCore/A2AGrpcService.cs`. Custom/
+> extension operations registered only via the operation catalog are not
+> yet reachable over gRPC, since the proto contract is fixed; a generic
+> envelope RPC for custom operations is tracked as future work.
 
 This separation is implemented with three cooperating catalogs:
 
@@ -51,6 +58,10 @@ Key source files:
 - `src/A2A.AspNetCore/A2AEndpointRouteBuilderExtensions.cs` — wires the
   catalogs together and maps ASP.NET Core endpoints (`MapA2A`,
   `MapHttpA2A`).
+- `src/A2A.Grpc.AspNetCore/A2AGrpcService.cs` — builds the same standard
+  operation/handler catalogs and dispatches each RPC method through them,
+  giving gRPC parity with the JSON-RPC/HTTP+JSON bindings for standard
+  operations.
 
 ## The pieces of an operation
 
@@ -129,6 +140,45 @@ sequenceDiagram
     Route-->>Client: 200 OK (serialized AgentTask)
 ```
 
+### gRPC dispatch (standard operations)
+
+`A2AGrpcService` builds its own instance of the standard operation and
+handler catalogs (via the same `AddStandardA2AOperations`/
+`AddStandardA2AHandlers` calls, cached once per process in a
+`Lazy<(...)>`), then each RPC method validates and dispatches through them
+instead of calling `IA2ARequestHandler` directly:
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant RPC as A2AGrpcService RPC method (e.g. GetTask)
+    participant Map as ProtoMap.ToDomain
+    participant OC as A2AOperationCatalog
+    participant Handlers as A2AOperationHandlerCatalog
+    participant Handler as Registered handler delegate
+    participant RH as IA2ARequestHandler
+
+    Client->>RPC: gRPC GetTask(Protos.GetTaskRequest)
+    RPC->>Map: ToDomain(protoRequest)
+    Map-->>RPC: GetTaskRequest { Id = "123" }
+    RPC->>OC: Validate(standard.GetTask, request)
+    Note right of OC: Same semantic validator used by<br/>JSON-RPC/HTTP+JSON for this operation
+    RPC->>Handlers: InvokeAsync(standard.GetTask, context, request, ct)
+    Handlers->>Handler: handler(context, request, ct)
+    Handler->>RH: RequestHandler.GetTaskAsync(request, ct)
+    RH-->>Handler: AgentTask
+    Handler-->>Handlers: AgentTask
+    Handlers-->>RPC: AgentTask
+    RPC-->>Client: Protos.Task (ProtoMap.ToProto(task))
+```
+
+Because `A2AOperationCatalog.Validate`/`ValidateStreaming` and
+`A2AOperationHandlerCatalog.InvokeAsync`/`InvokeStreamingAsync` are shared
+with the JSON-RPC/HTTP+JSON bindings, a gRPC client gets exactly the same
+validation errors (mapped to `RpcException` via `GrpcErrorMapping`) as an
+HTTP client for the same bad input — there is no separate gRPC-only
+validation path to keep in sync.
+
 ## Adding a brand-new operation
 
 Use this checklist when the A2A protocol (or an extension) introduces a
@@ -194,11 +244,16 @@ genuinely new operation.
 > **gRPC parity:** if the new operation adds a method to `IA2ARequestHandler`
 > itself (i.e. it's a core protocol operation, not a custom/extension
 > operation), also add the matching RPC to the vendored `.proto`, regenerate
-> the gRPC contract, and implement/override it in `A2AGrpcService`
-> (`src/A2A.Grpc.AspNetCore/A2AGrpcService.cs`) — otherwise the gRPC binding
-> silently falls behind JSON-RPC/HTTP+JSON. Custom/extension operations
-> registered only via the operation catalog don't apply to gRPC, since its
-> contract is fixed by the proto definition.
+> the gRPC contract, add the operation to `A2AStandardOperations`/
+> `AddStandardA2AOperations` as described above, and implement the RPC
+> method in `A2AGrpcService` (`src/A2A.Grpc.AspNetCore/A2AGrpcService.cs`)
+> so it maps the proto request to the domain request type and dispatches
+> through `_handlers`/`_standard` (the shared operation and handler
+> catalogs) exactly like the other standard RPC methods — otherwise the
+> gRPC binding silently falls behind JSON-RPC/HTTP+JSON, or dispatches
+> without the catalog's shared validation. Custom/extension operations
+> registered only via the operation catalog are not yet reachable over
+> gRPC, since its contract is fixed by the proto definition.
 
 ### Sequence: wiring a new operation at startup
 
@@ -295,4 +350,5 @@ same typed handle (`standard.X`) to every builder.
 | `IA2ARequestHandler` method (if new) | `src/A2A/IA2ARequestHandler.cs` |
 | JSON-RPC binding | `src/A2A.AspNetCore/A2AStandardJsonRpcBindings.cs` |
 | HTTP+JSON binding | `src/A2A.AspNetCore/A2AStandardHttpBindings.cs` |
-| Unit tests | `tests/A2A.UnitTests/Operations/`, `tests/A2A.UnitTests/AspNetCore/` |
+| gRPC RPC (vendored `.proto` + `.proto`-generated RPC, if new) | `src/A2A.Grpc/Protos/a2a.proto`, `src/A2A.Grpc.AspNetCore/A2AGrpcService.cs` |
+| Unit tests | `tests/A2A.UnitTests/Operations/`, `tests/A2A.UnitTests/AspNetCore/`, `tests/A2A.Grpc.UnitTests/` |
