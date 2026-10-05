@@ -199,7 +199,7 @@ internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
         try
         {
             EnsureSupportedVersion(context);
-            await foreach (var streamEvent in InvokeStreaming(_standard.SendStreamingMessage, request, ProtoMap.ToDomain, context.CancellationToken).ConfigureAwait(false))
+            await foreach (var streamEvent in InvokeStreamingAsync(_standard.SendStreamingMessage, request, ProtoMap.ToDomain, context.CancellationToken).ConfigureAwait(false))
             {
                 await responseStream.WriteAsync(ProtoMap.ToProto(streamEvent)).ConfigureAwait(false);
             }
@@ -215,7 +215,7 @@ internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
         try
         {
             EnsureSupportedVersion(context);
-            await foreach (var streamEvent in InvokeStreaming(_standard.SubscribeToTask, request, ProtoMap.ToDomain, context.CancellationToken).ConfigureAwait(false))
+            await foreach (var streamEvent in InvokeStreamingAsync(_standard.SubscribeToTask, request, ProtoMap.ToDomain, context.CancellationToken).ConfigureAwait(false))
             {
                 await responseStream.WriteAsync(ProtoMap.ToProto(streamEvent)).ConfigureAwait(false);
             }
@@ -240,7 +240,7 @@ internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
         return _handlers.InvokeAsync(operation, _context, request, cancellationToken);
     }
 
-    private IAsyncEnumerable<TEvent> InvokeStreaming<TProto, TRequest, TEvent>(
+    private IAsyncEnumerable<TEvent> InvokeStreamingAsync<TProto, TRequest, TEvent>(
         A2AStreamingOperation<TRequest, TEvent> operation,
         TProto protoRequest,
         Func<TProto, TRequest> toDomain,
