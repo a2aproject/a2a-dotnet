@@ -244,6 +244,30 @@ public static class A2AStandardHttpBindingBuilderExtensions
                 HistoryLength = GetOptionalIntQuery(context, "historyLength"),
             });
 
+    private static readonly Dictionary<string, TaskState> s_taskStateWireNames =
+        new Dictionary<string, TaskState>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["TASK_STATE_UNSPECIFIED"] = TaskState.Unspecified,
+            ["TASK_STATE_SUBMITTED"] = TaskState.Submitted,
+            ["TASK_STATE_WORKING"] = TaskState.Working,
+            ["TASK_STATE_COMPLETED"] = TaskState.Completed,
+            ["TASK_STATE_FAILED"] = TaskState.Failed,
+            ["TASK_STATE_CANCELED"] = TaskState.Canceled,
+            ["TASK_STATE_INPUT_REQUIRED"] = TaskState.InputRequired,
+            ["TASK_STATE_REJECTED"] = TaskState.Rejected,
+            ["TASK_STATE_AUTH_REQUIRED"] = TaskState.AuthRequired,
+        };
+
+    private static bool TryParseTaskState(string value, out TaskState state)
+    {
+        if (s_taskStateWireNames.TryGetValue(value, out state))
+        {
+            return true;
+        }
+
+        return Enum.TryParse(value, ignoreCase: true, out state) && Enum.IsDefined(state);
+    }
+
     private static ValueTask<ListTasksRequest> BindListTasksAsync(
         HttpContext context,
         CancellationToken cancellationToken)
@@ -252,10 +276,7 @@ public static class A2AStandardHttpBindingBuilderExtensions
         TaskState? status = null;
         if (statusValue is not null)
         {
-            if (!Enum.TryParse<TaskState>(
-                    statusValue,
-                    ignoreCase: true,
-                    out var parsedStatus))
+            if (!TryParseTaskState(statusValue, out var parsedStatus))
             {
                 throw new A2AHttpBindingException(
                     Results.Problem(
@@ -275,6 +296,8 @@ public static class A2AStandardHttpBindingBuilderExtensions
                 PageSize = GetOptionalIntQuery(context, "pageSize"),
                 PageToken = GetOptionalQuery(context, "pageToken"),
                 HistoryLength = GetOptionalIntQuery(context, "historyLength"),
+                StatusTimestampAfter = GetOptionalDateTimeOffsetQuery(context, "statusTimestampAfter"),
+                IncludeArtifacts = GetOptionalBoolQuery(context, "includeArtifacts"),
             });
     }
 
@@ -419,6 +442,50 @@ public static class A2AStandardHttpBindingBuilderExtensions
         {
             throw new A2AException(
                 $"Invalid {name}: '{value}'. Expected an integer.",
+                A2AErrorCode.InvalidParams);
+        }
+
+        return parsed;
+    }
+
+    private static DateTimeOffset? GetOptionalDateTimeOffsetQuery(
+        HttpContext context,
+        string name)
+    {
+        var value = GetOptionalQuery(context, name);
+        if (value is null)
+        {
+            return null;
+        }
+
+        if (!DateTimeOffset.TryParse(
+                value,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var parsed))
+        {
+            throw new A2AException(
+                $"Invalid {name}: '{value}'. Expected a date/time value.",
+                A2AErrorCode.InvalidParams);
+        }
+
+        return parsed;
+    }
+
+    private static bool? GetOptionalBoolQuery(
+        HttpContext context,
+        string name)
+    {
+        var value = GetOptionalQuery(context, name);
+        if (value is null)
+        {
+            return null;
+        }
+
+        if (!bool.TryParse(value, out var parsed))
+        {
+            throw new A2AException(
+                $"Invalid {name}: '{value}'. Expected a boolean value.",
                 A2AErrorCode.InvalidParams);
         }
 
