@@ -142,19 +142,19 @@ public static class A2AStandardOperationCatalogBuilderExtensions
         return new A2AStandardOperations(
             builder.DefineStandardUnary<SendMessageRequest, SendMessageResponse>(
                 new A2AOperationId("https://a2a-protocol.org/operations/send-message"),
-                ValidateSendMessage),
+                A2ARequestValidation.ValidateSendMessage),
             builder.DefineStandardStreaming<SendMessageRequest, StreamResponse>(
                 new A2AOperationId("https://a2a-protocol.org/operations/send-message-stream"),
-                ValidateSendMessage),
+                A2ARequestValidation.ValidateSendMessage),
             builder.DefineStandardUnary<GetTaskRequest, AgentTask>(
                 new A2AOperationId("https://a2a-protocol.org/operations/get-task"),
-                static request => ValidateHistoryLength(request.HistoryLength)),
+                static request => A2ARequestValidation.ValidateHistoryLength(request.HistoryLength)),
             builder.DefineStandardUnary<ListTasksRequest, ListTasksResponse>(
                 new A2AOperationId("https://a2a-protocol.org/operations/list-tasks"),
                 static request =>
                 {
-                    ValidatePageSize(request.PageSize);
-                    ValidateHistoryLength(request.HistoryLength);
+                    A2ARequestValidation.ValidatePageSize(request.PageSize);
+                    A2ARequestValidation.ValidateHistoryLength(request.HistoryLength);
                 }),
             builder.DefineStandardUnary<CancelTaskRequest, AgentTask>(
                 new A2AOperationId("https://a2a-protocol.org/operations/cancel-task")),
@@ -176,42 +176,5 @@ public static class A2AStandardOperationCatalogBuilderExtensions
                 new A2AOperationId("https://a2a-protocol.org/operations/delete-task-push-notification-config")),
             builder.DefineStandardUnary<GetExtendedAgentCardRequest, AgentCard>(
                 new A2AOperationId("https://a2a-protocol.org/operations/get-extended-agent-card")));
-    }
-
-    private static void ValidateSendMessage(SendMessageRequest request)
-    {
-        if (request.Message is null)
-        {
-            throw new A2AException(
-                "Message is required",
-                A2AErrorCode.InvalidParams);
-        }
-
-        if (request.Message.Parts is null || request.Message.Parts.Count == 0)
-        {
-            throw new A2AException(
-                "Message parts cannot be empty",
-                A2AErrorCode.InvalidParams);
-        }
-    }
-
-    private static void ValidateHistoryLength(int? historyLength)
-    {
-        if (historyLength is { } value && value < 0)
-        {
-            throw new A2AException(
-                $"Invalid historyLength: {value}. Must be non-negative.",
-                A2AErrorCode.InvalidParams);
-        }
-    }
-
-    private static void ValidatePageSize(int? pageSize)
-    {
-        if (pageSize is { } value && (value <= 0 || value > 100))
-        {
-            throw new A2AException(
-                $"Invalid pageSize: {value}. Must be between 1 and 100.",
-                A2AErrorCode.InvalidParams);
-        }
     }
 }

@@ -501,6 +501,51 @@ public class A2AServerTests
         Assert.Equal(2, result.Tasks!.Count);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(101)]
+    public async Task ListTasksAsync_ThrowsInvalidParams_WhenPageSizeOutOfRange(int pageSize)
+    {
+        // Arrange — this validation must live in the handler (not only the operation
+        // catalog) so transports that bypass the catalog, such as gRPC, enforce it too.
+        var (server, _, _) = CreateServer();
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<A2AException>(() =>
+            server.ListTasksAsync(new ListTasksRequest { PageSize = pageSize }));
+        Assert.Equal(A2AErrorCode.InvalidParams, ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_ThrowsInvalidParams_WhenMessageIsNull()
+    {
+        // Arrange — guards against the NullReferenceException that previously occurred
+        // when ResolveContextAsync dereferenced a null Message (reachable via any
+        // IA2ARequestHandler caller that bypasses the operation catalog, e.g. gRPC).
+        var (server, _, _) = CreateServer();
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<A2AException>(() =>
+            server.SendMessageAsync(new SendMessageRequest { Message = null! }));
+        Assert.Equal(A2AErrorCode.InvalidParams, ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_ThrowsInvalidParams_WhenPartsEmpty()
+    {
+        // Arrange
+        var (server, _, _) = CreateServer();
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<A2AException>(() =>
+            server.SendMessageAsync(new SendMessageRequest
+            {
+                Message = new Message { MessageId = "u1", Role = Role.User, Parts = [] }
+            }));
+        Assert.Equal(A2AErrorCode.InvalidParams, ex.ErrorCode);
+    }
+
     [Fact]
     public async Task PushNotificationConfig_ThrowsNotSupported()
     {

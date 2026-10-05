@@ -415,12 +415,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
     public virtual async Task<AgentTask> GetTaskAsync(
         GetTaskRequest request, CancellationToken cancellationToken = default)
     {
-        if (request.HistoryLength is { } hl && hl < 0)
-        {
-            throw new A2AException(
-                $"Invalid historyLength: {hl}. Must be non-negative.",
-                A2AErrorCode.InvalidParams);
-        }
+        A2ARequestValidation.ValidateHistoryLength(request.HistoryLength);
 
         var task = await _taskStore.GetTaskAsync(request.Id, cancellationToken).ConfigureAwait(false)
             ?? throw new A2AException($"Task '{request.Id}' not found.", A2AErrorCode.TaskNotFound);
@@ -432,6 +427,9 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
     public virtual async Task<ListTasksResponse> ListTasksAsync(
         ListTasksRequest request, CancellationToken cancellationToken = default)
     {
+        A2ARequestValidation.ValidatePageSize(request.PageSize);
+        A2ARequestValidation.ValidateHistoryLength(request.HistoryLength);
+
         return await _taskStore.ListTasksAsync(request, cancellationToken).ConfigureAwait(false);
     }
 
@@ -617,6 +615,11 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
     private async Task<RequestContext> ResolveContextAsync(
         SendMessageRequest request, bool streamingResponse, CancellationToken cancellationToken)
     {
+        // Validated here (rather than relying solely on the operation catalog) so every
+        // IA2ARequestHandler caller enforces the same rules, including transports such as
+        // gRPC that bypass the catalog entirely.
+        A2ARequestValidation.ValidateSendMessage(request);
+
         AgentTask? existingTask = null;
         var taskId = request.Message.TaskId;
         var contextId = request.Message.ContextId;
