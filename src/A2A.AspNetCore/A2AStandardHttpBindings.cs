@@ -274,7 +274,7 @@ public static class A2AStandardHttpBindingBuilderExtensions
                 throw new A2AHttpBindingException(
                     Results.Problem(
                         detail:
-                            $"Invalid status filter: '{statusValue}'. Valid values: {string.Join(", ", Enum.GetNames<TaskState>())}",
+                            $"Invalid status filter: '{statusValue}'. Valid values: {string.Join(", ", s_taskStateWireNames.Keys)}",
                         statusCode: StatusCodes.Status400BadRequest));
             }
 

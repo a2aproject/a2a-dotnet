@@ -187,7 +187,7 @@ public static class A2AStandardOperationCatalogBuilderExtensions
                 A2AErrorCode.InvalidParams);
         }
 
-        if (request.Message.Parts.Count == 0)
+        if (request.Message.Parts is null || request.Message.Parts.Count == 0)
         {
             throw new A2AException(
                 "Message parts cannot be empty",

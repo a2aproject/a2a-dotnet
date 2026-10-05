@@ -94,19 +94,19 @@ public static class A2AJsonRpcProcessor
             activity?.SetTag("request.method", rpcRequest.Method);
 
             var hasBinding = bindings.TryGetBinding(rpcRequest.Method, out var binding);
-            operationActivity = hasBinding ? binding.Diagnostics.Start() : null;
+            if (!hasBinding)
+            {
+                return new JsonRpcResponseResult(
+                    JsonRpcResponse.MethodNotFoundResponse(rpcRequest.Id));
+            }
+
+            operationActivity = binding.Diagnostics.Start();
             if (rpcRequest.Params is null)
             {
                 A2AOperationDiagnostics.SetOutcome(operationActivity, "error");
                 return WrapScope(
                     new JsonRpcResponseResult(JsonRpcResponse.InvalidParamsResponse(rpcRequest.Id)),
                     ref scope, ref operationActivity, ref activity);
-            }
-
-            if (!hasBinding)
-            {
-                return new JsonRpcResponseResult(
-                    JsonRpcResponse.MethodNotFoundResponse(rpcRequest.Id));
             }
 
             if (binding.BeforeBind is not null)
