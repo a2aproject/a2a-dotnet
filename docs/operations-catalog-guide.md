@@ -8,11 +8,19 @@ AI) who are not yet familiar with this part of the codebase.
 ## Why an operations catalog?
 
 A2A exposes the same logical operations (`send-message`, `get-task`, etc.)
-over multiple transports: JSON-RPC, HTTP+JSON REST, and (in the future)
-gRPC. Rather than duplicating request validation, dispatch, and error
-handling per transport, the SDK defines each operation **once**, in a
-transport-neutral way, and then separately **binds** that definition to each
-transport.
+over multiple transports: JSON-RPC and HTTP+JSON REST. Rather than
+duplicating request validation, dispatch, and error handling per transport,
+the SDK defines each operation **once**, in a transport-neutral way, and then
+separately **binds** that definition to each transport.
+
+> **Note on gRPC:** the `A2A.Grpc`/`A2A.Grpc.AspNetCore` packages
+> intentionally do **not** use this catalog. The gRPC contract is a fixed,
+> code-generated surface (from the vendored `.proto`), so `A2AGrpcService`
+> binds directly to `IA2ARequestHandler` with one method per RPC, and gets
+> per-method dispatch, routing, and tracing for free from the gRPC/ASP.NET
+> Core stack. The catalog exists to solve a problem gRPC doesn't have:
+> multiplexing many dynamically-registered operations (including custom
+> extensions) behind a single JSON-RPC/HTTP endpoint.
 
 This separation is implemented with three cooperating catalogs:
 
@@ -182,6 +190,15 @@ genuinely new operation.
 
 7. **Update the agent card / spec references** if the new operation affects
    capability negotiation or public documentation.
+
+> **gRPC parity:** if the new operation adds a method to `IA2ARequestHandler`
+> itself (i.e. it's a core protocol operation, not a custom/extension
+> operation), also add the matching RPC to the vendored `.proto`, regenerate
+> the gRPC contract, and implement/override it in `A2AGrpcService`
+> (`src/A2A.Grpc.AspNetCore/A2AGrpcService.cs`) — otherwise the gRPC binding
+> silently falls behind JSON-RPC/HTTP+JSON. Custom/extension operations
+> registered only via the operation catalog don't apply to gRPC, since its
+> contract is fixed by the proto definition.
 
 ### Sequence: wiring a new operation at startup
 
