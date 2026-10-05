@@ -13,6 +13,16 @@ namespace A2A.AspNetCore;
 /// <summary>
 /// Extension methods for configuring A2A endpoints in ASP.NET Core applications.
 /// </summary>
+/// <remarks>
+/// These JSON-RPC/HTTP+JSON endpoints can be mapped on the same <see cref="WebApplication"/> alongside the
+/// gRPC binding (<c>MapGrpcA2A</c> in <c>A2A.Grpc.AspNetCore</c>); all bindings share the same registered
+/// <see cref="IA2ARequestHandler"/>. The two kinds of endpoint do require different Kestrel protocol support,
+/// however: this binding works over plain HTTP/1.1, while gRPC requires HTTP/2. If you also call
+/// <c>MapGrpcA2A</c>, configure Kestrel so the listening endpoint(s) accept both protocols — for example by
+/// enabling <c>HttpProtocols.Http1AndHttp2</c> on a TLS endpoint (protocol selection via ALPN), or by mapping
+/// JSON-RPC/HTTP+JSON and gRPC to separate Kestrel endpoints/ports with their own <c>HttpProtocols</c>
+/// settings.
+/// </remarks>
 public static class A2ARouteBuilderExtensions
 {
     /// <summary>
