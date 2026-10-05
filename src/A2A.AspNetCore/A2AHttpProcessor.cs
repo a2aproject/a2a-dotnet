@@ -159,7 +159,8 @@ internal static class A2AHttpProcessor
     // REST handler: List tasks
     internal static Task<IResult> ListTasksRestAsync(
         IA2ARequestHandler requestHandler, ILogger logger, string? contextId, string? status, int? pageSize,
-        string? pageToken, int? historyLength, CancellationToken cancellationToken)
+        string? pageToken, int? historyLength, DateTimeOffset? statusTimestampAfter,
+        bool? includeArtifacts, CancellationToken cancellationToken)
         => WithExceptionHandlingAsync(logger, "REST.ListTasks", async ct =>
         {
             var request = new ListTasksRequest
@@ -171,18 +172,44 @@ internal static class A2AHttpProcessor
             };
             if (!string.IsNullOrEmpty(status))
             {
-                if (!Enum.TryParse<TaskState>(status, ignoreCase: true, out var taskState))
+                if (!TryParseTaskState(status, out var taskState))
                 {
-                    return Results.Problem(
-                        detail: $"Invalid status filter: '{status}'. Valid values: {string.Join(", ", Enum.GetNames<TaskState>())}",
-                        statusCode: StatusCodes.Status400BadRequest);
+                    return new A2AErrorResult(new A2AException(
+                        $"Invalid status filter: '{status}'.",
+                        A2AErrorCode.InvalidParams));
                 }
                 request.Status = taskState;
             }
+            request.StatusTimestampAfter = statusTimestampAfter;
+            request.IncludeArtifacts = includeArtifacts;
 
             var result = await requestHandler.ListTasksAsync(request, ct).ConfigureAwait(false);
             return new A2AResponseResult(result);
         }, cancellationToken: cancellationToken);
+
+    private static readonly Dictionary<string, TaskState> s_taskStateWireNames =
+        new Dictionary<string, TaskState>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["TASK_STATE_UNSPECIFIED"] = TaskState.Unspecified,
+            ["TASK_STATE_SUBMITTED"] = TaskState.Submitted,
+            ["TASK_STATE_WORKING"] = TaskState.Working,
+            ["TASK_STATE_COMPLETED"] = TaskState.Completed,
+            ["TASK_STATE_FAILED"] = TaskState.Failed,
+            ["TASK_STATE_CANCELED"] = TaskState.Canceled,
+            ["TASK_STATE_INPUT_REQUIRED"] = TaskState.InputRequired,
+            ["TASK_STATE_REJECTED"] = TaskState.Rejected,
+            ["TASK_STATE_AUTH_REQUIRED"] = TaskState.AuthRequired,
+        };
+
+    private static bool TryParseTaskState(string value, out TaskState state)
+    {
+        if (s_taskStateWireNames.TryGetValue(value, out state))
+        {
+            return true;
+        }
+
+        return Enum.TryParse(value, ignoreCase: true, out state) && Enum.IsDefined(state);
+    }
 
     // REST handler: Get extended agent card
     internal static Task<IResult> GetExtendedAgentCardRestAsync(

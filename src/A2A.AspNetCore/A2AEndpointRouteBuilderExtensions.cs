@@ -144,9 +144,10 @@ public static class A2ARouteBuilderExtensions
 
         routeGroup.MapGet("/tasks", ([FromQuery] string? contextId, [FromQuery] string? status,
             [FromQuery] int? pageSize, [FromQuery] string? pageToken, [FromQuery] int? historyLength,
+            [FromQuery] DateTimeOffset? statusTimestampAfter, [FromQuery] bool? includeArtifacts,
             CancellationToken ct)
             => A2AHttpProcessor.ListTasksRestAsync(requestHandler, logger, contextId, status, pageSize, pageToken,
-                historyLength, ct));
+                historyLength, statusTimestampAfter, includeArtifacts, ct));
 
         // Message operations
         routeGroup.MapPost("/message:send", ([FromBody] SendMessageRequest request, CancellationToken ct)
