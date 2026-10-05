@@ -258,15 +258,8 @@ public static class A2AStandardHttpBindingBuilderExtensions
             ["TASK_STATE_AUTH_REQUIRED"] = TaskState.AuthRequired,
         };
 
-    private static bool TryParseTaskState(string value, out TaskState state)
-    {
-        if (s_taskStateWireNames.TryGetValue(value, out state))
-        {
-            return true;
-        }
-
-        return Enum.TryParse(value, ignoreCase: true, out state) && Enum.IsDefined(state);
-    }
+    private static bool TryParseTaskState(string value, out TaskState state) =>
+        s_taskStateWireNames.TryGetValue(value, out state);
 
     private static ValueTask<ListTasksRequest> BindListTasksAsync(
         HttpContext context,

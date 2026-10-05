@@ -254,6 +254,43 @@ public class A2AHttpStandardOperationTests
     }
 
     [Theory]
+    [InlineData("Submitted")]
+    [InlineData("InputRequired")]
+    [InlineData("AuthRequired")]
+    public async Task ListTasks_WithCSharpEnumName_ReturnsProblemDetailsResponse(
+        string status)
+    {
+        var operationBuilder = new A2AOperationCatalogBuilder();
+        var standard = operationBuilder.AddStandardA2AOperations();
+        var operationCatalog = operationBuilder.Build();
+        var handlers = new A2AOperationHandlerCatalogBuilder()
+            .Map(
+                standard.ListTasks,
+                static (_, _, _) => ValueTask.FromResult(new ListTasksResponse()))
+            .Build(operationCatalog);
+        var bindings = new A2AHttpOperationBindingBuilder()
+            .AddStandardA2AHttpBindings(standard)
+            .Build();
+        var scopeCreateCount = 0;
+        A2ARequestScopeFactory scopeFactory = (_, _) =>
+        {
+            scopeCreateCount++;
+            return ValueTask.FromResult(
+                new A2ARequestScope(
+                    new A2AOperationContext(new ThrowingRequestHandler())));
+        };
+        var app = WebApplication.CreateBuilder().Build();
+        app.MapHttpA2A(scopeFactory, handlers, bindings);
+        var httpContext = CreateHttpContext(app, HttpMethods.Get, "/tasks");
+        httpContext.Request.QueryString = new QueryString($"?status={status}");
+
+        await GetEndpoint(app, HttpMethods.Get, "/tasks").RequestDelegate!(httpContext);
+
+        Assert.Equal(0, scopeCreateCount);
+        Assert.Equal(StatusCodes.Status400BadRequest, httpContext.Response.StatusCode);
+    }
+
+    [Theory]
     [InlineData("999")]
     [InlineData("TASK_STATE_999")]
     public async Task ListTasks_WithUndefinedNumericStatus_ReturnsProblemDetailsResponse(
