@@ -526,6 +526,50 @@ public class V03TypeConverterTests
         Assert.Equal("http://host/grpc", v03Card.Url);
     }
 
+    [Fact]
+    public void ToV03AgentCard_ConvertsCapabilitiesExtensions()
+    {
+        var v1Card = new A2A.AgentCard
+        {
+            Name = "Test",
+            Description = "",
+            SupportedInterfaces =
+            [
+                new A2A.AgentInterface { Url = "http://host/jsonrpc", ProtocolBinding = "JSONRPC", ProtocolVersion = "1.0" },
+            ],
+            Skills = [],
+            DefaultInputModes = [],
+            DefaultOutputModes = [],
+            Capabilities = new A2A.AgentCapabilities
+            {
+                Extensions =
+                [
+                    new A2A.AgentExtension
+                    {
+                        Uri = "ext-1",
+                        Description = "desc",
+                        Required = true,
+                        Params = JsonSerializer.SerializeToElement(new { key = "value" }),
+                    },
+                    new A2A.AgentExtension { Uri = "ext-2" },
+                ],
+            },
+        };
+
+        var v03Card = V03TypeConverter.ToV03AgentCard(v1Card);
+
+        Assert.Equal(2, v03Card.Capabilities.Extensions.Count);
+        var first = v03Card.Capabilities.Extensions[0];
+        Assert.Equal("ext-1", first.Uri);
+        Assert.Equal("desc", first.Description);
+        Assert.True(first.Required);
+        Assert.Equal("value", first.Params!["key"].GetString());
+        var second = v03Card.Capabilities.Extensions[1];
+        Assert.Equal("ext-2", second.Uri);
+        Assert.False(second.Required);
+        Assert.Null(second.Params);
+    }
+
     // ── ToBlendedAgentCard ───────────────────────────────────────────────────
 
     [Fact]
@@ -579,5 +623,32 @@ public class V03TypeConverterTests
         var interfaces = blended["supportedInterfaces"]!.AsArray();
         Assert.Single(interfaces);
         Assert.Equal("http://host/jsonrpc", interfaces[0]!["url"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public void ToBlendedAgentCard_ContainsCapabilitiesExtensions()
+    {
+        var v1Card = new A2A.AgentCard
+        {
+            Name = "Test",
+            Description = "",
+            SupportedInterfaces =
+            [
+                new A2A.AgentInterface { Url = "http://host/jsonrpc", ProtocolBinding = "JSONRPC", ProtocolVersion = "1.0" },
+            ],
+            Skills = [],
+            DefaultInputModes = [],
+            DefaultOutputModes = [],
+            Capabilities = new A2A.AgentCapabilities
+            {
+                Extensions = [new A2A.AgentExtension { Uri = "ext-1" }],
+            },
+        };
+
+        var blended = V03TypeConverter.ToBlendedAgentCard(v1Card);
+
+        var extensions = blended["capabilities"]!["extensions"]!.AsArray();
+        Assert.Single(extensions);
+        Assert.Equal("ext-1", extensions[0]!["uri"]!.GetValue<string>());
     }
 }
