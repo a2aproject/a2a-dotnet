@@ -61,7 +61,7 @@ public static class GrpcA2ARouteBuilderExtensions
     /// an internally-built catalog, the extension envelope dispatches application-defined operations, so the
     /// application's own <see cref="A2A.A2AOperationHandlerCatalog"/> and
     /// <see cref="A2AGrpcExtensionOperationBindings"/> (built with <see cref="A2AGrpcExtensionOperationBindingBuilder"/>)
-    /// must be supplied. Because <see cref="IEndpointRouteBuilder.MapGrpcService{TService}"/> constructs the
+    /// must be supplied. Because <c>IEndpointRouteBuilder.MapGrpcService&lt;TService&gt;</c> constructs the
     /// gRPC service purely through dependency injection, both are registered as singletons here rather than
     /// passed as explicit parameters the way <c>MapA2A</c>/<c>MapHttpA2A</c> do.
     /// </remarks>
