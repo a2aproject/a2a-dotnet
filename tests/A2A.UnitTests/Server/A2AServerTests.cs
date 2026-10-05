@@ -115,6 +115,72 @@ public class A2AServerTests
     }
 
     [Fact]
+    public async Task GivenContinuation_WhenHandlerOnlyEmitsStatusUpdates_ThenFinalTaskIsReturned()
+    {
+        // A continuation can complete through status updates without
+        // emitting a second Task snapshot. It must still produce a response.
+        var (server, store, handler) = CreateServer();
+        await store.SaveTaskAsync("t1", new AgentTask
+        {
+            Id = "t1",
+            ContextId = "ctx-1",
+            Status = new TaskStatus { State = TaskState.InputRequired },
+        });
+
+        handler.OnExecute = async (ctx, eq, ct) =>
+        {
+            await new TaskUpdater(eq, ctx.TaskId, ctx.ContextId).CompleteAsync(cancellationToken: ct);
+            eq.Complete();
+        };
+
+        var result = await server.SendMessageAsync(new SendMessageRequest
+        {
+            Message = new Message
+            {
+                MessageId = "u2",
+                TaskId = "t1",
+                ContextId = "ctx-1",
+                Parts = [Part.FromText("continue")],
+                Role = Role.User,
+            },
+        });
+
+        Assert.NotNull(result.Task);
+        Assert.Equal(TaskState.Completed, result.Task!.Status.State);
+    }
+
+    [Fact]
+    public async Task GivenContinuation_WhenHandlerEmitsNoEvents_ThenInvalidAgentResponseIsThrown()
+    {
+        var (server, store, handler) = CreateServer();
+        await store.SaveTaskAsync("t1", new AgentTask
+        {
+            Id = "t1",
+            ContextId = "ctx-1",
+            Status = new TaskStatus { State = TaskState.InputRequired },
+        });
+        handler.OnExecute = (ctx, eq, ct) =>
+        {
+            eq.Complete();
+            return Task.CompletedTask;
+        };
+
+        var ex = await Assert.ThrowsAsync<A2AException>(() => server.SendMessageAsync(new SendMessageRequest
+        {
+            Message = new Message
+            {
+                MessageId = "u2",
+                TaskId = "t1",
+                ContextId = "ctx-1",
+                Parts = [Part.FromText("continue")],
+                Role = Role.User,
+            },
+        }));
+
+        Assert.Equal(A2AErrorCode.InvalidAgentResponse, ex.ErrorCode);
+    }
+
+    [Fact]
     public async Task GivenExistingTask_WhenSendMessage_ThenHistoryAppended()
     {
         // Arrange
