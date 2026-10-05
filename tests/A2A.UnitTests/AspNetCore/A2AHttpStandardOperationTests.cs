@@ -883,7 +883,7 @@ public class A2AHttpStandardOperationTests
                 break;
             case ("GET", "/tasks"):
                 httpContext.Request.QueryString = new QueryString(
-                    "?contextId=context-1&status=working&pageSize=25&pageToken=next-page&historyLength=2");
+                    "?contextId=context-1&status=TASK_STATE_WORKING&pageSize=25&pageToken=next-page&historyLength=2");
                 break;
             case ("POST", "/tasks/{id}:cancel"):
             case ("POST", "/tasks/{id}:subscribe"):
