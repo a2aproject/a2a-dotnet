@@ -396,6 +396,11 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
         ["EXTENDED_AGENT_CARD_NOT_CONFIGURED"] = A2AErrorCode.ExtendedAgentCardNotConfigured,
         ["EXTENSION_SUPPORT_REQUIRED"] = A2AErrorCode.ExtensionSupportRequired,
         ["VERSION_NOT_SUPPORTED"] = A2AErrorCode.VersionNotSupported,
+        ["INVALID_REQUEST"] = A2AErrorCode.InvalidRequest,
+        ["INVALID_PARAMS"] = A2AErrorCode.InvalidParams,
+        ["PARSE_ERROR"] = A2AErrorCode.ParseError,
+        ["INTERNAL_ERROR"] = A2AErrorCode.InternalError,
+        ["METHOD_NOT_FOUND"] = A2AErrorCode.MethodNotFound,
     };
 
     [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "Error types are registered in source-generated JsonContext.")]
@@ -414,7 +419,8 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
         {
             var contentType = response.Content.Headers.ContentType?.MediaType;
 
-            if (string.Equals(contentType, "application/json", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(contentType, "application/json", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(contentType, "application/a2a+json", StringComparison.OrdinalIgnoreCase))
             {
                 // Parse AIP-193 / google.rpc.Status error response (spec Section 11.6)
                 using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
