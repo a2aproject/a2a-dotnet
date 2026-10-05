@@ -236,9 +236,23 @@ public class A2AJsonRpcCustomOperationTests
         int expectedErrorCode,
         object? expectedId)
     {
-        var operationCatalog = new A2AOperationCatalogBuilder().Build();
-        var handlers = new A2AOperationHandlerCatalogBuilder().Build(operationCatalog);
-        var bindings = new A2AJsonRpcOperationBindingBuilder().Build(operationCatalog);
+        var operationCatalogBuilder = new A2AOperationCatalogBuilder();
+        var executeOperation = operationCatalogBuilder.DefineUnary<CustomRequest, CustomResult>(
+            new A2AOperationId("https://example.com/extensions/test#execute"));
+        var operationCatalog = operationCatalogBuilder.Build();
+        var handlers = new A2AOperationHandlerCatalogBuilder()
+            .Map(
+                executeOperation,
+                static (_, request, _) =>
+                    ValueTask.FromResult(new CustomResult(request.Value)))
+            .Build(operationCatalog);
+        var bindings = new A2AJsonRpcOperationBindingBuilder()
+            .Map(
+                "test/execute",
+                executeOperation,
+                CustomJsonContext.Default.CustomRequest,
+                CustomJsonContext.Default.CustomResult)
+            .Build(operationCatalog);
         var scopeCreateCount = 0;
         A2ARequestScopeFactory scopeFactory = (_, _) =>
         {
