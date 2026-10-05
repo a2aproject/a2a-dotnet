@@ -49,4 +49,53 @@ public static class GrpcA2ARouteBuilderExtensions
         ArgumentNullException.ThrowIfNull(endpoints);
         return endpoints.MapGrpcService<A2AGrpcService>();
     }
+
+    /// <summary>
+    /// Registers the handler catalog and binding table needed to host custom/extension A2A operations over
+    /// the gRPC envelope service. Call this alongside <see cref="AddA2AGrpc"/> when the application defines
+    /// operations beyond the standard A2A set (see <see cref="A2A.A2AOperationCatalogBuilder.DefineUnary{TRequest,TResult}"/>/<c>DefineStreaming</c>)
+    /// that should also be reachable over gRPC.
+    /// </summary>
+    /// <remarks>
+    /// Unlike <see cref="AddA2AGrpc"/>/<see cref="MapGrpcA2A"/>, which dispatch standard operations through
+    /// an internally-built catalog, the extension envelope dispatches application-defined operations, so the
+    /// application's own <see cref="A2A.A2AOperationHandlerCatalog"/> and
+    /// <see cref="A2AGrpcExtensionOperationBindings"/> (built with <see cref="A2AGrpcExtensionOperationBindingBuilder"/>)
+    /// must be supplied. Because <see cref="IEndpointRouteBuilder.MapGrpcService{TService}"/> constructs the
+    /// gRPC service purely through dependency injection, both are registered as singletons here rather than
+    /// passed as explicit parameters the way <c>MapA2A</c>/<c>MapHttpA2A</c> do.
+    /// </remarks>
+    /// <param name="services">The service collection.</param>
+    /// <param name="handlers">The handler catalog backing the application's custom/extension operations.</param>
+    /// <param name="bindings">The gRPC envelope binding table for those operations.</param>
+    /// <returns>The service collection, for chaining.</returns>
+    public static IServiceCollection AddA2AGrpcExtensions(
+        this IServiceCollection services,
+        A2A.A2AOperationHandlerCatalog handlers,
+        A2AGrpcExtensionOperationBindings bindings)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(handlers);
+        ArgumentNullException.ThrowIfNull(bindings);
+
+        services.AddSingleton(handlers);
+        services.AddSingleton(bindings);
+        return services;
+    }
+
+    /// <summary>
+    /// Maps the gRPC envelope service for custom/extension A2A operations onto the endpoint pipeline.
+    /// Requires <see cref="AddA2AGrpc"/> (or <c>AddGrpc</c>), <see cref="AddA2AGrpcExtensions"/>, and a
+    /// registered <see cref="A2A.IA2ARequestHandler"/> in the service provider.
+    /// </summary>
+    /// <remarks>
+    /// Subject to the same HTTP/2 requirements and Kestrel configuration notes as <see cref="MapGrpcA2A"/>.
+    /// </remarks>
+    /// <param name="endpoints">The endpoint route builder.</param>
+    /// <returns>A builder for configuring the gRPC service endpoints.</returns>
+    public static GrpcServiceEndpointConventionBuilder MapGrpcA2AExtensions(this IEndpointRouteBuilder endpoints)
+    {
+        ArgumentNullException.ThrowIfNull(endpoints);
+        return endpoints.MapGrpcService<A2AGrpcExtensionService>();
+    }
 }

@@ -15,8 +15,8 @@ using global::Grpc.Core;
 /// Standard operations (those backed by a fixed RPC in the vendored <c>.proto</c>) are routed through the
 /// catalog here. Custom/extension operations registered dynamically via
 /// <see cref="A2AOperationCatalogBuilder.DefineUnary{TRequest,TResult}"/>/<c>DefineStreaming</c> are not
-/// reachable from this fixed-contract service; see <c>A2AGrpcExtensionService</c> for the generic envelope
-/// binding that lets such operations run over gRPC without changing the vendored protocol.
+/// reachable from this fixed-contract service; see <see cref="A2AGrpcExtensionService"/> for the generic
+/// envelope binding that lets such operations run over gRPC without changing the vendored protocol.
 /// </remarks>
 internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
 {

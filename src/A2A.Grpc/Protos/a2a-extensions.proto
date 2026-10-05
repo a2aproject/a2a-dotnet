@@ -1,0 +1,48 @@
+// A2A .NET SDK-specific extension to the gRPC binding — NOT part of the upstream A2A protocol's
+// vendored a2a.proto contract (see that file's header for the upstream source).
+//
+// Custom/extension operations registered via `A2AOperationCatalogBuilder.DefineUnary`/`DefineStreaming`
+// have no fixed RPC in the vendored contract, since that contract only describes the standard A2A
+// operations. This generic envelope lets such operations run over gRPC anyway: the caller addresses an
+// operation by its transport-neutral `A2AOperationId`, and the request/response/event payloads are
+// carried as UTF-8 JSON bytes using the same `JsonTypeInfo<T>` the operation already uses for its
+// JSON-RPC/HTTP+JSON bindings. This keeps the three transports semantically consistent without requiring
+// a dedicated RPC (and a vendored-contract change) for every new custom/extension operation.
+syntax = "proto3";
+package a2a.dotnet.extensions.v1;
+
+option csharp_namespace = "A2A.Grpc.Protos";
+
+// Generic envelope service for invoking custom/extension A2A operations over gRPC.
+service A2AExtensionService {
+  // Invokes a unary extension operation.
+  rpc InvokeExtensionOperation(ExtensionOperationRequest) returns (ExtensionOperationResponse) {
+  }
+  // Invokes a streaming extension operation, returning a stream of JSON-encoded events.
+  rpc InvokeStreamingExtensionOperation(ExtensionOperationRequest) returns (stream ExtensionOperationEvent) {
+  }
+}
+
+// A request to invoke an extension operation by its transport-neutral operation id.
+message ExtensionOperationRequest {
+  // The transport-neutral A2A operation id (`A2AOperationId.Value`), e.g.
+  // "https://schemas.microsoft.com/agents/a2a/extensions/in-task-authorization/v1#resumeAuth".
+  string operation_id = 1;
+  // The operation request, serialized as UTF-8 JSON using the operation's registered
+  // `JsonTypeInfo<TRequest>`.
+  bytes payload = 2;
+}
+
+// The result of invoking a unary extension operation.
+message ExtensionOperationResponse {
+  // The operation result, serialized as UTF-8 JSON using the operation's registered
+  // `JsonTypeInfo<TResult>`.
+  bytes payload = 1;
+}
+
+// A single streamed event from a streaming extension operation.
+message ExtensionOperationEvent {
+  // The streamed event, serialized as UTF-8 JSON using the operation's registered
+  // `JsonTypeInfo<TEvent>`.
+  bytes payload = 1;
+}

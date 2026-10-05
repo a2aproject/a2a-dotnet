@@ -16,18 +16,22 @@ separately **binds** that definition to each transport.
 > **Note on gRPC:** the `A2A.Grpc`/`A2A.Grpc.AspNetCore` packages have a
 > fixed, code-generated contract (from the vendored `.proto`), so there is no
 > `A2AJsonRpcOperationBindings`/`A2AHttpOperationBindings`-style dynamic
-> transport binding for gRPC — each RPC method in `A2AGrpcService` is wired
-> to its standard operation explicitly. However, `A2AGrpcService` **does**
-> dispatch through the same operation catalog and handler catalog as
-> JSON-RPC/HTTP+JSON: each RPC method maps the incoming proto message to the
-> operation's domain request type, validates it with the operation catalog's
-> semantic validator (`A2AOperationCatalog.Validate`/`ValidateStreaming`),
-> and invokes the shared `A2AOperationHandlerCatalog`. This means all three
-> transports enforce identical validation and dispatch behavior for standard
-> operations — see `src/A2A.Grpc.AspNetCore/A2AGrpcService.cs`. Custom/
-> extension operations registered only via the operation catalog are not
-> yet reachable over gRPC, since the proto contract is fixed; a generic
-> envelope RPC for custom operations is tracked as future work.
+> transport binding for *standard* operations — each RPC method in
+> `A2AGrpcService` is wired to its standard operation explicitly. However,
+> `A2AGrpcService` **does** dispatch through the same operation catalog and
+> handler catalog as JSON-RPC/HTTP+JSON: each RPC method maps the incoming
+> proto message to the operation's domain request type, validates it with
+> the operation catalog's semantic validator
+> (`A2AOperationCatalog.Validate`/`ValidateStreaming`), and invokes the
+> shared `A2AOperationHandlerCatalog`. This means all three transports
+> enforce identical validation and dispatch behavior for standard operations
+> — see `src/A2A.Grpc.AspNetCore/A2AGrpcService.cs`. Custom/extension
+> operations registered only via the operation catalog *are* reachable over
+> gRPC too, through a generic envelope service
+> (`A2AGrpcExtensionService`/`A2AExtensionService`) that dispatches by
+> operation id with JSON-encoded payload bytes rather than a per-operation
+> RPC — see [gRPC dispatch (custom/extension operations)](#grpc-dispatch-customextension-operations)
+> below.
 
 This separation is implemented with three cooperating catalogs:
 
@@ -179,6 +183,89 @@ validation errors (mapped to `RpcException` via `GrpcErrorMapping`) as an
 HTTP client for the same bad input — there is no separate gRPC-only
 validation path to keep in sync.
 
+### gRPC dispatch (custom/extension operations)
+
+Standard operations get a dedicated RPC method per operation because the
+vendored `.proto` is a fixed, hand-curated contract. Custom/extension
+operations — ones registered only via `A2AOperationCatalogBuilder.DefineUnary`/
+`DefineStreaming` and never added to `A2AStandardOperations` — don't get
+their own RPC. Instead, `A2A.Grpc`/`A2A.Grpc.AspNetCore` expose a second,
+generic **envelope** service, defined in
+`src/A2A.Grpc/Protos/a2a-extensions.proto`:
+
+- `A2AExtensionService.InvokeExtensionOperation` — unary envelope RPC.
+- `A2AExtensionService.InvokeStreamingExtensionOperation` — server-streaming
+  envelope RPC.
+
+Both RPCs take an `ExtensionOperationRequest` containing the operation's
+`A2AOperationId` (as a string) plus a JSON-encoded `bytes` payload, and
+return `ExtensionOperationResponse`/`ExtensionOperationEvent` messages that
+wrap the result/event the same way. There is no per-operation message type
+to add to the proto, which is what makes the envelope usable for
+operations an extension author defines without touching this repo's
+vendored contract.
+
+Wiring an extension operation into the envelope is a transport binding,
+exactly like a JSON-RPC or HTTP+JSON binding, using
+`A2AGrpcExtensionOperationBindingBuilder`
+(`src/A2A.Grpc.AspNetCore/A2AGrpcExtensionOperationBindings.cs`):
+
+```csharp
+var bindings = new A2AGrpcExtensionOperationBindingBuilder()
+    .Map(myExtension.ResumeAuth, MyJsonContext.Default.ResumeAuthRequest, MyJsonContext.Default.ResumeAuthResult)
+    .Build(operationCatalog);
+
+services.AddA2AGrpcExtensions(handlerCatalog, bindings);
+// ...
+app.MapGrpcA2AExtensions();
+```
+
+`A2AGrpcExtensionService` (the RPC implementation) looks up the binding for
+the incoming operation id, and — like `A2AGrpcService` — deserializes the
+request, validates and invokes through the *same* operation/handler
+catalogs used by every other transport:
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Svc as A2AGrpcExtensionService
+    participant Bindings as A2AGrpcExtensionOperationBindings
+    participant Binding as Closed-generic binding<TRequest,TResult>
+    participant OC as A2AOperationCatalog
+    participant Handlers as A2AOperationHandlerCatalog
+    participant Handler as Registered handler delegate
+
+    Client->>Svc: InvokeExtensionOperation(ExtensionOperationRequest { OperationId, Payload })
+    Svc->>Bindings: TryGetBinding(operationId)
+    Bindings-->>Svc: Binding (or not found -> MethodNotFound)
+    Svc->>Binding: InvokeAsync(payload, context, ct)
+    Binding->>Binding: JsonSerializer.Deserialize(payload, requestTypeInfo)
+    Binding->>OC: Validate(operation, request)
+    Binding->>Handlers: InvokeAsync(operation, context, request, ct)
+    Handlers->>Handler: handler(context, request, ct)
+    Handler-->>Handlers: TResult
+    Handlers-->>Binding: TResult
+    Binding->>Binding: JsonSerializer.SerializeToUtf8Bytes(result, resultTypeInfo)
+    Binding-->>Svc: byte[] payload
+    Svc-->>Client: ExtensionOperationResponse { Payload }
+```
+
+Notes and current limitations:
+
+- The envelope only catches `A2AException` (the standard error codes) and
+  maps it to an `RpcException` via `GrpcErrorMapping.ToRpcException`, the
+  same as the standard RPC methods. Declared typed errors
+  (`A2AOperationError<TDetails>`/`DeclareError`) are **not** yet surfaced
+  through the envelope — only the HTTP+JSON binding supports typed error
+  details today.
+- An unknown operation id yields `StatusCode.NotFound`
+  (`A2AErrorCode.MethodNotFound`); invoking a streaming operation through
+  the unary RPC (or vice versa) yields `StatusCode.InvalidArgument`
+  (`A2AErrorCode.InvalidRequest`).
+- `AddA2AGrpcExtensions`/`MapGrpcA2AExtensions` are independent of
+  `AddA2AGrpc`/`MapGrpcA2A` — an app can host the standard gRPC service,
+  the extension envelope, both, or neither.
+
 ## Adding a brand-new operation
 
 Use this checklist when the A2A protocol (or an extension) introduces a
@@ -252,8 +339,9 @@ genuinely new operation.
 > catalogs) exactly like the other standard RPC methods — otherwise the
 > gRPC binding silently falls behind JSON-RPC/HTTP+JSON, or dispatches
 > without the catalog's shared validation. Custom/extension operations
-> registered only via the operation catalog are not yet reachable over
-> gRPC, since its contract is fixed by the proto definition.
+> don't need a new RPC or regenerated contract at all: register them with
+> the generic envelope service instead (`A2AGrpcExtensionOperationBindingBuilder`
+> — see [gRPC dispatch (custom/extension operations)](#grpc-dispatch-customextension-operations)).
 
 ### Sequence: wiring a new operation at startup
 
@@ -352,3 +440,18 @@ same typed handle (`standard.X`) to every builder.
 | HTTP+JSON binding | `src/A2A.AspNetCore/A2AStandardHttpBindings.cs` |
 | gRPC RPC (vendored `.proto` + `.proto`-generated RPC, if new) | `src/A2A.Grpc/Protos/a2a.proto`, `src/A2A.Grpc.AspNetCore/A2AGrpcService.cs` |
 | Unit tests | `tests/A2A.UnitTests/Operations/`, `tests/A2A.UnitTests/AspNetCore/`, `tests/A2A.Grpc.UnitTests/` |
+
+## Quick reference: where to add code for a new custom/extension operation
+
+Custom/extension operations skip the vendored `.proto` entirely — bind them
+to the generic gRPC envelope instead of adding an RPC.
+
+| Step | File |
+|---|---|
+| Request/result (or event) DTOs | your extension's own project |
+| Operation definition | your extension's own `A2AOperationCatalogBuilder.DefineUnary`/`DefineStreaming` calls |
+| Handler | your extension's own `A2AOperationHandlerCatalogBuilder.Map`/`MapStreaming` calls |
+| JSON-RPC binding | `A2AJsonRpcOperationBindingBuilder.Map`/`MapStreaming` |
+| HTTP+JSON binding | `A2AHttpOperationBindingBuilder.Map`/`MapStreaming` |
+| gRPC binding (no proto changes) | `A2AGrpcExtensionOperationBindingBuilder.Map`/`MapStreaming` in `src/A2A.Grpc.AspNetCore/A2AGrpcExtensionOperationBindings.cs`, hosted via `AddA2AGrpcExtensions`/`MapGrpcA2AExtensions` in `src/A2A.Grpc.AspNetCore/GrpcA2ARouteBuilderExtensions.cs` |
+| Unit tests | mirror `tests/A2A.Grpc.UnitTests/GrpcExtensionOperationTests.cs` |

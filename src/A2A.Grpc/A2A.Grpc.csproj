@@ -14,6 +14,7 @@
 
     <ItemGroup>
         <Protobuf Include="Protos\a2a.proto" GrpcServices="Both" />
+        <Protobuf Include="Protos\a2a-extensions.proto" GrpcServices="Both" />
     </ItemGroup>
 
     <ItemGroup>
