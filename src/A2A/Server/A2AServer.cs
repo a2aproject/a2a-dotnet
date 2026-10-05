@@ -791,10 +791,12 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
         AgentEventQueue eventQueue, Task agentTask, RequestContext context, CancellationToken cancellationToken)
     {
         SendMessageResponse? result = null;
+        bool appliedTaskUpdate = false;
 
         await foreach (var response in eventQueue.WithCancellation(cancellationToken).ConfigureAwait(false))
         {
             await ApplyEventAsync(response, context, cancellationToken).ConfigureAwait(false);
+            appliedTaskUpdate |= response.StatusUpdate is not null || response.ArtifactUpdate is not null;
 
             // Capture the first Task or Message as the synchronous response
             if (result is null)
@@ -828,6 +830,19 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
 #pragma warning disable VSTHRD003 // Intentional: agentTask runs the agent handler on a background thread
         await agentTask.ConfigureAwait(false);
 #pragma warning restore VSTHRD003
+
+        // A continuation may legitimately emit only status/artifact updates.
+        // Those events are applied to the task store above, but they do not
+        // themselves populate `result`. Return the persisted task instead of
+        // reporting a completed continuation as an invalid agent response.
+        if (appliedTaskUpdate)
+        {
+            var persistedTask = await _taskStore.GetTaskAsync(context.TaskId, cancellationToken).ConfigureAwait(false);
+            if (persistedTask is not null)
+            {
+                return new SendMessageResponse { Task = persistedTask };
+            }
+        }
 
         throw new A2AException(
             "Agent handler did not produce any response events.",

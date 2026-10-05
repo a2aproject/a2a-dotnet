@@ -12,6 +12,41 @@ namespace A2A.AspNetCore.Tests;
 
 public class A2AEndpointRouteBuilderExtensionsTests
 {
+    [Fact]
+    public async Task MapA2A_ListTasks_BindsTimestampAndArtifactFilters()
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.ConfigureHttpJsonOptions(options =>
+            options.SerializerOptions.TypeInfoResolver = A2AJsonUtilities.DefaultOptions.TypeInfoResolver);
+        await using var app = builder.Build();
+        var requestHandler = new Mock<IA2ARequestHandler>(MockBehavior.Strict);
+        var statusTimestampAfter = new DateTimeOffset(2026, 1, 15, 12, 0, 0, TimeSpan.Zero);
+        requestHandler.Setup(handler => handler.ListTasksAsync(
+                It.Is<ListTasksRequest>(request =>
+                    request.StatusTimestampAfter == statusTimestampAfter && request.IncludeArtifacts == true),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ListTasksResponse { Tasks = [], NextPageToken = "" });
+        app.MapHttpA2A(requestHandler.Object);
+
+        var endpoint = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Single(candidate => candidate.RoutePattern.RawText == "/tasks" &&
+                candidate.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Contains("GET"));
+        using var responseBody = new MemoryStream();
+        using var scope = app.Services.CreateScope();
+        var context = new DefaultHttpContext { RequestServices = scope.ServiceProvider };
+        context.Request.Method = "GET";
+        context.Request.Path = "/tasks";
+        context.Request.QueryString = new QueryString(
+            $"?statusTimestampAfter={Uri.EscapeDataString(statusTimestampAfter.ToString("O"))}&includeArtifacts=true");
+        context.Response.Body = responseBody;
+
+        await endpoint.RequestDelegate!(context);
+
+        Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
+        requestHandler.VerifyAll();
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("body-tenant")]
