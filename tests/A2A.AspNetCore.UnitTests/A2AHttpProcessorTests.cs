@@ -208,6 +208,30 @@ public class A2AHttpProcessorTests
     }
 
     [Theory]
+    [InlineData("Submitted")]
+    [InlineData("InputRequired")]
+    [InlineData("AuthRequired")]
+    public async Task ListTasks_WithCSharpEnumName_ShouldReturnInvalidParams(string status)
+    {
+        var requestHandler = new Mock<IA2ARequestHandler>(MockBehavior.Strict);
+
+        var result = await A2AHttpProcessor.ListTasksRestAsync(
+            requestHandler.Object,
+            NullLogger.Instance,
+            null,
+            status,
+            null,
+            null,
+            null,
+            null,
+            null,
+            CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, ((IStatusCodeHttpResult)result).StatusCode);
+        requestHandler.VerifyNoOtherCalls();
+    }
+
+    [Theory]
     [InlineData("TASK_STATE_INPUT_REQUIRED", TaskState.InputRequired)]
     [InlineData("TASK_STATE_AUTH_REQUIRED", TaskState.AuthRequired)]
     public async Task ListTasks_WithMultiWordWireStatus_ShouldPassParsedStatusToHandler(
