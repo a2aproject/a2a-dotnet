@@ -35,6 +35,10 @@ jobs:
         run: dotnet build ./src/A2ALibs.slnx --framework ${{ matrix.framework }}
       - name: TestLibs
         run: dotnet test ./src/A2ALibs.slnx --no-build --verbosity normal --framework ${{ matrix.framework }}
+      - name: BuildGrpcTests
+        run: dotnet build ./tests/A2A.Grpc.UnitTests/A2A.Grpc.UnitTests.csproj --framework ${{ matrix.framework }}
+      - name: TestGrpc
+        run: dotnet test ./tests/A2A.Grpc.UnitTests/A2A.Grpc.UnitTests.csproj --no-build --verbosity normal --framework ${{ matrix.framework }}
   buildSamples:
     runs-on: ubuntu-latest
     steps:
