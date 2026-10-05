@@ -49,7 +49,7 @@
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageVersion Include="Roslynator.CodeAnalysis.Analyzers" Version="5.0.0" />
+        <PackageVersion Include="Roslynator.CodeAnalysis.Analyzers" Version="5.0.1" />
         <PackageReference Include="Roslynator.CodeAnalysis.Analyzers">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
