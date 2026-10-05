@@ -14,9 +14,10 @@ public sealed class A2ACardResolver
     private readonly HttpClient _httpClient;
     private readonly Uri _agentCardPath;
     private readonly ILogger _logger;
+    private readonly long _maxAgentCardSize;
 
     /// <summary>
-    /// Initializes a new instance of <see cref="A2ACardResolver"/>.
+    /// Initializes a new instance of <see cref="A2ACardResolver"/> with a 1 MiB response size limit.
     /// </summary>
     /// <param name="baseUrl">The base url of the agent's hosting service.</param>
     /// <param name="httpClient">Optional HTTP client (if not provided, a shared one will be used).</param>
@@ -24,6 +25,25 @@ public sealed class A2ACardResolver
     /// <param name="logger">Optional logger.</param>
     public A2ACardResolver(
         Uri baseUrl,
+        HttpClient? httpClient = null,
+        string agentCardPath = "/.well-known/agent-card.json",
+        ILogger? logger = null)
+        : this(baseUrl, 1024 * 1024, httpClient, agentCardPath, logger)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of <see cref="A2ACardResolver"/> with a configured response size limit.
+    /// </summary>
+    /// <param name="baseUrl">The base url of the agent's hosting service.</param>
+    /// <param name="maxAgentCardSize">Maximum agent card response size in bytes, for either protocol version.
+    /// Must be positive and no greater than <see cref="int.MaxValue"/>.</param>
+    /// <param name="httpClient">Optional HTTP client (if not provided, a shared one will be used).</param>
+    /// <param name="agentCardPath">Path to the agent card (defaults to "/.well-known/agent-card.json").</param>
+    /// <param name="logger">Optional logger.</param>
+    public A2ACardResolver(
+        Uri baseUrl,
+        long maxAgentCardSize,
         HttpClient? httpClient = null,
         string agentCardPath = "/.well-known/agent-card.json",
         ILogger? logger = null)
@@ -38,17 +58,26 @@ public sealed class A2ACardResolver
             throw new ArgumentNullException(nameof(agentCardPath), "Agent card path cannot be null or empty.");
         }
 
+        if (maxAgentCardSize <= 0 || maxAgentCardSize > int.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxAgentCardSize), "Maximum agent card size must be between 1 and Int32.MaxValue bytes.");
+        }
+
         _agentCardPath = new Uri(baseUrl, agentCardPath.TrimStart('/'));
 
         _httpClient = httpClient ?? A2AClient.s_sharedClient;
 
         _logger = logger ?? NullLogger.Instance;
+        _maxAgentCardSize = maxAgentCardSize;
     }
 
     /// <summary>
     /// Gets the agent card asynchronously.
     /// </summary>
     /// <remarks>
+    /// The response is buffered within the configured size limit and parsed into a JSON document once.
+    /// On .NET 8, buffering cannot be canceled while in progress; cancellation is checked before
+    /// and after buffering and is passed to the subsequent stream read and JSON parsing.
     /// When a v0.3 card is upcast, its signatures are omitted because they bind the original
     /// v0.3 payload. Verify those signatures against the original payload, not the returned card.
     /// </remarks>
@@ -72,17 +101,30 @@ public sealed class A2ACardResolver
 
             response.EnsureSuccessStatusCode();
 
-            // Buffer the response so we can attempt multiple deserialization strategies
-            var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+#if NET8_0
+            await response.Content.LoadIntoBufferAsync(_maxAgentCardSize).ConfigureAwait(false);
+#else
+            await response.Content.LoadIntoBufferAsync(_maxAgentCardSize, cancellationToken).ConfigureAwait(false);
+#endif
+            cancellationToken.ThrowIfCancellationRequested();
+            using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+            // LoadIntoBufferAsync does not recheck the limit for previously buffered content.
+            if (stream.Length > _maxAgentCardSize)
+            {
+                throw new HttpRequestException($"Agent card response exceeds the configured maximum size of {_maxAgentCardSize} bytes.");
+            }
+
+            using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken).ConfigureAwait(false);
 
             try
             {
-                return JsonSerializer.Deserialize(bytes, A2AJsonUtilities.JsonContext.Default.AgentCard)
+                return document.RootElement.Deserialize(A2AJsonUtilities.JsonContext.Default.AgentCard)
                     ?? throw new A2AException("Failed to parse agent card JSON.");
             }
             catch (JsonException ex)
             {
-                var card = UpcastV03AgentCard(bytes);
+                var card = UpcastV03AgentCard(document.RootElement);
                 if (card is null)
                 {
                     throw;
@@ -116,13 +158,10 @@ public sealed class A2ACardResolver
     /// Signatures bind the original v0.3 payload and are not copied to the converted card.
     /// Signature verification must use the original v0.3 payload, not the upcast representation.
     /// </remarks>
-    /// <param name="bytes">The raw JSON bytes of the agent card response.</param>
+    /// <param name="root">The root of the parsed agent card response.</param>
     /// <returns>An upcast v1.0 <see cref="AgentCard"/> if the JSON is a valid v0.3 card; otherwise <c>null</c>.</returns>
-    private static AgentCard? UpcastV03AgentCard(byte[] bytes)
+    private static AgentCard? UpcastV03AgentCard(JsonElement root)
     {
-        using var doc = JsonDocument.Parse(bytes);
-        var root = doc.RootElement;
-
         if (root.ValueKind != JsonValueKind.Object)
         {
             return null;
@@ -146,7 +185,11 @@ public sealed class A2ACardResolver
             return null;
         }
 
-        var protocolVersion = pvElement.GetString() ?? "0.3";
+        var protocolVersion = pvElement.GetString();
+        if (protocolVersion is not ("0.3" or "0.3.0"))
+        {
+            return null;
+        }
 
         // Determine the protocol binding from preferredTransport (defaults to JSONRPC)
         var protocolBinding = ProtocolBindingNames.JsonRpc;
@@ -266,7 +309,7 @@ public sealed class A2ACardResolver
         {
             foreach (var skillElement in skills.EnumerateArray())
             {
-                var skill = JsonSerializer.Deserialize(skillElement.GetRawText(), A2AJsonUtilities.JsonContext.Default.AgentSkill);
+                var skill = skillElement.Deserialize(A2AJsonUtilities.JsonContext.Default.AgentSkill);
                 if (skill is not null)
                 {
                     if (skillElement.ValueKind == JsonValueKind.Object
@@ -289,7 +332,7 @@ public sealed class A2ACardResolver
         // Provider — same shape in v0.3 and v1 ({ organization, url })
         if (root.TryGetProperty("provider", out var provider) && provider.ValueKind == JsonValueKind.Object)
         {
-            card.Provider = JsonSerializer.Deserialize(provider.GetRawText(), A2AJsonUtilities.JsonContext.Default.AgentProvider);
+            card.Provider = provider.Deserialize(A2AJsonUtilities.JsonContext.Default.AgentProvider);
         }
 
         // SecuritySchemes — v0.3 uses a polymorphic type discriminator ("type": "apiKey"|"http"|...),
@@ -419,8 +462,7 @@ public sealed class A2ACardResolver
                 break;
 
             case "oauth2":
-                scheme.OAuth2SecurityScheme = JsonSerializer.Deserialize(
-                    element.GetRawText(), A2AJsonUtilities.JsonContext.Default.OAuth2SecurityScheme);
+                scheme.OAuth2SecurityScheme = element.Deserialize(A2AJsonUtilities.JsonContext.Default.OAuth2SecurityScheme);
                 break;
 
             case "openIdConnect":

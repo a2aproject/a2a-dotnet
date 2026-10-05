@@ -57,7 +57,7 @@ public class A2ACardResolverV03UpcastTests
 
         Assert.NotNull(card);
         Assert.Equal(3, card.SupportedInterfaces.Count);
-        Assert.Single(logger.Entries, entry => entry.EventId.Id == 5);
+        Assert.Equal(LogLevel.Warning, Assert.Single(logger.Entries, entry => entry.EventId.Id == 5).Level);
         Assert.DoesNotContain(logger.Entries, entry => entry.Level == LogLevel.Error);
 
         var primary = card.SupportedInterfaces[0];
@@ -419,6 +419,257 @@ public class A2ACardResolverV03UpcastTests
             CreateResolver("not-json", logger).GetAgentCardAsync(cancellation.Token));
 
         Assert.Empty(logger.Entries);
+    }
+
+    [Theory]
+    [InlineData("\"0.3\"", true)]
+    [InlineData("\"0.3.0\"", true)]
+    [InlineData("\"\"", false)]
+    [InlineData("\"1.0\"", false)]
+    [InlineData("\"0.2\"", false)]
+    [InlineData("\"0.3.1\"", false)]
+    [InlineData("\" 0.3\"", false)]
+    [InlineData("null", false)]
+    [InlineData("3", false)]
+    public async Task UpcastsV03Card_RequiresSupportedProtocolVersion(string versionJson, bool supported)
+    {
+        var json = $$"""{"url":"http://localhost/rpc","protocolVersion":{{versionJson}}}""";
+        var logger = new RecordingLogger();
+        var resolver = CreateResolver(json, logger);
+
+        if (supported)
+        {
+            var card = await resolver.GetAgentCardAsync();
+            Assert.Equal(JsonSerializer.Deserialize<string>(versionJson), Assert.Single(card.SupportedInterfaces).ProtocolVersion);
+            Assert.Equal(LogLevel.Warning, Assert.Single(logger.Entries, entry => entry.EventId.Id == 5).Level);
+        }
+        else
+        {
+            var exception = await Assert.ThrowsAsync<A2AException>(() => resolver.GetAgentCardAsync());
+            Assert.IsAssignableFrom<JsonException>(exception.InnerException);
+            Assert.Contains("supportedInterfaces", exception.Message);
+            Assert.Same(exception.InnerException, Assert.Single(logger.Entries, entry => entry.Level == LogLevel.Error).Exception);
+            Assert.DoesNotContain(logger.Entries, entry => entry.EventId.Id == 5);
+        }
+    }
+
+    [Fact]
+    public async Task UpcastsV03Card_MapsOAuth2AuthorizationCodeFlow()
+    {
+        const string json = """
+        {
+          "protocolVersion": "0.3",
+          "url": "http://localhost/rpc",
+          "securitySchemes": {
+            "oauth": {
+              "type": "oauth2",
+              "description": "OAuth authorization",
+              "flows": {
+                "authorizationCode": {
+                  "authorizationUrl": "https://auth.example.com/authorize",
+                  "tokenUrl": "https://auth.example.com/token",
+                  "refreshUrl": "https://auth.example.com/refresh",
+                  "scopes": { "read": "Read access", "write": "Write access" }
+                }
+              }
+            }
+          }
+        }
+        """;
+
+        var card = await CreateResolver(json).GetAgentCardAsync();
+
+        var oauth = card.SecuritySchemes!["oauth"].OAuth2SecurityScheme;
+        Assert.NotNull(oauth);
+        Assert.Equal("OAuth authorization", oauth.Description);
+        var flow = oauth.Flows.AuthorizationCode;
+        Assert.NotNull(flow);
+        Assert.Equal("https://auth.example.com/authorize", flow.AuthorizationUrl);
+        Assert.Equal("https://auth.example.com/token", flow.TokenUrl);
+        Assert.Equal("https://auth.example.com/refresh", flow.RefreshUrl);
+        Assert.Equal(2, flow.Scopes.Count);
+        Assert.Equal("Read access", flow.Scopes["read"]);
+        Assert.Equal("Write access", flow.Scopes["write"]);
+    }
+
+    [Fact]
+    public async Task UpcastsV03Card_MalformedOAuth2Flow_LogsAndThrowsA2AException()
+    {
+        const string json = """
+        {
+          "protocolVersion": "0.3",
+          "url": "http://localhost/rpc",
+          "securitySchemes": {
+            "oauth": { "type": "oauth2", "flows": { "authorizationCode": { "authorizationUrl": 42 } } }
+          }
+        }
+        """;
+        var logger = new RecordingLogger();
+
+        var exception = await Assert.ThrowsAsync<A2AException>(() => CreateResolver(json, logger).GetAgentCardAsync());
+
+        Assert.IsAssignableFrom<JsonException>(exception.InnerException);
+        Assert.Same(exception.InnerException, Assert.Single(logger.Entries, entry => entry.Level == LogLevel.Error).Exception);
+        Assert.DoesNotContain(logger.Entries, entry => entry.EventId.Id == 5);
+    }
+
+    [Theory]
+    [InlineData(false, 1, "known")]
+    [InlineData(false, 0, "known")]
+    [InlineData(false, -1, "known")]
+    [InlineData(true, 1, "known")]
+    [InlineData(true, 0, "known")]
+    [InlineData(true, -1, "known")]
+    [InlineData(false, 1, "absent")]
+    [InlineData(false, 0, "absent")]
+    [InlineData(false, -1, "absent")]
+    [InlineData(true, 1, "absent")]
+    [InlineData(true, 0, "absent")]
+    [InlineData(true, -1, "absent")]
+    [InlineData(false, 1, "underreported")]
+    [InlineData(false, 0, "underreported")]
+    [InlineData(false, -1, "underreported")]
+    [InlineData(true, 1, "underreported")]
+    [InlineData(true, 0, "underreported")]
+    [InlineData(true, -1, "underreported")]
+    public async Task GetAgentCardAsync_EnforcesActualByteLimit(bool v03, int limitOffset, string lengthHeader)
+    {
+        var json = GetSizeTestCardJson(v03);
+        var size = Encoding.UTF8.GetByteCount(json);
+        long? reportedLength = lengthHeader switch { "known" => size, "underreported" => 1, _ => null };
+        using var content = new StreamingContent(json, reportedLength);
+        using var client = new HttpClient(new MockHttpMessageHandler(new HttpResponseMessage(HttpStatusCode.OK) { Content = content }));
+        var logger = new RecordingLogger();
+        var resolver = new A2ACardResolver(new Uri("http://localhost"), maxAgentCardSize: size + limitOffset, httpClient: client, logger: logger);
+
+        if (limitOffset >= 0)
+        {
+            var card = await resolver.GetAgentCardAsync();
+            Assert.Equal("Test Agent", card.Name);
+        }
+        else
+        {
+            var exception = await Assert.ThrowsAsync<A2AException>(() => resolver.GetAgentCardAsync());
+            var httpException = Assert.IsType<HttpRequestException>(exception.InnerException);
+            Assert.Contains((size + limitOffset).ToString(System.Globalization.CultureInfo.InvariantCulture), httpException.Message);
+            Assert.Same(httpException, Assert.Single(logger.Entries, entry => entry.EventId.Id == 2).Exception);
+            Assert.DoesNotContain(logger.Entries, entry => entry.EventId.Id == 5);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GetAgentCardAsync_DefaultLimitIsOneMiB_AndCanBeIncreased(bool v03)
+    {
+        var json = GetSizeTestCardJson(v03);
+        json += new string(' ', 1048577 - Encoding.UTF8.GetByteCount(json));
+        using var content = new StreamingContent(json, null);
+        using var client = new HttpClient(new MockHttpMessageHandler(new HttpResponseMessage(HttpStatusCode.OK) { Content = content }));
+        var defaultResolver = new A2ACardResolver(new Uri("http://localhost"), client);
+
+        var exception = await Assert.ThrowsAsync<A2AException>(() => defaultResolver.GetAgentCardAsync());
+        Assert.IsType<HttpRequestException>(exception.InnerException);
+
+        using var largerContent = new StreamingContent(json, null);
+        using var largerClient = new HttpClient(new MockHttpMessageHandler(new HttpResponseMessage(HttpStatusCode.OK) { Content = largerContent }));
+        var configuredResolver = new A2ACardResolver(new Uri("http://localhost"), maxAgentCardSize: 1048577, httpClient: largerClient);
+        Assert.Equal("Test Agent", (await configuredResolver.GetAgentCardAsync()).Name);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GetAgentCardAsync_PreBufferedContent_StillEnforcesByteLimit(bool v03)
+    {
+        var json = GetSizeTestCardJson(v03);
+        using var content = new StreamingContent(json, 1);
+        await content.LoadIntoBufferAsync();
+        using var client = new HttpClient(new MockHttpMessageHandler(new HttpResponseMessage(HttpStatusCode.OK) { Content = content }));
+        var logger = new RecordingLogger();
+        var resolver = new A2ACardResolver(new Uri("http://localhost"), maxAgentCardSize: 1, httpClient: client, logger: logger);
+
+        var exception = await Assert.ThrowsAsync<A2AException>(() => resolver.GetAgentCardAsync());
+
+        Assert.IsType<HttpRequestException>(exception.InnerException);
+        Assert.Same(exception.InnerException, Assert.Single(logger.Entries, entry => entry.EventId.Id == 2).Exception);
+        Assert.DoesNotContain(logger.Entries, entry => entry.EventId.Id == 5);
+    }
+
+    [Fact]
+    public void Constructor_PreservesOriginalBinarySignatureAndOptionalDefaults()
+    {
+        var constructor = typeof(A2ACardResolver).GetConstructor(
+            [typeof(Uri), typeof(HttpClient), typeof(string), typeof(ILogger)]);
+
+        Assert.NotNull(constructor);
+        var parameters = constructor.GetParameters();
+        Assert.False(parameters[0].IsOptional);
+        Assert.True(parameters[1].IsOptional);
+        Assert.Null(parameters[1].DefaultValue);
+        Assert.True(parameters[2].IsOptional);
+        Assert.Equal("/.well-known/agent-card.json", parameters[2].DefaultValue);
+        Assert.True(parameters[3].IsOptional);
+        Assert.Null(parameters[3].DefaultValue);
+    }
+
+    [Theory]
+    [InlineData(0L)]
+    [InlineData(-1L)]
+    [InlineData(2147483648L)]
+    public void Constructor_RejectsInvalidSizeLimit(long limit)
+    {
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new A2ACardResolver(new Uri("http://localhost"), maxAgentCardSize: limit));
+        Assert.Equal("maxAgentCardSize", exception.ParamName);
+    }
+
+    [Fact]
+    public async Task GetAgentCardAsync_CancellationDuringBuffering_PropagatesWithoutParsing()
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var content = new StreamingContent(GetSizeTestCardJson(false), null, cancellation);
+        using var client = new HttpClient(new MockHttpMessageHandler(new HttpResponseMessage(HttpStatusCode.OK) { Content = content }));
+        var logger = new RecordingLogger();
+        var resolver = new A2ACardResolver(new Uri("http://localhost"), client, logger: logger);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => resolver.GetAgentCardAsync(cancellation.Token));
+
+        Assert.DoesNotContain(logger.Entries, entry => entry.EventId.Id is 1 or 2 or 5);
+    }
+
+    private static string GetSizeTestCardJson(bool v03) => v03
+        ? """{"protocolVersion":"0.3","url":"http://localhost/rpc","name":"Test Agent"}"""
+        : """
+        {
+          "name":"Test Agent","description":"A v1 agent","version":"1.0",
+          "supportedInterfaces":[{"url":"http://localhost/rpc","protocolBinding":"JSONRPC","protocolVersion":"1.0"}],
+          "capabilities":{},"defaultInputModes":[],"defaultOutputModes":[],"skills":[]
+        }
+        """;
+
+    private sealed class StreamingContent(string json, long? reportedLength, CancellationTokenSource? cancelOnWrite = null) : HttpContent
+    {
+        private readonly byte[] _bytes = Encoding.UTF8.GetBytes(json);
+
+        protected override bool TryComputeLength(out long length)
+        {
+            length = reportedLength ?? 0;
+            return reportedLength.HasValue;
+        }
+
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context)
+            => SerializeToStreamAsync(stream, context, CancellationToken.None);
+
+        protected override async Task SerializeToStreamAsync(Stream stream, TransportContext? context, CancellationToken cancellationToken)
+        {
+            if (cancelOnWrite is not null)
+            {
+                await cancelOnWrite.CancelAsync();
+            }
+
+            await stream.WriteAsync(_bytes, cancellationToken);
+        }
     }
 
     [Fact]
