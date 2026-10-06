@@ -22,8 +22,11 @@ a later run cannot exec a stale build.
 ### 1. Set Environment Variable
 
 ```bash
-export A2A_ITK_REVISION=main
+export A2A_ITK_REVISION=b57c5332aa883b27c1e5c915fe61cac76d2a1de9
 ```
+
+CI pins this revision so interoperability and conformance changes arrive through
+reviewed dependency updates rather than silently changing existing checks.
 
 ### 2. Execute Tests
 
@@ -82,7 +85,9 @@ Each transport leaves a full spec §13 report as `acts-report-dotnet-<transport>
 which is what says *why* a test failed. `acts/sut-behaviors.yaml` declares which `tck-*`
 behaviours the agent implements; `ActsBehaviors.cs` implements them, `ActsAuth.cs` handles
 the credential-gated tests, and `ActsClientParse.cs` runs canonical payloads through this
-SDK's own client for the §10 CLIENT-* tests.
+SDK's own client for the §10 CLIENT-* tests. PR ACTS runs require MUST conformance on both
+JSON-RPC and HTTP+JSON; either transport failing, missing, or producing a malformed report
+fails the workflow.
 
 ## Debugging
 

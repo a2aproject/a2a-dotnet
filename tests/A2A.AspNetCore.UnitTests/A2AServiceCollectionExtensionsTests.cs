@@ -29,6 +29,35 @@ public class A2AServiceCollectionExtensionsTests
         Assert.Equal(expectedErrorCode, exception.ErrorCode);
     }
 
+    [Fact]
+    public async Task AddA2AAgent_SynchronizesStreamingAndInputModeCapabilities()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddA2AAgent<TestAgentHandler>(new AgentCard
+        {
+            Capabilities = new AgentCapabilities { Streaming = false },
+            DefaultInputModes = ["text/plain"],
+            Skills =
+            [
+                new AgentSkill
+                {
+                    Id = "image",
+                    Name = "Image",
+                    Description = "Accepts images.",
+                    Tags = ["image"],
+                    InputModes = ["image/png"],
+                },
+            ],
+        });
+
+        await using var serviceProvider = services.BuildServiceProvider();
+        var options = serviceProvider.GetRequiredService<A2AServerOptions>();
+
+        Assert.False(options.SupportsStreaming);
+        Assert.Equal(["text/plain", "image/png"], options.SupportedInputModes);
+    }
+
     private sealed class TestAgentHandler : IAgentHandler
     {
         public Task ExecuteAsync(

@@ -282,7 +282,7 @@ internal sealed class A2AResponseResult : IResult
 
     public async Task ExecuteAsync(HttpContext httpContext)
     {
-        httpContext.Response.ContentType = "application/json";
+        httpContext.Response.ContentType = "application/a2a+json";
         await JsonSerializer.SerializeAsync(httpContext.Response.Body, _response,
             A2AJsonUtilities.DefaultOptions.GetTypeInfo(_responseType));
     }
