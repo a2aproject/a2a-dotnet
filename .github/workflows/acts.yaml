@@ -38,7 +38,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: a2aproject/a2a-itk
-          ref: main
+          ref: b57c5332aa883b27c1e5c915fe61cac76d2a1de9 # main, 2026-09-30
           path: itk/a2a-itk
 
       - name: Set up Docker Buildx
@@ -65,17 +65,66 @@ jobs:
             itk-launcher-${{ runner.os }}-
 
       - name: Run ACTS Conformance Suite
-        # Temporarily advisory: the driver gates on `must` conformance here,
-        # which this SDK does not pass yet. Delete this line to make it a
-        # merge requirement.
-        continue-on-error: true
         run: bash run_itk.sh
         working-directory: itk
         env:
-          A2A_ITK_REVISION: main
+          A2A_ITK_REVISION: b57c5332aa883b27c1e5c915fe61cac76d2a1de9
           ITK_ACTS_RUN: "1"
           ITK_ACTS_TRANSPORTS: jsonrpc,rest
           ITK_SKIP_BUILD: "1"
+
+      - name: Publish ACTS summary
+        if: always()
+        working-directory: itk
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import glob
+          import json
+          import os
+          import pathlib
+          import sys
+
+          expected = {"jsonrpc", "rest"}
+          reports = {}
+          for name in glob.glob("acts-report-*.json"):
+              with open(name, encoding="utf-8") as stream:
+                  report = json.load(stream)
+              transport = report["transport"]
+              if transport in reports:
+                  raise SystemExit(f"duplicate ACTS report for {transport}")
+              reports[transport] = report
+
+          if set(reports) != expected:
+              raise SystemExit(
+                  f"expected ACTS reports for {sorted(expected)}, got {sorted(reports)}"
+              )
+
+          lines = [
+              "## ACTS conformance",
+              "",
+              "| Transport | Conformant | MUST passed | MUST failed | MUST skipped | Total failed |",
+              "|---|---:|---:|---:|---:|---:|",
+          ]
+          for transport in sorted(reports):
+              report = reports[transport]
+              summary = report["summary"]
+              must = summary["by_level"]["must"]
+              conformant = must["failed"] == 0 and must["errors"] == 0
+              lines.append(
+                  f"| {transport} | {'yes' if conformant else 'no'} | "
+                  f"{must['passed']} | {must['failed']} | {must['skipped']} | "
+                  f"{summary['failed']} |"
+              )
+
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary_path:
+              pathlib.Path(summary_path).open("a", encoding="utf-8").write(
+                  "\n".join(lines) + "\n"
+              )
+          else:
+              print("\n".join(lines))
+          PY
 
       - name: Upload ACTS reports
         if: always()
