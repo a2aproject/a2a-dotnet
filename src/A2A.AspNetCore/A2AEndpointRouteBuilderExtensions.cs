@@ -56,6 +56,40 @@ public static class A2ARouteBuilderExtensions
         return routeGroup;
     }
 
+    /// <summary>
+    /// Enables the JSON-RPC A2A endpoint with additional custom operation mappings.
+    /// </summary>
+    /// <param name="endpoints">The endpoint route builder.</param>
+    /// <param name="requestHandler">The standard A2A request handler.</param>
+    /// <param name="path">The route path for the A2A endpoint.</param>
+    /// <param name="customRegistry">The custom operation registry.</param>
+    /// <param name="customBindings">The custom JSON-RPC method mappings.</param>
+    /// <returns>An endpoint convention builder for further configuration.</returns>
+    public static IEndpointConventionBuilder MapA2A(
+        this IEndpointRouteBuilder endpoints,
+        IA2ARequestHandler requestHandler,
+        [StringSyntax("Route")] string path,
+        A2ACustomOperationRegistry customRegistry,
+        A2AJsonRpcCustomOperationBindings customBindings)
+    {
+        ArgumentNullException.ThrowIfNull(endpoints);
+        ArgumentNullException.ThrowIfNull(requestHandler);
+        ArgumentException.ThrowIfNullOrEmpty(path);
+        ArgumentNullException.ThrowIfNull(customRegistry);
+        ArgumentNullException.ThrowIfNull(customBindings);
+
+        var routeGroup = endpoints.MapGroup("");
+        routeGroup.MapPost(path, (HttpRequest request, CancellationToken cancellationToken) =>
+            A2AJsonRpcProcessor.ProcessRequestAsync(
+                requestHandler,
+                request,
+                customRegistry,
+                customBindings,
+                cancellationToken));
+
+        return routeGroup;
+    }
+
     /// <summary>Enables the well-known agent card endpoint for agent discovery.</summary>
     /// <param name="endpoints">The endpoint route builder.</param>
     /// <param name="agentCard">The agent card to serve.</param>

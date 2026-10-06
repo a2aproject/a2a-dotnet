@@ -62,11 +62,38 @@ public sealed class A2ACustomOperationRegistry
         out CustomOperationRegistration registration) =>
         _registrations.TryGetValue(id, out registration!);
 
+    internal ValueTask<object?> InvokeAsync(
+        CustomOperationRegistration registration,
+        object request,
+        CancellationToken cancellationToken)
+    {
+        EnsureRegistration(registration);
+        return registration.InvokeUnaryAsync(request, cancellationToken);
+    }
+
+    internal IAsyncEnumerable<object?> InvokeStreamingAsync(
+        CustomOperationRegistration registration,
+        object request,
+        CancellationToken cancellationToken)
+    {
+        EnsureRegistration(registration);
+        return registration.InvokeStreamingAsync(request, cancellationToken);
+    }
+
     internal void EnsureOwnership(object registryToken)
     {
         if (!ReferenceEquals(_registryToken, registryToken))
         {
             throw new InvalidOperationException("The custom operation handle does not belong to this registry.");
+        }
+    }
+
+    private void EnsureRegistration(CustomOperationRegistration registration)
+    {
+        if (!_registrations.TryGetValue(registration.Id, out var registered) ||
+            !ReferenceEquals(registered, registration))
+        {
+            throw new InvalidOperationException("The custom operation registration does not belong to this registry.");
         }
     }
 }
