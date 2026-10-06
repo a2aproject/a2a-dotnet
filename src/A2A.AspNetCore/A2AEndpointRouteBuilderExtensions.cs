@@ -213,4 +213,94 @@ public static class A2ARouteBuilderExtensions
 
         return routeGroup;
     }
+
+    /// <summary>
+    /// Maps the standard HTTP+JSON A2A endpoints and additional custom operation routes.
+    /// </summary>
+    /// <param name="endpoints">The endpoint route builder.</param>
+    /// <param name="requestHandler">The standard A2A request handler.</param>
+    /// <param name="path">The route prefix for all standard and custom HTTP endpoints.</param>
+    /// <param name="customRegistry">The custom operation registry.</param>
+    /// <param name="customBindings">The custom HTTP route mappings.</param>
+    /// <returns>An endpoint convention builder for further configuration.</returns>
+    public static IEndpointConventionBuilder MapHttpA2A(
+        this IEndpointRouteBuilder endpoints,
+        IA2ARequestHandler requestHandler,
+        [StringSyntax("Route")] string path,
+        A2ACustomOperationRegistry customRegistry,
+        A2AHttpCustomOperationBindings customBindings)
+    {
+        ArgumentNullException.ThrowIfNull(endpoints);
+        ArgumentNullException.ThrowIfNull(requestHandler);
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(customRegistry);
+        ArgumentNullException.ThrowIfNull(customBindings);
+
+        var routeGroup = endpoints.MapGroup(path);
+        MapHttpA2A(routeGroup, requestHandler);
+        var logger = endpoints.ServiceProvider
+            .GetRequiredService<ILoggerFactory>()
+            .CreateLogger("A2A.REST.Custom");
+
+        foreach (var binding in customBindings.Items)
+        {
+            routeGroup.MapMethods(
+                binding.Route,
+                [binding.HttpMethod],
+                async context =>
+                {
+                    try
+                    {
+                        var request = await binding.BindAsync(
+                            context,
+                            context.RequestAborted).ConfigureAwait(false);
+                        IResult result;
+                        if (binding.Registration.Kind == A2ACustomOperationKind.Streaming)
+                        {
+                            result = new CustomHttpStreamedResult(
+                                customRegistry.InvokeStreamingAsync(
+                                    binding.Registration,
+                                    request!,
+                                    context.RequestAborted),
+                                binding.Registration.OutputTypeInfo,
+                                logger);
+                        }
+                        else
+                        {
+                            var response = await customRegistry.InvokeAsync(
+                                binding.Registration,
+                                request!,
+                                context.RequestAborted).ConfigureAwait(false);
+                            result = new CustomHttpJsonResult(
+                                response,
+                                binding.Registration.OutputTypeInfo);
+                        }
+
+                        await result.ExecuteAsync(context).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+                    {
+                        // Client disconnected.
+                    }
+                    catch (A2AException exception)
+                    {
+                        await new A2AErrorResult(exception)
+                            .ExecuteAsync(context)
+                            .ConfigureAwait(false);
+                    }
+                    catch (Exception exception)
+                    {
+                        logger.UnexpectedErrorInActivityName(exception, "custom HTTP operation");
+                        await new A2AErrorResult(
+                            new A2AException(
+                                "An internal error occurred.",
+                                A2AErrorCode.InternalError))
+                            .ExecuteAsync(context)
+                            .ConfigureAwait(false);
+                    }
+                });
+        }
+
+        return routeGroup;
+    }
 }
