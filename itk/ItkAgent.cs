@@ -512,7 +512,7 @@ public sealed class ItkAgent(IHttpClientFactory httpClientFactory, ILogger<ItkAg
                 Tags = ["itk", "acts"],
             },
         ],
-        DefaultInputModes = ["text/plain"],
+        DefaultInputModes = ["text/plain", "application/x-protobuf"],
         DefaultOutputModes = ["text/plain"],
         SupportedInterfaces =
         [

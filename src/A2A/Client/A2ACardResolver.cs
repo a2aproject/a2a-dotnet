@@ -14,9 +14,10 @@ public sealed class A2ACardResolver
     private readonly HttpClient _httpClient;
     private readonly Uri _agentCardPath;
     private readonly ILogger _logger;
+    private readonly long _maxAgentCardSize;
 
     /// <summary>
-    /// Initializes a new instance of <see cref="A2ACardResolver"/>.
+    /// Initializes a new instance of <see cref="A2ACardResolver"/> with a 1 MiB response size limit.
     /// </summary>
     /// <param name="baseUrl">The base url of the agent's hosting service.</param>
     /// <param name="httpClient">Optional HTTP client (if not provided, a shared one will be used).</param>
@@ -24,6 +25,25 @@ public sealed class A2ACardResolver
     /// <param name="logger">Optional logger.</param>
     public A2ACardResolver(
         Uri baseUrl,
+        HttpClient? httpClient = null,
+        string agentCardPath = "/.well-known/agent-card.json",
+        ILogger? logger = null)
+        : this(baseUrl, 1024 * 1024, httpClient, agentCardPath, logger)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of <see cref="A2ACardResolver"/> with a configured response size limit.
+    /// </summary>
+    /// <param name="baseUrl">The base url of the agent's hosting service.</param>
+    /// <param name="maxAgentCardSize">Maximum agent card response size in bytes, for either protocol version.
+    /// Must be positive and no greater than <see cref="int.MaxValue"/>.</param>
+    /// <param name="httpClient">Optional HTTP client (if not provided, a shared one will be used).</param>
+    /// <param name="agentCardPath">Path to the agent card (defaults to "/.well-known/agent-card.json").</param>
+    /// <param name="logger">Optional logger.</param>
+    public A2ACardResolver(
+        Uri baseUrl,
+        long maxAgentCardSize,
         HttpClient? httpClient = null,
         string agentCardPath = "/.well-known/agent-card.json",
         ILogger? logger = null)
@@ -38,16 +58,29 @@ public sealed class A2ACardResolver
             throw new ArgumentNullException(nameof(agentCardPath), "Agent card path cannot be null or empty.");
         }
 
+        if (maxAgentCardSize <= 0 || maxAgentCardSize > int.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxAgentCardSize), "Maximum agent card size must be between 1 and Int32.MaxValue bytes.");
+        }
+
         _agentCardPath = new Uri(baseUrl, agentCardPath.TrimStart('/'));
 
         _httpClient = httpClient ?? A2AClient.s_sharedClient;
 
         _logger = logger ?? NullLogger.Instance;
+        _maxAgentCardSize = maxAgentCardSize;
     }
 
     /// <summary>
     /// Gets the agent card asynchronously.
     /// </summary>
+    /// <remarks>
+    /// The response is buffered within the configured size limit and parsed into a JSON document once.
+    /// On .NET 8, buffering cannot be canceled while in progress; cancellation is checked before
+    /// and after buffering and is passed to the subsequent stream read and JSON parsing.
+    /// When a v0.3 card is upcast, its signatures are omitted because they bind the original
+    /// v0.3 payload. Verify those signatures against the original payload, not the returned card.
+    /// </remarks>
     /// <param name="cancellationToken">Optional cancellation token.</param>
     /// <returns>The agent card.</returns>
     public async Task<AgentCard> GetAgentCardAsync(CancellationToken cancellationToken = default)
@@ -68,16 +101,44 @@ public sealed class A2ACardResolver
 
             response.EnsureSuccessStatusCode();
 
-            using var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+#if NET8_0
+            await response.Content.LoadIntoBufferAsync(_maxAgentCardSize).ConfigureAwait(false);
+#else
+            await response.Content.LoadIntoBufferAsync(_maxAgentCardSize, cancellationToken).ConfigureAwait(false);
+#endif
+            cancellationToken.ThrowIfCancellationRequested();
+            using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+            // LoadIntoBufferAsync does not recheck the limit for previously buffered content.
+            if (stream.Length > _maxAgentCardSize)
+            {
+                throw new HttpRequestException($"Agent card response exceeds the configured maximum size of {_maxAgentCardSize} bytes.");
+            }
 
-            return await JsonSerializer.DeserializeAsync(responseStream, A2AJsonUtilities.JsonContext.Default.AgentCard, cancellationToken).ConfigureAwait(false) ??
-                throw new A2AException("Failed to parse agent card JSON.");
+            using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+            try
+            {
+                return document.RootElement.Deserialize(A2AJsonUtilities.JsonContext.Default.AgentCard)
+                    ?? throw new A2AException("Failed to parse agent card JSON.");
+            }
+            catch (JsonException ex)
+            {
+                var card = UpcastV03AgentCard(document.RootElement);
+                if (card is null)
+                {
+                    throw;
+                }
+
+                _logger.UpcastV03AgentCard(ex);
+                return card;
+            }
         }
         catch (JsonException ex)
         {
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             _logger.FailedToParseAgentCardJson(ex);
-            throw new A2AException($"Failed to parse JSON: {ex.Message}");
+            throw new A2AException($"Failed to parse JSON: {ex.Message}", ex);
         }
         catch (HttpRequestException ex)
         {
@@ -87,5 +148,357 @@ public sealed class A2ACardResolver
             _logger.HttpRequestFailedWithStatusCode(ex, statusCode);
             throw new A2AException("HTTP request failed", ex);
         }
+    }
+
+    /// <summary>
+    /// Attempts to parse a v0.3 agent card and upcast it to a v1.0 <see cref="AgentCard"/>.
+    /// A v0.3 card has a top-level "url" and optional "preferredTransport" instead of "supportedInterfaces".
+    /// </summary>
+    /// <remarks>
+    /// Signatures bind the original v0.3 payload and are not copied to the converted card.
+    /// Signature verification must use the original v0.3 payload, not the upcast representation.
+    /// </remarks>
+    /// <param name="root">The root of the parsed agent card response.</param>
+    /// <returns>An upcast v1.0 <see cref="AgentCard"/> if the JSON is a valid v0.3 card; otherwise <c>null</c>.</returns>
+    private static AgentCard? UpcastV03AgentCard(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        // v0.3 cards MUST have a "url" property
+        if (!root.TryGetProperty("url", out var urlElement) || urlElement.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+
+        var url = urlElement.GetString();
+        if (string.IsNullOrEmpty(url))
+        {
+            return null;
+        }
+
+        // v0.3 cards MUST have a top-level "protocolVersion" — use as a discriminator since we only reach here after v1.0 deserialization failed
+        if (!root.TryGetProperty("protocolVersion", out var pvElement) || pvElement.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+
+        var protocolVersion = pvElement.GetString();
+        if (protocolVersion is not ("0.3" or "0.3.0"))
+        {
+            return null;
+        }
+
+        // Determine the protocol binding from preferredTransport (defaults to JSONRPC)
+        var protocolBinding = ProtocolBindingNames.JsonRpc;
+        if (root.TryGetProperty("preferredTransport", out var transportElement))
+        {
+            var transport = ExtractTransportName(transportElement);
+            if (!string.IsNullOrEmpty(transport))
+            {
+                protocolBinding = MapV03TransportToBinding(transport!);
+            }
+        }
+
+        // Build the supportedInterfaces list from the v0.3 url + preferredTransport
+        var interfaces = new List<AgentInterface>
+        {
+            new()
+            {
+                ProtocolBinding = protocolBinding,
+                Url = url,
+                ProtocolVersion = protocolVersion,
+            }
+        };
+
+        // Also include additionalInterfaces if present.
+        // v0.3 entries have shape { "transport": "...", "url": "..." }, which does not
+        // match v1's AgentInterface shape { "url", "protocolBinding", "protocolVersion" }.
+        // Map explicitly so HTTP+JSON / GRPC bindings are preserved rather than silently
+        // defaulted to JSONRPC by the v1 deserializer.
+        if (root.TryGetProperty("additionalInterfaces", out var addlInterfaces) && addlInterfaces.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var iface in addlInterfaces.EnumerateArray())
+            {
+                if (iface.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                if (!iface.TryGetProperty("url", out var ifaceUrlElement) || ifaceUrlElement.ValueKind != JsonValueKind.String)
+                {
+                    continue;
+                }
+
+                var ifaceUrl = ifaceUrlElement.GetString();
+                if (string.IsNullOrEmpty(ifaceUrl))
+                {
+                    continue;
+                }
+
+                if (!iface.TryGetProperty("transport", out var ifaceTransportElement)
+                    || ifaceTransportElement.ValueKind != JsonValueKind.String)
+                {
+                    continue;
+                }
+
+                var ifaceTransport = ifaceTransportElement.GetString();
+                if (string.IsNullOrEmpty(ifaceTransport))
+                {
+                    continue;
+                }
+
+                interfaces.Add(new AgentInterface
+                {
+                    Url = ifaceUrl!,
+                    ProtocolBinding = MapV03TransportToBinding(ifaceTransport!),
+                    ProtocolVersion = protocolVersion,
+                });
+            }
+        }
+
+        // Extract common fields
+        var card = new AgentCard
+        {
+            Name = root.TryGetProperty("name", out var name) && name.ValueKind == JsonValueKind.String ? name.GetString() ?? "" : "",
+            Description = root.TryGetProperty("description", out var desc) && desc.ValueKind == JsonValueKind.String ? desc.GetString() ?? "" : "",
+            Version = root.TryGetProperty("version", out var ver) && ver.ValueKind == JsonValueKind.String ? ver.GetString() ?? "0.3" : "0.3",
+            SupportedInterfaces = interfaces,
+            Capabilities = new AgentCapabilities(),
+            DefaultInputModes = ["text/plain"],
+            DefaultOutputModes = ["text/plain"],
+            Skills = [],
+        };
+
+        // Parse capabilities
+        if (root.TryGetProperty("capabilities", out var caps) && caps.ValueKind == JsonValueKind.Object)
+        {
+            if (caps.TryGetProperty("streaming", out var streaming))
+                card.Capabilities.Streaming = streaming.ValueKind == JsonValueKind.True;
+            if (caps.TryGetProperty("pushNotifications", out var push))
+                card.Capabilities.PushNotifications = push.ValueKind == JsonValueKind.True;
+        }
+
+        if (root.TryGetProperty("supportsAuthenticatedExtendedCard", out var extendedCard)
+            && extendedCard.ValueKind is JsonValueKind.True or JsonValueKind.False)
+        {
+            card.Capabilities.ExtendedAgentCard = extendedCard.GetBoolean();
+        }
+
+        // Parse default modes if present
+        if (root.TryGetProperty("defaultInputModes", out var inputModes) && inputModes.ValueKind == JsonValueKind.Array)
+        {
+            card.DefaultInputModes = inputModes.EnumerateArray()
+                .Where(e => e.ValueKind == JsonValueKind.String)
+                .Select(e => e.GetString()!)
+                .ToList();
+        }
+
+        if (root.TryGetProperty("defaultOutputModes", out var outputModes) && outputModes.ValueKind == JsonValueKind.Array)
+        {
+            card.DefaultOutputModes = outputModes.EnumerateArray()
+                .Where(e => e.ValueKind == JsonValueKind.String)
+                .Select(e => e.GetString()!)
+                .ToList();
+        }
+
+        // Parse skills if present
+        if (root.TryGetProperty("skills", out var skills) && skills.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var skillElement in skills.EnumerateArray())
+            {
+                var skill = skillElement.Deserialize(A2AJsonUtilities.JsonContext.Default.AgentSkill);
+                if (skill is not null)
+                {
+                    if (skillElement.ValueKind == JsonValueKind.Object
+                        && skillElement.TryGetProperty("security", out var skillSecurity)
+                        && skillSecurity.ValueKind == JsonValueKind.Array)
+                    {
+                        skill.SecurityRequirements = MapV03SecurityRequirements(skillSecurity);
+                    }
+
+                    card.Skills.Add(skill);
+                }
+            }
+        }
+
+        if (root.TryGetProperty("documentationUrl", out var docUrl) && docUrl.ValueKind == JsonValueKind.String)
+            card.DocumentationUrl = docUrl.GetString();
+        if (root.TryGetProperty("iconUrl", out var iconUrl) && iconUrl.ValueKind == JsonValueKind.String)
+            card.IconUrl = iconUrl.GetString();
+
+        // Provider — same shape in v0.3 and v1 ({ organization, url })
+        if (root.TryGetProperty("provider", out var provider) && provider.ValueKind == JsonValueKind.Object)
+        {
+            card.Provider = provider.Deserialize(A2AJsonUtilities.JsonContext.Default.AgentProvider);
+        }
+
+        // SecuritySchemes — v0.3 uses a polymorphic type discriminator ("type": "apiKey"|"http"|...),
+        // while v1 uses a flat container with optional sub-scheme fields. Deserialize each entry
+        // as v0.3, then map to v1's flat shape.
+        if (root.TryGetProperty("securitySchemes", out var schemes) && schemes.ValueKind == JsonValueKind.Object)
+        {
+            card.SecuritySchemes = [];
+            foreach (var prop in schemes.EnumerateObject())
+            {
+                var v1Scheme = MapV03SecurityScheme(prop.Value);
+                if (v1Scheme is not null)
+                {
+                    card.SecuritySchemes[prop.Name] = v1Scheme;
+                }
+            }
+        }
+
+        // Security — v0.3 uses List<Dictionary<string, string[]>>,
+        // v1 uses List<SecurityRequirement> where each has a Schemes dictionary.
+        if (root.TryGetProperty("security", out var security) && security.ValueKind == JsonValueKind.Array)
+        {
+            card.SecurityRequirements = MapV03SecurityRequirements(security);
+        }
+
+        return card;
+    }
+
+    private static List<SecurityRequirement> MapV03SecurityRequirements(JsonElement security)
+    {
+        var requirements = new List<SecurityRequirement>();
+        foreach (var reqElement in security.EnumerateArray())
+        {
+            if (reqElement.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            var requirement = new SecurityRequirement { Schemes = [] };
+            foreach (var prop in reqElement.EnumerateObject())
+            {
+                var scopes = new StringList();
+                if (prop.Value.ValueKind == JsonValueKind.Array)
+                {
+                    scopes.List = prop.Value.EnumerateArray()
+                        .Where(e => e.ValueKind == JsonValueKind.String)
+                        .Select(e => e.GetString()!)
+                        .ToList();
+                }
+
+                requirement.Schemes[prop.Name] = scopes;
+            }
+
+            requirements.Add(requirement);
+        }
+
+        return requirements;
+    }
+
+    /// <summary>
+    /// Extracts a transport name from a v0.3 transport JSON element. v0.3 uses a string
+    /// (e.g. "JSONRPC"), but some producers wrap it as { "value": "JSONRPC" }.
+    /// </summary>
+    /// <param name="element">The JSON element to inspect.</param>
+    /// <returns>The transport name, or <c>null</c> if none could be extracted.</returns>
+    private static string? ExtractTransportName(JsonElement element) =>
+        element.ValueKind == JsonValueKind.String
+            ? element.GetString()
+            : element.ValueKind == JsonValueKind.Object
+              && element.TryGetProperty("value", out var val)
+              && val.ValueKind == JsonValueKind.String
+                ? val.GetString()
+                : null;
+
+    /// <summary>
+    /// Maps a v0.3 transport name to a v1 protocol binding name.
+    /// Unknown values are passed through so custom bindings still round-trip.
+    /// </summary>
+    /// <param name="transport">The v0.3 transport name.</param>
+    /// <returns>The corresponding v1 protocol binding name.</returns>
+    private static string MapV03TransportToBinding(string transport) =>
+        transport.ToUpperInvariant() switch
+        {
+            "JSONRPC" or "JSON-RPC" => ProtocolBindingNames.JsonRpc,
+            "HTTP+JSON" or "HTTP_JSON" or "REST" => ProtocolBindingNames.HttpJson,
+            "GRPC" => ProtocolBindingNames.Grpc,
+            _ => transport,
+        };
+
+    /// <summary>
+    /// Maps a v0.3 polymorphic SecurityScheme (discriminated by "type") to a v1 flat SecurityScheme container.
+    /// </summary>
+    /// <param name="element">A <see cref="JsonElement"/> representing a single v0.3 security scheme entry.</param>
+    private static SecurityScheme? MapV03SecurityScheme(JsonElement element)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        if (!element.TryGetProperty("type", out var typeElement) || typeElement.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+
+        var type = typeElement.GetString();
+        var scheme = new SecurityScheme();
+
+        switch (type)
+        {
+            case "apiKey":
+                scheme.ApiKeySecurityScheme = new ApiKeySecurityScheme
+                {
+                    Name = GetV03SecuritySchemeString(element, "name") ?? string.Empty,
+                    Location = GetV03SecuritySchemeString(element, "in") ?? string.Empty,
+                    Description = GetV03SecuritySchemeString(element, "description"),
+                };
+                break;
+
+            case "http":
+                scheme.HttpAuthSecurityScheme = new HttpAuthSecurityScheme
+                {
+                    Scheme = GetV03SecuritySchemeString(element, "scheme") ?? string.Empty,
+                    BearerFormat = GetV03SecuritySchemeString(element, "bearerFormat"),
+                    Description = GetV03SecuritySchemeString(element, "description"),
+                };
+                break;
+
+            case "oauth2":
+                scheme.OAuth2SecurityScheme = element.Deserialize(A2AJsonUtilities.JsonContext.Default.OAuth2SecurityScheme);
+                break;
+
+            case "openIdConnect":
+                scheme.OpenIdConnectSecurityScheme = new OpenIdConnectSecurityScheme
+                {
+                    OpenIdConnectUrl = GetV03SecuritySchemeString(element, "openIdConnectUrl") ?? string.Empty,
+                    Description = GetV03SecuritySchemeString(element, "description"),
+                };
+                break;
+
+            case "mutualTLS":
+                scheme.MtlsSecurityScheme = new MutualTlsSecurityScheme
+                {
+                    Description = GetV03SecuritySchemeString(element, "description"),
+                };
+                break;
+
+            default:
+                return null;
+        }
+
+        return scheme;
+    }
+
+    private static string? GetV03SecuritySchemeString(JsonElement element, string propertyName)
+    {
+        if (!element.TryGetProperty(propertyName, out var value) || value.ValueKind == JsonValueKind.Null)
+        {
+            return null;
+        }
+
+        if (value.ValueKind != JsonValueKind.String)
+        {
+            throw new JsonException($"Security scheme property '{propertyName}' must be a string.");
+        }
+
+        return value.GetString();
     }
 }

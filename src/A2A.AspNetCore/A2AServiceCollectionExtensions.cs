@@ -32,6 +32,11 @@ public static class A2AServiceCollectionExtensions
         var options = new A2AServerOptions();
         configureOptions?.Invoke(options);
         options.SupportsExtendedAgentCard = agentCard.Capabilities.ExtendedAgentCard == true;
+        options.SupportsStreaming = agentCard.Capabilities.Streaming == true;
+        options.SupportedInputModes = agentCard.DefaultInputModes
+            .Concat(agentCard.Skills.SelectMany(skill => skill.InputModes ?? []))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
         services.AddSingleton(options);
 
         services.TryAddSingleton<ChannelEventNotifier>();
