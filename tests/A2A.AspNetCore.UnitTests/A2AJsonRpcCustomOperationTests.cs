@@ -12,8 +12,21 @@ public sealed class A2AJsonRpcCustomOperationTests
     [Fact]
     public async Task ProcessRequestAsync_CustomUnaryMethod_InvokesTypedHandler()
     {
-        var (registry, bindings) = CreateUnaryBindings(
-            (request, _) => ValueTask.FromResult(new CustomResult(request.Value.ToUpperInvariant())));
+        HttpContext? handlerContext = null;
+        var builder = new A2ACustomOperationRegistryBuilder();
+        var operation = builder.Map<CustomRequest, CustomResult>(
+            new A2AOperationId("https://example.test/operations#echo"),
+            (context, request, _) =>
+            {
+                handlerContext = context.GetRequiredFeature<HttpContext>();
+                return ValueTask.FromResult(new CustomResult(request.Value.ToUpperInvariant()));
+            },
+            CustomJsonContext.Default.CustomRequest,
+            CustomJsonContext.Default.CustomResult);
+        var registry = builder.Build();
+        var bindings = new A2AJsonRpcCustomOperationBuilder()
+            .Map("example/echo", operation)
+            .Build(registry);
         var request = CreateRequest("""
             {
               "jsonrpc": "2.0",
@@ -33,6 +46,7 @@ public sealed class A2AJsonRpcCustomOperationTests
         var response = await ExecuteJsonResultAsync(result);
         Assert.Equal("custom-1", response.Id.ToString());
         Assert.Equal("HELLO", response.Result!["value"]!.GetValue<string>());
+        Assert.Same(request.HttpContext, handlerContext);
     }
 
     [Fact]

@@ -16,11 +16,16 @@ public sealed class A2AHttpCustomOperationTests
     [Fact]
     public async Task MapHttpA2A_CustomUnaryRoute_BindsAndInvokesTypedHandler()
     {
+        HttpContext? handlerContext = null;
         var builder = new A2ACustomOperationRegistryBuilder();
         var operation = builder.Map<HttpCustomRequest, HttpCustomResult>(
             new A2AOperationId("https://example.test/operations#resume"),
-            (request, _) => ValueTask.FromResult(
-                new HttpCustomResult($"{request.TaskId}:{request.Token}:{request.Value}")),
+            (context, request, _) =>
+            {
+                handlerContext = context.GetRequiredFeature<HttpContext>();
+                return ValueTask.FromResult(
+                    new HttpCustomResult($"{request.TaskId}:{request.Token}:{request.Value}"));
+            },
             HttpCustomJsonContext.Default.HttpCustomRequest,
             HttpCustomJsonContext.Default.HttpCustomResult);
         var registry = builder.Build();
@@ -64,6 +69,7 @@ public sealed class A2AHttpCustomOperationTests
             context.Response.Body,
             HttpCustomJsonContext.Default.HttpCustomResult);
         Assert.Equal("task-1:token-1:payload", response!.Value);
+        Assert.Same(context, handlerContext);
     }
 
     [Fact]

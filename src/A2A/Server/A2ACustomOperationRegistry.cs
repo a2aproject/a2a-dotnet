@@ -35,7 +35,10 @@ public sealed class A2ACustomOperationRegistry
     {
         ArgumentNullException.ThrowIfNull(operation);
         EnsureOwnership(operation.RegistryToken);
-        return operation.Registration.InvokeAsync(request, cancellationToken);
+        return operation.Registration.InvokeAsync(
+            new A2ACustomOperationContext(),
+            request,
+            cancellationToken);
     }
 
     /// <summary>
@@ -54,7 +57,54 @@ public sealed class A2ACustomOperationRegistry
     {
         ArgumentNullException.ThrowIfNull(operation);
         EnsureOwnership(operation.RegistryToken);
-        return operation.Registration.InvokeAsync(request, cancellationToken);
+        return operation.Registration.InvokeAsync(
+            new A2ACustomOperationContext(),
+            request,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Invokes a registered unary custom operation with request-scoped host context.
+    /// </summary>
+    /// <typeparam name="TRequest">The request type.</typeparam>
+    /// <typeparam name="TResult">The result type.</typeparam>
+    /// <param name="operation">The registered operation handle.</param>
+    /// <param name="context">The request-scoped operation context.</param>
+    /// <param name="request">The typed request.</param>
+    /// <param name="cancellationToken">The request cancellation token.</param>
+    /// <returns>The operation result.</returns>
+    public ValueTask<TResult> InvokeAsync<TRequest, TResult>(
+        A2ACustomOperation<TRequest, TResult> operation,
+        A2ACustomOperationContext context,
+        TRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        ArgumentNullException.ThrowIfNull(context);
+        EnsureOwnership(operation.RegistryToken);
+        return operation.Registration.InvokeAsync(context, request, cancellationToken);
+    }
+
+    /// <summary>
+    /// Invokes a registered server-streaming custom operation with request-scoped host context.
+    /// </summary>
+    /// <typeparam name="TRequest">The request type.</typeparam>
+    /// <typeparam name="TEvent">The streamed event type.</typeparam>
+    /// <param name="operation">The registered operation handle.</param>
+    /// <param name="context">The request-scoped operation context.</param>
+    /// <param name="request">The typed request.</param>
+    /// <param name="cancellationToken">The request cancellation token.</param>
+    /// <returns>The operation event stream.</returns>
+    public IAsyncEnumerable<TEvent> InvokeStreamingAsync<TRequest, TEvent>(
+        A2AStreamingCustomOperation<TRequest, TEvent> operation,
+        A2ACustomOperationContext context,
+        TRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        ArgumentNullException.ThrowIfNull(context);
+        EnsureOwnership(operation.RegistryToken);
+        return operation.Registration.InvokeAsync(context, request, cancellationToken);
     }
 
     internal bool TryGetRegistration(
@@ -64,20 +114,22 @@ public sealed class A2ACustomOperationRegistry
 
     internal ValueTask<object?> InvokeAsync(
         CustomOperationRegistration registration,
+        A2ACustomOperationContext context,
         object request,
         CancellationToken cancellationToken)
     {
         EnsureRegistration(registration);
-        return registration.InvokeUnaryAsync(request, cancellationToken);
+        return registration.InvokeUnaryAsync(context, request, cancellationToken);
     }
 
     internal IAsyncEnumerable<object?> InvokeStreamingAsync(
         CustomOperationRegistration registration,
+        A2ACustomOperationContext context,
         object request,
         CancellationToken cancellationToken)
     {
         EnsureRegistration(registration);
-        return registration.InvokeStreamingAsync(request, cancellationToken);
+        return registration.InvokeStreamingAsync(context, request, cancellationToken);
     }
 
     internal void EnsureOwnership(object registryToken)

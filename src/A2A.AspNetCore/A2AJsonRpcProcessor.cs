@@ -25,7 +25,12 @@ public static class A2AJsonRpcProcessor
         return null;
     }
 
-    internal static async Task<IResult> ProcessRequestAsync(IA2ARequestHandler requestHandler, HttpRequest request, CancellationToken cancellationToken)
+    /// <summary>Processes a JSON-RPC request using the standard A2A operations.</summary>
+    /// <param name="requestHandler">The standard A2A request handler.</param>
+    /// <param name="request">The HTTP request containing the JSON-RPC payload.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The HTTP result for the JSON-RPC response.</returns>
+    public static async Task<IResult> ProcessRequestAsync(IA2ARequestHandler requestHandler, HttpRequest request, CancellationToken cancellationToken)
         => await ProcessRequestAsync(
             requestHandler,
             request,
@@ -33,7 +38,14 @@ public static class A2AJsonRpcProcessor
             customBindings: null,
             cancellationToken).ConfigureAwait(false);
 
-    internal static async Task<IResult> ProcessRequestAsync(
+    /// <summary>Processes a JSON-RPC request using standard and custom A2A operations.</summary>
+    /// <param name="requestHandler">The standard A2A request handler.</param>
+    /// <param name="request">The HTTP request containing the JSON-RPC payload.</param>
+    /// <param name="customRegistry">The optional custom operation registry.</param>
+    /// <param name="customBindings">The optional custom JSON-RPC method mappings.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The HTTP result for the JSON-RPC response.</returns>
+    public static async Task<IResult> ProcessRequestAsync(
         IA2ARequestHandler requestHandler,
         HttpRequest request,
         A2ACustomOperationRegistry? customRegistry,
@@ -59,6 +71,9 @@ public static class A2AJsonRpcProcessor
             {
                 return StreamResponse(
                     requestHandler,
+                    new A2ACustomOperationContext(
+                        request.HttpContext.RequestServices,
+                        request.HttpContext),
                     rpcRequest.Id,
                     rpcRequest.Method,
                     rpcRequest.Params,
@@ -69,6 +84,9 @@ public static class A2AJsonRpcProcessor
 
             return await SingleResponseAsync(
                 requestHandler,
+                new A2ACustomOperationContext(
+                    request.HttpContext.RequestServices,
+                    request.HttpContext),
                 rpcRequest.Id,
                 rpcRequest.Method,
                 rpcRequest.Params,
@@ -108,6 +126,7 @@ public static class A2AJsonRpcProcessor
     internal static async Task<JsonRpcResponseResult> SingleResponseAsync(IA2ARequestHandler requestHandler, JsonRpcId requestId, string method, JsonElement? parameters, CancellationToken cancellationToken)
         => await SingleResponseAsync(
             requestHandler,
+            new A2ACustomOperationContext(),
             requestId,
             method,
             parameters,
@@ -117,6 +136,7 @@ public static class A2AJsonRpcProcessor
 
     private static async Task<JsonRpcResponseResult> SingleResponseAsync(
         IA2ARequestHandler requestHandler,
+        A2ACustomOperationContext operationContext,
         JsonRpcId requestId,
         string method,
         JsonElement? parameters,
@@ -233,6 +253,7 @@ public static class A2AJsonRpcProcessor
                     var customRequest = DeserializeCustomRequest(parameters.Value, binding.Registration);
                     var customResult = await customRegistry.InvokeAsync(
                         binding.Registration,
+                        operationContext,
                         customRequest,
                         cancellationToken).ConfigureAwait(false);
                     response = JsonRpcResponse.CreateJsonRpcResponse(
@@ -278,6 +299,7 @@ public static class A2AJsonRpcProcessor
     internal static IResult StreamResponse(IA2ARequestHandler requestHandler, JsonRpcId requestId, string method, JsonElement? parameters, CancellationToken cancellationToken)
         => StreamResponse(
             requestHandler,
+            new A2ACustomOperationContext(),
             requestId,
             method,
             parameters,
@@ -287,6 +309,7 @@ public static class A2AJsonRpcProcessor
 
     private static IResult StreamResponse(
         IA2ARequestHandler requestHandler,
+        A2ACustomOperationContext operationContext,
         JsonRpcId requestId,
         string method,
         JsonElement? parameters,
@@ -321,6 +344,7 @@ public static class A2AJsonRpcProcessor
                     var customRequest = DeserializeCustomRequest(parameters.Value, binding.Registration);
                     var customEvents = customRegistry.InvokeStreamingAsync(
                         binding.Registration,
+                        operationContext,
                         customRequest,
                         cancellationToken);
                     return new CustomJsonRpcStreamedResult(

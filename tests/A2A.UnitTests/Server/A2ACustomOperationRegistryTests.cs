@@ -25,6 +25,29 @@ public sealed class A2ACustomOperationRegistryTests
     }
 
     [Fact]
+    public async Task InvokeAsync_ProvidesRequestScopedContext()
+    {
+        var feature = new TestFeature("request-feature");
+        var builder = new A2ACustomOperationRegistryBuilder();
+        var operation = builder.Map<TestRequest, TestResult>(
+            new A2AOperationId("https://example.test/operations#context"),
+            (context, request, _) => ValueTask.FromResult(
+                new TestResult(
+                    $"{context.GetRequiredFeature<TestFeature>().Value}:{request.Value}")),
+            CustomOperationJsonContext.Default.TestRequest,
+            CustomOperationJsonContext.Default.TestResult);
+        var registry = builder.Build();
+
+        var result = await registry.InvokeAsync(
+            operation,
+            new A2ACustomOperationContext(features: [feature]),
+            new TestRequest("payload"),
+            CancellationToken.None);
+
+        Assert.Equal("request-feature:payload", result.Value);
+    }
+
+    [Fact]
     public async Task InvokeAsync_ValidatesBeforeInvokingHandler()
     {
         var handlerInvoked = false;
@@ -223,6 +246,8 @@ public sealed class A2ACustomOperationRegistryTests
 internal sealed record TestRequest(string Value);
 
 internal sealed record TestResult(string Value);
+
+internal sealed record TestFeature(string Value);
 
 [JsonSerializable(typeof(TestRequest))]
 [JsonSerializable(typeof(TestResult))]

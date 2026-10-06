@@ -14,6 +14,19 @@ public delegate ValueTask<TResult> A2ACustomOperationHandler<TRequest, TResult>(
     CancellationToken cancellationToken);
 
 /// <summary>
+/// Handles a unary custom A2A operation with request-scoped host context.
+/// </summary>
+/// <typeparam name="TRequest">The request type.</typeparam>
+/// <typeparam name="TResult">The result type.</typeparam>
+/// <param name="context">The request-scoped operation context.</param>
+/// <param name="request">The typed request.</param>
+/// <param name="cancellationToken">The request cancellation token.</param>
+public delegate ValueTask<TResult> A2AContextualCustomOperationHandler<TRequest, TResult>(
+    A2ACustomOperationContext context,
+    TRequest request,
+    CancellationToken cancellationToken);
+
+/// <summary>
 /// Handles a server-streaming custom A2A operation.
 /// </summary>
 /// <typeparam name="TRequest">The request type.</typeparam>
@@ -21,6 +34,19 @@ public delegate ValueTask<TResult> A2ACustomOperationHandler<TRequest, TResult>(
 /// <param name="request">The typed request.</param>
 /// <param name="cancellationToken">The request cancellation token.</param>
 public delegate IAsyncEnumerable<TEvent> A2AStreamingCustomOperationHandler<TRequest, TEvent>(
+    TRequest request,
+    CancellationToken cancellationToken);
+
+/// <summary>
+/// Handles a server-streaming custom A2A operation with request-scoped host context.
+/// </summary>
+/// <typeparam name="TRequest">The request type.</typeparam>
+/// <typeparam name="TEvent">The streamed event type.</typeparam>
+/// <param name="context">The request-scoped operation context.</param>
+/// <param name="request">The typed request.</param>
+/// <param name="cancellationToken">The request cancellation token.</param>
+public delegate IAsyncEnumerable<TEvent> A2AContextualStreamingCustomOperationHandler<TRequest, TEvent>(
+    A2ACustomOperationContext context,
     TRequest request,
     CancellationToken cancellationToken);
 
@@ -109,10 +135,14 @@ internal abstract class CustomOperationRegistration
 
     internal A2ACustomOperationKind Kind { get; }
 
-    internal virtual ValueTask<object?> InvokeUnaryAsync(object request, CancellationToken cancellationToken) =>
+    internal virtual ValueTask<object?> InvokeUnaryAsync(
+        A2ACustomOperationContext context,
+        object request,
+        CancellationToken cancellationToken) =>
         throw new InvalidOperationException($"Operation '{Id}' is not unary.");
 
     internal virtual IAsyncEnumerable<object?> InvokeStreamingAsync(
+        A2ACustomOperationContext context,
         object request,
         CancellationToken cancellationToken) =>
         throw new InvalidOperationException($"Operation '{Id}' is not streaming.");
@@ -120,12 +150,12 @@ internal abstract class CustomOperationRegistration
 
 internal sealed class UnaryCustomOperationRegistration<TRequest, TResult> : CustomOperationRegistration
 {
-    private readonly A2ACustomOperationHandler<TRequest, TResult> _handler;
+    private readonly A2AContextualCustomOperationHandler<TRequest, TResult> _handler;
     private readonly A2ACustomOperationValidator<TRequest>? _validator;
 
     internal UnaryCustomOperationRegistration(
         A2AOperationId id,
-        A2ACustomOperationHandler<TRequest, TResult> handler,
+        A2AContextualCustomOperationHandler<TRequest, TResult> handler,
         JsonTypeInfo<TRequest> requestTypeInfo,
         JsonTypeInfo<TResult> resultTypeInfo,
         A2ACustomOperationValidator<TRequest>? validator)
@@ -135,14 +165,17 @@ internal sealed class UnaryCustomOperationRegistration<TRequest, TResult> : Cust
         _validator = validator;
     }
 
-    internal async ValueTask<TResult> InvokeAsync(TRequest request, CancellationToken cancellationToken)
+    internal async ValueTask<TResult> InvokeAsync(
+        A2ACustomOperationContext context,
+        TRequest request,
+        CancellationToken cancellationToken)
     {
         using var activity = A2ACustomOperationDiagnostics.Start(Id, A2ACustomOperationKind.Unary);
 
         try
         {
             _validator?.Invoke(request);
-            var result = await _handler(request, cancellationToken).ConfigureAwait(false);
+            var result = await _handler(context, request, cancellationToken).ConfigureAwait(false);
             A2ACustomOperationDiagnostics.SetSuccess(activity);
             return result;
         }
@@ -158,18 +191,21 @@ internal sealed class UnaryCustomOperationRegistration<TRequest, TResult> : Cust
         }
     }
 
-    internal override async ValueTask<object?> InvokeUnaryAsync(object request, CancellationToken cancellationToken) =>
-        await InvokeAsync((TRequest)request, cancellationToken).ConfigureAwait(false);
+    internal override async ValueTask<object?> InvokeUnaryAsync(
+        A2ACustomOperationContext context,
+        object request,
+        CancellationToken cancellationToken) =>
+        await InvokeAsync(context, (TRequest)request, cancellationToken).ConfigureAwait(false);
 }
 
 internal sealed class StreamingCustomOperationRegistration<TRequest, TEvent> : CustomOperationRegistration
 {
-    private readonly A2AStreamingCustomOperationHandler<TRequest, TEvent> _handler;
+    private readonly A2AContextualStreamingCustomOperationHandler<TRequest, TEvent> _handler;
     private readonly A2ACustomOperationValidator<TRequest>? _validator;
 
     internal StreamingCustomOperationRegistration(
         A2AOperationId id,
-        A2AStreamingCustomOperationHandler<TRequest, TEvent> handler,
+        A2AContextualStreamingCustomOperationHandler<TRequest, TEvent> handler,
         JsonTypeInfo<TRequest> requestTypeInfo,
         JsonTypeInfo<TEvent> eventTypeInfo,
         A2ACustomOperationValidator<TRequest>? validator)
@@ -180,6 +216,7 @@ internal sealed class StreamingCustomOperationRegistration<TRequest, TEvent> : C
     }
 
     internal async IAsyncEnumerable<TEvent> InvokeAsync(
+        A2ACustomOperationContext context,
         TRequest request,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
@@ -189,7 +226,7 @@ internal sealed class StreamingCustomOperationRegistration<TRequest, TEvent> : C
         try
         {
             _validator?.Invoke(request);
-            enumerator = _handler(request, cancellationToken).GetAsyncEnumerator(cancellationToken);
+            enumerator = _handler(context, request, cancellationToken).GetAsyncEnumerator(cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -234,10 +271,11 @@ internal sealed class StreamingCustomOperationRegistration<TRequest, TEvent> : C
     }
 
     internal override async IAsyncEnumerable<object?> InvokeStreamingAsync(
+        A2ACustomOperationContext context,
         object request,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        await foreach (var streamEvent in InvokeAsync((TRequest)request, cancellationToken).ConfigureAwait(false))
+        await foreach (var streamEvent in InvokeAsync(context, (TRequest)request, cancellationToken).ConfigureAwait(false))
         {
             yield return streamEvent;
         }

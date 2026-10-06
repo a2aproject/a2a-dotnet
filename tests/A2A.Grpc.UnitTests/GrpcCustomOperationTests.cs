@@ -19,14 +19,19 @@ public sealed class GrpcCustomOperationTests : IAsyncLifetime
     private GrpcChannel? _channel;
     private A2AExtensionService.A2AExtensionServiceClient? _client;
     private A2ACustomOperationRegistry? _registry;
+    private ServerCallContext? _unaryServerCallContext;
 
     public async Task InitializeAsync()
     {
         var registryBuilder = new A2ACustomOperationRegistryBuilder();
         registryBuilder.Map<GrpcCustomRequest, GrpcCustomResult>(
             new A2AOperationId("https://example.test/operations#unary"),
-            (request, _) => ValueTask.FromResult(
-                new GrpcCustomResult($"{request.Value}-response")),
+            (context, request, _) =>
+            {
+                _unaryServerCallContext = context.GetRequiredFeature<ServerCallContext>();
+                return ValueTask.FromResult(
+                    new GrpcCustomResult($"{request.Value}-response"));
+            },
             GrpcCustomJsonContext.Default.GrpcCustomRequest,
             GrpcCustomJsonContext.Default.GrpcCustomResult);
         registryBuilder.MapStreaming<GrpcCustomRequest, GrpcCustomResult>(
@@ -87,6 +92,7 @@ public sealed class GrpcCustomOperationTests : IAsyncLifetime
             response.Payload.Span,
             GrpcCustomJsonContext.Default.GrpcCustomResult);
         Assert.Equal("request-response", result!.Value);
+        Assert.NotNull(_unaryServerCallContext);
     }
 
     [Fact]

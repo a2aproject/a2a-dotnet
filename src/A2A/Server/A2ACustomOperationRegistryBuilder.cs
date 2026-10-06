@@ -35,6 +35,38 @@ public sealed class A2ACustomOperationRegistryBuilder
         ArgumentNullException.ThrowIfNull(resultTypeInfo);
         EnsureClosedTypes<TRequest, TResult>();
 
+        return Map(
+            id,
+            (_, request, cancellationToken) => handler(request, cancellationToken),
+            requestTypeInfo,
+            resultTypeInfo,
+            validator);
+    }
+
+    /// <summary>
+    /// Registers a unary custom operation with request-scoped host context.
+    /// </summary>
+    /// <typeparam name="TRequest">The request type.</typeparam>
+    /// <typeparam name="TResult">The result type.</typeparam>
+    /// <param name="id">The stable operation identifier.</param>
+    /// <param name="handler">The contextual operation handler.</param>
+    /// <param name="requestTypeInfo">Source-generated request JSON metadata.</param>
+    /// <param name="resultTypeInfo">Source-generated result JSON metadata.</param>
+    /// <param name="validator">An optional semantic request validator.</param>
+    /// <returns>A typed handle for the registered operation.</returns>
+    public A2ACustomOperation<TRequest, TResult> Map<TRequest, TResult>(
+        A2AOperationId id,
+        A2AContextualCustomOperationHandler<TRequest, TResult> handler,
+        JsonTypeInfo<TRequest> requestTypeInfo,
+        JsonTypeInfo<TResult> resultTypeInfo,
+        A2ACustomOperationValidator<TRequest>? validator = null)
+    {
+        EnsureCanRegister(id);
+        ArgumentNullException.ThrowIfNull(handler);
+        ArgumentNullException.ThrowIfNull(requestTypeInfo);
+        ArgumentNullException.ThrowIfNull(resultTypeInfo);
+        EnsureClosedTypes<TRequest, TResult>();
+
         var registration = new UnaryCustomOperationRegistration<TRequest, TResult>(
             id,
             handler,
@@ -59,6 +91,38 @@ public sealed class A2ACustomOperationRegistryBuilder
     public A2AStreamingCustomOperation<TRequest, TEvent> MapStreaming<TRequest, TEvent>(
         A2AOperationId id,
         A2AStreamingCustomOperationHandler<TRequest, TEvent> handler,
+        JsonTypeInfo<TRequest> requestTypeInfo,
+        JsonTypeInfo<TEvent> eventTypeInfo,
+        A2ACustomOperationValidator<TRequest>? validator = null)
+    {
+        EnsureCanRegister(id);
+        ArgumentNullException.ThrowIfNull(handler);
+        ArgumentNullException.ThrowIfNull(requestTypeInfo);
+        ArgumentNullException.ThrowIfNull(eventTypeInfo);
+        EnsureClosedTypes<TRequest, TEvent>();
+
+        return MapStreaming(
+            id,
+            (_, request, cancellationToken) => handler(request, cancellationToken),
+            requestTypeInfo,
+            eventTypeInfo,
+            validator);
+    }
+
+    /// <summary>
+    /// Registers a server-streaming custom operation with request-scoped host context.
+    /// </summary>
+    /// <typeparam name="TRequest">The request type.</typeparam>
+    /// <typeparam name="TEvent">The streamed event type.</typeparam>
+    /// <param name="id">The stable operation identifier.</param>
+    /// <param name="handler">The contextual streaming handler.</param>
+    /// <param name="requestTypeInfo">Source-generated request JSON metadata.</param>
+    /// <param name="eventTypeInfo">Source-generated event JSON metadata.</param>
+    /// <param name="validator">An optional semantic request validator.</param>
+    /// <returns>A typed handle for the registered operation.</returns>
+    public A2AStreamingCustomOperation<TRequest, TEvent> MapStreaming<TRequest, TEvent>(
+        A2AOperationId id,
+        A2AContextualStreamingCustomOperationHandler<TRequest, TEvent> handler,
         JsonTypeInfo<TRequest> requestTypeInfo,
         JsonTypeInfo<TEvent> eventTypeInfo,
         A2ACustomOperationValidator<TRequest>? validator = null)

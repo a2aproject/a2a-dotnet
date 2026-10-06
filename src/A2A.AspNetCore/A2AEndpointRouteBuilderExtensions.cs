@@ -260,6 +260,9 @@ public static class A2ARouteBuilderExtensions
                             result = new CustomHttpStreamedResult(
                                 customRegistry.InvokeStreamingAsync(
                                     binding.Registration,
+                                    new A2ACustomOperationContext(
+                                        context.RequestServices,
+                                        context),
                                     request!,
                                     context.RequestAborted),
                                 binding.Registration.OutputTypeInfo,
@@ -269,6 +272,9 @@ public static class A2ARouteBuilderExtensions
                         {
                             var response = await customRegistry.InvokeAsync(
                                 binding.Registration,
+                                new A2ACustomOperationContext(
+                                    context.RequestServices,
+                                    context),
                                 request!,
                                 context.RequestAborted).ConfigureAwait(false);
                             result = new CustomHttpJsonResult(
