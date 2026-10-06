@@ -257,6 +257,11 @@ Server-side examples demonstrating how to build A2A-compatible agents:
 - **Researcher Agent**: More complex agent with research capabilities
 - **HTTP Test Suite**: Complete set of HTTP tests for all agent endpoints
 
+### Push Notification Receiver
+**[`samples/PushNotificationReceiver/`](samples/PushNotificationReceiver/README.md)**
+
+Loopback SDK push demo and authenticated receiver: configuration CRUD, persisted task updates, default HTTP delivery, and explicit configuration deletion. See the [push notification guide](docs/push-notifications.md) for protocol requirements, SDK policies, and production limits.
+
 ### Semantic Kernel Integration
 **[`samples/SemanticKernelAgent/`](samples/SemanticKernelAgent/README.md)**
 
@@ -304,4 +309,3 @@ This library builds upon [Darrel Miller's](https://github.com/darrelmiller) [sha
 ## License
 
 This project is licensed under the [Apache 2.0 License](LICENSE).
-

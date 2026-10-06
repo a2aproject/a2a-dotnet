@@ -262,7 +262,7 @@ public class A2AJsonRpcProcessorTests
 
         Assert.NotNull(sendMessageResponse?.Task);
         var agentTask = sendMessageResponse.Task;
-        Assert.Equal(TaskState.Submitted, agentTask.Status.State);
+        Assert.Equal(TaskState.Completed, agentTask.Status.State);
         Assert.NotEmpty(agentTask.History!);
         Assert.Equal(Role.User, agentTask.History[0].Role);
         Assert.Equal("hi", agentTask.History[0].Parts[0].Text);
@@ -521,7 +521,7 @@ public class A2AJsonRpcProcessorTests
             {
                 Id = context.TaskId,
                 ContextId = updater.ContextId,
-                Status = new TaskStatus { State = TaskState.Submitted },
+                Status = new TaskStatus { State = TaskState.Completed },
                 History = [context.Message],
             };
             await eventQueue.EnqueueTaskAsync(task, cancellationToken);

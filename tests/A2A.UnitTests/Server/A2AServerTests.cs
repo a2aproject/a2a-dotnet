@@ -1175,6 +1175,98 @@ public class A2AServerTests
     }
 
     [Fact]
+    public async Task TerminalInitialSnapshot_EndsStreamBeforeProducerExit_AndRetainsShutdownOwnership()
+    {
+        var tasks = new InMemoryTaskStore();
+        await tasks.SaveTaskAsync("task", new AgentTask
+        {
+            Id = "task",
+            ContextId = "context",
+            Status = new TaskStatus { State = TaskState.InputRequired },
+        });
+        var store = new GatedInitialTaskRead(tasks);
+        var handler = new TestAgentHandler();
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var canceled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationToken producerToken = default;
+        handler.OnExecute = async (_, _, cancellationToken) =>
+        {
+            producerToken = cancellationToken;
+            started.TrySetResult();
+            try
+            {
+                try
+                {
+                    await release.Task.WaitAsync(cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    canceled.TrySetResult();
+                    await release.Task.WaitAsync(CancellationToken.None);
+                }
+            }
+            finally
+            {
+                finished.TrySetResult();
+            }
+        };
+        await using var server = new A2AServer(handler, store, new ChannelEventNotifier(),
+            NullLogger<A2AServer>.Instance, new A2AServerOptions { AutoAppendHistory = false });
+        await using var stream = server.SendStreamingMessageAsync(new SendMessageRequest
+        {
+            Message = new Message { MessageId = "continue", TaskId = "task", Role = Role.User, Parts = [Part.FromText("continue")] },
+        }).GetAsyncEnumerator();
+        Task<bool>? first = null;
+        Task<bool>? next = null;
+        Task? disposal = null;
+        try
+        {
+            first = stream.MoveNextAsync().AsTask();
+            await store.Captured.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(TaskState.Canceled, (await server.CancelTaskAsync(new() { Id = "task" })).Status.State);
+            store.Release.TrySetResult();
+            Assert.True(await first.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.Equal(TaskState.Canceled, stream.Current.Task!.Status.State);
+            await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            next = stream.MoveNextAsync().AsTask();
+            Assert.False(await next.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.False(release.Task.IsCompleted);
+            Assert.False(finished.Task.IsCompleted);
+            Assert.False(producerToken.IsCancellationRequested);
+
+            disposal = server.DisposeAsync().AsTask();
+            await canceled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.False(disposal.IsCompleted);
+            Assert.False(finished.Task.IsCompleted);
+            release.TrySetResult();
+            await disposal.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.True(finished.Task.IsCompletedSuccessfully);
+            Assert.True(producerToken.IsCancellationRequested);
+            Assert.Equal(TaskState.Canceled, (await tasks.GetTaskAsync("task"))!.Status.State);
+        }
+        finally
+        {
+            store.Release.TrySetResult();
+            release.TrySetResult();
+            if (first is not null)
+            {
+                await first.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            if (next is not null)
+            {
+                await next.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            if (disposal is not null)
+            {
+                await disposal.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+        }
+    }
+
+    [Fact]
     public async Task GivenStreamDisconnect_WhenReconnectWithSubscribe_ThenReceivesRemainingEvents()
     {
         // Arrange — handler waits for a signal before completing, so we control timing precisely
@@ -1347,6 +1439,31 @@ public class A2AServerTests
         Assert.True(events.Count >= 2, $"Expected at least 2 events but got {events.Count}");
         Assert.NotNull(events[0].Task); // snapshot
         Assert.Contains(events, e => e.StatusUpdate?.Status.State == TaskState.Completed);
+    }
+
+    private sealed class GatedInitialTaskRead(ITaskStore inner) : ITaskStore
+    {
+        private int _reads;
+        internal TaskCompletionSource Captured { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task<AgentTask?> GetTaskAsync(string taskId, CancellationToken cancellationToken = default)
+        {
+            var snapshot = await inner.GetTaskAsync(taskId, cancellationToken);
+            if (Interlocked.Increment(ref _reads) == 1)
+            {
+                Captured.TrySetResult();
+                await Release.Task.WaitAsync(cancellationToken);
+            }
+            return snapshot;
+        }
+
+        public Task SaveTaskAsync(string taskId, AgentTask task, CancellationToken cancellationToken = default) =>
+            inner.SaveTaskAsync(taskId, task, cancellationToken);
+        public Task DeleteTaskAsync(string taskId, CancellationToken cancellationToken = default) =>
+            inner.DeleteTaskAsync(taskId, cancellationToken);
+        public Task<ListTasksResponse> ListTasksAsync(ListTasksRequest request, CancellationToken cancellationToken = default) =>
+            inner.ListTasksAsync(request, cancellationToken);
     }
 
     /// <summary>

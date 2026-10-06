@@ -13,6 +13,7 @@
     <Project Path="samples/A2ACli/A2ACli.csproj" />
     <Project Path="samples/AgentClient/AgentClient.csproj" />
     <Project Path="samples/AgentServer/AgentServer.csproj" />
+    <Project Path="samples/PushNotificationReceiver/PushNotificationReceiver.csproj" />
     <Project Path="samples/SemanticKernelAgent/SemanticKernelAgent.csproj" />
   </Folder>
   <Folder Name="/src/">
@@ -37,6 +38,7 @@
     <Project Path="tests/A2A.AspNetCore.UnitTests/A2A.AspNetCore.UnitTests.csproj" />
     <Project Path="tests/A2A.Grpc.UnitTests/A2A.Grpc.UnitTests.csproj" />
     <Project Path="tests/A2A.UnitTests/A2A.UnitTests.csproj" />
+    <Project Path="tests/PushNotificationReceiver.Tests/PushNotificationReceiver.Tests.csproj" />
     <Project Path="tests/A2A.V0_3.UnitTests/A2A.V0_3.UnitTests.csproj" />
     <Project Path="tests/A2A.V0_3Compat.UnitTests/A2A.V0_3Compat.UnitTests.csproj" />
   </Folder>

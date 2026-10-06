@@ -6,6 +6,7 @@
     <Project Path="A2A.UnitTests/A2A.UnitTests.csproj" />
     <Project Path="A2A.V0_3.UnitTests/A2A.V0_3.UnitTests.csproj" />
     <Project Path="A2A.V0_3Compat.UnitTests/A2A.V0_3Compat.UnitTests.csproj" />
+    <Project Path="PushNotificationReceiver.Tests/PushNotificationReceiver.Tests.csproj" />
   </Folder>
    <Folder Name="/Solution Items/">
     <File Path="../Directory.Build.props" />
