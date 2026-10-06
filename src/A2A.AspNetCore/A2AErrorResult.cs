@@ -34,17 +34,16 @@ internal sealed class A2AErrorResult(A2AException exception) : IResult, IStatusC
             writer.WritePropertyName("details");
             writer.WriteStartArray();
 
-            if (A2AErrorCodeMapping.IsA2ASpecificError(errorCode))
+            var reason = errorCode == A2AErrorCode.InvalidParams
+                ? "INVALID_PARAMS"
+                : A2AErrorCodeMapping.GetReasonString(errorCode);
+            if (reason is not null)
             {
-                var reason = A2AErrorCodeMapping.GetReasonString(errorCode);
-                if (reason is not null)
-                {
-                    writer.WriteStartObject();
-                    writer.WriteString("@type", "type.googleapis.com/google.rpc.ErrorInfo");
-                    writer.WriteString("reason", reason);
-                    writer.WriteString("domain", "a2a-protocol.org");
-                    writer.WriteEndObject();
-                }
+                writer.WriteStartObject();
+                writer.WriteString("@type", "type.googleapis.com/google.rpc.ErrorInfo");
+                writer.WriteString("reason", reason);
+                writer.WriteString("domain", "a2a-protocol.org");
+                writer.WriteEndObject();
             }
 
             writer.WriteEndArray();
