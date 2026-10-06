@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Logging;
 using System.Net.ServerSentEvents;
 using System.Text;
@@ -114,7 +115,12 @@ internal sealed class CustomHttpStreamedResult(
     {
         httpContext.Response.StatusCode = StatusCodes.Status200OK;
         httpContext.Response.ContentType = "text/event-stream";
-        httpContext.Response.Headers.Append("Cache-Control", "no-cache");
+        httpContext.Response.Headers.CacheControl = "no-cache,no-store";
+        httpContext.Response.Headers.Pragma = "no-cache";
+        httpContext.Response.Headers.ContentEncoding = "identity";
+
+        var bufferingFeature = httpContext.Features.GetRequiredFeature<IHttpResponseBodyFeature>();
+        bufferingFeature.DisableBuffering();
     }
 
     private async Task WriteErrorAsync(

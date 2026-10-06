@@ -251,9 +251,21 @@ public static class A2ARouteBuilderExtensions
                 {
                     try
                     {
-                        var request = await binding.BindAsync(
-                            context,
-                            context.RequestAborted).ConfigureAwait(false);
+                        object? request;
+                        try
+                        {
+                            request = await binding.BindAsync(
+                                context,
+                                context.RequestAborted).ConfigureAwait(false);
+                        }
+                        catch (JsonException exception)
+                        {
+                            throw new A2AException(
+                                "The custom operation request body is invalid.",
+                                exception,
+                                A2AErrorCode.InvalidParams);
+                        }
+
                         IResult result;
                         if (binding.Registration.Kind == A2ACustomOperationKind.Streaming)
                         {

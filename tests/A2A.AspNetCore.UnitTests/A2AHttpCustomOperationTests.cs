@@ -98,10 +98,17 @@ public sealed class A2AHttpCustomOperationTests
         var endpoint = FindEndpoint(app, "/a2a/authorization/{taskId}:watch", HttpMethods.Get);
         var context = CreateContext(app, HttpMethods.Get, "/a2a/authorization/task-2:watch");
         context.Request.RouteValues["taskId"] = "task-2";
+        var responseBodyFeature = new Mock<IHttpResponseBodyFeature>();
+        responseBodyFeature.SetupGet(feature => feature.Stream).Returns(context.Response.Body);
+        context.Features.Set(responseBodyFeature.Object);
 
         await endpoint.RequestDelegate!(context);
 
         Assert.Equal("text/event-stream", context.Response.ContentType);
+        Assert.Equal("no-cache,no-store", context.Response.Headers.CacheControl);
+        Assert.Equal("no-cache", context.Response.Headers.Pragma);
+        Assert.Equal("identity", context.Response.Headers.ContentEncoding);
+        responseBodyFeature.Verify(feature => feature.DisableBuffering(), Times.Once);
         context.Response.Body.Position = 0;
         var response = await new StreamReader(context.Response.Body).ReadToEndAsync();
         Assert.Contains("\"value\":\"event-1\"", response, StringComparison.Ordinal);
@@ -139,6 +146,42 @@ public sealed class A2AHttpCustomOperationTests
     }
 
     [Fact]
+    public async Task MapHttpA2A_CustomUnaryRoute_MapsMalformedJsonBodyToInvalidParams()
+    {
+        var builder = new A2ACustomOperationRegistryBuilder();
+        var operation = builder.Map<HttpCustomBody, HttpCustomResult>(
+            new A2AOperationId("https://example.test/operations#malformed-json"),
+            (request, _) => ValueTask.FromResult(new HttpCustomResult(request.Value)),
+            HttpCustomJsonContext.Default.HttpCustomBody,
+            HttpCustomJsonContext.Default.HttpCustomResult);
+        var registry = builder.Build();
+        var bindings = new A2AHttpCustomOperationBuilder()
+            .Map(
+                HttpMethods.Post,
+                "/malformed-json",
+                operation,
+                async (context, cancellationToken) =>
+                    (await JsonSerializer.DeserializeAsync(
+                        context.Request.Body,
+                        HttpCustomJsonContext.Default.HttpCustomBody,
+                        cancellationToken))!)
+            .Build(registry);
+        await using var app = CreateApp();
+        app.MapHttpA2A(Mock.Of<IA2ARequestHandler>(), "/a2a", registry, bindings);
+        var endpoint = FindEndpoint(app, "/a2a/malformed-json", HttpMethods.Post);
+        var context = CreateContext(app, HttpMethods.Post, "/a2a/malformed-json");
+        context.Request.Body = new MemoryStream("{"u8.ToArray());
+
+        await endpoint.RequestDelegate!(context);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, context.Response.StatusCode);
+        Assert.Equal("application/a2a+json", context.Response.ContentType);
+        context.Response.Body.Position = 0;
+        var response = await new StreamReader(context.Response.Body).ReadToEndAsync();
+        Assert.Contains("The custom operation request body is invalid.", response, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Map_RejectsDuplicateMethodAndRoute()
     {
         var builder = new A2ACustomOperationRegistryBuilder();
@@ -169,6 +212,41 @@ public sealed class A2AHttpCustomOperationTests
                 .Map(HttpMethods.Post, "/message:send", operation, BindEmpty));
 
         Assert.Contains("cannot replace", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("post", "/MESSAGE:SEND")]
+    [InlineData("get", "/tasks/{taskId}")]
+    public void Map_RejectsEquivalentStandardRouteShadowing(string method, string route)
+    {
+        var builder = new A2ACustomOperationRegistryBuilder();
+        var operation = builder.Map<HttpCustomRequest, HttpCustomResult>(
+            new A2AOperationId("https://example.test/operations#equivalent-shadow-http"),
+            (request, _) => ValueTask.FromResult(new HttpCustomResult(request.Value)),
+            HttpCustomJsonContext.Default.HttpCustomRequest,
+            HttpCustomJsonContext.Default.HttpCustomResult);
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            new A2AHttpCustomOperationBuilder()
+                .Map(method, route, operation, BindEmpty));
+
+        Assert.Contains("cannot replace", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Map_RejectsEquivalentCustomRoute()
+    {
+        var builder = new A2ACustomOperationRegistryBuilder();
+        var operation = builder.Map<HttpCustomRequest, HttpCustomResult>(
+            new A2AOperationId("https://example.test/operations#equivalent-duplicate-http"),
+            (request, _) => ValueTask.FromResult(new HttpCustomResult(request.Value)),
+            HttpCustomJsonContext.Default.HttpCustomRequest,
+            HttpCustomJsonContext.Default.HttpCustomResult);
+        var bindings = new A2AHttpCustomOperationBuilder()
+            .Map(HttpMethods.Post, "/tasks/{taskId}:resume", operation, BindEmpty);
+
+        Assert.Throws<InvalidOperationException>(() =>
+            bindings.Map("post", "/TASKS/{id}:resume", operation, BindEmpty));
     }
 
     [Fact]

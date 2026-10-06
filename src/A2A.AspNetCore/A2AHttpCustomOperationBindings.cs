@@ -1,4 +1,7 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing.Patterns;
+using System.Globalization;
+using System.Text;
 
 namespace A2A.AspNetCore;
 
@@ -151,7 +154,69 @@ public sealed class A2AHttpCustomOperationBuilder
         }
     }
 
-    private readonly record struct HttpRouteKey(string Method, string Route);
+    private static string CanonicalizeRoute(string route)
+    {
+        var pattern = RoutePatternFactory.Parse(route);
+        var canonicalRoute = new StringBuilder();
+        foreach (var segment in pattern.PathSegments)
+        {
+            canonicalRoute.Append('/');
+            foreach (var part in segment.Parts)
+            {
+                switch (part)
+                {
+                    case RoutePatternLiteralPart literal:
+                        canonicalRoute.Append(literal.Content.ToLowerInvariant());
+                        break;
+                    case RoutePatternSeparatorPart separator:
+                        canonicalRoute.Append(separator.Content.ToLowerInvariant());
+                        break;
+                    case RoutePatternParameterPart parameter:
+                        canonicalRoute.Append('{');
+                        if (parameter.IsCatchAll)
+                        {
+                            canonicalRoute.Append(parameter.EncodeSlashes ? '*' : "**");
+                        }
+
+                        canonicalRoute.Append('_');
+                        foreach (var policy in parameter.ParameterPolicies)
+                        {
+                            canonicalRoute.Append(':').Append(policy.Content);
+                        }
+
+                        if (parameter.Default is not null)
+                        {
+                            canonicalRoute
+                                .Append('=')
+                                .Append(Convert.ToString(parameter.Default, CultureInfo.InvariantCulture));
+                        }
+
+                        if (parameter.IsOptional)
+                        {
+                            canonicalRoute.Append('?');
+                        }
+
+                        canonicalRoute.Append('}');
+                        break;
+                }
+            }
+        }
+
+        return canonicalRoute.Length == 0 ? "/" : canonicalRoute.ToString();
+    }
+
+    private readonly record struct HttpRouteKey
+    {
+        public HttpRouteKey(string method, string route)
+        {
+            Method = method;
+            Route = CanonicalizeRoute(route);
+        }
+
+        public string Method { get; }
+
+        public string Route { get; }
+    }
 }
 
 /// <summary>
