@@ -2,6 +2,7 @@ using A2A.Extensions;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 
@@ -72,6 +73,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
         {
             A2ADiagnostics.RequestCount.Add(1);
 
+            ValidateMessage(request.Message);
             context = await ResolveContextAsync(request, streamingResponse: false, cancellationToken).ConfigureAwait(false);
             TagActivity(activity, context);
             GuardTerminalState(context);
@@ -208,6 +210,14 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
 
         try
         {
+            if (!_options.SupportsStreaming)
+            {
+                throw new A2AException(
+                    "Streaming is not supported by this agent.",
+                    A2AErrorCode.UnsupportedOperation);
+            }
+
+            ValidateMessage(request.Message);
             context = await ResolveContextAsync(request, streamingResponse: true, cancellationToken).ConfigureAwait(false);
             TagActivity(activity, context);
             GuardTerminalState(context);
@@ -611,6 +621,13 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
         {
             existingTask = await _taskStore.GetTaskAsync(taskId, cancellationToken).ConfigureAwait(false)
                 ?? throw new A2AException($"Task '{taskId}' not found.", A2AErrorCode.TaskNotFound);
+            if (contextId is not null &&
+                !string.Equals(contextId, existingTask.ContextId, StringComparison.Ordinal))
+            {
+                throw new A2AException(
+                    $"Context '{contextId}' does not match task '{taskId}'.",
+                    A2AErrorCode.InvalidParams);
+            }
             contextId ??= existingTask.ContextId;
         }
 
@@ -625,6 +642,48 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
             Configuration = request.Configuration,
             Metadata = request.Metadata,
         };
+    }
+
+    private void ValidateMessage(Message message)
+    {
+        if (_options.SupportedInputModes.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var part in message.Parts)
+        {
+            if (part.MediaType is { } mediaType &&
+                !_options.SupportedInputModes.Any(mode => MediaTypeMatches(mode, mediaType)))
+            {
+                throw new A2AException(
+                    $"Content type '{mediaType}' is not supported.",
+                    A2AErrorCode.ContentTypeNotSupported);
+            }
+        }
+    }
+
+    private static bool MediaTypeMatches(string supported, string actual)
+    {
+        if (!MediaTypeHeaderValue.TryParse(supported, out var supportedHeader) ||
+            !MediaTypeHeaderValue.TryParse(actual, out var actualHeader) ||
+            supportedHeader.MediaType is not { } supportedMediaType ||
+            actualHeader.MediaType is not { } actualMediaType ||
+            actualMediaType.Contains('*'))
+        {
+            return false;
+        }
+
+        if (string.Equals(supportedMediaType, actualMediaType, StringComparison.OrdinalIgnoreCase) ||
+            supportedMediaType == "*/*")
+        {
+            return true;
+        }
+
+        var slash = supportedMediaType.IndexOf('/');
+        return slash > 0 &&
+            supportedMediaType.AsSpan(slash + 1).SequenceEqual("*") &&
+            actualMediaType.StartsWith(supportedMediaType.AsSpan(0, slash + 1), StringComparison.OrdinalIgnoreCase);
     }
 
     private static void GuardTerminalState(RequestContext context)
@@ -773,6 +832,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
             // Re-fetch from store to return the current persisted state
             result.Task = await _taskStore.GetTaskAsync(context.TaskId, CancellationToken.None).ConfigureAwait(false)
                 ?? throw new A2AException($"Task '{context.TaskId}' not found after processing.", A2AErrorCode.TaskNotFound);
+            result.Task = result.Task.WithHistoryTrimmedTo(context.Configuration?.HistoryLength);
 
             return result;
         }
@@ -818,6 +878,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
         {
             result.Task = await _taskStore.GetTaskAsync(context.TaskId, cancellationToken).ConfigureAwait(false)
                 ?? throw new A2AException($"Task '{context.TaskId}' not found after processing.", A2AErrorCode.TaskNotFound);
+            result.Task = result.Task.WithHistoryTrimmedTo(context.Configuration?.HistoryLength);
         }
 
         if (result is not null)
@@ -840,7 +901,10 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
             var persistedTask = await _taskStore.GetTaskAsync(context.TaskId, cancellationToken).ConfigureAwait(false);
             if (persistedTask is not null)
             {
-                return new SendMessageResponse { Task = persistedTask };
+                return new SendMessageResponse
+                {
+                    Task = persistedTask.WithHistoryTrimmedTo(context.Configuration?.HistoryLength),
+                };
             }
         }
 

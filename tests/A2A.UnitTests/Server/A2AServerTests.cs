@@ -222,6 +222,150 @@ public class A2AServerTests
     }
 
     [Fact]
+    public async Task GivenUnsupportedPartMediaType_WhenSendMessage_ThenThrowsContentTypeNotSupported()
+    {
+        var (server, _, _) = CreateServer(new A2AServerOptions
+        {
+            SupportedInputModes = ["text/plain"],
+        });
+
+        var exception = await Assert.ThrowsAsync<A2AException>(() =>
+            server.SendMessageAsync(new SendMessageRequest
+            {
+                Message = new Message
+                {
+                    MessageId = "u1",
+                    Role = Role.User,
+                    Parts =
+                    [
+                        new Part
+                        {
+                            Data = System.Text.Json.JsonSerializer.SerializeToElement("unsupported"),
+                            MediaType = "application/x-unsupported-type-12345",
+                        },
+                    ],
+                },
+            }));
+
+        Assert.Equal(A2AErrorCode.ContentTypeNotSupported, exception.ErrorCode);
+    }
+
+    [Fact]
+    public async Task GivenSupportedPartMediaTypeWithParameters_WhenSendMessage_ThenAcceptsMessage()
+    {
+        var (server, _, handler) = CreateServer(new A2AServerOptions
+        {
+            SupportedInputModes = ["text/plain"],
+        });
+        handler.OnExecute = async (context, eventQueue, cancellationToken) =>
+        {
+            await eventQueue.EnqueueMessageAsync(new Message
+            {
+                Role = Role.Agent,
+                MessageId = "a1",
+                ContextId = context.ContextId,
+                Parts = [Part.FromText("accepted")],
+            }, cancellationToken);
+            eventQueue.Complete();
+        };
+
+        var exception = await Record.ExceptionAsync(() =>
+            server.SendMessageAsync(new SendMessageRequest
+            {
+                Message = new Message
+                {
+                    MessageId = "u1",
+                    Role = Role.User,
+                    Parts = [new Part { Text = "hello", MediaType = "text/plain; charset=utf-8" }],
+                },
+            }));
+
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public async Task GivenContinuationWithWrongContextId_WhenSendMessage_ThenThrowsInvalidParams()
+    {
+        var (server, store, _) = CreateServer();
+        await store.SaveTaskAsync("t1", new AgentTask
+        {
+            Id = "t1",
+            ContextId = "ctx-1",
+            Status = new TaskStatus { State = TaskState.InputRequired },
+        });
+
+        var exception = await Assert.ThrowsAsync<A2AException>(() =>
+            server.SendMessageAsync(new SendMessageRequest
+            {
+                Message = new Message
+                {
+                    MessageId = "u2",
+                    TaskId = "t1",
+                    ContextId = "wrong-context",
+                    Role = Role.User,
+                    Parts = [Part.FromText("continue")],
+                },
+            }));
+
+        Assert.Equal(A2AErrorCode.InvalidParams, exception.ErrorCode);
+    }
+
+    [Fact]
+    public async Task GivenHistoryLengthZero_WhenSendMessageReturnsTask_ThenResponseOmitsHistory()
+    {
+        var (server, _, handler) = CreateServer();
+        handler.OnExecute = async (ctx, eq, ct) =>
+        {
+            await eq.EnqueueTaskAsync(new AgentTask
+            {
+                Id = ctx.TaskId,
+                ContextId = ctx.ContextId,
+                Status = new TaskStatus { State = TaskState.Submitted },
+                History = [ctx.Message],
+            }, ct);
+            var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
+            await updater.CompleteAsync(cancellationToken: ct);
+        };
+
+        var result = await server.SendMessageAsync(new SendMessageRequest
+        {
+            Message = new Message
+            {
+                MessageId = "u1",
+                Role = Role.User,
+                Parts = [Part.FromText("hello")],
+            },
+            Configuration = new SendMessageConfiguration { HistoryLength = 0 },
+        });
+
+        Assert.NotNull(result.Task);
+        Assert.Empty(result.Task!.History ?? []);
+    }
+
+    [Fact]
+    public async Task GivenStreamingNotSupported_WhenSendStreamingMessage_ThenThrowsUnsupportedOperation()
+    {
+        var (server, _, _) = CreateServer(new A2AServerOptions { SupportsStreaming = false });
+
+        var exception = await Assert.ThrowsAsync<A2AException>(async () =>
+        {
+            await foreach (var _ in server.SendStreamingMessageAsync(new SendMessageRequest
+            {
+                Message = new Message
+                {
+                    MessageId = "u1",
+                    Role = Role.User,
+                    Parts = [Part.FromText("hello")],
+                },
+            }))
+            {
+            }
+        });
+
+        Assert.Equal(A2AErrorCode.UnsupportedOperation, exception.ErrorCode);
+    }
+
+    [Fact]
     public async Task GivenTerminalTask_WhenSendMessage_ThenThrowsUnsupportedOperation()
     {
         // Arrange
