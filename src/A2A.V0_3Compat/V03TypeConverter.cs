@@ -45,6 +45,7 @@ internal static class V03TypeConverter
             {
                 Streaming = v1Card.Capabilities.Streaming ?? false,
                 PushNotifications = v1Card.Capabilities.PushNotifications ?? false,
+                Extensions = v1Card.Capabilities.Extensions?.Select(ToV03AgentExtension).ToList() ?? [],
             },
             DefaultInputModes = v1Card.DefaultInputModes,
             DefaultOutputModes = v1Card.DefaultOutputModes,
@@ -86,6 +87,14 @@ internal static class V03TypeConverter
 
         return blended;
     }
+
+    private static V03.AgentExtension ToV03AgentExtension(A2A.AgentExtension extension) => new()
+    {
+        Uri = extension.Uri,
+        Description = extension.Description,
+        Required = extension.Required ?? false,
+        Params = extension.Params is { } p ? ToV03DataDictionary(p) : null,
+    };
 
     private static V03.AgentSkill ToV03AgentSkill(A2A.AgentSkill skill) => new()
     {
