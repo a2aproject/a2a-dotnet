@@ -44,12 +44,12 @@
         <PackageVersion Include="xunit" Version="2.9.3" />
         <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0" />
         <!-- Code analyzers -->
-        <PackageVersion Include="Roslynator.Analyzers" Version="5.0.0" />
+        <PackageVersion Include="Roslynator.Analyzers" Version="5.0.1" />
         <PackageReference Include="Roslynator.Analyzers">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageVersion Include="Roslynator.CodeAnalysis.Analyzers" Version="5.0.0" />
+        <PackageVersion Include="Roslynator.CodeAnalysis.Analyzers" Version="5.0.1" />
         <PackageReference Include="Roslynator.CodeAnalysis.Analyzers">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
