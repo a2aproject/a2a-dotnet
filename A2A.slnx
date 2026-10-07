@@ -34,6 +34,7 @@
   </Folder>
   <Folder Name="/tests/">
     <File Path="tests/A2ATests.slnx" />
+    <Project Path="tests/A2A.Cli.UnitTests/A2A.Cli.UnitTests.csproj" />
     <Project Path="tests/A2A.AspNetCore.UnitTests/A2A.AspNetCore.UnitTests.csproj" />
     <Project Path="tests/A2A.Grpc.UnitTests/A2A.Grpc.UnitTests.csproj" />
     <Project Path="tests/A2A.UnitTests/A2A.UnitTests.csproj" />

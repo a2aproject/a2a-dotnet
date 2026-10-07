@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/tests/">
+    <Project Path="A2A.Cli.UnitTests/A2A.Cli.UnitTests.csproj" />
     <Project Path="A2A.AspNetCore.UnitTests/A2A.AspNetCore.UnitTests.csproj" />
     <Project Path="A2A.Grpc.UnitTests/A2A.Grpc.UnitTests.csproj" />
     <Project Path="A2A.Itk.UnitTests/A2A.Itk.UnitTests.csproj" />

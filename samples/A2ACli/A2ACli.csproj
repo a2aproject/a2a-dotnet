@@ -2,7 +2,7 @@
 
 	<PropertyGroup>
 		<OutputType>Exe</OutputType>
-		<TargetFramework>net10.0</TargetFramework>
+		<TargetFrameworks>net10.0;net8.0</TargetFrameworks>
 		<RootNamespace>A2A</RootNamespace>
 		<AssemblyName>A2A.Cli</AssemblyName>
 		<LangVersion>12</LangVersion>
@@ -16,7 +16,15 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<FrameworkReference Include="Microsoft.AspNetCore.App" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<ProjectReference Include="..\..\src\A2A\A2A.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<InternalsVisibleTo Include="A2A.Cli.UnitTests" Key="0024000004800000940000000602000000240000525341310004000001000100fdff21bdfb01242cffd857fcfe4fd1048248b80c2d5779adf1916ba0f2fdfb7d9f780ba2c7eb359d8b2c40be090f54d99f29ada7769f3b50d5db1e92e645577abc702cb53a9ccdae1ff5aaf4c413f9ba4fd26f298f8756d38d0c4c9c813b39dd6f760f29ed0094f55af0dd698df03c714dace31a70362a2970fd0fa5a5dc5ec1" />
 	</ItemGroup>
 
 </Project>
