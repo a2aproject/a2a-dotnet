@@ -2,6 +2,7 @@ using A2A.Extensions;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 
@@ -72,6 +73,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
         {
             A2ADiagnostics.RequestCount.Add(1);
 
+            ValidateMessage(request.Message);
             context = await ResolveContextAsync(request, streamingResponse: false, cancellationToken).ConfigureAwait(false);
             TagActivity(activity, context);
             GuardTerminalState(context);
@@ -208,6 +210,14 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
 
         try
         {
+            if (!_options.SupportsStreaming)
+            {
+                throw new A2AException(
+                    "Streaming is not supported by this agent.",
+                    A2AErrorCode.UnsupportedOperation);
+            }
+
+            ValidateMessage(request.Message);
             context = await ResolveContextAsync(request, streamingResponse: true, cancellationToken).ConfigureAwait(false);
             TagActivity(activity, context);
             GuardTerminalState(context);
@@ -299,12 +309,21 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
                 {
                     await ApplyEventAsync(response, context!, cancellationToken).ConfigureAwait(false);
                 }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    // Caller-requested cancellation is not a failure: propagate it as
+                    // cancellation (classified by the caller token, not by exception type),
+                    // and let the finally block drain remaining events in the background.
+                    throw;
+                }
                 catch (Exception ex)
                 {
+                    // A failure to read or persist authoritative task state must surface
+                    // to the caller, not be converted into a normal end-of-stream (#495).
                     A2ADiagnostics.ErrorCount.Add(1);
                     activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
                     RecordException(activity, ex);
-                    yield break;
+                    throw;
                 }
 
                 eventCount++;
@@ -517,7 +536,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
 
     /// <inheritdoc />
     public virtual Task<TaskPushNotificationConfig> CreateTaskPushNotificationConfigAsync(
-        CreateTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default)
+        TaskPushNotificationConfig config, CancellationToken cancellationToken = default)
     {
         throw new A2AException("Push notifications not supported.", A2AErrorCode.PushNotificationNotSupported);
     }
@@ -530,8 +549,8 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
     }
 
     /// <inheritdoc />
-    public virtual Task<ListTaskPushNotificationConfigResponse> ListTaskPushNotificationConfigAsync(
-        ListTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default)
+    public virtual Task<ListTaskPushNotificationConfigsResponse> ListTaskPushNotificationConfigsAsync(
+        ListTaskPushNotificationConfigsRequest request, CancellationToken cancellationToken = default)
     {
         throw new A2AException("Push notifications not supported.", A2AErrorCode.PushNotificationNotSupported);
     }
@@ -547,7 +566,12 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
     public virtual Task<AgentCard> GetExtendedAgentCardAsync(
         GetExtendedAgentCardRequest request, CancellationToken cancellationToken = default)
     {
-        throw new A2AException("Extended agent card not configured.", A2AErrorCode.ExtendedAgentCardNotConfigured);
+        if (_options.SupportsExtendedAgentCard)
+        {
+            throw new A2AException("Extended agent card not configured.", A2AErrorCode.ExtendedAgentCardNotConfigured);
+        }
+
+        throw new A2AException("Extended agent card not supported.", A2AErrorCode.UnsupportedOperation);
     }
 
     // ─── Private Helpers ───
@@ -597,6 +621,13 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
         {
             existingTask = await _taskStore.GetTaskAsync(taskId, cancellationToken).ConfigureAwait(false)
                 ?? throw new A2AException($"Task '{taskId}' not found.", A2AErrorCode.TaskNotFound);
+            if (contextId is not null &&
+                !string.Equals(contextId, existingTask.ContextId, StringComparison.Ordinal))
+            {
+                throw new A2AException(
+                    $"Context '{contextId}' does not match task '{taskId}'.",
+                    A2AErrorCode.InvalidParams);
+            }
             contextId ??= existingTask.ContextId;
         }
 
@@ -611,6 +642,48 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
             Configuration = request.Configuration,
             Metadata = request.Metadata,
         };
+    }
+
+    private void ValidateMessage(Message message)
+    {
+        if (_options.SupportedInputModes.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var part in message.Parts)
+        {
+            if (part.MediaType is { } mediaType &&
+                !_options.SupportedInputModes.Any(mode => MediaTypeMatches(mode, mediaType)))
+            {
+                throw new A2AException(
+                    $"Content type '{mediaType}' is not supported.",
+                    A2AErrorCode.ContentTypeNotSupported);
+            }
+        }
+    }
+
+    private static bool MediaTypeMatches(string supported, string actual)
+    {
+        if (!MediaTypeHeaderValue.TryParse(supported, out var supportedHeader) ||
+            !MediaTypeHeaderValue.TryParse(actual, out var actualHeader) ||
+            supportedHeader.MediaType is not { } supportedMediaType ||
+            actualHeader.MediaType is not { } actualMediaType ||
+            actualMediaType.Contains('*'))
+        {
+            return false;
+        }
+
+        if (string.Equals(supportedMediaType, actualMediaType, StringComparison.OrdinalIgnoreCase) ||
+            supportedMediaType == "*/*")
+        {
+            return true;
+        }
+
+        var slash = supportedMediaType.IndexOf('/');
+        return slash > 0 &&
+            supportedMediaType.AsSpan(slash + 1).SequenceEqual("*") &&
+            actualMediaType.StartsWith(supportedMediaType.AsSpan(0, slash + 1), StringComparison.OrdinalIgnoreCase);
     }
 
     private static void GuardTerminalState(RequestContext context)
@@ -630,6 +703,20 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
         {
             var currentTask = await _taskStore.GetTaskAsync(context.TaskId, cancellationToken)
                 .ConfigureAwait(false);
+
+            // First persisted terminal state wins (issue #401). Callers such as
+            // CancelTaskAsync and TryTransitionToFailedAsync check IsTerminal before
+            // taking the lock, but a concurrent writer can persist a terminal state in
+            // that window. This re-check under the lock is the atomic enforcement that
+            // stops any forced terminal writer from overwriting an already-terminal
+            // state with a different one, for every writer that funnels through here.
+            if (currentTask is not null
+                && currentTask.Status.State.IsTerminal()
+                && response.StatusUpdate is { } racingStatus
+                && racingStatus.Status.State != currentTask.Status.State)
+            {
+                return;
+            }
 
             var updatedTask = TaskProjection.Apply(currentTask, response);
 
@@ -745,6 +832,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
             // Re-fetch from store to return the current persisted state
             result.Task = await _taskStore.GetTaskAsync(context.TaskId, CancellationToken.None).ConfigureAwait(false)
                 ?? throw new A2AException($"Task '{context.TaskId}' not found after processing.", A2AErrorCode.TaskNotFound);
+            result.Task = result.Task.WithHistoryTrimmedTo(context.Configuration?.HistoryLength);
 
             return result;
         }
@@ -763,10 +851,12 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
         AgentEventQueue eventQueue, Task agentTask, RequestContext context, CancellationToken cancellationToken)
     {
         SendMessageResponse? result = null;
+        bool appliedTaskUpdate = false;
 
         await foreach (var response in eventQueue.WithCancellation(cancellationToken).ConfigureAwait(false))
         {
             await ApplyEventAsync(response, context, cancellationToken).ConfigureAwait(false);
+            appliedTaskUpdate |= response.StatusUpdate is not null || response.ArtifactUpdate is not null;
 
             // Capture the first Task or Message as the synchronous response
             if (result is null)
@@ -788,6 +878,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
         {
             result.Task = await _taskStore.GetTaskAsync(context.TaskId, cancellationToken).ConfigureAwait(false)
                 ?? throw new A2AException($"Task '{context.TaskId}' not found after processing.", A2AErrorCode.TaskNotFound);
+            result.Task = result.Task.WithHistoryTrimmedTo(context.Configuration?.HistoryLength);
         }
 
         if (result is not null)
@@ -800,6 +891,22 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
 #pragma warning disable VSTHRD003 // Intentional: agentTask runs the agent handler on a background thread
         await agentTask.ConfigureAwait(false);
 #pragma warning restore VSTHRD003
+
+        // A continuation may legitimately emit only status/artifact updates.
+        // Those events are applied to the task store above, but they do not
+        // themselves populate `result`. Return the persisted task instead of
+        // reporting a completed continuation as an invalid agent response.
+        if (appliedTaskUpdate)
+        {
+            var persistedTask = await _taskStore.GetTaskAsync(context.TaskId, cancellationToken).ConfigureAwait(false);
+            if (persistedTask is not null)
+            {
+                return new SendMessageResponse
+                {
+                    Task = persistedTask.WithHistoryTrimmedTo(context.Configuration?.HistoryLength),
+                };
+            }
+        }
 
         throw new A2AException(
             "Agent handler did not produce any response events.",

@@ -28,7 +28,7 @@ public static class A2AMethods
     public const string GetTaskPushNotificationConfig = "GetTaskPushNotificationConfig";
 
     /// <summary>List push notification configurations.</summary>
-    public const string ListTaskPushNotificationConfig = "ListTaskPushNotificationConfig";
+    public const string ListTaskPushNotificationConfigs = "ListTaskPushNotificationConfigs";
 
     /// <summary>Delete a push notification configuration.</summary>
     public const string DeleteTaskPushNotificationConfig = "DeleteTaskPushNotificationConfig";
@@ -48,7 +48,7 @@ public static class A2AMethods
     /// </summary>
     /// <param name="method">The method name to check.</param>
     /// <returns>True if the method is a push notification method, false otherwise.</returns>
-    public static bool IsPushNotificationMethod(string method) => method is CreateTaskPushNotificationConfig or GetTaskPushNotificationConfig or ListTaskPushNotificationConfig or DeleteTaskPushNotificationConfig;
+    public static bool IsPushNotificationMethod(string method) => method is CreateTaskPushNotificationConfig or GetTaskPushNotificationConfig or ListTaskPushNotificationConfigs or DeleteTaskPushNotificationConfig;
 
     /// <summary>
     /// Determines if a method name is valid for A2A JSON-RPC.

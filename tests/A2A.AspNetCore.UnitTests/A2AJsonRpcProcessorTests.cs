@@ -411,6 +411,36 @@ public class A2AJsonRpcProcessorTests
         Assert.Equal("Invalid parameters", BodyContent.Error.Message);
     }
 
+    [Fact]
+    public async Task StreamResponse_SubscribeToTerminalTask_ReturnsUnsupportedOperationError()
+    {
+        // Arrange
+        var (requestHandler, store) = CreateTestServerWithStore();
+        await store.SaveTaskAsync("terminal-task", new AgentTask
+        {
+            Id = "terminal-task",
+            ContextId = "ctx-1",
+            Status = new TaskStatus { State = TaskState.Completed },
+        });
+        var parameters = ToJsonElement(new SubscribeToTaskRequest { Id = "terminal-task" });
+
+        // Act
+        var result = A2AJsonRpcProcessor.StreamResponse(
+            requestHandler, "10", A2AMethods.SubscribeToTask, parameters, CancellationToken.None);
+        var responseResult = Assert.IsType<JsonRpcStreamedResult>(result);
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+        await responseResult.ExecuteAsync(context);
+
+        // Assert
+        context.Response.Body.Position = 0;
+        var response = await JsonSerializer.DeserializeAsync<JsonRpcResponse>(
+            context.Response.Body, A2AJsonUtilities.DefaultOptions);
+        Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
+        Assert.Equal("application/json", context.Response.ContentType);
+        Assert.Equal((int)A2AErrorCode.UnsupportedOperation, response?.Error?.Code);
+    }
+
     [Theory]
     [InlineData("{invalid json", "completely malformed JSON")]
     [InlineData("not json at all", "plain text")]
@@ -466,18 +496,19 @@ public class A2AJsonRpcProcessorTests
         ["Invalid JSON payload", "Invalid JSON-RPC request payload."];
 
     /// <summary>Creates a test A2AServer with in-memory store and default callbacks.</summary>
-    private static IA2ARequestHandler CreateTestServer()
+    private static IA2ARequestHandler CreateTestServer(A2AServerOptions? options = null)
     {
-        return CreateTestServerWithStore().requestHandler;
+        return CreateTestServerWithStore(options).requestHandler;
     }
 
     /// <summary>Creates a test A2AServer with store exposed for pre-populating data.</summary>
-    private static (IA2ARequestHandler requestHandler, InMemoryTaskStore store) CreateTestServerWithStore()
+    private static (IA2ARequestHandler requestHandler, InMemoryTaskStore store) CreateTestServerWithStore(
+        A2AServerOptions? options = null)
     {
         var notifier = new ChannelEventNotifier();
         var store = new InMemoryTaskStore();
         var handler = new TestAgentHandler();
-        var requestHandler = new A2AServer(handler, store, notifier, NullLogger<A2AServer>.Instance);
+        var requestHandler = new A2AServer(handler, store, notifier, NullLogger<A2AServer>.Instance, options);
         return (requestHandler, store);
     }
 
@@ -632,7 +663,7 @@ public class A2AJsonRpcProcessorTests
             "jsonrpc": "2.0",
             "method": "{{A2AMethods.CreateTaskPushNotificationConfig}}",
             "id": "pn-1",
-            "params": { "taskId": "some-task", "pushNotificationConfig": { "url": "https://example.com/callback" } }
+            "params": { "taskId": "some-task", "url": "https://example.com/callback" }
         }
         """;
 
@@ -653,10 +684,40 @@ public class A2AJsonRpcProcessorTests
     }
 
     [Fact]
-    public async Task ProcessRequestAsync_GetExtendedAgentCard_ReturnsNotConfigured()
+    public async Task ProcessRequestAsync_GetExtendedAgentCard_WhenCapabilityIsAbsent_ReturnsUnsupportedOperation()
     {
         // Arrange
         var requestHandler = CreateTestServer();
+        var jsonRequest = $$"""
+        {
+            "jsonrpc": "2.0",
+            "method": "{{A2AMethods.GetExtendedAgentCard}}",
+            "id": "card-1",
+            "params": {}
+        }
+        """;
+
+        var httpRequest = CreateHttpRequestFromJson(jsonRequest);
+
+        // Act
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(requestHandler, httpRequest, CancellationToken.None);
+
+        // Assert
+        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
+        var (StatusCode, ContentType, BodyContent) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+
+        Assert.Equal(StatusCodes.Status200OK, StatusCode);
+        Assert.Equal("application/json", ContentType);
+        Assert.Null(BodyContent.Result);
+        Assert.NotNull(BodyContent.Error);
+        Assert.Equal((int)A2AErrorCode.UnsupportedOperation, BodyContent.Error.Code);
+    }
+
+    [Fact]
+    public async Task ProcessRequestAsync_GetExtendedAgentCard_WhenCapabilityIsTrue_ReturnsNotConfigured()
+    {
+        // Arrange
+        var requestHandler = CreateTestServer(new A2AServerOptions { SupportsExtendedAgentCard = true });
         var jsonRequest = $$"""
         {
             "jsonrpc": "2.0",
