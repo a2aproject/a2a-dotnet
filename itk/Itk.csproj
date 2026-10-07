@@ -12,11 +12,14 @@
   <ItemGroup>
     <ProjectReference Include="../src/A2A/A2A.csproj" />
     <ProjectReference Include="../src/A2A.AspNetCore/A2A.AspNetCore.csproj" />
+    <ProjectReference Include="../src/A2A.Grpc/A2A.Grpc.csproj" />
+    <ProjectReference Include="../src/A2A.Grpc.AspNetCore/A2A.Grpc.AspNetCore.csproj" />
     <ProjectReference Include="../src/A2A.V0_3Compat/A2A.V0_3Compat.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Google.Protobuf" />
+    <PackageReference Include="Grpc.AspNetCore" />
   </ItemGroup>
 
 </Project>

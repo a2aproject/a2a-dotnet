@@ -210,6 +210,7 @@ public sealed class ItkAgent(IHttpClientFactory httpClientFactory, ILogger<ItkAg
         {
             "JSONRPC" => ProtocolBindingNames.JsonRpc,
             "HTTP+JSON" or "HTTP_JSON" or "REST" => ProtocolBindingNames.HttpJson,
+            "GRPC" => ProtocolBindingNames.Grpc,
             _ => throw new NotSupportedException($"Unsupported transport: {call.Transport}")
         };
 
@@ -220,6 +221,12 @@ public sealed class ItkAgent(IHttpClientFactory httpClientFactory, ILogger<ItkAg
         // v1.0, which is a shape a v0.3 card does not have.
         if (await ItkV03.PeerEndpointAsync(call.AgentCardUri, httpClient, cancellationToken) is { } v03Url)
         {
+            if (preferredBinding != ProtocolBindingNames.JsonRpc)
+            {
+                throw new NotSupportedException(
+                    $"Transport '{call.Transport}' is not supported for v0.3 peers; use JSONRPC");
+            }
+
             logger.LogInformation("Peer {AgentCardUri} is v0.3; dialing {Url} over compat", call.AgentCardUri, v03Url);
             // Not CreateAsync: its only extra work is fetching the card to find this
             // URL, which the detection above has already done — and it looks for the
@@ -494,7 +501,7 @@ public sealed class ItkAgent(IHttpClientFactory httpClientFactory, ILogger<ItkAg
         return results;
     }
 
-    public static AgentCard GetAgentCard(int httpPort) => new()
+    public static AgentCard GetAgentCard(int httpPort, int grpcPort = 11002) => new()
     {
         Name = "ITK .NET Agent",
         Description = ".NET agent for ITK compatibility testing.",
@@ -537,6 +544,12 @@ public sealed class ItkAgent(IHttpClientFactory httpClientFactory, ILogger<ItkAg
             {
                 ProtocolBinding = "HTTP+JSON",
                 Url = $"http://127.0.0.1:{httpPort}/",
+                ProtocolVersion = "1.0",
+            },
+            new AgentInterface
+            {
+                ProtocolBinding = ProtocolBindingNames.Grpc,
+                Url = $"http://127.0.0.1:{grpcPort}",
                 ProtocolVersion = "1.0",
             },
         ],

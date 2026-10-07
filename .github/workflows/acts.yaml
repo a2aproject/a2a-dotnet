@@ -4,9 +4,7 @@ name: ACTS
 # traversal counterpart is `itk.yaml`; both drive the same `itk/run_itk.sh`,
 # and ITK_ACTS_RUN picks which suite it runs.
 #
-# Two bindings, not three: the SDK has no gRPC server — A2AClientFactory
-# knows the GRPC binding name but nothing implements it — so a gRPC pass
-# would have nothing to dial.
+# Run all three standard protocol bindings exposed by the ITK agent.
 
 on:
   push:
@@ -70,7 +68,7 @@ jobs:
         env:
           A2A_ITK_REVISION: b57c5332aa883b27c1e5c915fe61cac76d2a1de9
           ITK_ACTS_RUN: "1"
-          ITK_ACTS_TRANSPORTS: jsonrpc,rest
+          ITK_ACTS_TRANSPORTS: jsonrpc,rest,grpc
           ITK_SKIP_BUILD: "1"
 
       - name: Publish ACTS summary
@@ -85,7 +83,7 @@ jobs:
           import pathlib
           import sys
 
-          expected = {"jsonrpc", "rest"}
+          expected = {"jsonrpc", "rest", "grpc"}
           reports = {}
           for name in glob.glob("acts-report-*.json"):
               with open(name, encoding="utf-8") as stream:
