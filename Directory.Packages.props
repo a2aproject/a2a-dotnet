@@ -22,10 +22,11 @@
         <!-- Testing / samples dependencies -->
         <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.5" />
         <PackageVersion Include="JsonSchema.Net" Version="9.4.0" />
-        <PackageVersion Include="Microsoft.Agents.AI.A2A" Version="1.19.0-preview.260822.1" />
-        <PackageVersion Include="Microsoft.Agents.AI.Hosting.A2A" Version="1.19.0-preview.260822.1" />
-        <PackageVersion Include="Microsoft.Agents.AI.OpenAI" Version="1.19.0" />
-        <PackageVersion Include="Microsoft.Extensions.AI" Version="10.10.1" />
+        <PackageVersion Include="Microsoft.Agents.AI.A2A" Version="1.24.0-preview.261006.1" />
+        <PackageVersion Include="Microsoft.Agents.AI.Hosting.A2A" Version="1.24.0-preview.261006.1" />
+        <PackageVersion Include="Microsoft.Agents.AI.Hosting.A2A.AspNetCore" Version="1.24.0-preview.261006.1" />
+        <PackageVersion Include="Microsoft.Agents.AI.OpenAI" Version="1.24.0" />
+        <PackageVersion Include="Microsoft.Extensions.AI" Version="10.10.0" />
         <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.10.1" />
         <PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.9" />
         <PackageVersion Include="Moq" Version="4.21.0" />

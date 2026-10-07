@@ -54,9 +54,8 @@ builder.AddA2AServer(travelAgent);
 var app = builder.Build();
 
 // Expose the agent through both supported A2A protocol bindings.
-var a2aServer = app.Services.GetRequiredKeyedService<A2A.A2AServer>(TravelAgentName);
-app.MapA2A(a2aServer, "/");
-app.MapHttpA2A(a2aServer, "/");
+app.MapA2AHttpJson(travelAgent, "/");
+app.MapA2AJsonRpc(travelAgent, "/");
 
 // Publish the agent card at the well-known discovery endpoint.
 app.MapWellKnownAgentCard(travelAgentCard);
