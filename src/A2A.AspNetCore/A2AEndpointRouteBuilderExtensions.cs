@@ -166,6 +166,15 @@ public static class A2ARouteBuilderExtensions
         var routeGroup = endpoints.MapGroup(path);
         var logger = endpoints.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("A2A.REST");
 
+        // Reject unsupported A2A-Version header values on the HTTP+JSON binding, matching the
+        // JSON-RPC binding (A2AJsonRpcProcessor.CheckPreflight). See GitHub issue #512.
+        routeGroup.AddEndpointFilter(static async (context, next) =>
+        {
+            var error = A2AVersionHeader.Validate(
+                context.HttpContext.Request.Headers[A2AVersionHeader.HeaderName]);
+            return error is not null ? new A2AErrorResult(error) : await next(context);
+        });
+
         // Task operations
         routeGroup.MapGet("/tasks/{id}", (string id, [FromQuery] int? historyLength, CancellationToken ct)
             => A2AHttpProcessor.GetTaskRestAsync(requestHandler, logger, id, historyLength, ct));
