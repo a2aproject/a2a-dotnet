@@ -60,12 +60,12 @@ public static class A2ACli
     };
     private static readonly Option<bool> s_usePushNotificationsOption = new("--use-push-notifications")
     {
-        Description = "Enable push notifications"
+        Description = "Host a local callback endpoint and enable push notifications"
     };
     private static readonly Option<string> s_pushNotificationReceiverOption = new("--push-notification-receiver")
     {
         DefaultValueFactory = _ => "http://localhost:5000",
-        Description = "Push notification receiver URL"
+        Description = "Loopback base URL for the push notification receiver"
     };
 
     private static readonly JsonSerializerOptions s_jsonOptions = new()
@@ -93,17 +93,25 @@ public static class A2ACli
 
         try
         {
+            await using var notificationReceiver = usePushNotifications
+                ? await PushNotificationReceiver.StartAsync(
+                    new Uri(pushNotificationReceiver),
+                    notification => Console.WriteLine(
+                        $"\nPush notification => {JsonSerializer.Serialize(notification, A2AJsonUtilities.DefaultOptions)}"),
+                    cancellationToken)
+                : null;
+
+            if (notificationReceiver is not null)
+            {
+                Console.WriteLine($"Push notification receiver listening at {notificationReceiver.NotificationUri}");
+            }
+
             // Create the card resolver and get agentUrl card
             var cardResolver = new A2ACardResolver(new Uri(agentUrl));
             var card = await cardResolver.GetAgentCardAsync(cancellationToken);
 
             Console.WriteLine("======= Agent Card ========");
             Console.WriteLine(JsonSerializer.Serialize(card, s_jsonOptions));
-
-            // Parse notification receiver URL
-            var notificationReceiverUri = new Uri(pushNotificationReceiver!);
-            string notificationReceiverHost = notificationReceiverUri.Host;
-            int notificationReceiverPort = notificationReceiverUri.Port;
 
             // Create A2A client
             var client = new A2AClient(new Uri(card.SupportedInterfaces.First().Url));
@@ -121,9 +129,7 @@ public static class A2ACli
                 continueLoop = await CompleteTaskAsync(
                     client,
                     streaming,
-                    usePushNotifications,
-                    notificationReceiverHost,
-                    notificationReceiverPort,
+                    notificationReceiver?.NotificationUri,
                     taskId,
                     sessionId,
                     cancellationToken);
@@ -150,16 +156,14 @@ public static class A2ACli
         catch (Exception ex)
         {
             logger.LogError(ex, "An error occurred while running the A2ACli");
-            return;
+            throw;
         }
     }
 
     private static async Task<bool> CompleteTaskAsync(
         A2AClient client,
         bool streaming,
-        bool usePushNotifications,
-        string notificationReceiverHost,
-        int notificationReceiverPort,
+        Uri? notificationReceiverUri,
         string taskId,
         string sessionId,
         CancellationToken cancellationToken)
@@ -218,15 +222,11 @@ public static class A2ACli
         };
 
         // Add push notification configuration if enabled
-        if (usePushNotifications)
+        if (notificationReceiverUri is not null)
         {
             payload.Configuration.TaskPushNotificationConfig = new TaskPushNotificationConfig
             {
-                Url = $"http://{notificationReceiverHost}:{notificationReceiverPort}/notify",
-                Authentication = new AuthenticationInfo
-                {
-                    Scheme = "bearer"
-                }
+                Url = notificationReceiverUri.ToString()
             };
         }
 
@@ -266,9 +266,7 @@ public static class A2ACli
             return await CompleteTaskAsync(
                 client,
                 streaming,
-                usePushNotifications,
-                notificationReceiverHost,
-                notificationReceiverPort,
+                notificationReceiverUri,
                 taskId,
                 sessionId,
                 cancellationToken);
