@@ -3,7 +3,9 @@ updates:
   - package-ecosystem: nuget
     directory: "/"
     schedule:
-      interval: daily
+      interval: "weekly"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 10
     groups:
       OpenTelemetry:
@@ -13,5 +15,5 @@ updates:
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
-      interval: daily
+      interval: "weekly"
     open-pull-requests-limit: 10
