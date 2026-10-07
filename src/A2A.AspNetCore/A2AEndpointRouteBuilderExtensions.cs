@@ -168,12 +168,7 @@ public static class A2ARouteBuilderExtensions
 
         // Reject unsupported A2A-Version header values on the HTTP+JSON binding, matching the
         // JSON-RPC binding (A2AJsonRpcProcessor.CheckPreflight). See GitHub issue #512.
-        routeGroup.AddEndpointFilter(static async (context, next) =>
-        {
-            var error = A2AVersionHeader.Validate(
-                context.HttpContext.Request.Headers[A2AVersionHeader.HeaderName]);
-            return error is not null ? new A2AErrorResult(error) : await next(context);
-        });
+        AddA2AVersionFilter(routeGroup);
 
         // Task operations
         routeGroup.MapGet("/tasks/{id}", (string id, [FromQuery] int? historyLength, CancellationToken ct)
@@ -247,13 +242,15 @@ public static class A2ARouteBuilderExtensions
 
         var routeGroup = endpoints.MapGroup(path);
         MapHttpA2A(routeGroup, requestHandler);
+        var customRouteGroup = routeGroup.MapGroup("");
+        AddA2AVersionFilter(customRouteGroup);
         var logger = endpoints.ServiceProvider
             .GetRequiredService<ILoggerFactory>()
             .CreateLogger("A2A.REST.Custom");
 
         foreach (var binding in customBindings.Items)
         {
-            routeGroup.MapMethods(
+            customRouteGroup.MapMethods(
                 binding.Route,
                 [binding.HttpMethod],
                 async context =>
@@ -329,5 +326,15 @@ public static class A2ARouteBuilderExtensions
         }
 
         return routeGroup;
+    }
+
+    private static void AddA2AVersionFilter(RouteGroupBuilder routeGroup)
+    {
+        routeGroup.AddEndpointFilter(static async (context, next) =>
+        {
+            var error = A2AVersionHeader.Validate(
+                context.HttpContext.Request.Headers[A2AVersionHeader.HeaderName]);
+            return error is not null ? new A2AErrorResult(error) : await next(context);
+        });
     }
 }

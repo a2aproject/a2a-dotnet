@@ -182,6 +182,41 @@ public sealed class A2AHttpCustomOperationTests
     }
 
     [Fact]
+    public async Task MapHttpA2A_CustomUnaryRoute_RejectsUnsupportedVersion()
+    {
+        var handlerInvoked = false;
+        var builder = new A2ACustomOperationRegistryBuilder();
+        var operation = builder.Map<HttpCustomRequest, HttpCustomResult>(
+            new A2AOperationId("https://example.test/operations#version"),
+            (request, _) =>
+            {
+                handlerInvoked = true;
+                return ValueTask.FromResult(new HttpCustomResult(request.Value));
+            },
+            HttpCustomJsonContext.Default.HttpCustomRequest,
+            HttpCustomJsonContext.Default.HttpCustomResult);
+        var registry = builder.Build();
+        var bindings = new A2AHttpCustomOperationBuilder()
+            .Map(HttpMethods.Post, "/version", operation, BindEmpty)
+            .Build(registry);
+        await using var app = CreateApp();
+        app.MapHttpA2A(Mock.Of<IA2ARequestHandler>(), "/a2a", registry, bindings);
+        var endpoint = FindEndpoint(app, "/a2a/version", HttpMethods.Post);
+        var context = CreateContext(app, HttpMethods.Post, "/a2a/version");
+        context.Request.Headers["A2A-Version"] = "99.0";
+
+        await endpoint.RequestDelegate!(context);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, context.Response.StatusCode);
+        Assert.False(handlerInvoked);
+        context.Response.Body.Position = 0;
+        using var response = await JsonDocument.ParseAsync(context.Response.Body);
+        Assert.Equal(
+            "VERSION_NOT_SUPPORTED",
+            response.RootElement.GetProperty("error").GetProperty("details")[0].GetProperty("reason").GetString());
+    }
+
+    [Fact]
     public void Map_RejectsDuplicateMethodAndRoute()
     {
         var builder = new A2ACustomOperationRegistryBuilder();
