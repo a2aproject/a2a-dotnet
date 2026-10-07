@@ -283,4 +283,109 @@ public class A2AEndpointRouteBuilderExtensionsTests
 
         return context.Response;
     }
+    [Fact]
+    public async Task MapHttpA2A_UnsupportedVersionHeader_Returns400()
+    {
+        // GitHub issue #512: HTTP+JSON must reject an unsupported A2A-Version, matching
+        // JSON-RPC, mapping VersionNotSupported to HTTP 400 without invoking the handler.
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.ConfigureHttpJsonOptions(options =>
+            options.SerializerOptions.TypeInfoResolver = A2AJsonUtilities.DefaultOptions.TypeInfoResolver);
+        await using var app = builder.Build();
+        var requestHandler = new Mock<IA2ARequestHandler>(MockBehavior.Strict);
+        app.MapHttpA2A(requestHandler.Object);
+
+        var endpoint = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Single(candidate => candidate.RoutePattern.RawText == "/tasks/{id}" &&
+                candidate.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Contains("GET"));
+
+        using var responseBody = new MemoryStream();
+        using var scope = app.Services.CreateScope();
+        var context = new DefaultHttpContext { RequestServices = scope.ServiceProvider };
+        context.Request.Method = "GET";
+        context.Request.Path = "/tasks/task-1";
+        context.Request.RouteValues["id"] = "task-1";
+        context.Request.Headers["A2A-Version"] = "99.0";
+        context.Response.Body = responseBody;
+
+        await endpoint.RequestDelegate!(context);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, context.Response.StatusCode);
+        requestHandler.VerifyNoOtherCalls();
+    }
+
+    [Theory]
+    [InlineData("1.0")]
+    [InlineData("0.3")]
+    [InlineData(null)]
+    public async Task MapHttpA2A_SupportedOrAbsentVersion_PassesFilter(string? version)
+    {
+        // GitHub issue #512: a supported or absent A2A-Version must pass the preflight and
+        // reach the handler (the filter must not reject valid requests).
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.ConfigureHttpJsonOptions(options =>
+            options.SerializerOptions.TypeInfoResolver = A2AJsonUtilities.DefaultOptions.TypeInfoResolver);
+        await using var app = builder.Build();
+        var requestHandler = new Mock<IA2ARequestHandler>(MockBehavior.Strict);
+        requestHandler
+            .Setup(handler => handler.GetTaskAsync(It.IsAny<GetTaskRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AgentTask { Id = "task-1", ContextId = "ctx-1" });
+        app.MapHttpA2A(requestHandler.Object);
+
+        var endpoint = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Single(candidate => candidate.RoutePattern.RawText == "/tasks/{id}" &&
+                candidate.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Contains("GET"));
+
+        using var responseBody = new MemoryStream();
+        using var scope = app.Services.CreateScope();
+        var context = new DefaultHttpContext { RequestServices = scope.ServiceProvider };
+        context.Request.Method = "GET";
+        context.Request.Path = "/tasks/task-1";
+        context.Request.RouteValues["id"] = "task-1";
+        if (version is not null)
+        {
+            context.Request.Headers["A2A-Version"] = version;
+        }
+        context.Response.Body = responseBody;
+
+        await endpoint.RequestDelegate!(context);
+
+        Assert.NotEqual(StatusCodes.Status400BadRequest, context.Response.StatusCode);
+        requestHandler.Verify(
+            handler => handler.GetTaskAsync(It.IsAny<GetTaskRequest>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+    [Fact]
+    public async Task MapHttpA2A_MultiValueVersionHeader_WithUnsupportedValue_Returns400()
+    {
+        // GitHub issue #512 hardening: a repeated A2A-Version header carrying a supported value
+        // followed by an unsupported one must still be rejected (no first-value bypass).
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.ConfigureHttpJsonOptions(options =>
+            options.SerializerOptions.TypeInfoResolver = A2AJsonUtilities.DefaultOptions.TypeInfoResolver);
+        await using var app = builder.Build();
+        var requestHandler = new Mock<IA2ARequestHandler>(MockBehavior.Strict);
+        app.MapHttpA2A(requestHandler.Object);
+
+        var endpoint = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Single(candidate => candidate.RoutePattern.RawText == "/tasks/{id}" &&
+                candidate.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Contains("GET"));
+
+        using var responseBody = new MemoryStream();
+        using var scope = app.Services.CreateScope();
+        var context = new DefaultHttpContext { RequestServices = scope.ServiceProvider };
+        context.Request.Method = "GET";
+        context.Request.Path = "/tasks/task-1";
+        context.Request.RouteValues["id"] = "task-1";
+        context.Request.Headers["A2A-Version"] = new Microsoft.Extensions.Primitives.StringValues(["1.0", "99.0"]);
+        context.Response.Body = responseBody;
+
+        await endpoint.RequestDelegate!(context);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, context.Response.StatusCode);
+        requestHandler.VerifyNoOtherCalls();
+    }
 }
