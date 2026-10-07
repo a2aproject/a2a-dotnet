@@ -63,7 +63,7 @@ jobs:
         env:
           A2A_ITK_REVISION: b57c5332aa883b27c1e5c915fe61cac76d2a1de9
           ITK_ACTS_RUN: "1"
-          ITK_ACTS_TRANSPORTS: jsonrpc,rest
+          ITK_ACTS_TRANSPORTS: jsonrpc,rest,grpc
           # Does not gate on conformance, unlike the PR tier: a `must` failure
           # is the metric being recorded. The step fails only if the service
           # errored or the report came back malformed — exactly when
@@ -87,7 +87,7 @@ jobs:
         with:
           # The conformance counterpart of itk_dotnet.json, on the same
           # permanent tag: process_acts_results.py fetches the existing
-          # acts_dotnet.json, appends one entry covering both bindings, and
+          # acts_dotnet.json, appends one entry covering all bindings, and
           # this puts it back.
           tag_name: "nightly-metrics"
           prerelease: true

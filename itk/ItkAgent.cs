@@ -210,6 +210,7 @@ public sealed class ItkAgent(IHttpClientFactory httpClientFactory, ILogger<ItkAg
         {
             "JSONRPC" => ProtocolBindingNames.JsonRpc,
             "HTTP+JSON" or "HTTP_JSON" or "REST" => ProtocolBindingNames.HttpJson,
+            "GRPC" => ProtocolBindingNames.Grpc,
             _ => throw new NotSupportedException($"Unsupported transport: {call.Transport}")
         };
 
@@ -494,7 +495,7 @@ public sealed class ItkAgent(IHttpClientFactory httpClientFactory, ILogger<ItkAg
         return results;
     }
 
-    public static AgentCard GetAgentCard(int httpPort) => new()
+    public static AgentCard GetAgentCard(int httpPort, int grpcPort = 11002) => new()
     {
         Name = "ITK .NET Agent",
         Description = ".NET agent for ITK compatibility testing.",
@@ -537,6 +538,12 @@ public sealed class ItkAgent(IHttpClientFactory httpClientFactory, ILogger<ItkAg
             {
                 ProtocolBinding = "HTTP+JSON",
                 Url = $"http://127.0.0.1:{httpPort}/",
+                ProtocolVersion = "1.0",
+            },
+            new AgentInterface
+            {
+                ProtocolBinding = ProtocolBindingNames.Grpc,
+                Url = $"http://127.0.0.1:{grpcPort}",
                 ProtocolVersion = "1.0",
             },
         ],
