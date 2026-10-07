@@ -221,6 +221,12 @@ public sealed class ItkAgent(IHttpClientFactory httpClientFactory, ILogger<ItkAg
         // v1.0, which is a shape a v0.3 card does not have.
         if (await ItkV03.PeerEndpointAsync(call.AgentCardUri, httpClient, cancellationToken) is { } v03Url)
         {
+            if (preferredBinding != ProtocolBindingNames.JsonRpc)
+            {
+                throw new NotSupportedException(
+                    $"Transport '{call.Transport}' is not supported for v0.3 peers; use JSONRPC");
+            }
+
             logger.LogInformation("Peer {AgentCardUri} is v0.3; dialing {Url} over compat", call.AgentCardUri, v03Url);
             // Not CreateAsync: its only extra work is fetching the card to find this
             // URL, which the detection above has already done — and it looks for the
