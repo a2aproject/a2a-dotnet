@@ -58,9 +58,11 @@ export ITK_NIGHTLY_RUN=TRUE
 ```
 
 Combinations this SDK cannot serve are recorded in `a2a-itk/known_failures.yaml` and
-skipped with the reason logged, rather than being left out of the scenario set:
-gRPC (no server in the SDK), push notifications (`PushNotificationNotSupported`
-everywhere), and v0.3 peers over HTTP+JSON (`A2A.V0_3Compat` is JSON-RPC only).
+skipped with the reason logged, rather than being left out of the scenario set. The
+currently pinned revision still excludes .NET gRPC traversal until the corresponding
+`a2a-itk` matrix and known-failure update lands. It also excludes push notifications
+(`PushNotificationNotSupported` everywhere) and non-JSON-RPC calls to v0.3 peers
+(`A2A.V0_3Compat` is JSON-RPC only).
 
 ### v0.3 peers
 
@@ -68,7 +70,9 @@ everywhere), and v0.3 peers over HTTP+JSON (`A2A.V0_3Compat` is JSON-RPC only).
 dials v0.3 peers. `/jsonrpc` and `/` answer either dialect — `V03ServerProcessor`
 picks one from the `A2A-Version` header and passes a 1.0 request straight through —
 and the card advertises the same URL for `protocolVersion` 1.0 and 0.3.
-`ItkV03.PeerEndpointAsync` reads a peer's card to decide which client to build.
+`ItkV03.PeerEndpointAsync` reads a peer's card to decide which client to build. Because
+the compatibility client is JSON-RPC-only, instructions requesting HTTP+JSON or gRPC
+for a pure v0.3 peer fail explicitly instead of silently falling back to JSON-RPC.
 
 ## ACTS conformance
 
@@ -76,18 +80,19 @@ The same script runs the ACTS conformance suite instead of the traversal one, wh
 measures this SDK against the A2A specification rather than against its peers:
 
 ```bash
-ITK_ACTS_RUN=1 ITK_ACTS_TRANSPORTS=jsonrpc,rest ./run_itk.sh
+ITK_ACTS_RUN=1 ITK_ACTS_TRANSPORTS=jsonrpc,rest,grpc ./run_itk.sh
 ```
 
-Two bindings, not three: the SDK has no gRPC server, so a gRPC pass has nothing to dial.
+The ITK agent serves JSON-RPC and HTTP+JSON on `--httpPort`, and gRPC over cleartext
+HTTP/2 on the separate `--grpcPort` supplied by the launcher.
 
 Each transport leaves a full spec §13 report as `acts-report-dotnet-<transport>-<ts>.json`,
 which is what says *why* a test failed. `acts/sut-behaviors.yaml` declares which `tck-*`
 behaviours the agent implements; `ActsBehaviors.cs` implements them, `ActsAuth.cs` handles
 the credential-gated tests, and `ActsClientParse.cs` runs canonical payloads through this
-SDK's own client for the §10 CLIENT-* tests. PR ACTS runs require MUST conformance on both
-JSON-RPC and HTTP+JSON; either transport failing, missing, or producing a malformed report
-fails the workflow.
+SDK's own client for the §10 CLIENT-* tests. PR ACTS runs require MUST conformance on
+JSON-RPC, HTTP+JSON, and gRPC; any transport failing, missing, or producing a malformed
+report fails the workflow.
 
 ## Debugging
 

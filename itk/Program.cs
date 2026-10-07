@@ -1,7 +1,10 @@
 using A2A;
 using A2A.AspNetCore;
+using A2A.Grpc;
+using A2A.Grpc.AspNetCore;
 using A2A.Itk;
 using A2A.V0_3Compat;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 
@@ -19,9 +22,14 @@ for (int i = 0; i < args.Length; i++)
         grpcPort = int.Parse(args[++i]);
 }
 
-builder.WebHost.UseUrls($"http://127.0.0.1:{httpPort}");
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.ListenLocalhost(httpPort, listenOptions => listenOptions.Protocols = HttpProtocols.Http1);
+    options.ListenLocalhost(grpcPort, listenOptions => listenOptions.Protocols = HttpProtocols.Http2);
+});
 
-var agentCard = ItkAgent.GetAgentCard(httpPort);
+var agentCard = ItkAgent.GetAgentCard(httpPort, grpcPort);
+A2AGrpcClientRegistration.Register();
 
 // Registered before AddA2AAgent, whose TryAddSingleton then leaves it alone. ActsServer
 // only adds the extended agent card, which the stock server has no way to produce.
@@ -36,6 +44,7 @@ builder.Services.AddSingleton<IA2ARequestHandler>(sp => new ActsServer(
 builder.Services.TryAddSingleton<ChannelEventNotifier>();
 builder.Services.TryAddSingleton<ITaskStore, InMemoryTaskStore>();
 builder.Services.AddA2AAgent<ItkAgent>(agentCard);
+builder.Services.AddA2AGrpc();
 builder.Services.AddHttpClient();
 
 var app = builder.Build();
@@ -68,5 +77,8 @@ app.MapA2AWithV03Compat(requestHandler, "/");
 
 // HTTP+JSON REST endpoints at root
 app.MapHttpA2A(requestHandler);
+
+// gRPC on the launcher's dedicated HTTP/2 port
+app.MapGrpcA2A();
 
 app.Run();
