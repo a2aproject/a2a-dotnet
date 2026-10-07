@@ -44,6 +44,7 @@ public class A2AEndpointRouteBuilderExtensionsTests
         await endpoint.RequestDelegate!(context);
 
         Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
+        Assert.Equal("application/a2a+json", context.Response.ContentType);
         requestHandler.VerifyAll();
     }
 

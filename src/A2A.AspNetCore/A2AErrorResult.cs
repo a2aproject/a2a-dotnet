@@ -18,7 +18,7 @@ internal sealed class A2AErrorResult(A2AException exception) : IResult, IStatusC
         var httpStatus = A2AErrorCodeMapping.GetHttpStatusCode(errorCode);
 
         httpContext.Response.StatusCode = httpStatus;
-        httpContext.Response.ContentType = "application/json";
+        httpContext.Response.ContentType = "application/a2a+json";
 
         // Build JSON into a buffer first (Utf8JsonWriter on MemoryStream is synchronous-safe),
         // then copy to the response body asynchronously to avoid AllowSynchronousIO violations.

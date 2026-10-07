@@ -17,6 +17,9 @@ namespace A2A
         [LoggerMessage(2, LogLevel.Error, "HTTP request failed with status code {StatusCode}")]
         internal static partial void HttpRequestFailedWithStatusCode(this ILogger logger, Exception exception, System.Net.HttpStatusCode StatusCode);
 
+        [LoggerMessage(5, LogLevel.Warning, "Upcast v0.3 agent card to v1.0")]
+        internal static partial void UpcastV03AgentCard(this ILogger logger, Exception exception);
+
         [LoggerMessage(3, LogLevel.Error, "Background event processing failed for task {TaskId}")]
         internal static partial void BackgroundEventProcessingFailed(this ILogger logger, Exception exception, string TaskId);
 

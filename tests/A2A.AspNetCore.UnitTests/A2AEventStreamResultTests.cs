@@ -20,7 +20,7 @@ public class A2AEventStreamResultTests
         await result.ExecuteAsync(httpContext);
 
         Assert.Equal(expectedStatusCode, httpContext.Response.StatusCode);
-        Assert.Equal("application/json", httpContext.Response.ContentType);
+        Assert.Equal("application/a2a+json", httpContext.Response.ContentType);
 
         using var body = JsonDocument.Parse(GetResponseBody(httpContext));
         var error = body.RootElement.GetProperty("error");
@@ -37,7 +37,7 @@ public class A2AEventStreamResultTests
         await result.ExecuteAsync(httpContext);
 
         Assert.Equal(StatusCodes.Status500InternalServerError, httpContext.Response.StatusCode);
-        Assert.Equal("application/json", httpContext.Response.ContentType);
+        Assert.Equal("application/a2a+json", httpContext.Response.ContentType);
         Assert.DoesNotContain("sensitive details", GetResponseBody(httpContext));
     }
 
