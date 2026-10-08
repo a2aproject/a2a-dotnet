@@ -7,6 +7,7 @@ using Moq;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 
 namespace A2A.AspNetCore.Tests;
 
@@ -312,6 +313,11 @@ public class A2AEndpointRouteBuilderExtensionsTests
         await endpoint.RequestDelegate!(context);
 
         Assert.Equal(StatusCodes.Status400BadRequest, context.Response.StatusCode);
+        responseBody.Position = 0;
+        using var responseJson = await JsonDocument.ParseAsync(responseBody);
+        Assert.Equal(
+            "VERSION_NOT_SUPPORTED",
+            responseJson.RootElement.GetProperty("error").GetProperty("details")[0].GetProperty("reason").GetString());
         requestHandler.VerifyNoOtherCalls();
     }
 

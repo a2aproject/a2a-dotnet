@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package a2a.extensions.v1;
+
+option csharp_namespace = "A2A.Grpc.Extensions.Protos";
+
+service A2AExtensionService {
+  rpc InvokeExtensionOperation(ExtensionOperationRequest)
+      returns (ExtensionOperationResponse);
+  rpc InvokeStreamingExtensionOperation(ExtensionOperationRequest)
+      returns (stream ExtensionOperationEvent);
+}
+
+message ExtensionOperationRequest {
+  string operation_id = 1;
+  bytes payload = 2;
+}
+
+message ExtensionOperationResponse {
+  bytes payload = 1;
+}
+
+message ExtensionOperationEvent {
+  bytes payload = 1;
+}
