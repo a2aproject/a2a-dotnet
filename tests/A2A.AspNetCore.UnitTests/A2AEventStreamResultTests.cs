@@ -7,101 +7,108 @@ namespace A2A.AspNetCore.Tests;
 
 public class A2AEventStreamResultTests
 {
-    [Fact]
-    public async Task ExecuteAsync_A2AException_PreservesErrorCodeAndMessage()
+    [Theory]
+    [InlineData(A2AErrorCode.TaskNotFound, StatusCodes.Status404NotFound)]
+    [InlineData(A2AErrorCode.UnsupportedOperation, StatusCodes.Status400BadRequest)]
+    public async Task ExecuteAsync_A2AExceptionBeforeFirstEvent_ReturnsRestError(
+        A2AErrorCode errorCode, int expectedStatusCode)
     {
-        // Arrange — A2A-specific error must keep code, message, and structured data
-        var events = ThrowingAsyncEnumerable(new A2AException("Task not found", A2AErrorCode.TaskNotFound));
-        var result = new A2AEventStreamResult(events);
+        var result = new A2AEventStreamResult(
+            ThrowingAsyncEnumerable(new A2AException("Subscription rejected.", errorCode)));
         var httpContext = CreateHttpContext();
 
-        // Act
         await result.ExecuteAsync(httpContext);
 
-        // Assert
-        var body = GetResponseBody(httpContext);
-        using var doc = JsonDocument.Parse(ExtractErrorDataLine(body));
-        var error = doc.RootElement.GetProperty("error");
+        Assert.Equal(expectedStatusCode, httpContext.Response.StatusCode);
+        Assert.Equal("application/a2a+json", httpContext.Response.ContentType);
 
-        Assert.Equal((int)A2AErrorCode.TaskNotFound, error.GetProperty("code").GetInt32());
-        Assert.Equal("Task not found", error.GetProperty("message").GetString());
-
-        // A2A-specific codes carry google.rpc ErrorInfo data (same as JSON-RPC transport)
-        var data = error.GetProperty("data");
-        Assert.Equal("TASK_NOT_FOUND", data[0].GetProperty("reason").GetString());
-        Assert.Equal("a2a-protocol.org", data[0].GetProperty("domain").GetString());
+        using var body = JsonDocument.Parse(GetResponseBody(httpContext));
+        var error = body.RootElement.GetProperty("error");
+        Assert.Equal("Subscription rejected.", error.GetProperty("message").GetString());
     }
 
     [Fact]
-    public async Task ExecuteAsync_GenericException_ReturnsInternalError_WithoutLeakingMessage()
+    public async Task ExecuteAsync_GenericExceptionBeforeFirstEvent_ReturnsInternalError()
     {
-        // Arrange
-        var events = ThrowingAsyncEnumerable(new InvalidOperationException("sensitive internal details"));
-        var result = new A2AEventStreamResult(events);
+        var result = new A2AEventStreamResult(
+            ThrowingAsyncEnumerable(new InvalidOperationException("sensitive details")));
         var httpContext = CreateHttpContext();
 
-        // Act
         await result.ExecuteAsync(httpContext);
 
-        // Assert — falls back to -32603 with a generic message, never leaks internals
-        var body = GetResponseBody(httpContext);
-        using var doc = JsonDocument.Parse(ExtractErrorDataLine(body));
-        var error = doc.RootElement.GetProperty("error");
+        Assert.Equal(StatusCodes.Status500InternalServerError, httpContext.Response.StatusCode);
+        Assert.Equal("application/a2a+json", httpContext.Response.ContentType);
+        Assert.DoesNotContain("sensitive details", GetResponseBody(httpContext));
+    }
 
+    [Fact]
+    public async Task ExecuteAsync_MultipleEvents_EmitsSseEventsOnceAndInOrder()
+    {
+        var result = new A2AEventStreamResult(MultipleEventsAsyncEnumerable());
+        var httpContext = CreateHttpContext();
+
+        await result.ExecuteAsync(httpContext);
+
+        var body = GetResponseBody(httpContext);
+        Assert.Equal(StatusCodes.Status200OK, httpContext.Response.StatusCode);
+        Assert.Equal("text/event-stream", httpContext.Response.ContentType);
+        Assert.Equal("no-cache,no-store", httpContext.Response.Headers.CacheControl);
+        Assert.Equal(1, body.Split("\"task-1\"", StringSplitOptions.None).Length - 1);
+        Assert.Equal(1, body.Split("\"task-2\"", StringSplitOptions.None).Length - 1);
+        Assert.True(
+            body.IndexOf("\"task-1\"", StringComparison.Ordinal) <
+            body.IndexOf("\"task-2\"", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_EmptyStream_ReturnsSseResponse()
+    {
+        var result = new A2AEventStreamResult(EmptyAsyncEnumerable());
+        var httpContext = CreateHttpContext();
+
+        await result.ExecuteAsync(httpContext);
+
+        Assert.Equal(StatusCodes.Status200OK, httpContext.Response.StatusCode);
+        Assert.Equal("text/event-stream", httpContext.Response.ContentType);
+        Assert.Empty(GetResponseBody(httpContext));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ExceptionAfterFirstEvent_ReturnsSseError()
+    {
+        var result = new A2AEventStreamResult(
+            YieldThenThrowAsyncEnumerable(new A2AException("Task not found.", A2AErrorCode.TaskNotFound)));
+        var httpContext = CreateHttpContext();
+
+        await result.ExecuteAsync(httpContext);
+
+        var body = GetResponseBody(httpContext);
+        Assert.Equal(StatusCodes.Status200OK, httpContext.Response.StatusCode);
+        Assert.Equal("text/event-stream", httpContext.Response.ContentType);
+        Assert.Contains("\"task-1\"", body);
+        using var errorJson = JsonDocument.Parse(ExtractErrorDataLine(body));
+        var error = errorJson.RootElement.GetProperty("error");
+        Assert.Equal((int)A2AErrorCode.TaskNotFound, error.GetProperty("code").GetInt32());
+        Assert.Equal("Task not found.", error.GetProperty("message").GetString());
+        Assert.Equal("TASK_NOT_FOUND", error.GetProperty("data")[0].GetProperty("reason").GetString());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_GenericExceptionAfterFirstEvent_ReturnsInternalErrorWithoutLeakingMessage()
+    {
+        var result = new A2AEventStreamResult(
+            YieldThenThrowAsyncEnumerable(new InvalidOperationException("sensitive internal details")));
+        var httpContext = CreateHttpContext();
+
+        await result.ExecuteAsync(httpContext);
+
+        var body = GetResponseBody(httpContext);
+        using var errorJson = JsonDocument.Parse(ExtractErrorDataLine(body));
+        var error = errorJson.RootElement.GetProperty("error");
         Assert.Equal((int)A2AErrorCode.InternalError, error.GetProperty("code").GetInt32());
         Assert.Equal("An internal error occurred during streaming.", error.GetProperty("message").GetString());
         Assert.DoesNotContain("sensitive internal details", body);
     }
-
-    [Fact]
-    public async Task ExecuteAsync_OperationCanceledException_WritesNoErrorEvent()
-    {
-        // Arrange
-        var events = ThrowingAsyncEnumerable(new OperationCanceledException());
-        var result = new A2AEventStreamResult(events);
-        var httpContext = CreateHttpContext();
-
-        // Act
-        await result.ExecuteAsync(httpContext);
-
-        // Assert — body contains no error SSE data line
-        var body = GetResponseBody(httpContext);
-        Assert.DoesNotContain("\"error\"", body);
-    }
-
-    [Fact]
-    public async Task ExecuteAsync_SetsCorrectResponseHeaders()
-    {
-        // Arrange
-        var events = ThrowingAsyncEnumerable(new A2AException("test", A2AErrorCode.InternalError));
-        var result = new A2AEventStreamResult(events);
-        var httpContext = CreateHttpContext();
-
-        // Act
-        await result.ExecuteAsync(httpContext);
-
-        // Assert
-        Assert.Equal("text/event-stream", httpContext.Response.ContentType);
-        Assert.Equal("no-cache,no-store", httpContext.Response.Headers.CacheControl.ToString());
-    }
-
-    [Fact]
-    public async Task ExecuteAsync_DataEvents_AreValidSseFrames()
-    {
-        // Arrange
-        var result = new A2AEventStreamResult(DataAsyncEnumerable());
-        var httpContext = CreateHttpContext();
-
-        // Act
-        await result.ExecuteAsync(httpContext);
-
-        // Assert — regular stream events are still bare "data: {StreamResponse}" frames
-        var body = GetResponseBody(httpContext);
-        Assert.Contains("data: {", body);
-        Assert.DoesNotContain("\"error\"", body);
-    }
-
-    // --- Helpers ---
 
     private static DefaultHttpContext CreateHttpContext()
     {
@@ -128,25 +135,44 @@ public class A2AEventStreamResultTests
     private static async IAsyncEnumerable<StreamResponse> ThrowingAsyncEnumerable(
         Exception exception, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        await Task.CompletedTask; // force async state machine
+        await Task.CompletedTask;
         throw exception;
-#pragma warning disable CS0162 // Unreachable code — required to satisfy IAsyncEnumerable<T>
+#pragma warning disable CS0162
         yield break;
 #pragma warning restore CS0162
     }
 
-    private static async IAsyncEnumerable<StreamResponse> DataAsyncEnumerable(
+    private static async IAsyncEnumerable<StreamResponse> EmptyAsyncEnumerable(
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         await Task.CompletedTask;
-        yield return new StreamResponse
+        yield break;
+    }
+
+    private static async IAsyncEnumerable<StreamResponse> MultipleEventsAsyncEnumerable(
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        await Task.CompletedTask;
+        yield return CreateTaskResponse("task-1");
+        yield return CreateTaskResponse("task-2");
+    }
+
+    private static async IAsyncEnumerable<StreamResponse> YieldThenThrowAsyncEnumerable(
+        Exception exception, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        yield return CreateTaskResponse("task-1");
+        await Task.CompletedTask;
+        throw exception;
+    }
+
+    private static StreamResponse CreateTaskResponse(string taskId) =>
+        new()
         {
             Task = new AgentTask
             {
-                Id = "t1",
-                ContextId = "c1",
+                Id = taskId,
+                ContextId = "context-1",
                 Status = new TaskStatus { State = TaskState.Working },
             },
         };
-    }
 }

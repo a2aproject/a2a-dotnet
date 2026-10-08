@@ -12,15 +12,21 @@ transport protocols (JSON-RPC, HTTP+JSON, gRPC).
 ## Prerequisites
 
 - **Docker** (or Podman with docker compatibility)
-- **.NET 8.0 SDK** (for building the .NET agent)
+
+No local .NET SDK is needed. The agent is built inside the ITK image, which carries the
+.NET 10 SDK and the 8.0 ASP.NET Core runtime; `run_itk.sh` removes `publish/` on exit so
+a later run cannot exec a stale build.
 
 ## Running Tests
 
 ### 1. Set Environment Variable
 
 ```bash
-export A2A_ITK_REVISION=main
+export A2A_ITK_REVISION=b57c5332aa883b27c1e5c915fe61cac76d2a1de9
 ```
+
+CI pins this revision so interoperability and conformance changes arrive through
+reviewed dependency updates rather than silently changing existing checks.
 
 ### 2. Execute Tests
 
@@ -37,14 +43,56 @@ The script will:
 
 ### PR Tests vs Nightly
 
-- **PR tests** (`scenarios_ci.json`): Focused star topology with core behaviors
-- **Nightly tests** (`scenarios_full.json`): Full protocol matrix with all behaviors
+Scenarios come from the shared, role-based sets in a2a-itk rather than from files in
+this repo, so adding an SDK or a version line is a change to `a2a-itk/matrix.yaml` and
+nothing else:
+
+- **PR** (`a2a-itk/scenarios/traversal/pr.yaml`): a star against a fixed peer set
+- **Nightly** (`a2a-itk/scenarios/traversal/nightly.yaml`): every peer in the matrix,
+  one pair at a time
 
 To run nightly:
 ```bash
 export ITK_NIGHTLY_RUN=TRUE
 ./run_itk.sh
 ```
+
+Combinations this SDK cannot serve are recorded in `a2a-itk/known_failures.yaml` and
+skipped with the reason logged, rather than being left out of the scenario set. The
+currently pinned revision still excludes .NET gRPC traversal until the corresponding
+`a2a-itk` matrix and known-failure update lands. It also excludes push notifications
+(`PushNotificationNotSupported` everywhere) and non-JSON-RPC calls to v0.3 peers
+(`A2A.V0_3Compat` is JSON-RPC only).
+
+### v0.3 peers
+
+`Itk.csproj` references `A2A.V0_3Compat`, so the agent both serves v0.3 clients and
+dials v0.3 peers. `/jsonrpc` and `/` answer either dialect — `V03ServerProcessor`
+picks one from the `A2A-Version` header and passes a 1.0 request straight through —
+and the card advertises the same URL for `protocolVersion` 1.0 and 0.3.
+`ItkV03.PeerEndpointAsync` reads a peer's card to decide which client to build. Because
+the compatibility client is JSON-RPC-only, instructions requesting HTTP+JSON or gRPC
+for a pure v0.3 peer fail explicitly instead of silently falling back to JSON-RPC.
+
+## ACTS conformance
+
+The same script runs the ACTS conformance suite instead of the traversal one, which
+measures this SDK against the A2A specification rather than against its peers:
+
+```bash
+ITK_ACTS_RUN=1 ITK_ACTS_TRANSPORTS=jsonrpc,rest,grpc ./run_itk.sh
+```
+
+The ITK agent serves JSON-RPC and HTTP+JSON on `--httpPort`, and gRPC over cleartext
+HTTP/2 on the separate `--grpcPort` supplied by the launcher.
+
+Each transport leaves a full spec §13 report as `acts-report-dotnet-<transport>-<ts>.json`,
+which is what says *why* a test failed. `acts/sut-behaviors.yaml` declares which `tck-*`
+behaviours the agent implements; `ActsBehaviors.cs` implements them, `ActsAuth.cs` handles
+the credential-gated tests, and `ActsClientParse.cs` runs canonical payloads through this
+SDK's own client for the §10 CLIENT-* tests. PR ACTS runs require MUST conformance on
+JSON-RPC, HTTP+JSON, and gRPC; any transport failing, missing, or producing a malformed
+report fails the workflow.
 
 ## Debugging
 

@@ -104,7 +104,7 @@ public class A2AErrorResultTests
     }
 
     [Fact]
-    public async Task ResponseContentType_IsApplicationJson()
+    public async Task ResponseContentType_IsA2AJson()
     {
         var result = new A2AErrorResult(new A2AException("test", A2AErrorCode.InternalError));
 
@@ -113,7 +113,7 @@ public class A2AErrorResultTests
 
         await result.ExecuteAsync(httpContext);
 
-        Assert.Equal("application/json", httpContext.Response.ContentType);
+        Assert.Equal("application/a2a+json", httpContext.Response.ContentType);
     }
 
     [Fact]

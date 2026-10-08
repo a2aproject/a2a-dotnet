@@ -230,4 +230,107 @@ public class A2AHttpProcessorTests
         Assert.NotNull(result);
         Assert.Equal(StatusCodes.Status400BadRequest, ((IStatusCodeHttpResult)result).StatusCode);
     }
+
+    [Fact]
+    public async Task SendMessageRest_WithNullMessage_ReturnsInvalidParams()
+    {
+        var (requestHandler, _) = CreateServer();
+        var sendRequest = new SendMessageRequest { Message = null! };
+
+        var result = await A2AHttpProcessor.SendMessageRestAsync(
+            requestHandler, NullLogger.Instance, sendRequest, CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, ((IStatusCodeHttpResult)result).StatusCode);
+    }
+
+    [Fact]
+    public void SendMessageStreamRest_WithNullParts_ReturnsInvalidParams()
+    {
+        var (requestHandler, _) = CreateServer();
+        var sendRequest = new SendMessageRequest
+        {
+            Message = new Message { Role = Role.User, Parts = null! },
+        };
+
+        var result = A2AHttpProcessor.SendMessageStreamRest(
+            requestHandler, NullLogger.Instance, sendRequest, CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, ((IStatusCodeHttpResult)result).StatusCode);
+    }
+
+    [Theory]
+    [InlineData("999")]
+    [InlineData("TASK_STATE_999")]
+    public async Task ListTasks_WithUndefinedNumericStatus_ShouldReturnInvalidParams(string status)
+    {
+        var requestHandler = new Mock<IA2ARequestHandler>(MockBehavior.Strict);
+
+        var result = await A2AHttpProcessor.ListTasksRestAsync(
+            requestHandler.Object,
+            NullLogger.Instance,
+            null,
+            status,
+            null,
+            null,
+            null,
+            null,
+            null,
+            CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, ((IStatusCodeHttpResult)result).StatusCode);
+        requestHandler.VerifyNoOtherCalls();
+    }
+
+    [Theory]
+    [InlineData("Submitted")]
+    [InlineData("InputRequired")]
+    [InlineData("AuthRequired")]
+    public async Task ListTasks_WithCSharpEnumName_ShouldReturnInvalidParams(string status)
+    {
+        var requestHandler = new Mock<IA2ARequestHandler>(MockBehavior.Strict);
+
+        var result = await A2AHttpProcessor.ListTasksRestAsync(
+            requestHandler.Object,
+            NullLogger.Instance,
+            null,
+            status,
+            null,
+            null,
+            null,
+            null,
+            null,
+            CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, ((IStatusCodeHttpResult)result).StatusCode);
+        requestHandler.VerifyNoOtherCalls();
+    }
+
+    [Theory]
+    [InlineData("TASK_STATE_INPUT_REQUIRED", TaskState.InputRequired)]
+    [InlineData("TASK_STATE_AUTH_REQUIRED", TaskState.AuthRequired)]
+    public async Task ListTasks_WithMultiWordWireStatus_ShouldPassParsedStatusToHandler(
+        string status, TaskState expectedState)
+    {
+        var requestHandler = new Mock<IA2ARequestHandler>(MockBehavior.Strict);
+        requestHandler
+            .Setup(handler => handler.ListTasksAsync(
+                It.Is<ListTasksRequest>(request => request.Status == expectedState),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ListTasksResponse { Tasks = [], NextPageToken = "" });
+
+        var result = await A2AHttpProcessor.ListTasksRestAsync(
+            requestHandler.Object,
+            NullLogger.Instance,
+            null,
+            status,
+            null,
+            null,
+            null,
+            null,
+            null,
+            CancellationToken.None);
+
+        Assert.IsType<A2AResponseResult>(result);
+        requestHandler.VerifyAll();
+    }
 }

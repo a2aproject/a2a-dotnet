@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/tests/">
+    <Project Path="A2A.AspNetCore.UnitTests/A2A.AspNetCore.UnitTests.csproj" />
+    <Project Path="A2A.Grpc.UnitTests/A2A.Grpc.UnitTests.csproj" />
+    <Project Path="A2A.Itk.UnitTests/A2A.Itk.UnitTests.csproj" />
+    <Project Path="A2A.UnitTests/A2A.UnitTests.csproj" />
+    <Project Path="A2A.V0_3.UnitTests/A2A.V0_3.UnitTests.csproj" />
+    <Project Path="A2A.V0_3Compat.UnitTests/A2A.V0_3Compat.UnitTests.csproj" />
+  </Folder>
+   <Folder Name="/Solution Items/">
+    <File Path="../Directory.Build.props" />
+    <File Path="../Directory.Packages.props" />
+  </Folder>
+</Solution>

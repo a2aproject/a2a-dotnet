@@ -102,11 +102,13 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
 
     /// <inheritdoc />
     public async Task<TaskPushNotificationConfig> CreateTaskPushNotificationConfigAsync(
-        CreateTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default)
+        TaskPushNotificationConfig config, CancellationToken cancellationToken = default)
     {
-        return await PostJsonAsync<PushNotificationConfig, TaskPushNotificationConfig>(
-            $"/tasks/{Uri.EscapeDataString(request.TaskId)}/pushNotificationConfigs",
-            request.Config, "CreateTaskPushNotificationConfig", cancellationToken).ConfigureAwait(false);
+        ArgumentException.ThrowIfNullOrEmpty(config.TaskId, nameof(config.TaskId));
+
+        return await PostJsonAsync<TaskPushNotificationConfig, TaskPushNotificationConfig>(
+            $"/tasks/{Uri.EscapeDataString(config.TaskId)}/pushNotificationConfigs",
+            config, "CreateTaskPushNotificationConfig", cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -119,16 +121,16 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<ListTaskPushNotificationConfigResponse> ListTaskPushNotificationConfigAsync(
-        ListTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default)
+    public async Task<ListTaskPushNotificationConfigsResponse> ListTaskPushNotificationConfigsAsync(
+        ListTaskPushNotificationConfigsRequest request, CancellationToken cancellationToken = default)
     {
         var query = BuildQueryString(
             ("pageSize", request.PageSize?.ToString(System.Globalization.CultureInfo.InvariantCulture)),
             ("pageToken", request.PageToken));
 
-        return await GetJsonAsync<ListTaskPushNotificationConfigResponse>(
+        return await GetJsonAsync<ListTaskPushNotificationConfigsResponse>(
             $"/tasks/{Uri.EscapeDataString(request.TaskId)}/pushNotificationConfigs{query}",
-            "ListTaskPushNotificationConfig", cancellationToken).ConfigureAwait(false);
+            "ListTaskPushNotificationConfigs", cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -371,6 +373,15 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
         {
             await foreach (var sseItem in SseParser.Create(stream).EnumerateAsync(cancellationToken).ConfigureAwait(false))
             {
+                var errorResponse = JsonSerializer.Deserialize<A2AErrorResponse>(
+                    sseItem.Data, A2AJsonUtilities.DefaultOptions);
+                if (errorResponse?.Error is { } error)
+                {
+                    throw new A2AException(
+                        error.Message ?? "Streaming REST request failed.",
+                        (A2AErrorCode)error.Code);
+                }
+
                 var result = JsonSerializer.Deserialize<StreamResponse>(sseItem.Data, A2AJsonUtilities.DefaultOptions)
                     ?? throw new A2AException("Failed to deserialize streaming REST response.", A2AErrorCode.InternalError);
 
@@ -394,6 +405,11 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
         ["EXTENDED_AGENT_CARD_NOT_CONFIGURED"] = A2AErrorCode.ExtendedAgentCardNotConfigured,
         ["EXTENSION_SUPPORT_REQUIRED"] = A2AErrorCode.ExtensionSupportRequired,
         ["VERSION_NOT_SUPPORTED"] = A2AErrorCode.VersionNotSupported,
+        ["INVALID_REQUEST"] = A2AErrorCode.InvalidRequest,
+        ["INVALID_PARAMS"] = A2AErrorCode.InvalidParams,
+        ["PARSE_ERROR"] = A2AErrorCode.ParseError,
+        ["INTERNAL_ERROR"] = A2AErrorCode.InternalError,
+        ["METHOD_NOT_FOUND"] = A2AErrorCode.MethodNotFound,
     };
 
     [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "Error types are registered in source-generated JsonContext.")]
@@ -412,7 +428,8 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
         {
             var contentType = response.Content.Headers.ContentType?.MediaType;
 
-            if (string.Equals(contentType, "application/json", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(contentType, "application/json", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(contentType, "application/a2a+json", StringComparison.OrdinalIgnoreCase))
             {
                 // Parse AIP-193 / google.rpc.Status error response (spec Section 11.6)
                 using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);

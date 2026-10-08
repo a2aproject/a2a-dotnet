@@ -1,10 +1,108 @@
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 using Moq;
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace A2A.AspNetCore.Tests;
 
 public class A2AEndpointRouteBuilderExtensionsTests
 {
+    [Fact]
+    public async Task MapA2A_ListTasks_BindsTimestampAndArtifactFilters()
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.ConfigureHttpJsonOptions(options =>
+            options.SerializerOptions.TypeInfoResolver = A2AJsonUtilities.DefaultOptions.TypeInfoResolver);
+        await using var app = builder.Build();
+        var requestHandler = new Mock<IA2ARequestHandler>(MockBehavior.Strict);
+        var statusTimestampAfter = new DateTimeOffset(2026, 1, 15, 12, 0, 0, TimeSpan.Zero);
+        requestHandler.Setup(handler => handler.ListTasksAsync(
+                It.Is<ListTasksRequest>(request =>
+                    request.StatusTimestampAfter == statusTimestampAfter && request.IncludeArtifacts == true),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ListTasksResponse { Tasks = [], NextPageToken = "" });
+        app.MapHttpA2A(requestHandler.Object);
+
+        var endpoint = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Single(candidate => candidate.RoutePattern.RawText == "/tasks" &&
+                candidate.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Contains("GET"));
+        using var responseBody = new MemoryStream();
+        using var scope = app.Services.CreateScope();
+        var context = new DefaultHttpContext { RequestServices = scope.ServiceProvider };
+        context.Request.Method = "GET";
+        context.Request.Path = "/tasks";
+        context.Request.QueryString = new QueryString(
+            $"?statusTimestampAfter={Uri.EscapeDataString(statusTimestampAfter.ToString("O"))}&includeArtifacts=true");
+        context.Response.Body = responseBody;
+
+        await endpoint.RequestDelegate!(context);
+
+        Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
+        Assert.Equal("application/a2a+json", context.Response.ContentType);
+        requestHandler.VerifyAll();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("body-tenant")]
+    public async Task MapHttpA2A_CreatePushConfig_UsesRouteTaskIdAndClearsBodyTenant(string? tenant)
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.ConfigureHttpJsonOptions(options =>
+            options.SerializerOptions.TypeInfoResolver = A2AJsonUtilities.DefaultOptions.TypeInfoResolver);
+        await using var app = builder.Build();
+        var requestHandler = new Mock<IA2ARequestHandler>(MockBehavior.Strict);
+        requestHandler.Setup(handler => handler.CreateTaskPushNotificationConfigAsync(
+                It.Is<TaskPushNotificationConfig>(config =>
+                    config.TaskId == "route-task" && config.Tenant == null &&
+                    config.Id == "cfg-1" && config.Url == "http://callback" &&
+                    config.Token == "callback-token" &&
+                    config.Authentication != null && config.Authentication.Scheme == "bearer"),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TaskPushNotificationConfig
+            {
+                Id = "cfg-1", TaskId = "route-task", Url = "http://callback"
+            });
+        app.MapHttpA2A(requestHandler.Object);
+
+        var endpoint = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Single(candidate => candidate.RoutePattern.RawText == "/tasks/{id}/pushNotificationConfigs" &&
+                candidate.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Contains("POST"));
+        var body = System.Text.Json.JsonSerializer.Serialize(new TaskPushNotificationConfig
+        {
+            Id = "cfg-1",
+            TaskId = "body-task",
+            Tenant = tenant,
+            Url = "http://callback",
+            Token = "callback-token",
+            Authentication = new AuthenticationInfo { Scheme = "bearer" }
+        }, A2AJsonUtilities.DefaultOptions);
+        using var requestBody = new MemoryStream(Encoding.UTF8.GetBytes(body));
+        using var responseBody = new MemoryStream();
+        using var scope = app.Services.CreateScope();
+        var context = new DefaultHttpContext { RequestServices = scope.ServiceProvider };
+        context.Request.Method = "POST";
+        context.Request.Path = "/tasks/route-task/pushNotificationConfigs";
+        context.Request.RouteValues["id"] = "route-task";
+        context.Request.ContentType = "application/json";
+        context.Request.ContentLength = requestBody.Length;
+        context.Request.Body = requestBody;
+        context.Response.Body = responseBody;
+        context.Features.Set(Mock.Of<IHttpRequestBodyDetectionFeature>(feature => feature.CanHaveBody));
+
+        await endpoint.RequestDelegate!(context);
+
+        Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
+        requestHandler.VerifyAll();
+    }
+
     [Fact]
     public void MapA2A_RegistersEndpoint_WithCorrectPath()
     {
@@ -27,6 +125,83 @@ public class A2AEndpointRouteBuilderExtensionsTests
         // Act & Assert - Should not throw
         var result = app.MapWellKnownAgentCard(agentCard);
         Assert.NotNull(result);
+    }
+
+    [Fact]
+    public async Task MapWellKnownAgentCard_ResponseIncludesCacheControlMaxAge()
+    {
+        // Arrange
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.ConfigureHttpJsonOptions(options =>
+            options.SerializerOptions.TypeInfoResolverChain.Add(A2AJsonUtilities.DefaultOptions.TypeInfoResolver!));
+        var app = builder.Build();
+        var agentCard = new AgentCard { Name = "Test", Description = "Test agent" };
+        app.MapWellKnownAgentCard(agentCard);
+        var endpoint = ((IEndpointRouteBuilder)app).DataSources
+            .SelectMany(dataSource => dataSource.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Single();
+        var context = new DefaultHttpContext
+        {
+            RequestServices = app.Services,
+        };
+        context.Response.Body = new MemoryStream();
+
+        // Act
+        await endpoint.RequestDelegate!(context);
+
+        // Assert
+        Assert.Equal("public, max-age=3600", context.Response.Headers.CacheControl);
+    }
+
+    [Fact]
+    public async Task MapWellKnownAgentCard_WithCacheOptions_UsesConfiguredMaxAge()
+    {
+        var response = await ExecuteAgentCardEndpointAsync(
+            new AgentCard { Name = "Test", Description = "Test agent" },
+            new AgentCardCacheOptions { MaxAge = TimeSpan.FromMinutes(15) });
+
+        Assert.Equal("public, max-age=900", response.Headers.CacheControl);
+    }
+
+    [Fact]
+    public void MapWellKnownAgentCard_WithNegativeMaxAge_Throws()
+    {
+        var app = WebApplication.CreateBuilder().Build();
+        var agentCard = new AgentCard { Name = "Test", Description = "Test agent" };
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => app.MapWellKnownAgentCard(
+            agentCard,
+            cacheOptions: new AgentCardCacheOptions { MaxAge = TimeSpan.FromSeconds(-1) }));
+    }
+
+    [Fact]
+    public async Task MapWellKnownAgentCard_ResponseIncludesBodyDerivedETag()
+    {
+        var firstResponse = await ExecuteAgentCardEndpointAsync(
+            new AgentCard { Name = "First", Description = "Test agent" });
+        var secondResponse = await ExecuteAgentCardEndpointAsync(
+            new AgentCard { Name = "Second", Description = "Test agent" });
+
+        Assert.False(string.IsNullOrEmpty(firstResponse.Headers.ETag));
+        Assert.NotEqual(firstResponse.Headers.ETag, secondResponse.Headers.ETag);
+        Assert.Equal(
+            $"\"{Convert.ToHexString(SHA256.HashData(((MemoryStream)firstResponse.Body).ToArray()))}\"",
+            firstResponse.Headers.ETag);
+    }
+
+    [Fact]
+    public async Task MapWellKnownAgentCard_ResponseIncludesLastModified()
+    {
+        var response = await ExecuteAgentCardEndpointAsync(
+            new AgentCard { Name = "Test", Description = "Test agent" });
+
+        Assert.True(DateTimeOffset.TryParseExact(
+            response.Headers.LastModified,
+            "R",
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal,
+            out _));
     }
 
     [Fact]
@@ -83,5 +258,134 @@ public class A2AEndpointRouteBuilderExtensionsTests
 
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() => app.MapWellKnownAgentCard(null!));
+    }
+
+    private static async Task<HttpResponse> ExecuteAgentCardEndpointAsync(
+        AgentCard agentCard,
+        AgentCardCacheOptions? cacheOptions = null)
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.ConfigureHttpJsonOptions(options =>
+            options.SerializerOptions.TypeInfoResolverChain.Add(A2AJsonUtilities.DefaultOptions.TypeInfoResolver!));
+        var app = builder.Build();
+        app.MapWellKnownAgentCard(agentCard, cacheOptions: cacheOptions);
+        var endpoint = ((IEndpointRouteBuilder)app).DataSources
+            .SelectMany(dataSource => dataSource.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Single();
+        var context = new DefaultHttpContext
+        {
+            RequestServices = app.Services,
+        };
+        context.Response.Body = new MemoryStream();
+
+        await endpoint.RequestDelegate!(context);
+
+        return context.Response;
+    }
+    [Fact]
+    public async Task MapHttpA2A_UnsupportedVersionHeader_Returns400()
+    {
+        // GitHub issue #512: HTTP+JSON must reject an unsupported A2A-Version, matching
+        // JSON-RPC, mapping VersionNotSupported to HTTP 400 without invoking the handler.
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.ConfigureHttpJsonOptions(options =>
+            options.SerializerOptions.TypeInfoResolver = A2AJsonUtilities.DefaultOptions.TypeInfoResolver);
+        await using var app = builder.Build();
+        var requestHandler = new Mock<IA2ARequestHandler>(MockBehavior.Strict);
+        app.MapHttpA2A(requestHandler.Object);
+
+        var endpoint = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Single(candidate => candidate.RoutePattern.RawText == "/tasks/{id}" &&
+                candidate.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Contains("GET"));
+
+        using var responseBody = new MemoryStream();
+        using var scope = app.Services.CreateScope();
+        var context = new DefaultHttpContext { RequestServices = scope.ServiceProvider };
+        context.Request.Method = "GET";
+        context.Request.Path = "/tasks/task-1";
+        context.Request.RouteValues["id"] = "task-1";
+        context.Request.Headers["A2A-Version"] = "99.0";
+        context.Response.Body = responseBody;
+
+        await endpoint.RequestDelegate!(context);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, context.Response.StatusCode);
+        requestHandler.VerifyNoOtherCalls();
+    }
+
+    [Theory]
+    [InlineData("1.0")]
+    [InlineData("0.3")]
+    [InlineData(null)]
+    public async Task MapHttpA2A_SupportedOrAbsentVersion_PassesFilter(string? version)
+    {
+        // GitHub issue #512: a supported or absent A2A-Version must pass the preflight and
+        // reach the handler (the filter must not reject valid requests).
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.ConfigureHttpJsonOptions(options =>
+            options.SerializerOptions.TypeInfoResolver = A2AJsonUtilities.DefaultOptions.TypeInfoResolver);
+        await using var app = builder.Build();
+        var requestHandler = new Mock<IA2ARequestHandler>(MockBehavior.Strict);
+        requestHandler
+            .Setup(handler => handler.GetTaskAsync(It.IsAny<GetTaskRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AgentTask { Id = "task-1", ContextId = "ctx-1" });
+        app.MapHttpA2A(requestHandler.Object);
+
+        var endpoint = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Single(candidate => candidate.RoutePattern.RawText == "/tasks/{id}" &&
+                candidate.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Contains("GET"));
+
+        using var responseBody = new MemoryStream();
+        using var scope = app.Services.CreateScope();
+        var context = new DefaultHttpContext { RequestServices = scope.ServiceProvider };
+        context.Request.Method = "GET";
+        context.Request.Path = "/tasks/task-1";
+        context.Request.RouteValues["id"] = "task-1";
+        if (version is not null)
+        {
+            context.Request.Headers["A2A-Version"] = version;
+        }
+        context.Response.Body = responseBody;
+
+        await endpoint.RequestDelegate!(context);
+
+        Assert.NotEqual(StatusCodes.Status400BadRequest, context.Response.StatusCode);
+        requestHandler.Verify(
+            handler => handler.GetTaskAsync(It.IsAny<GetTaskRequest>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+    [Fact]
+    public async Task MapHttpA2A_MultiValueVersionHeader_WithUnsupportedValue_Returns400()
+    {
+        // GitHub issue #512 hardening: a repeated A2A-Version header carrying a supported value
+        // followed by an unsupported one must still be rejected (no first-value bypass).
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.ConfigureHttpJsonOptions(options =>
+            options.SerializerOptions.TypeInfoResolver = A2AJsonUtilities.DefaultOptions.TypeInfoResolver);
+        await using var app = builder.Build();
+        var requestHandler = new Mock<IA2ARequestHandler>(MockBehavior.Strict);
+        app.MapHttpA2A(requestHandler.Object);
+
+        var endpoint = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Single(candidate => candidate.RoutePattern.RawText == "/tasks/{id}" &&
+                candidate.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Contains("GET"));
+
+        using var responseBody = new MemoryStream();
+        using var scope = app.Services.CreateScope();
+        var context = new DefaultHttpContext { RequestServices = scope.ServiceProvider };
+        context.Request.Method = "GET";
+        context.Request.Path = "/tasks/task-1";
+        context.Request.RouteValues["id"] = "task-1";
+        context.Request.Headers["A2A-Version"] = new Microsoft.Extensions.Primitives.StringValues(["1.0", "99.0"]);
+        context.Response.Body = responseBody;
+
+        await endpoint.RequestDelegate!(context);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, context.Response.StatusCode);
+        requestHandler.VerifyNoOtherCalls();
     }
 }
