@@ -133,6 +133,7 @@ internal static class A2AHttpProcessor
         IA2ARequestHandler requestHandler, ILogger logger, SendMessageRequest request, CancellationToken cancellationToken)
         => WithExceptionHandlingAsync(logger, "REST.SendMessage", async ct =>
         {
+            ValidateSendMessageRequest(request);
             var result = await requestHandler.SendMessageAsync(request, ct).ConfigureAwait(false);
             return new A2AResponseResult(result);
         }, cancellationToken: cancellationToken);
@@ -142,9 +143,27 @@ internal static class A2AHttpProcessor
         IA2ARequestHandler requestHandler, ILogger logger, SendMessageRequest request, CancellationToken cancellationToken)
         => WithExceptionHandling(logger, "REST.SendMessageStream", () =>
         {
+            ValidateSendMessageRequest(request);
             var events = requestHandler.SendStreamingMessageAsync(request, cancellationToken);
             return new A2AEventStreamResult(events);
         });
+
+    /// <summary>
+    /// Validates a REST-bound <see cref="SendMessageRequest"/>, mirroring the JSON-RPC
+    /// binding validation in <see cref="A2AJsonRpcProcessor"/>. The REST endpoints
+    /// use <c>[FromBody]</c> model binding, which does not enforce a non-empty message parts
+    /// list on its own.
+    /// </summary>
+    /// <param name="request">The send message request to validate.</param>
+    /// <exception cref="A2AException">Thrown with <see cref="A2AErrorCode.InvalidParams"/> when the message parts list is empty.</exception>
+    private static void ValidateSendMessageRequest(SendMessageRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.Message is not { Parts.Count: > 0 })
+        {
+            throw new A2AException("Message parts cannot be empty", A2AErrorCode.InvalidParams);
+        }
+    }
 
     // REST handler: Subscribe to task
     internal static IResult SubscribeToTaskRest(
@@ -398,8 +417,9 @@ internal sealed class A2AEventStreamResult : IResult
 
         try
         {
+            var errorJson = BuildErrorJson(exception);
             await httpContext.Response.BodyWriter.WriteAsync(
-                Encoding.UTF8.GetBytes("data: {\"error\":\"An internal error occurred during streaming.\"}\n\n"),
+                Encoding.UTF8.GetBytes($"data: {errorJson}\n\n"),
                 httpContext.RequestAborted);
             await httpContext.Response.BodyWriter.FlushAsync(httpContext.RequestAborted);
         }
@@ -407,5 +427,53 @@ internal sealed class A2AEventStreamResult : IResult
         {
             // Response body no longer writable
         }
+    }
+
+    /// <summary>
+    /// Builds a structured SSE error event payload: <c>{"error":{"code":..,"message":..,"data":..}}</c>.
+    /// Mirrors the JSON-RPC error object (<see cref="JsonRpcError"/>) so REST and JSON-RPC
+    /// transports return consistent errors.
+    /// </summary>
+    /// <param name="exception">The exception to render as an SSE error event.</param>
+    /// <returns>The JSON payload for the SSE error event.</returns>
+    private static string BuildErrorJson(Exception exception)
+    {
+        var errorCode = exception is A2AException a2aException
+            ? a2aException.ErrorCode
+            : A2AErrorCode.InternalError;
+        var message = exception is A2AException a2aEx
+            ? a2aEx.Message
+            : "An internal error occurred during streaming.";
+
+        using var buffer = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(buffer))
+        {
+            writer.WriteStartObject();
+            writer.WritePropertyName("error");
+            writer.WriteStartObject();
+            writer.WriteNumber("code", (int)errorCode);
+            writer.WriteString("message", message);
+
+            if (A2AErrorCodeMapping.IsA2ASpecificError(errorCode))
+            {
+                var reason = A2AErrorCodeMapping.GetReasonString(errorCode);
+                if (reason is not null)
+                {
+                    writer.WritePropertyName("data");
+                    writer.WriteStartArray();
+                    writer.WriteStartObject();
+                    writer.WriteString("@type", "type.googleapis.com/google.rpc.ErrorInfo");
+                    writer.WriteString("reason", reason);
+                    writer.WriteString("domain", "a2a-protocol.org");
+                    writer.WriteEndObject();
+                    writer.WriteEndArray();
+                }
+            }
+
+            writer.WriteEndObject();
+            writer.WriteEndObject();
+        }
+
+        return Encoding.UTF8.GetString(buffer.ToArray());
     }
 }
