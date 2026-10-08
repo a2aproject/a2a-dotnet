@@ -1,9 +1,24 @@
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace A2A.AspNetCore.Tests;
 
 public class A2AServiceCollectionExtensionsTests
 {
+    [Fact]
+    public void AddA2AAgent_ConfiguresExplicitRequestBodySizeLimit()
+    {
+        var services = new ServiceCollection();
+
+        services.AddA2AAgent<TestAgentHandler>(
+            new AgentCard { Name = "test", Description = "test agent" });
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<KestrelServerOptions>>().Value;
+        Assert.Equal(10 * 1024 * 1024, options.Limits.MaxRequestBodySize);
+    }
+
     [Theory]
     [InlineData(null, A2AErrorCode.UnsupportedOperation)]
     [InlineData(false, A2AErrorCode.UnsupportedOperation)]

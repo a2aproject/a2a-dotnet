@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Logging;
 
 using System.Diagnostics;
-using System.Text;
 using System.Text.Json;
 
 namespace A2A.AspNetCore;
@@ -313,6 +312,7 @@ internal sealed class A2AEventStreamResult : IResult
         }
 
         Exception? failure = null;
+        SseStreamWriter? sseWriter = null;
         var streamStarted = false;
         var completedWithoutEvents = false;
         try
@@ -321,6 +321,7 @@ internal sealed class A2AEventStreamResult : IResult
             {
                 ConfigureSseResponse(httpContext);
                 streamStarted = true;
+                sseWriter = new SseStreamWriter(httpContext);
 
                 do
                 {
@@ -328,9 +329,8 @@ internal sealed class A2AEventStreamResult : IResult
                     var json = JsonSerializer.Serialize(enumerator.Current,
                         A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(StreamResponse)));
                     #pragma warning restore VSTHRD103
-                    await httpContext.Response.BodyWriter.WriteAsync(
-                        Encoding.UTF8.GetBytes($"data: {json}\n\n"), httpContext.RequestAborted);
-                    await httpContext.Response.BodyWriter.FlushAsync(httpContext.RequestAborted);
+                    await sseWriter.WriteEventAsync(
+                        json, httpContext.RequestAborted).ConfigureAwait(false);
                 }
                 while (await enumerator.MoveNextAsync().ConfigureAwait(false));
             }
@@ -363,13 +363,24 @@ internal sealed class A2AEventStreamResult : IResult
             }
         }
 
-        if (failure is not null)
+        try
         {
-            await WriteErrorAsync(httpContext, failure, streamStarted).ConfigureAwait(false);
+            if (failure is not null)
+            {
+                await WriteErrorAsync(
+                    httpContext, failure, streamStarted, sseWriter).ConfigureAwait(false);
+            }
+            else if (completedWithoutEvents)
+            {
+                ConfigureSseResponse(httpContext);
+            }
         }
-        else if (completedWithoutEvents)
+        finally
         {
-            ConfigureSseResponse(httpContext);
+            if (sseWriter is not null)
+            {
+                await sseWriter.DisposeAsync().ConfigureAwait(false);
+            }
         }
     }
 
@@ -385,7 +396,11 @@ internal sealed class A2AEventStreamResult : IResult
         bufferingFeature.DisableBuffering();
     }
 
-    private static async Task WriteErrorAsync(HttpContext httpContext, Exception exception, bool streamStarted)
+    private static async Task WriteErrorAsync(
+        HttpContext httpContext,
+        Exception exception,
+        bool streamStarted,
+        SseStreamWriter? sseWriter = null)
     {
         if (!streamStarted)
         {
@@ -398,10 +413,14 @@ internal sealed class A2AEventStreamResult : IResult
 
         try
         {
-            await httpContext.Response.BodyWriter.WriteAsync(
-                Encoding.UTF8.GetBytes("data: {\"error\":\"An internal error occurred during streaming.\"}\n\n"),
-                httpContext.RequestAborted);
-            await httpContext.Response.BodyWriter.FlushAsync(httpContext.RequestAborted);
+            if (sseWriter is null)
+            {
+                throw new InvalidOperationException("The SSE writer was not initialized.");
+            }
+
+            await sseWriter.WriteEventAsync(
+                "{\"error\":\"An internal error occurred during streaming.\"}",
+                httpContext.RequestAborted).ConfigureAwait(false);
         }
         catch
         {

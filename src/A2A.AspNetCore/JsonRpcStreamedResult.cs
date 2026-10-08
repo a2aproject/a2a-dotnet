@@ -1,7 +1,5 @@
 using Microsoft.AspNetCore.Http;
-using System.Net.ServerSentEvents;
-using System.Text;
-using System.Text.Encodings.Web;
+using Microsoft.AspNetCore.Http.Features;
 using System.Text.Json;
 
 namespace A2A.AspNetCore;
@@ -45,6 +43,7 @@ public sealed class JsonRpcStreamedResult : IResult
         }
 
         Exception? failure = null;
+        SseStreamWriter? sseWriter = null;
         var streamStarted = false;
         var completedWithoutEvents = false;
         try
@@ -53,18 +52,20 @@ public sealed class JsonRpcStreamedResult : IResult
             {
                 ConfigureSseResponse(httpContext);
                 streamStarted = true;
+                sseWriter = new SseStreamWriter(httpContext);
 
                 var responseTypeInfo = A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcResponse));
-                await SseFormatter.WriteAsync(
-                    EnumerateFromCurrentAsync(enumerator)
-                        .Select(e => new SseItem<JsonRpcResponse>(JsonRpcResponse.CreateJsonRpcResponse(_requestId, e))),
-                    httpContext.Response.Body,
-                    (item, writer) =>
-                    {
-                        using Utf8JsonWriter json = new(writer, new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
-                        JsonSerializer.Serialize(json, item.Data, responseTypeInfo);
-                    },
-                    httpContext.RequestAborted).ConfigureAwait(false);
+                do
+                {
+                    var response = JsonRpcResponse.CreateJsonRpcResponse(
+                        _requestId, enumerator.Current);
+                    #pragma warning disable VSTHRD103 // Serialize to string is not blocking I/O
+                    var json = JsonSerializer.Serialize(response, responseTypeInfo);
+                    #pragma warning restore VSTHRD103
+                    await sseWriter.WriteEventAsync(
+                        json, httpContext.RequestAborted).ConfigureAwait(false);
+                }
+                while (await enumerator.MoveNextAsync().ConfigureAwait(false));
             }
             else
             {
@@ -95,13 +96,24 @@ public sealed class JsonRpcStreamedResult : IResult
             }
         }
 
-        if (failure is not null)
+        try
         {
-            await WriteErrorAsync(httpContext, failure, streamStarted).ConfigureAwait(false);
+            if (failure is not null)
+            {
+                await WriteErrorAsync(
+                    httpContext, failure, streamStarted, sseWriter).ConfigureAwait(false);
+            }
+            else if (completedWithoutEvents)
+            {
+                ConfigureSseResponse(httpContext);
+            }
         }
-        else if (completedWithoutEvents)
+        finally
         {
-            ConfigureSseResponse(httpContext);
+            if (sseWriter is not null)
+            {
+                await sseWriter.DisposeAsync().ConfigureAwait(false);
+            }
         }
     }
 
@@ -110,9 +122,14 @@ public sealed class JsonRpcStreamedResult : IResult
         httpContext.Response.StatusCode = StatusCodes.Status200OK;
         httpContext.Response.ContentType = "text/event-stream";
         httpContext.Response.Headers.Append("Cache-Control", "no-cache");
+        httpContext.Features.GetRequiredFeature<IHttpResponseBodyFeature>().DisableBuffering();
     }
 
-    private async Task WriteErrorAsync(HttpContext httpContext, Exception exception, bool streamStarted)
+    private async Task WriteErrorAsync(
+        HttpContext httpContext,
+        Exception exception,
+        bool streamStarted,
+        SseStreamWriter? sseWriter = null)
     {
         var errorResponse = CreateErrorResponse(
             exception,
@@ -128,13 +145,17 @@ public sealed class JsonRpcStreamedResult : IResult
 
         try
         {
+            if (sseWriter is null)
+            {
+                throw new InvalidOperationException("The SSE writer was not initialized.");
+            }
+
             var responseTypeInfo = A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcResponse));
             #pragma warning disable VSTHRD103 // Serialize to string is not blocking I/O
             var errorJson = JsonSerializer.Serialize(errorResponse, responseTypeInfo);
             #pragma warning restore VSTHRD103
-            var errorBytes = Encoding.UTF8.GetBytes($"data: {errorJson}\n\n");
-            await httpContext.Response.Body.WriteAsync(errorBytes, httpContext.RequestAborted);
-            await httpContext.Response.Body.FlushAsync(httpContext.RequestAborted);
+            await sseWriter.WriteEventAsync(
+                errorJson, httpContext.RequestAborted).ConfigureAwait(false);
         }
         catch
         {
@@ -146,14 +167,4 @@ public sealed class JsonRpcStreamedResult : IResult
         exception is A2AException a2aException
             ? JsonRpcResponse.CreateJsonRpcErrorResponse(_requestId, a2aException)
             : JsonRpcResponse.InternalErrorResponse(_requestId, internalErrorMessage);
-
-    private static async IAsyncEnumerable<StreamResponse> EnumerateFromCurrentAsync(
-        IAsyncEnumerator<StreamResponse> enumerator)
-    {
-        do
-        {
-            yield return enumerator.Current;
-        }
-        while (await enumerator.MoveNextAsync().ConfigureAwait(false));
-    }
 }

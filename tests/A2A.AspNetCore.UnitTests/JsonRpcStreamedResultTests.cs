@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
+using System.IO.Pipelines;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
@@ -116,6 +118,21 @@ public class JsonRpcStreamedResultTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_DisablesResponseBuffering()
+    {
+        var result = new JsonRpcStreamedResult(
+            SingleEventAsyncEnumerable(), new JsonRpcId("req-buffering"));
+        var httpContext = CreateHttpContext();
+        var responseBodyFeature = new TrackingResponseBodyFeature(
+            httpContext.Features.GetRequiredFeature<IHttpResponseBodyFeature>());
+        httpContext.Features.Set<IHttpResponseBodyFeature>(responseBodyFeature);
+
+        await result.ExecuteAsync(httpContext);
+
+        Assert.True(responseBodyFeature.BufferingDisabled);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_A2AExceptionAfterFirstEvent_ReturnsSseError()
     {
         // Arrange
@@ -154,6 +171,8 @@ public class JsonRpcStreamedResultTests
         var body = GetResponseBody(httpContext);
         Assert.Equal(1, body.Split("\"task-1\"", StringSplitOptions.None).Length - 1);
         Assert.Equal(1, body.Split("\"task-2\"", StringSplitOptions.None).Length - 1);
+        Assert.Contains("id: 1\ndata:", body);
+        Assert.Contains("id: 2\ndata:", body);
         Assert.True(
             body.IndexOf("\"task-1\"", StringComparison.Ordinal) <
             body.IndexOf("\"task-2\"", StringComparison.Ordinal));
@@ -257,6 +276,34 @@ public class JsonRpcStreamedResultTests
     {
         return JsonSerializer.Deserialize<JsonRpcResponse>(body, A2AJsonUtilities.DefaultOptions)
             ?? throw new InvalidOperationException("Failed to deserialize JsonRpcResponse");
+    }
+
+    private sealed class TrackingResponseBodyFeature(IHttpResponseBodyFeature inner)
+        : IHttpResponseBodyFeature
+    {
+        public bool BufferingDisabled { get; private set; }
+
+        public Stream Stream => inner.Stream;
+
+        public PipeWriter Writer => inner.Writer;
+
+        public void DisableBuffering()
+        {
+            BufferingDisabled = true;
+            inner.DisableBuffering();
+        }
+
+        public Task StartAsync(CancellationToken cancellationToken = default) =>
+            inner.StartAsync(cancellationToken);
+
+        public Task SendFileAsync(
+            string path,
+            long offset,
+            long? count,
+            CancellationToken cancellationToken = default) =>
+            inner.SendFileAsync(path, offset, count, cancellationToken);
+
+        public Task CompleteAsync() => inner.CompleteAsync();
     }
 
     private static async IAsyncEnumerable<StreamResponse> ThrowingAsyncEnumerable(

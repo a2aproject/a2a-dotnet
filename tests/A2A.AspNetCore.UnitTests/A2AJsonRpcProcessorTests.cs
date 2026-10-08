@@ -492,6 +492,25 @@ public class A2AJsonRpcProcessorTests
         Assert.Contains(GenericParseErrorMessages, msg => BodyContent.Error.Message == msg);
     }
 
+    [Fact]
+    public async Task ProcessRequestAsync_GivenOversizedBody_ReturnsInvalidRequest()
+    {
+        var requestHandler = CreateTestServer();
+        var httpRequest = CreateHttpRequestFromJson("{}");
+        httpRequest.ContentLength = 11L * 1024 * 1024;
+
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(
+            requestHandler, httpRequest, CancellationToken.None);
+
+        var responseResult = Assert.IsType<JsonRpcResponseResult>(result);
+        var (_, _, bodyContent) =
+            await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(responseResult);
+
+        Assert.NotNull(bodyContent.Error);
+        Assert.Equal((int)A2AErrorCode.InvalidRequest, bodyContent.Error!.Code);
+        Assert.Contains("maximum allowed size", bodyContent.Error.Message);
+    }
+
     private static readonly string[] GenericParseErrorMessages =
         ["Invalid JSON payload", "Invalid JSON-RPC request payload."];
 

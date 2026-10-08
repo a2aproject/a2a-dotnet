@@ -55,6 +55,8 @@ public class A2AEventStreamResultTests
         Assert.Equal("no-cache,no-store", httpContext.Response.Headers.CacheControl);
         Assert.Equal(1, body.Split("\"task-1\"", StringSplitOptions.None).Length - 1);
         Assert.Equal(1, body.Split("\"task-2\"", StringSplitOptions.None).Length - 1);
+        Assert.Contains("id: 1\ndata:", body);
+        Assert.Contains("id: 2\ndata:", body);
         Assert.True(
             body.IndexOf("\"task-1\"", StringComparison.Ordinal) <
             body.IndexOf("\"task-2\"", StringComparison.Ordinal));
