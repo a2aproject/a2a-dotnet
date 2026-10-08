@@ -371,6 +371,26 @@ public class A2AClientFactoryTests
     }
 
     [Fact]
+    public void RegisterAddress_CustomBinding_ReceivesRawAddress()
+    {
+        var customClient = new A2AHttpJsonClient(new Uri("http://dummy"), null);
+        string? capturedAddress = null;
+        A2AClientFactory.RegisterAddress("CUSTOM-ADDRESS-TEST", (address, _) =>
+        {
+            capturedAddress = address;
+            return customClient;
+        });
+
+        var card = CreateCard("CUSTOM-ADDRESS-TEST", "agent.example.com:50051");
+        var options = new A2AClientOptions { PreferredBindings = ["CUSTOM-ADDRESS-TEST"] };
+
+        var client = A2AClientFactory.Create(card, options: options);
+
+        Assert.Same(customClient, client);
+        Assert.Equal("agent.example.com:50051", capturedAddress);
+    }
+
+    [Fact]
     public void Register_OverridesBuiltInBinding()
     {
         var customClient = new A2AHttpJsonClient(new Uri("http://dummy"), null);
@@ -402,6 +422,18 @@ public class A2AClientFactoryTests
     }
 
     [Fact]
+    public void RegisterAddress_NullProtocolBinding_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => A2AClientFactory.RegisterAddress(null!, (_, _) => null!));
+    }
+
+    [Fact]
+    public void RegisterAddress_NullFactory_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => A2AClientFactory.RegisterAddress("TEST", null!));
+    }
+
+    [Fact]
     public void Create_UnregisteredBinding_ThrowsWithRegistrationGuidance()
     {
         var card = CreateCard("SOMEUNKNOWN", "http://agent/unknown");
@@ -411,6 +443,19 @@ public class A2AClientFactoryTests
 
         Assert.Equal(A2AErrorCode.InvalidRequest, ex.ErrorCode);
         Assert.Contains("SOMEUNKNOWN", ex.Message);
+        Assert.Contains("Register", ex.Message);
+    }
+
+    [Fact]
+    public void Create_UnregisteredBindingWithRawAddress_ThrowsWithRegistrationGuidance()
+    {
+        var card = CreateCard("SOME-RAW-BINDING", "agent.example.com:50051");
+        var options = new A2AClientOptions { PreferredBindings = ["SOME-RAW-BINDING"] };
+
+        var ex = Assert.Throws<A2AException>(() => A2AClientFactory.Create(card, options: options));
+
+        Assert.Equal(A2AErrorCode.InvalidRequest, ex.ErrorCode);
+        Assert.Contains("SOME-RAW-BINDING", ex.Message);
         Assert.Contains("Register", ex.Message);
     }
 }
