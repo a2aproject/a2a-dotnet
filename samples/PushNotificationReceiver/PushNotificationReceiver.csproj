@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net8.0</TargetFrameworks>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/A2A/A2A.csproj" />
+    <ProjectReference Include="../../src/A2A.AspNetCore/A2A.AspNetCore.csproj" />
+  </ItemGroup>
+</Project>

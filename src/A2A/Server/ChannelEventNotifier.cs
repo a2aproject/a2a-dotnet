@@ -10,7 +10,7 @@ namespace A2A;
 public sealed class ChannelEventNotifier
 {
     private readonly ConcurrentDictionary<string, SubscriberSet> _subscribers = new();
-    private readonly ConcurrentDictionary<string, SemaphoreSlim> _taskLocks = new();
+    private readonly ConcurrentDictionary<string, TaskLockState> _taskLocks = new();
 
     /// <summary>
     /// Push an event to all registered subscriber channels for the given task.
@@ -44,9 +44,19 @@ public sealed class ChannelEventNotifier
         var channel = Channel.CreateUnbounded<StreamResponse>(
             new UnboundedChannelOptions { SingleWriter = false, SingleReader = true });
 
-        var set = _subscribers.GetOrAdd(taskId, _ => new SubscriberSet());
-        lock (set) { set.Channels.Add(channel); }
-        return channel;
+        while (true)
+        {
+            var set = _subscribers.GetOrAdd(taskId, _ => new SubscriberSet());
+            lock (set)
+            {
+                if (set.Retired)
+                {
+                    continue;
+                }
+                set.Channels.Add(channel);
+                return channel;
+            }
+        }
     }
 
     /// <summary>Unregisters a channel when subscription ends.</summary>
@@ -64,8 +74,8 @@ public sealed class ChannelEventNotifier
             set.Channels.Remove(channel);
             if (set.Channels.Count == 0)
             {
+                set.Retired = true;
                 _subscribers.TryRemove(taskId, out _);
-                _taskLocks.TryRemove(taskId, out _);
             }
         }
     }
@@ -79,21 +89,41 @@ public sealed class ChannelEventNotifier
     public async Task<IDisposable> AcquireTaskLockAsync(
         string taskId, CancellationToken cancellationToken = default)
     {
-        // Retry loop handles the race where RemoveChannel evicts the
-        // semaphore between GetOrAdd and WaitAsync completion.
         while (true)
         {
-            var sem = _taskLocks.GetOrAdd(taskId, _ => new SemaphoreSlim(1, 1));
-            await sem.WaitAsync(cancellationToken).ConfigureAwait(false);
-
-            // Verify this semaphore is still the live entry.
-            if (_taskLocks.TryGetValue(taskId, out var current) && ReferenceEquals(current, sem))
+            var state = _taskLocks.GetOrAdd(taskId, _ => new TaskLockState());
+            lock (state)
             {
-                return new TaskLockRelease(sem);
+                if (state.Retired)
+                {
+                    continue;
+                }
+                state.References++;
             }
+            try
+            {
+                await state.Semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+                return new TaskLockRelease(this, taskId, state);
+            }
+            catch
+            {
+                ReleaseTaskLockReference(taskId, state);
+                throw;
+            }
+        }
+    }
 
-            // Evicted while waiting — release the orphaned semaphore and retry.
-            sem.Release();
+    private void ReleaseTaskLockReference(string taskId, TaskLockState state)
+    {
+        lock (state)
+        {
+            state.References--;
+            if (state.References == 0)
+            {
+                state.Retired = true;
+                _taskLocks.TryRemove(taskId, out _);
+                state.Semaphore.Dispose();
+            }
         }
     }
 
@@ -103,18 +133,29 @@ public sealed class ChannelEventNotifier
         return state?.IsTerminal() == true;
     }
 
-    private sealed class TaskLockRelease(SemaphoreSlim semaphore) : IDisposable
+    private sealed class TaskLockRelease(ChannelEventNotifier owner, string taskId, TaskLockState state) : IDisposable
     {
         private int _disposed;
         public void Dispose()
         {
             if (Interlocked.Exchange(ref _disposed, 1) == 0)
-                semaphore.Release();
+            {
+                state.Semaphore.Release();
+                owner.ReleaseTaskLockReference(taskId, state);
+            }
         }
+    }
+
+    private sealed class TaskLockState
+    {
+        internal SemaphoreSlim Semaphore { get; } = new(1, 1);
+        internal int References { get; set; }
+        internal bool Retired { get; set; }
     }
 
     private sealed class SubscriberSet
     {
         public List<Channel<StreamResponse>> Channels { get; } = [];
+        public bool Retired { get; set; }
     }
 }

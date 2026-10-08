@@ -882,12 +882,12 @@ internal static partial class ProtoMap
     {
         var result = new ListTaskPushNotificationConfigsResponse
         {
-            NextPageToken = NullIfEmpty(response.NextPageToken),
+            Configs = [],
+            NextPageToken = response.NextPageToken,
         };
 
         if (response.Configs.Count > 0)
         {
-            result.Configs = [];
             foreach (var config in response.Configs)
             {
                 result.Configs.Add(ToDomain(config));

@@ -109,7 +109,7 @@ public class A2AHttpProcessorTests
                 Role = Role.User,
                 Parts = [Part.FromText("hi")],
             },
-            Configuration = new SendMessageConfiguration { HistoryLength = 10 }
+            Configuration = new SendMessageConfiguration { HistoryLength = 10, ReturnImmediately = true }
         };
 
         // Act

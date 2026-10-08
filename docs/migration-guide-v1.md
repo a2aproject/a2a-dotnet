@@ -438,7 +438,9 @@ var response = await client.SendMessageAsync(request);
 
 ### New Operations
 
-V1 adds these operations not available in v0.3:
+V1 exposes these operations through named request types. Some have v0.3
+counterparts with different names or wire contracts; they are not all new
+protocol capabilities:
 
 ```csharp
 // List tasks with pagination and filtering
@@ -463,6 +465,33 @@ var extCard = await client.GetExtendedAgentCardAsync(
 ## Push Notification Configuration
 
 The push notification config API has been restructured to match the v1 spec proto.
+
+### Easy-path server delivery
+
+`AddA2AAgent` now registers replaceable push storage, URL validation, and a
+bounded process-local HTTP sender. Enable them with
+`AgentCard.Capabilities.PushNotifications = true`; false/omitted still rejects
+push operations and inline configs.
+
+- Use HTTPS/public destinations; loopback/private destinations are rejected by
+  default. Configure host allowlists and production egress controls.
+- Create is not update. IDs are generated when absent; duplicate supplied IDs
+  return `InvalidParams`. Get/list redact credentials and tokens.
+- Inline config activates only for a real task. A message-only handler remains
+  a message response and creates no hidden task or registration.
+- Consume v1 `StreamResponse` webhook wrappers and `AuthenticationInfo`-derived
+  Authorization. The legacy token header is optional/configurable.
+- Delete signals the registration generation and suppresses later attempts.
+  Terminal delivery/failure does not delete client configuration; use explicit
+  deletion or an application retention policy.
+- Move old task-store push persistence into `IPushNotificationStore`. Replace
+  the in-memory store/sender for encryption, durable delivery, or tenant scoping.
+
+V0.3 defines different push CRUD and webhook semantics, including list/delete.
+The stock v1 server does not claim that compatibility through set/get forwarding:
+its compatibility processor rejects legacy push and its associated legacy card
+view suppresses the capability. Existing custom handlers retain responsibility
+for their own version contracts. See [push notifications](push-notifications.md).
 
 ### Flattened Model
 
