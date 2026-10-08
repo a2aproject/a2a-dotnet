@@ -29,7 +29,7 @@ builder.WebHost.ConfigureKestrel(options =>
 });
 
 var agentCard = ItkAgent.GetAgentCard(httpPort, grpcPort);
-A2AGrpcClientRegistration.Register();
+A2AGrpcClientRegistration.Register(useTlsForSchemeLessAddresses: false);
 
 // Registered before AddA2AAgent, whose TryAddSingleton then leaves it alone. ActsServer
 // only adds the extended agent card, which the stock server has no way to produce.
