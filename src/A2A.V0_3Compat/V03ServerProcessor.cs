@@ -16,7 +16,8 @@ public static class V03ServerProcessor
     /// <summary>
     /// Processes an A2A JSON-RPC request, handling both v0.3 and v1.0 wire formats.
     /// v0.3 requests are translated to v1.0, processed, and responses are translated back to v0.3.
-    /// v1.0 requests are passed through to the handler unchanged.
+    /// v1.0 requests are passed through after standard tenant fields are cleared in accordance
+    /// with the a2a-dotnet HTTP server tenant policy.
     /// </summary>
     /// <param name="requestHandler">The v1.0 A2A request handler.</param>
     /// <param name="request">The incoming HTTP request.</param>
@@ -203,19 +204,19 @@ public static class V03ServerProcessor
         {
             case A2AMethods.SendMessage:
             {
-                var req = DeserializeV1Params<SendMessageRequest>(paramsEl.Value, id);
+                var req = DeserializeV1Params<SendMessageRequest>(paramsEl.Value, id, method);
                 response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.SendMessageAsync(req, ct).ConfigureAwait(false));
                 break;
             }
             case A2AMethods.GetTask:
             {
-                var req = DeserializeV1Params<GetTaskRequest>(paramsEl.Value, id);
+                var req = DeserializeV1Params<GetTaskRequest>(paramsEl.Value, id, method);
                 response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.GetTaskAsync(req, ct).ConfigureAwait(false));
                 break;
             }
             case A2AMethods.ListTasks:
             {
-                var req = DeserializeV1Params<ListTasksRequest>(paramsEl.Value, id);
+                var req = DeserializeV1Params<ListTasksRequest>(paramsEl.Value, id, method);
                 if (req.PageSize is { } ps && (ps <= 0 || ps > 100))
                     throw new A2AException($"Invalid pageSize: {ps}. Must be between 1 and 100.", A2AErrorCode.InvalidParams);
                 if (req.HistoryLength is { } hl && hl < 0)
@@ -225,38 +226,38 @@ public static class V03ServerProcessor
             }
             case A2AMethods.CancelTask:
             {
-                var req = DeserializeV1Params<CancelTaskRequest>(paramsEl.Value, id);
+                var req = DeserializeV1Params<CancelTaskRequest>(paramsEl.Value, id, method);
                 response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.CancelTaskAsync(req, ct).ConfigureAwait(false));
                 break;
             }
             case A2AMethods.CreateTaskPushNotificationConfig:
             {
-                var req = DeserializeV1Params<TaskPushNotificationConfig>(paramsEl.Value, id);
+                var req = DeserializeV1Params<TaskPushNotificationConfig>(paramsEl.Value, id, method);
                 response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.CreateTaskPushNotificationConfigAsync(req, ct).ConfigureAwait(false));
                 break;
             }
             case A2AMethods.GetTaskPushNotificationConfig:
             {
-                var req = DeserializeV1Params<GetTaskPushNotificationConfigRequest>(paramsEl.Value, id);
+                var req = DeserializeV1Params<GetTaskPushNotificationConfigRequest>(paramsEl.Value, id, method);
                 response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.GetTaskPushNotificationConfigAsync(req, ct).ConfigureAwait(false));
                 break;
             }
             case A2AMethods.ListTaskPushNotificationConfigs:
             {
-                var req = DeserializeV1Params<ListTaskPushNotificationConfigsRequest>(paramsEl.Value, id);
+                var req = DeserializeV1Params<ListTaskPushNotificationConfigsRequest>(paramsEl.Value, id, method);
                 response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.ListTaskPushNotificationConfigsAsync(req, ct).ConfigureAwait(false));
                 break;
             }
             case A2AMethods.DeleteTaskPushNotificationConfig:
             {
-                var req = DeserializeV1Params<DeleteTaskPushNotificationConfigRequest>(paramsEl.Value, id);
+                var req = DeserializeV1Params<DeleteTaskPushNotificationConfigRequest>(paramsEl.Value, id, method);
                 await handler.DeleteTaskPushNotificationConfigAsync(req, ct).ConfigureAwait(false);
                 response = JsonRpcResponse.CreateJsonRpcResponse(id, (object?)null);
                 break;
             }
             case A2AMethods.GetExtendedAgentCard:
             {
-                var req = DeserializeV1Params<GetExtendedAgentCardRequest>(paramsEl.Value, id);
+                var req = DeserializeV1Params<GetExtendedAgentCardRequest>(paramsEl.Value, id, method);
                 response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.GetExtendedAgentCardAsync(req, ct).ConfigureAwait(false));
                 break;
             }
@@ -285,12 +286,12 @@ public static class V03ServerProcessor
         {
             case A2AMethods.SubscribeToTask:
             {
-                var req = DeserializeV1Params<SubscribeToTaskRequest>(paramsEl.Value, id);
+                var req = DeserializeV1Params<SubscribeToTaskRequest>(paramsEl.Value, id, method);
                 return new JsonRpcStreamedResult(handler.SubscribeToTaskAsync(req, ct), id);
             }
             case A2AMethods.SendStreamingMessage:
             {
-                var req = DeserializeV1Params<SendMessageRequest>(paramsEl.Value, id);
+                var req = DeserializeV1Params<SendMessageRequest>(paramsEl.Value, id, method);
                 return new JsonRpcStreamedResult(handler.SendStreamingMessageAsync(req, ct), id);
             }
             default:
@@ -298,7 +299,7 @@ public static class V03ServerProcessor
         }
     }
 
-    private static T DeserializeV1Params<T>(JsonElement element, JsonRpcId id) where T : class
+    private static T DeserializeV1Params<T>(JsonElement element, JsonRpcId id, string method) where T : class
     {
         T? result;
         try
@@ -320,6 +321,7 @@ public static class V03ServerProcessor
             throw new A2AException("Message parts cannot be empty", A2AErrorCode.InvalidParams);
         }
 
+        A2AHttpRequestPolicy.NormalizeIncomingRequest(result, "JSONRPC", method);
         return result;
     }
 

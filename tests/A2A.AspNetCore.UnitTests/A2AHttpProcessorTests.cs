@@ -120,6 +120,49 @@ public class A2AHttpProcessorTests
         Assert.IsType<JsonRpcResponseResult>(result);
     }
 
+    [Fact]
+    public async Task SendMessageRestAsync_ClearsTenantFieldsBeforeDispatch()
+    {
+        var requestHandler = new Mock<IA2ARequestHandler>(MockBehavior.Strict);
+        requestHandler
+            .Setup(handler => handler.SendMessageAsync(
+                It.Is<SendMessageRequest>(request =>
+                    request.Tenant == null &&
+                    request.Configuration!.TaskPushNotificationConfig!.Tenant == null),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SendMessageResponse
+            {
+                Message = new Message { MessageId = "response", Role = Role.Agent, Parts = [] },
+            });
+        var request = CreateTenantBearingSendRequest();
+
+        var result = await A2AHttpProcessor.SendMessageRestAsync(
+            requestHandler.Object, NullLogger.Instance, request, CancellationToken.None);
+
+        Assert.IsType<A2AResponseResult>(result);
+        requestHandler.VerifyAll();
+    }
+
+    [Fact]
+    public void SendMessageStreamRest_ClearsTenantFieldsBeforeDispatch()
+    {
+        var requestHandler = new Mock<IA2ARequestHandler>(MockBehavior.Strict);
+        requestHandler
+            .Setup(handler => handler.SendStreamingMessageAsync(
+                It.Is<SendMessageRequest>(request =>
+                    request.Tenant == null &&
+                    request.Configuration!.TaskPushNotificationConfig!.Tenant == null),
+                It.IsAny<CancellationToken>()))
+            .Returns(SingleStreamResponse());
+        var request = CreateTenantBearingSendRequest();
+
+        var result = A2AHttpProcessor.SendMessageStreamRest(
+            requestHandler.Object, NullLogger.Instance, request, CancellationToken.None);
+
+        Assert.IsType<A2AEventStreamResult>(result);
+        requestHandler.VerifyAll();
+    }
+
     [Theory]
     [InlineData(A2AErrorCode.TaskNotFound, StatusCodes.Status404NotFound)]
     [InlineData(A2AErrorCode.MethodNotFound, StatusCodes.Status404NotFound)]
@@ -332,5 +375,28 @@ public class A2AHttpProcessorTests
 
         Assert.IsType<A2AResponseResult>(result);
         requestHandler.VerifyAll();
+    }
+
+    private static SendMessageRequest CreateTenantBearingSendRequest() => new()
+    {
+        Tenant = "top-level-tenant",
+        Message = new Message { MessageId = "m-1", Role = Role.User, Parts = [Part.FromText("hi")] },
+        Configuration = new SendMessageConfiguration
+        {
+            TaskPushNotificationConfig = new TaskPushNotificationConfig
+            {
+                Url = "https://push.example",
+                Tenant = "embedded-tenant",
+            },
+        },
+    };
+
+    private static async IAsyncEnumerable<StreamResponse> SingleStreamResponse()
+    {
+        await Task.Yield();
+        yield return new StreamResponse
+        {
+            Message = new Message { MessageId = "response", Role = Role.Agent, Parts = [] },
+        };
     }
 }

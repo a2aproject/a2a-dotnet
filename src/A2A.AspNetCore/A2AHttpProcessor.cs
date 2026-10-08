@@ -35,6 +35,7 @@ internal static class A2AHttpProcessor
     internal static Task<IResult> SendMessageAsync(IA2ARequestHandler requestHandler, ILogger logger, SendMessageRequest sendRequest, CancellationToken cancellationToken)
         => WithExceptionHandlingAsync(logger, "SendMessage", async ct =>
         {
+            A2AHttpRequestPolicy.NormalizeIncomingRequest(sendRequest, "HTTP+JSON", "SendMessage");
             var result = await requestHandler.SendMessageAsync(sendRequest, ct).ConfigureAwait(false);
             return new JsonRpcResponseResult(JsonRpcResponse.CreateJsonRpcResponse(new JsonRpcId("http"), result));
         }, cancellationToken: cancellationToken);
@@ -42,6 +43,7 @@ internal static class A2AHttpProcessor
     internal static IResult SendMessageStream(IA2ARequestHandler requestHandler, ILogger logger, SendMessageRequest sendRequest, CancellationToken cancellationToken)
         => WithExceptionHandling(logger, nameof(SendMessageStream), () =>
         {
+            A2AHttpRequestPolicy.NormalizeIncomingRequest(sendRequest, "HTTP+JSON", "SendStreamingMessage");
             var events = requestHandler.SendStreamingMessageAsync(sendRequest, cancellationToken);
             return new JsonRpcStreamedResult(events, new JsonRpcId("http"));
         });
@@ -133,6 +135,7 @@ internal static class A2AHttpProcessor
         IA2ARequestHandler requestHandler, ILogger logger, SendMessageRequest request, CancellationToken cancellationToken)
         => WithExceptionHandlingAsync(logger, "REST.SendMessage", async ct =>
         {
+            A2AHttpRequestPolicy.NormalizeIncomingRequest(request, "HTTP+JSON", "SendMessage");
             ValidateSendMessageRequest(request);
             var result = await requestHandler.SendMessageAsync(request, ct).ConfigureAwait(false);
             return new A2AResponseResult(result);
@@ -143,6 +146,7 @@ internal static class A2AHttpProcessor
         IA2ARequestHandler requestHandler, ILogger logger, SendMessageRequest request, CancellationToken cancellationToken)
         => WithExceptionHandling(logger, "REST.SendMessageStream", () =>
         {
+            A2AHttpRequestPolicy.NormalizeIncomingRequest(request, "HTTP+JSON", "SendStreamingMessage");
             ValidateSendMessageRequest(request);
             var events = requestHandler.SendStreamingMessageAsync(request, cancellationToken);
             return new A2AEventStreamResult(events);
@@ -242,8 +246,8 @@ internal static class A2AHttpProcessor
         {
             // Route provides the authoritative taskId; override whatever the body sent
             config.TaskId = taskId;
-            // This route has no tenant segment and does not support tenant routing.
-            config.Tenant = null;
+            A2AHttpRequestPolicy.NormalizeIncomingRequest(
+                config, "HTTP+JSON", "CreateTaskPushNotificationConfig");
             var result = await requestHandler.CreateTaskPushNotificationConfigAsync(config, ct).ConfigureAwait(false);
             return new A2AResponseResult(result);
         }, taskId, cancellationToken);

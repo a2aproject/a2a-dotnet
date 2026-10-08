@@ -122,10 +122,11 @@ The SDK treats `FilePart` payloads (both `bytes` and `uri` variants) as opaque d
 
 ### 7. Tenant Isolation
 
-The SDK does not enforce any tenant boundaries. Task IDs, push notification configs, and artifacts are not inherently scoped to a caller identity.
+The SDK does not enforce any tenant boundaries. Task IDs, push notification configs, and artifacts are not inherently scoped to a caller identity. The SDK's clients serialize `Tenant` fields for interoperability with A2A servers that use them. The a2a-dotnet JSON-RPC and HTTP+JSON server bindings select handlers through host routing and clear incoming `Tenant` values before dispatch. Custom operation models are not modified.
 
 **Required application controls:**
 - Derive tenant context from the authenticated principal (claims, API key mapping, or mTLS identity) — never from client-supplied request fields.
+- Route tenant-specific JSON-RPC and HTTP+JSON agents through tenant-specific URLs or authenticated host-application context.
 - Persist tenant and principal ownership metadata alongside every task and push notification config.
 - Enforce tenant scoping on every `tasks/get`, `tasks/cancel`, `tasks/resubscribe`, and push config API call.
 - Use non-predictable task IDs (UUIDs) to prevent enumeration.
@@ -165,7 +166,7 @@ The SDK does not guarantee, and cannot provide, protection for:
 | Network (Client ↔ Agent HTTP) | Routes and dispatches JSON-RPC; maps errors to ProblemDetails; uses a shared default `HttpClient` when none is supplied | Authenticate, authorize, enforce HTTPS, rate-limit, size-limit, and disable or isolate cookies |
 | Streaming (SSE) | Writes incremental events to the response stream | Concurrency limits, idle timeouts, backpressure, content redaction |
 | Webhooks (Agent → Client callback) | Stores `PushNotificationConfig`; delivery is app-implemented | URL validation (SSRF), token verification, retry caps |
-| Tenant isolation | None | Scope every task and config operation to authenticated identity |
+| Tenant isolation | Clients serialize standard request `Tenant` fields; a2a-dotnet HTTP servers ignore them before dispatch and do not authorize or scope resources | Scope every task and config operation to authenticated identity and route HTTP requests to the correct agent |
 | Storage | Provides `ITaskStore` interface + `InMemoryTaskStore` (dev only) | Production store, encryption, quotas, TTL cleanup |
 
 ---
