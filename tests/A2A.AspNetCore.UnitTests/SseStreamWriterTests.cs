@@ -25,16 +25,17 @@ public class SseStreamWriterTests
     [Fact]
     public async Task Heartbeat_EmitsKeepAliveCommentFrames()
     {
-        // Arrange — short heartbeat interval so the test doesn't wait long
-        var context = CreateHttpContext();
+        // Arrange
+        var responseBody = new HeartbeatObservingStream();
+        var context = CreateHttpContext(responseBody);
         var writer = new SseStreamWriter(context, TimeSpan.FromMilliseconds(50));
 
-        // Act — write one event, then wait long enough for several heartbeat ticks
+        // Act
         await writer.WriteEventAsync("{\"x\":1}", CancellationToken.None);
-        await Task.Delay(300);
+        await responseBody.HeartbeatWritten.WaitAsync(TimeSpan.FromSeconds(5));
         await writer.DisposeAsync();
 
-        // Assert — keep-alive comment frames were written
+        // Assert
         var body = GetResponseBody(context);
         Assert.Contains(": keep-alive\n\n", body);
     }
@@ -59,10 +60,10 @@ public class SseStreamWriterTests
 
     // --- Helpers ---
 
-    private static DefaultHttpContext CreateHttpContext()
+    private static DefaultHttpContext CreateHttpContext(Stream? responseBody = null)
     {
         var context = new DefaultHttpContext();
-        context.Response.Body = new MemoryStream();
+        context.Response.Body = responseBody ?? new MemoryStream();
         return context;
     }
 
@@ -71,5 +72,25 @@ public class SseStreamWriterTests
         context.Response.Body.Position = 0;
         using var reader = new StreamReader(context.Response.Body, Encoding.UTF8, leaveOpen: true);
         return reader.ReadToEnd();
+    }
+
+    private sealed class HeartbeatObservingStream : MemoryStream
+    {
+        private readonly TaskCompletionSource _heartbeatWritten =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task HeartbeatWritten => _heartbeatWritten.Task;
+
+        public override async ValueTask WriteAsync(
+            ReadOnlyMemory<byte> buffer,
+            CancellationToken cancellationToken = default)
+        {
+            await base.WriteAsync(buffer, cancellationToken);
+
+            if (Encoding.UTF8.GetString(buffer.Span).Contains(": keep-alive\n\n", StringComparison.Ordinal))
+            {
+                _heartbeatWritten.TrySetResult();
+            }
+        }
     }
 }
