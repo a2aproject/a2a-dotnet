@@ -14,10 +14,10 @@ namespace A2A;
 /// </remarks>
 public static class A2AClientFactory
 {
-    private static readonly ConcurrentDictionary<string, Func<Uri, HttpClient?, IA2AClient>> s_bindings = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly ConcurrentDictionary<string, Func<string, HttpClient?, IA2AClient>> s_bindings = new(StringComparer.OrdinalIgnoreCase)
     {
-        [ProtocolBindingNames.HttpJson] = (url, httpClient) => new A2AHttpJsonClient(url, httpClient),
-        [ProtocolBindingNames.JsonRpc] = (url, httpClient) => new A2AClient(url, httpClient),
+        [ProtocolBindingNames.HttpJson] = (address, httpClient) => new A2AHttpJsonClient(new Uri(address), httpClient),
+        [ProtocolBindingNames.JsonRpc] = (address, httpClient) => new A2AClient(new Uri(address), httpClient),
     };
 
     /// <summary>
@@ -33,6 +33,26 @@ public static class A2AClientFactory
     /// Thrown when <paramref name="protocolBinding"/> or <paramref name="clientFactory"/> is <see langword="null"/>.
     /// </exception>
     public static void Register(string protocolBinding, Func<Uri, HttpClient?, IA2AClient> clientFactory)
+    {
+        ArgumentNullException.ThrowIfNull(protocolBinding);
+        ArgumentNullException.ThrowIfNull(clientFactory);
+        RegisterAddress(protocolBinding, (address, httpClient) => clientFactory(new Uri(address), httpClient));
+    }
+
+    /// <summary>
+    /// Registers a custom protocol binding that receives the interface address without URI parsing.
+    /// </summary>
+    /// <param name="protocolBinding">
+    /// The protocol binding name (e.g. <c>"GRPC"</c>). Matching is case-insensitive.
+    /// </param>
+    /// <param name="clientFactory">
+    /// A delegate that creates an <see cref="IA2AClient"/> given the raw interface address and an optional
+    /// <see cref="HttpClient"/>.
+    /// </param>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="protocolBinding"/> or <paramref name="clientFactory"/> is <see langword="null"/>.
+    /// </exception>
+    public static void RegisterAddress(string protocolBinding, Func<string, HttpClient?, IA2AClient> clientFactory)
     {
         ArgumentNullException.ThrowIfNull(protocolBinding);
         ArgumentNullException.ThrowIfNull(clientFactory);
@@ -76,11 +96,9 @@ public static class A2AClientFactory
                 continue;
             }
 
-            var url = new Uri(agentInterface.Url);
-
             if (s_bindings.TryGetValue(agentInterface.ProtocolBinding, out var factory))
             {
-                return factory(url, httpClient);
+                return factory(agentInterface.Url, httpClient);
             }
 
             throw new A2AException(
