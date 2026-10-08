@@ -795,6 +795,34 @@ public class TaskProjectionTests
         Assert.Equal(A2AErrorCode.UnsupportedOperation, ex.ErrorCode);
     }
 
+    [Theory]
+    [InlineData(TaskState.Completed)]
+    [InlineData(TaskState.Canceled)]
+    [InlineData(TaskState.Failed)]
+    [InlineData(TaskState.Rejected)]
+    public void Apply_WithTaskReplacement_OnTerminalTask_Throws(TaskState terminalState)
+    {
+        var current = new AgentTask
+        {
+            Id = "t1",
+            ContextId = "ctx-1",
+            Status = new TaskStatus { State = terminalState },
+        };
+        var evt = new StreamResponse
+        {
+            Task = new AgentTask
+            {
+                Id = "t1",
+                ContextId = "ctx-1",
+                Status = new TaskStatus { State = TaskState.Working },
+            },
+        };
+
+        var ex = Assert.Throws<A2AException>(() => TaskProjection.Apply(current, evt));
+
+        Assert.Equal(A2AErrorCode.UnsupportedOperation, ex.ErrorCode);
+    }
+
     [Fact]
     public void Apply_WithArtifactUpdate_OnTerminalTask_DoesNotThrow()
     {

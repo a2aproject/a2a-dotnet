@@ -28,7 +28,14 @@ public static class TaskProjection
     public static AgentTask? Apply(AgentTask? current, StreamResponse streamEvent)
     {
         if (streamEvent.Task is { } task)
+        {
+            if (current is not null)
+            {
+                GuardNotTerminal(current);
+            }
+
             return task;
+        }
 
         if (current is null)
             return current;

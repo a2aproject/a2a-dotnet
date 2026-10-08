@@ -9,5 +9,15 @@ a2a-itk/
 # Runtime logs
 logs/
 
+# Run artifacts. The shared driver leaves raw_results.json behind on purpose —
+# the nightly workflow reads it after the script exits — and an ACTS run writes
+# one report per transport plus the rolling metrics entry.
+raw_results.json
+run_request.json
+acts_request.json
+acts_results_*.json
+acts-report-*.json
+acts_dotnet.json
+
 # Local debugging artifacts
 single_test.json

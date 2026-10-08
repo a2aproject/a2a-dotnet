@@ -31,6 +31,41 @@ public class A2AHttpJsonClientTests
     }
 
     [Fact]
+    public async Task SendMessageAsync_OmitsIdentifiersFromEmbeddedPushConfiguration()
+    {
+        string? capturedBody = null;
+        var expected = new SendMessageResponse
+        {
+            Message = new Message { MessageId = "id-1", Role = Role.Agent, Parts = [] }
+        };
+        var sut = CreateClient(expected, req =>
+            capturedBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+
+        await sut.SendMessageAsync(new SendMessageRequest
+        {
+            Message = new Message
+            {
+                MessageId = "m-1",
+                TaskId = "task-1",
+                Role = Role.User,
+                Parts = [Part.FromText("Hello")]
+            },
+            Configuration = new SendMessageConfiguration
+            {
+                TaskPushNotificationConfig = new TaskPushNotificationConfig { Url = "http://push" }
+            }
+        });
+
+        Assert.NotNull(capturedBody);
+        using var requestJson = JsonDocument.Parse(capturedBody);
+        Assert.Equal("task-1", requestJson.RootElement.GetProperty("message").GetProperty("taskId").GetString());
+        var pushConfig = requestJson.RootElement.GetProperty("configuration").GetProperty("taskPushNotificationConfig");
+        Assert.Equal("http://push", pushConfig.GetProperty("url").GetString());
+        Assert.False(pushConfig.TryGetProperty("taskId", out _));
+        Assert.False(pushConfig.TryGetProperty("id", out _));
+    }
+
+    [Fact]
     public async Task SendStreamingMessageAsync_PostsToCorrectUrlAndYieldsEvents()
     {
         HttpRequestMessage? captured = null;
@@ -193,17 +228,12 @@ public class A2AHttpJsonClientTests
         {
             Id = "cfg-1",
             TaskId = "t-1",
-            PushNotificationConfig = new PushNotificationConfig { Url = "http://callback" }
+            Url = "http://callback"
         };
 
         var sut = CreateClient(expected, req => captured = req);
 
-        await sut.CreateTaskPushNotificationConfigAsync(new CreateTaskPushNotificationConfigRequest
-        {
-            TaskId = "t-1",
-            ConfigId = "cfg-1",
-            Config = new PushNotificationConfig { Url = "http://callback" }
-        });
+        await sut.CreateTaskPushNotificationConfigAsync(new TaskPushNotificationConfig { Id = "cfg-1", TaskId = "t-1", Url = "http://callback" });
 
         Assert.NotNull(captured);
         Assert.Equal(HttpMethod.Post, captured.Method);
@@ -218,7 +248,7 @@ public class A2AHttpJsonClientTests
         {
             Id = "cfg-1",
             TaskId = "t-1",
-            PushNotificationConfig = new PushNotificationConfig { Url = "http://callback" }
+            Url = "http://callback"
         };
 
         var sut = CreateClient(expected, req => captured = req);
@@ -231,14 +261,14 @@ public class A2AHttpJsonClientTests
     }
 
     [Fact]
-    public async Task ListTaskPushNotificationConfigAsync_UsesCorrectGetPathWithQuery()
+    public async Task ListTaskPushNotificationConfigsAsync_UsesCorrectGetPathWithQuery()
     {
         HttpRequestMessage? captured = null;
-        var expected = new ListTaskPushNotificationConfigResponse();
+        var expected = new ListTaskPushNotificationConfigsResponse();
 
         var sut = CreateClient(expected, req => captured = req);
 
-        await sut.ListTaskPushNotificationConfigAsync(new ListTaskPushNotificationConfigRequest
+        await sut.ListTaskPushNotificationConfigsAsync(new ListTaskPushNotificationConfigsRequest
         {
             TaskId = "t-1",
             PageSize = 5,
@@ -548,17 +578,24 @@ public class A2AHttpJsonClientErrorInfoTests
     }
 
     [Fact]
+    public async Task ErrorInfo_MethodNotFound_ParsesReason()
+    {
+        var sut = CreateErrorInfoClient(HttpStatusCode.NotFound, "METHOD_NOT_FOUND", "Method not found");
+
+        var ex = await Assert.ThrowsAsync<A2AException>(() =>
+            sut.GetTaskAsync(new GetTaskRequest { Id = "missing" }));
+
+        Assert.Equal(A2AErrorCode.MethodNotFound, ex.ErrorCode);
+    }
+
+    [Fact]
     public async Task ErrorInfo_PushNotificationNotSupported_DistinguishesFrom400()
     {
         var sut = CreateErrorInfoClient(HttpStatusCode.BadRequest,
             "PUSH_NOTIFICATION_NOT_SUPPORTED", "Push notifications not supported");
 
         var ex = await Assert.ThrowsAsync<A2AException>(() =>
-            sut.CreateTaskPushNotificationConfigAsync(new CreateTaskPushNotificationConfigRequest
-            {
-                TaskId = "t-1",
-                Config = new PushNotificationConfig { Url = "http://callback" }
-            }));
+            sut.CreateTaskPushNotificationConfigAsync(new TaskPushNotificationConfig { Id = "cfg-1", TaskId = "t-1", Url = "http://callback" }));
 
         Assert.Equal(A2AErrorCode.PushNotificationNotSupported, ex.ErrorCode);
     }
@@ -576,6 +613,21 @@ public class A2AHttpJsonClientErrorInfoTests
             }));
 
         Assert.Equal(A2AErrorCode.UnsupportedOperation, ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task ErrorInfo_ApplicationA2AJson_ParsesReason()
+    {
+        var sut = CreateErrorInfoClient(HttpStatusCode.BadRequest,
+            "INVALID_PARAMS", "Invalid parameters", "application/a2a+json");
+
+        var ex = await Assert.ThrowsAsync<A2AException>(() =>
+            sut.SendMessageAsync(new SendMessageRequest
+            {
+                Message = new Message { Parts = [], Role = Role.User, MessageId = "m" }
+            }));
+
+        Assert.Equal(A2AErrorCode.InvalidParams, ex.ErrorCode);
     }
 
     [Fact]
@@ -644,7 +696,8 @@ public class A2AHttpJsonClientErrorInfoTests
         Assert.Contains("404", ex.Message);
     }
 
-    private static A2AHttpJsonClient CreateErrorInfoClient(HttpStatusCode statusCode, string reason, string message)
+    private static A2AHttpJsonClient CreateErrorInfoClient(
+        HttpStatusCode statusCode, string reason, string message, string mediaType = "application/json")
     {
         var errorJson = JsonSerializer.Serialize(new
         {
@@ -666,7 +719,7 @@ public class A2AHttpJsonClientErrorInfoTests
         });
         var response = new HttpResponseMessage(statusCode)
         {
-            Content = new StringContent(errorJson, Encoding.UTF8, "application/json")
+            Content = new StringContent(errorJson, Encoding.UTF8, mediaType)
         };
 
         var handler = new MockHttpMessageHandler(response);

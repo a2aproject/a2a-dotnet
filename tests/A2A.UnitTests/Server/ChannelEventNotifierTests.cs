@@ -167,6 +167,23 @@ public class ChannelEventNotifierTests
     }
 
     [Fact]
+    public async Task RemoveLastChannel_WhileTaskLockHeld_DoesNotBreakLockExclusivity()
+    {
+        var notifier = new ChannelEventNotifier();
+        var channel = notifier.CreateChannel("t1");
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var firstLock = await notifier.AcquireTaskLockAsync("t1", cts.Token);
+
+        notifier.RemoveChannel("t1", channel);
+        var secondLockTask = notifier.AcquireTaskLockAsync("t1", cts.Token);
+
+        Assert.False(secondLockTask.IsCompleted);
+
+        firstLock.Dispose();
+        using var secondLock = await secondLockTask;
+    }
+
+    [Fact]
     public async Task AcquireTaskLockAsync_IsPerTask_NotGlobal()
     {
         // Arrange
