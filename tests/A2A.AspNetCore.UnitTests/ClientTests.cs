@@ -100,14 +100,11 @@ public sealed class ClientTests : IClassFixture<JsonSchemaFixture>, IDisposable
             {
                 Id = "response-config-id",
                 TaskId = "test-task",
-                PushNotificationConfig = new PushNotificationConfig
+                Url = "http://example.org/notify",
+                Token = "test-token",
+                Authentication = new AuthenticationInfo
                 {
-                    Url = "http://example.org/notify",
-                    Token = "test-token",
-                    Authentication = new AuthenticationInfo
-                    {
-                        Scheme = "Bearer"
-                    }
+                    Scheme = "Bearer"
                 }
             };
 
@@ -118,17 +115,15 @@ public sealed class ClientTests : IClassFixture<JsonSchemaFixture>, IDisposable
             };
         };
 
-        var createRequest = new CreateTaskPushNotificationConfigRequest
+        var createRequest = new TaskPushNotificationConfig()
         {
+            Id = "cfg-1",
             TaskId = "test-task",
-            Config = new PushNotificationConfig()
+            Url = "http://example.org/notify",
+            Token = "test-token",
+            Authentication = new AuthenticationInfo()
             {
-                Url = "http://example.org/notify",
-                Token = "test-token",
-                Authentication = new AuthenticationInfo()
-                {
-                    Scheme = "Bearer",
-                }
+                Scheme = "Bearer",
             }
         };
 

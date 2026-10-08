@@ -71,9 +71,9 @@ public sealed class A2AClient : IA2AClient, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<TaskPushNotificationConfig> CreateTaskPushNotificationConfigAsync(CreateTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default)
+    public async Task<TaskPushNotificationConfig> CreateTaskPushNotificationConfigAsync(TaskPushNotificationConfig config, CancellationToken cancellationToken = default)
     {
-        return await SendJsonRpcRequestAsync<TaskPushNotificationConfig>(A2AMethods.CreateTaskPushNotificationConfig, request, cancellationToken).ConfigureAwait(false);
+        return await SendJsonRpcRequestAsync<TaskPushNotificationConfig>(A2AMethods.CreateTaskPushNotificationConfig, config, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -83,15 +83,15 @@ public sealed class A2AClient : IA2AClient, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<ListTaskPushNotificationConfigResponse> ListTaskPushNotificationConfigAsync(ListTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default)
+    public async Task<ListTaskPushNotificationConfigsResponse> ListTaskPushNotificationConfigsAsync(ListTaskPushNotificationConfigsRequest request, CancellationToken cancellationToken = default)
     {
-        return await SendJsonRpcRequestAsync<ListTaskPushNotificationConfigResponse>(A2AMethods.ListTaskPushNotificationConfig, request, cancellationToken).ConfigureAwait(false);
+        return await SendJsonRpcRequestAsync<ListTaskPushNotificationConfigsResponse>(A2AMethods.ListTaskPushNotificationConfigs, request, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
     public async Task DeleteTaskPushNotificationConfigAsync(DeleteTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default)
     {
-        await SendJsonRpcRequestAsync<object>(A2AMethods.DeleteTaskPushNotificationConfig, request, cancellationToken).ConfigureAwait(false);
+        await SendJsonRpcRequestAsync(A2AMethods.DeleteTaskPushNotificationConfig, request, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -111,6 +111,25 @@ public sealed class A2AClient : IA2AClient, IDisposable
     [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "All types are registered in source-generated JsonContext.")]
     [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "All types are registered in source-generated JsonContext.")]
     private async Task<TResult> SendJsonRpcRequestAsync<TResult>(string method, object? @params, CancellationToken cancellationToken)
+    {
+        var rpcResponse = await SendJsonRpcRequestCoreAsync(method, @params, cancellationToken).ConfigureAwait(false);
+
+        return rpcResponse.Result.Deserialize<TResult>(A2AJsonUtilities.DefaultOptions)
+            ?? throw new A2AException("Failed to deserialize JSON-RPC result.", A2AErrorCode.InternalError);
+    }
+
+    /// <summary>Sends a JSON-RPC request for methods whose successful response carries no result, e.g. a null <c>result</c> member.</summary>
+    /// <param name="method">The JSON-RPC method name.</param>
+    /// <param name="params">The request parameters to serialize, if any.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    private async Task SendJsonRpcRequestAsync(string method, object? @params, CancellationToken cancellationToken)
+    {
+        _ = await SendJsonRpcRequestCoreAsync(method, @params, cancellationToken).ConfigureAwait(false);
+    }
+
+    [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "All types are registered in source-generated JsonContext.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "All types are registered in source-generated JsonContext.")]
+    private async Task<JsonRpcResponse> SendJsonRpcRequestCoreAsync(string method, object? @params, CancellationToken cancellationToken)
     {
         using var activity = A2ADiagnostics.Source.StartActivity($"A2AClient/{method}", ActivityKind.Client);
         var stopwatch = Stopwatch.StartNew();
@@ -146,8 +165,7 @@ public sealed class A2AClient : IA2AClient, IDisposable
                 throw new A2AException(error.Message, (A2AErrorCode)error.Code);
             }
 
-            return rpcResponse.Result.Deserialize<TResult>(A2AJsonUtilities.DefaultOptions)
-                ?? throw new A2AException("Failed to deserialize JSON-RPC result.", A2AErrorCode.InternalError);
+            return rpcResponse;
         }
         catch (Exception ex)
         {

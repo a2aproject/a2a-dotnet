@@ -26,7 +26,41 @@ The A2A protocol expects authentication at the HTTP layer, not in the JSON-RPC p
 
 See: [A2A specification — Authentication and Authorization](https://a2a-protocol.org/v0.3.0/specification/#4-authentication-and-authorization)
 
-### 2. JSON Parsing Limits
+### 2. Client Cookie Isolation
+
+When an `HttpClient` is not supplied, `A2AClient`, `A2AHttpJsonClient`, and `A2ACardResolver` use a shared default client. The default .NET HTTP handler accepts cookies from responses and sends matching cookies with subsequent requests. In a multi-user or multi-tenant application, a cookie set by a remote agent while processing one user's operation could therefore be sent while processing another user's operation against the same matching cookie domain and path.
+
+**Required application controls:**
+- If cookies are not required, inject an `HttpClient` whose handler has `UseCookies = false`.
+- If cookie-based sessions are required, use a dedicated `HttpClientHandler` and `CookieContainer` for each user or security context. Do not share or pool that handler or cookie container across security contexts.
+- Apply the same isolation to `A2ACardResolver`; agent-card discovery can also receive and retain response cookies.
+
+```csharp
+// This client can be shared because it does not retain response cookies.
+var httpClient = new HttpClient(new HttpClientHandler
+{
+    UseCookies = false
+});
+
+var cardResolver = new A2ACardResolver(agentUri, httpClient);
+var client = new A2AClient(agentUri, httpClient);
+```
+
+When cookies are required, create the following objects for a single user or security context:
+
+```csharp
+var handler = new HttpClientHandler
+{
+    UseCookies = true,
+    CookieContainer = new CookieContainer()
+};
+
+var httpClient = new HttpClient(handler);
+var cardResolver = new A2ACardResolver(agentUri, httpClient);
+var client = new A2AClient(agentUri, httpClient);
+```
+
+### 3. JSON Parsing Limits
 
 The SDK uses `System.Text.Json` for all serialization and deserialization, with source-generated metadata via `A2AJsonUtilities`. STJ's default maximum depth (64) and other default limits apply.
 
@@ -37,7 +71,7 @@ The SDK uses `System.Text.Json` for all serialization and deserialization, with 
 
 See: [System.Text.Json Threat Model](https://github.com/dotnet/runtime/blob/main/src/libraries/System.Text.Json/docs/ThreatModel.md)
 
-### 3. Streaming Resource Management
+### 4. Streaming Resource Management
 
 Streaming (Server-Sent Events via `message/stream` and `tasks/resubscribe`) uses long-lived HTTP connections. The SDK does not enforce any streaming resource limits.
 
@@ -48,7 +82,7 @@ Streaming (Server-Sent Events via `message/stream` and `tasks/resubscribe`) uses
 - Apply a maximum event size and total streamed bytes per task.
 - Redact sensitive intermediate content (e.g., LLM reasoning traces, partial PII) from streamed events before they are sent.
 
-### 4. Webhook / Push Notification Security
+### 5. Webhook / Push Notification Security
 
 Push notifications introduce an outbound HTTP request path whose URL and token are supplied by clients. The SDK stores `PushNotificationConfig` (including `Token` and `Authentication` fields) but **does not**:
 - Validate webhook URLs for SSRF (private ranges, localhost, link-local).
@@ -75,7 +109,7 @@ Push notifications introduce an outbound HTTP request path whose URL and token a
 
 See: [A2A specification — Push Notification Config](https://a2a-protocol.org/v0.3.0/specification/#68-pushnotificationconfig-object), [Security Considerations for Push Notifications](https://a2a-protocol.org/v0.3.0/topics/streaming-and-async/#security-considerations-for-push-notifications)
 
-### 5. File Handling
+### 6. File Handling
 
 The SDK treats `FilePart` payloads (both `bytes` and `uri` variants) as opaque data. It does not interpret, parse, decompress, scan, or validate file content.
 
@@ -86,7 +120,7 @@ The SDK treats `FilePart` payloads (both `bytes` and `uri` variants) as opaque d
 - Never auto-execute received file content.
 - Treat all file URIs as untrusted: validate schemes, block internal network targets, and avoid acting as an open redirect or SSRF proxy.
 
-### 6. Tenant Isolation
+### 7. Tenant Isolation
 
 The SDK does not enforce any tenant boundaries. Task IDs, push notification configs, and artifacts are not inherently scoped to a caller identity.
 
@@ -96,7 +130,7 @@ The SDK does not enforce any tenant boundaries. Task IDs, push notification conf
 - Enforce tenant scoping on every `tasks/get`, `tasks/cancel`, `tasks/resubscribe`, and push config API call.
 - Use non-predictable task IDs (UUIDs) to prevent enumeration.
 
-### 7. Task Storage and Persistence
+### 8. Task Storage and Persistence
 
 `InMemoryTaskStore` is provided for **development and testing only**. It has no persistence, no access controls, no encryption at rest, and no retention policy.
 
@@ -128,7 +162,7 @@ The SDK does not guarantee, and cannot provide, protection for:
 
 | Boundary | What the SDK does | What the application must do |
 |----------|------------------|------------------------------|
-| Network (Client ↔ Agent HTTP) | Routes and dispatches JSON-RPC; maps errors to ProblemDetails | Authenticate, authorize, enforce HTTPS, rate-limit, size-limit |
+| Network (Client ↔ Agent HTTP) | Routes and dispatches JSON-RPC; maps errors to ProblemDetails; uses a shared default `HttpClient` when none is supplied | Authenticate, authorize, enforce HTTPS, rate-limit, size-limit, and disable or isolate cookies |
 | Streaming (SSE) | Writes incremental events to the response stream | Concurrency limits, idle timeouts, backpressure, content redaction |
 | Webhooks (Agent → Client callback) | Stores `PushNotificationConfig`; delivery is app-implemented | URL validation (SSRF), token verification, retry caps |
 | Tenant isolation | None | Scope every task and config operation to authenticated identity |

@@ -20,12 +20,12 @@ public class A2AServerTests
     }
 
     private static (A2AServer server, InMemoryTaskStore store, TestAgentHandler handler)
-        CreateServer()
+        CreateServer(A2AServerOptions? options = null)
     {
         var notifier = new ChannelEventNotifier();
         var store = new InMemoryTaskStore();
         var handler = new TestAgentHandler();
-        var server = new A2AServer(handler, store, notifier, NullLogger<A2AServer>.Instance);
+        var server = new A2AServer(handler, store, notifier, NullLogger<A2AServer>.Instance, options);
         return (server, store, handler);
     }
 
@@ -115,6 +115,72 @@ public class A2AServerTests
     }
 
     [Fact]
+    public async Task GivenContinuation_WhenHandlerOnlyEmitsStatusUpdates_ThenFinalTaskIsReturned()
+    {
+        // A continuation can complete through status updates without
+        // emitting a second Task snapshot. It must still produce a response.
+        var (server, store, handler) = CreateServer();
+        await store.SaveTaskAsync("t1", new AgentTask
+        {
+            Id = "t1",
+            ContextId = "ctx-1",
+            Status = new TaskStatus { State = TaskState.InputRequired },
+        });
+
+        handler.OnExecute = async (ctx, eq, ct) =>
+        {
+            await new TaskUpdater(eq, ctx.TaskId, ctx.ContextId).CompleteAsync(cancellationToken: ct);
+            eq.Complete();
+        };
+
+        var result = await server.SendMessageAsync(new SendMessageRequest
+        {
+            Message = new Message
+            {
+                MessageId = "u2",
+                TaskId = "t1",
+                ContextId = "ctx-1",
+                Parts = [Part.FromText("continue")],
+                Role = Role.User,
+            },
+        });
+
+        Assert.NotNull(result.Task);
+        Assert.Equal(TaskState.Completed, result.Task!.Status.State);
+    }
+
+    [Fact]
+    public async Task GivenContinuation_WhenHandlerEmitsNoEvents_ThenInvalidAgentResponseIsThrown()
+    {
+        var (server, store, handler) = CreateServer();
+        await store.SaveTaskAsync("t1", new AgentTask
+        {
+            Id = "t1",
+            ContextId = "ctx-1",
+            Status = new TaskStatus { State = TaskState.InputRequired },
+        });
+        handler.OnExecute = (ctx, eq, ct) =>
+        {
+            eq.Complete();
+            return Task.CompletedTask;
+        };
+
+        var ex = await Assert.ThrowsAsync<A2AException>(() => server.SendMessageAsync(new SendMessageRequest
+        {
+            Message = new Message
+            {
+                MessageId = "u2",
+                TaskId = "t1",
+                ContextId = "ctx-1",
+                Parts = [Part.FromText("continue")],
+                Role = Role.User,
+            },
+        }));
+
+        Assert.Equal(A2AErrorCode.InvalidAgentResponse, ex.ErrorCode);
+    }
+
+    [Fact]
     public async Task GivenExistingTask_WhenSendMessage_ThenHistoryAppended()
     {
         // Arrange
@@ -153,6 +219,150 @@ public class A2AServerTests
         Assert.NotNull(task);
         Assert.NotNull(task!.History);
         Assert.Equal(3, task.History.Count);
+    }
+
+    [Fact]
+    public async Task GivenUnsupportedPartMediaType_WhenSendMessage_ThenThrowsContentTypeNotSupported()
+    {
+        var (server, _, _) = CreateServer(new A2AServerOptions
+        {
+            SupportedInputModes = ["text/plain"],
+        });
+
+        var exception = await Assert.ThrowsAsync<A2AException>(() =>
+            server.SendMessageAsync(new SendMessageRequest
+            {
+                Message = new Message
+                {
+                    MessageId = "u1",
+                    Role = Role.User,
+                    Parts =
+                    [
+                        new Part
+                        {
+                            Data = System.Text.Json.JsonSerializer.SerializeToElement("unsupported"),
+                            MediaType = "application/x-unsupported-type-12345",
+                        },
+                    ],
+                },
+            }));
+
+        Assert.Equal(A2AErrorCode.ContentTypeNotSupported, exception.ErrorCode);
+    }
+
+    [Fact]
+    public async Task GivenSupportedPartMediaTypeWithParameters_WhenSendMessage_ThenAcceptsMessage()
+    {
+        var (server, _, handler) = CreateServer(new A2AServerOptions
+        {
+            SupportedInputModes = ["text/plain"],
+        });
+        handler.OnExecute = async (context, eventQueue, cancellationToken) =>
+        {
+            await eventQueue.EnqueueMessageAsync(new Message
+            {
+                Role = Role.Agent,
+                MessageId = "a1",
+                ContextId = context.ContextId,
+                Parts = [Part.FromText("accepted")],
+            }, cancellationToken);
+            eventQueue.Complete();
+        };
+
+        var exception = await Record.ExceptionAsync(() =>
+            server.SendMessageAsync(new SendMessageRequest
+            {
+                Message = new Message
+                {
+                    MessageId = "u1",
+                    Role = Role.User,
+                    Parts = [new Part { Text = "hello", MediaType = "text/plain; charset=utf-8" }],
+                },
+            }));
+
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public async Task GivenContinuationWithWrongContextId_WhenSendMessage_ThenThrowsInvalidParams()
+    {
+        var (server, store, _) = CreateServer();
+        await store.SaveTaskAsync("t1", new AgentTask
+        {
+            Id = "t1",
+            ContextId = "ctx-1",
+            Status = new TaskStatus { State = TaskState.InputRequired },
+        });
+
+        var exception = await Assert.ThrowsAsync<A2AException>(() =>
+            server.SendMessageAsync(new SendMessageRequest
+            {
+                Message = new Message
+                {
+                    MessageId = "u2",
+                    TaskId = "t1",
+                    ContextId = "wrong-context",
+                    Role = Role.User,
+                    Parts = [Part.FromText("continue")],
+                },
+            }));
+
+        Assert.Equal(A2AErrorCode.InvalidParams, exception.ErrorCode);
+    }
+
+    [Fact]
+    public async Task GivenHistoryLengthZero_WhenSendMessageReturnsTask_ThenResponseOmitsHistory()
+    {
+        var (server, _, handler) = CreateServer();
+        handler.OnExecute = async (ctx, eq, ct) =>
+        {
+            await eq.EnqueueTaskAsync(new AgentTask
+            {
+                Id = ctx.TaskId,
+                ContextId = ctx.ContextId,
+                Status = new TaskStatus { State = TaskState.Submitted },
+                History = [ctx.Message],
+            }, ct);
+            var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
+            await updater.CompleteAsync(cancellationToken: ct);
+        };
+
+        var result = await server.SendMessageAsync(new SendMessageRequest
+        {
+            Message = new Message
+            {
+                MessageId = "u1",
+                Role = Role.User,
+                Parts = [Part.FromText("hello")],
+            },
+            Configuration = new SendMessageConfiguration { HistoryLength = 0 },
+        });
+
+        Assert.NotNull(result.Task);
+        Assert.Empty(result.Task!.History ?? []);
+    }
+
+    [Fact]
+    public async Task GivenStreamingNotSupported_WhenSendStreamingMessage_ThenThrowsUnsupportedOperation()
+    {
+        var (server, _, _) = CreateServer(new A2AServerOptions { SupportsStreaming = false });
+
+        var exception = await Assert.ThrowsAsync<A2AException>(async () =>
+        {
+            await foreach (var _ in server.SendStreamingMessageAsync(new SendMessageRequest
+            {
+                Message = new Message
+                {
+                    MessageId = "u1",
+                    Role = Role.User,
+                    Parts = [Part.FromText("hello")],
+                },
+            }))
+            {
+            }
+        });
+
+        Assert.Equal(A2AErrorCode.UnsupportedOperation, exception.ErrorCode);
     }
 
     [Fact]
@@ -443,16 +653,40 @@ public class A2AServerTests
 
         // Act & Assert
         await Assert.ThrowsAsync<A2AException>(() =>
-            server.CreateTaskPushNotificationConfigAsync(new CreateTaskPushNotificationConfigRequest()));
+            server.CreateTaskPushNotificationConfigAsync(new TaskPushNotificationConfig()));
         await Assert.ThrowsAsync<A2AException>(() =>
             server.GetTaskPushNotificationConfigAsync(new GetTaskPushNotificationConfigRequest()));
     }
 
     [Fact]
-    public async Task GetExtendedAgentCard_ThrowsNotConfigured()
+    public async Task GetExtendedAgentCard_WhenCapabilityIsAbsent_ThrowsUnsupportedOperation()
     {
         // Arrange
         var (server, _, _) = CreateServer();
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<A2AException>(() =>
+            server.GetExtendedAgentCardAsync(new GetExtendedAgentCardRequest()));
+        Assert.Equal(A2AErrorCode.UnsupportedOperation, ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task GetExtendedAgentCard_WhenCapabilityIsFalse_ThrowsUnsupportedOperation()
+    {
+        // Arrange
+        var (server, _, _) = CreateServer(new A2AServerOptions { SupportsExtendedAgentCard = false });
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<A2AException>(() =>
+            server.GetExtendedAgentCardAsync(new GetExtendedAgentCardRequest()));
+        Assert.Equal(A2AErrorCode.UnsupportedOperation, ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task GetExtendedAgentCard_WhenCapabilityIsTrue_ThrowsNotConfigured()
+    {
+        // Arrange
+        var (server, _, _) = CreateServer(new A2AServerOptions { SupportsExtendedAgentCard = true });
 
         // Act & Assert
         var ex = await Assert.ThrowsAsync<A2AException>(() =>
