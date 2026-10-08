@@ -37,6 +37,29 @@ jobs:
         run: dotnet build ./tests/A2ATests.slnx --framework ${{ matrix.framework }}
       - name: TestLibs
         run: dotnet test ./tests/A2ATests.slnx --no-build --verbosity normal --framework ${{ matrix.framework }}
+  nativeAot:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - dotnet-version: 8.x
+            framework: net8.0
+          - dotnet-version: 10.x
+            framework: net10.0
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup .NET 10.x
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.x
+      - name: Setup .NET ${{ matrix.dotnet-version }}
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: ${{ matrix.dotnet-version }}
+      - name: Publish Native AOT
+        run: dotnet publish ./tests/A2A.AotTests/A2A.AotTests.csproj --configuration Release --framework ${{ matrix.framework }} --output ./artifacts/aot/${{ matrix.framework }}
+      - name: Run Native AOT smoke test
+        run: ./artifacts/aot/${{ matrix.framework }}/A2A.AotTests
   buildSamples:
     runs-on: ubuntu-latest
     steps:
