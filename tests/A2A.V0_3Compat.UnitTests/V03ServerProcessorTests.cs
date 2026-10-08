@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
+using A2A.AspNetCore;
 using System.Text;
 using System.Text.Json;
 
@@ -152,6 +153,38 @@ public class V03ServerProcessorTests
     }
 
     [Fact]
+    public async Task ProcessRequestAsync_V1SendMessage_ClearsTenantFieldsBeforeDispatch()
+    {
+        var handler = new RecordingRequestHandler();
+        var request = CreateHttpRequest(
+            """{"jsonrpc":"2.0","method":"SendMessage","id":1,"params":{"tenant":"top-level","message":{"messageId":"m1","role":"ROLE_USER","parts":[{"text":"hi"}]},"configuration":{"taskPushNotificationConfig":{"url":"https://push.example","tenant":"embedded"}}}}""",
+            version: "1.0");
+
+        var result = await V03ServerProcessor.ProcessRequestAsync(handler, request, CancellationToken.None);
+
+        Assert.IsType<JsonRpcResponseResult>(result);
+        Assert.NotNull(handler.LastSendMessageRequest);
+        Assert.Null(handler.LastSendMessageRequest.Tenant);
+        Assert.Null(handler.LastSendMessageRequest.Configuration!.TaskPushNotificationConfig!.Tenant);
+    }
+
+    [Fact]
+    public async Task ProcessRequestAsync_V1StreamingSend_ClearsTenantFieldsBeforeDispatch()
+    {
+        var handler = new RecordingRequestHandler();
+        var request = CreateHttpRequest(
+            """{"jsonrpc":"2.0","method":"SendStreamingMessage","id":1,"params":{"tenant":"top-level","message":{"messageId":"m1","role":"ROLE_USER","parts":[{"text":"hi"}]},"configuration":{"taskPushNotificationConfig":{"url":"https://push.example","tenant":"embedded"}}}}""",
+            version: "1.0");
+
+        var result = await V03ServerProcessor.ProcessRequestAsync(handler, request, CancellationToken.None);
+
+        Assert.IsType<JsonRpcStreamedResult>(result);
+        Assert.NotNull(handler.LastStreamingSendRequest);
+        Assert.Null(handler.LastStreamingSendRequest.Tenant);
+        Assert.Null(handler.LastStreamingSendRequest.Configuration!.TaskPushNotificationConfig!.Tenant);
+    }
+
+    [Fact]
     public async Task ProcessRequestAsync_V1GetTaskMethod_RoutesDirectlyToV1Processor()
     {
         var handler = CreateRequestHandler();
@@ -275,6 +308,71 @@ public class V03ServerProcessorTests
         {
             var updater = new TaskUpdater(eventQueue, context.TaskId, context.ContextId);
             await updater.CancelAsync(cancellationToken: cancellationToken);
+        }
+    }
+
+    private sealed class RecordingRequestHandler : IA2ARequestHandler
+    {
+        internal SendMessageRequest? LastSendMessageRequest { get; private set; }
+        internal SendMessageRequest? LastStreamingSendRequest { get; private set; }
+
+        public Task<SendMessageResponse> SendMessageAsync(
+            SendMessageRequest request, CancellationToken cancellationToken = default)
+        {
+            LastSendMessageRequest = request;
+            return Task.FromResult(new SendMessageResponse
+            {
+                Message = new Message { MessageId = "response", Role = Role.Agent, Parts = [] },
+            });
+        }
+
+        public IAsyncEnumerable<StreamResponse> SendStreamingMessageAsync(
+            SendMessageRequest request, CancellationToken cancellationToken = default)
+        {
+            LastStreamingSendRequest = request;
+            return SingleStreamResponse();
+        }
+
+        public Task<AgentTask> GetTaskAsync(GetTaskRequest request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<ListTasksResponse> ListTasksAsync(ListTasksRequest request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<AgentTask> CancelTaskAsync(CancelTaskRequest request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public IAsyncEnumerable<StreamResponse> SubscribeToTaskAsync(
+            SubscribeToTaskRequest request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<TaskPushNotificationConfig> CreateTaskPushNotificationConfigAsync(
+            TaskPushNotificationConfig config, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<TaskPushNotificationConfig> GetTaskPushNotificationConfigAsync(
+            GetTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<ListTaskPushNotificationConfigsResponse> ListTaskPushNotificationConfigsAsync(
+            ListTaskPushNotificationConfigsRequest request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task DeleteTaskPushNotificationConfigAsync(
+            DeleteTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<AgentCard> GetExtendedAgentCardAsync(
+            GetExtendedAgentCardRequest request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        private static async IAsyncEnumerable<StreamResponse> SingleStreamResponse()
+        {
+            await Task.Yield();
+            yield return new StreamResponse
+            {
+                Message = new Message { MessageId = "response", Role = Role.Agent, Parts = [] },
+            };
         }
     }
 }

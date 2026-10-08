@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 /// <summary>Represents a request to get a push notification configuration.</summary>
 public sealed class GetTaskPushNotificationConfigRequest
 {
-    /// <summary>Gets or sets the tenant identifier.</summary>
+    /// <summary>Gets or sets the tenant routing identifier for the selected agent interface.</summary>
     public string? Tenant { get; set; }
 
     /// <summary>Gets or sets the push notification configuration identifier.</summary>

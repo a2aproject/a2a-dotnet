@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -267,6 +269,111 @@ public class A2AJsonRpcProcessorTests
         Assert.Equal(Role.User, agentTask.History[0].Role);
         Assert.Equal("hi", agentTask.History[0].Parts[0].Text);
         Assert.Equal("test-message-id", agentTask.History[0].MessageId);
+    }
+
+    [Fact]
+    public async Task ProcessRequest_SendMessage_ClearsTenantFieldsAndRecordsOneDiagnosticEvent()
+    {
+        var requestHandler = new Mock<IA2ARequestHandler>(MockBehavior.Strict);
+        requestHandler
+            .Setup(handler => handler.SendMessageAsync(
+                It.Is<SendMessageRequest>(request =>
+                    request.Tenant == null &&
+                    request.Configuration!.TaskPushNotificationConfig!.Tenant == null),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SendMessageResponse
+            {
+                Message = new Message { MessageId = "response", Role = Role.Agent, Parts = [] },
+            });
+
+        using var parentActivity = new Activity("tenant-policy-test").Start();
+        var recordedEvents = new ConcurrentBag<ActivityEvent>();
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == "A2A.AspNetCore",
+            Sample = static (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
+            ActivityStopped = activity =>
+            {
+                if (activity.TraceId == parentActivity.TraceId)
+                {
+                    foreach (var activityEvent in activity.Events)
+                    {
+                        recordedEvents.Add(activityEvent);
+                    }
+                }
+            },
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        var request = CreateHttpRequestFromJson($$"""
+        {
+            "jsonrpc": "2.0",
+            "method": "{{A2AMethods.SendMessage}}",
+            "id": "tenant-1",
+            "params": {
+                "tenant": "top-level-secret",
+                "message": {
+                    "messageId": "m-1",
+                    "role": "ROLE_USER",
+                    "parts": [{"text":"hi"}]
+                },
+                "configuration": {
+                    "taskPushNotificationConfig": {
+                        "url": "https://push.example",
+                        "tenant": "embedded-secret"
+                    }
+                }
+            }
+        }
+        """);
+
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(
+            requestHandler.Object, request, CancellationToken.None);
+
+        Assert.IsType<JsonRpcResponseResult>(result);
+        requestHandler.VerifyAll();
+        var tenantEvent = Assert.Single(recordedEvents, item => item.Name == "a2a.tenant.ignored");
+        var tags = tenantEvent.Tags.ToDictionary(tag => tag.Key, tag => tag.Value);
+        Assert.Equal("JSONRPC", tags["a2a.protocol.binding"]);
+        Assert.Equal(A2AMethods.SendMessage, tags["a2a.operation"]);
+        Assert.DoesNotContain("top-level-secret", tenantEvent.ToString());
+        Assert.DoesNotContain("embedded-secret", tenantEvent.ToString());
+    }
+
+    [Fact]
+    public void StreamResponse_SendStreamingMessage_ClearsTenantFields()
+    {
+        var requestHandler = new Mock<IA2ARequestHandler>(MockBehavior.Strict);
+        requestHandler
+            .Setup(handler => handler.SendStreamingMessageAsync(
+                It.Is<SendMessageRequest>(request =>
+                    request.Tenant == null &&
+                    request.Configuration!.TaskPushNotificationConfig!.Tenant == null),
+                It.IsAny<CancellationToken>()))
+            .Returns(SingleStreamResponse());
+        var request = new SendMessageRequest
+        {
+            Tenant = "top-level-tenant",
+            Message = new Message { MessageId = "m-1", Role = Role.User, Parts = [Part.FromText("hi")] },
+            Configuration = new SendMessageConfiguration
+            {
+                TaskPushNotificationConfig = new TaskPushNotificationConfig
+                {
+                    Url = "https://push.example",
+                    Tenant = "embedded-tenant",
+                },
+            },
+        };
+
+        var result = A2AJsonRpcProcessor.StreamResponse(
+            requestHandler.Object,
+            "tenant-stream",
+            A2AMethods.SendStreamingMessage,
+            ToJsonElement(request),
+            CancellationToken.None);
+
+        Assert.IsType<JsonRpcStreamedResult>(result);
+        requestHandler.VerifyAll();
     }
 
     [Fact]
@@ -907,5 +1014,14 @@ public class A2AJsonRpcProcessorTests
         context.Response.Body.Position = 0;
         var bodyContent = await JsonSerializer.DeserializeAsync<TBody>(context.Response.Body, A2AJsonUtilities.DefaultOptions);
         return (context.Response.StatusCode, context.Response.ContentType, bodyContent!);
+    }
+
+    private static async IAsyncEnumerable<StreamResponse> SingleStreamResponse()
+    {
+        await Task.Yield();
+        yield return new StreamResponse
+        {
+            Message = new Message { MessageId = "response", Role = Role.Agent, Parts = [] },
+        };
     }
 }

@@ -177,17 +177,17 @@ public static class A2AJsonRpcProcessor
         switch (method)
         {
             case A2AMethods.SendMessage:
-                var sendRequest = DeserializeAndValidate<SendMessageRequest>(parameters.Value);
+                var sendRequest = DeserializeAndValidate<SendMessageRequest>(parameters.Value, method);
                 var sendResult = await requestHandler.SendMessageAsync(sendRequest, cancellationToken).ConfigureAwait(false);
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, sendResult);
                 break;
             case A2AMethods.GetTask:
-                var getTaskRequest = DeserializeAndValidate<GetTaskRequest>(parameters.Value);
+                var getTaskRequest = DeserializeAndValidate<GetTaskRequest>(parameters.Value, method);
                 var agentTask = await requestHandler.GetTaskAsync(getTaskRequest, cancellationToken).ConfigureAwait(false);
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, agentTask);
                 break;
             case A2AMethods.ListTasks:
-                var listTasksRequest = DeserializeAndValidate<ListTasksRequest>(parameters.Value);
+                var listTasksRequest = DeserializeAndValidate<ListTasksRequest>(parameters.Value, method);
 
                 // Validate pageSize: must be 1-100 if specified
                 if (listTasksRequest.PageSize is { } ps && (ps <= 0 || ps > 100))
@@ -209,32 +209,32 @@ public static class A2AJsonRpcProcessor
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, listResult);
                 break;
             case A2AMethods.CancelTask:
-                var cancelRequest = DeserializeAndValidate<CancelTaskRequest>(parameters.Value);
+                var cancelRequest = DeserializeAndValidate<CancelTaskRequest>(parameters.Value, method);
                 var cancelledTask = await requestHandler.CancelTaskAsync(cancelRequest, cancellationToken).ConfigureAwait(false);
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, cancelledTask);
                 break;
             case A2AMethods.CreateTaskPushNotificationConfig:
-                var createPnConfig = DeserializeAndValidate<TaskPushNotificationConfig>(parameters.Value);
+                var createPnConfig = DeserializeAndValidate<TaskPushNotificationConfig>(parameters.Value, method);
                 var createdConfig = await requestHandler.CreateTaskPushNotificationConfigAsync(createPnConfig, cancellationToken).ConfigureAwait(false);
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, createdConfig);
                 break;
             case A2AMethods.GetTaskPushNotificationConfig:
-                var getPnConfig = DeserializeAndValidate<GetTaskPushNotificationConfigRequest>(parameters.Value);
+                var getPnConfig = DeserializeAndValidate<GetTaskPushNotificationConfigRequest>(parameters.Value, method);
                 var gotConfig = await requestHandler.GetTaskPushNotificationConfigAsync(getPnConfig, cancellationToken).ConfigureAwait(false);
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, gotConfig);
                 break;
             case A2AMethods.ListTaskPushNotificationConfigs:
-                var listPnConfig = DeserializeAndValidate<ListTaskPushNotificationConfigsRequest>(parameters.Value);
+                var listPnConfig = DeserializeAndValidate<ListTaskPushNotificationConfigsRequest>(parameters.Value, method);
                 var listPnResult = await requestHandler.ListTaskPushNotificationConfigsAsync(listPnConfig, cancellationToken).ConfigureAwait(false);
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, listPnResult);
                 break;
             case A2AMethods.DeleteTaskPushNotificationConfig:
-                var deletePnConfig = DeserializeAndValidate<DeleteTaskPushNotificationConfigRequest>(parameters.Value);
+                var deletePnConfig = DeserializeAndValidate<DeleteTaskPushNotificationConfigRequest>(parameters.Value, method);
                 await requestHandler.DeleteTaskPushNotificationConfigAsync(deletePnConfig, cancellationToken).ConfigureAwait(false);
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, (object?)null);
                 break;
             case A2AMethods.GetExtendedAgentCard:
-                var getCardRequest = DeserializeAndValidate<GetExtendedAgentCardRequest>(parameters.Value);
+                var getCardRequest = DeserializeAndValidate<GetExtendedAgentCardRequest>(parameters.Value, method);
                 var extCard = await requestHandler.GetExtendedAgentCardAsync(getCardRequest, cancellationToken).ConfigureAwait(false);
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, extCard);
                 break;
@@ -269,7 +269,7 @@ public static class A2AJsonRpcProcessor
         return new JsonRpcResponseResult(response);
     }
 
-    private static T DeserializeAndValidate<T>(JsonElement jsonParamValue) where T : class
+    private static T DeserializeAndValidate<T>(JsonElement jsonParamValue, string method) where T : class
     {
         T? parms;
         try
@@ -291,6 +291,7 @@ public static class A2AJsonRpcProcessor
             throw new A2AException("Message parts cannot be empty", A2AErrorCode.InvalidParams);
         }
 
+        A2AHttpRequestPolicy.NormalizeIncomingRequest(parms, "JSONRPC", method);
         return parms;
     }
 
@@ -327,11 +328,11 @@ public static class A2AJsonRpcProcessor
         switch (method)
         {
             case A2AMethods.SubscribeToTask:
-                var subscribeRequest = DeserializeAndValidate<SubscribeToTaskRequest>(parameters.Value);
+                var subscribeRequest = DeserializeAndValidate<SubscribeToTaskRequest>(parameters.Value, method);
                 var taskEvents = requestHandler.SubscribeToTaskAsync(subscribeRequest, cancellationToken);
                 return new JsonRpcStreamedResult(taskEvents, requestId);
             case A2AMethods.SendStreamingMessage:
-                var sendRequest = DeserializeAndValidate<SendMessageRequest>(parameters.Value);
+                var sendRequest = DeserializeAndValidate<SendMessageRequest>(parameters.Value, method);
                 var sendEvents = requestHandler.SendStreamingMessageAsync(sendRequest, cancellationToken);
                 return new JsonRpcStreamedResult(sendEvents, requestId);
             default:
