@@ -112,7 +112,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
                 {
                     eventQueue.Complete();
                 }
-            }, executionCancellationToken);
+            }, CancellationToken.None);
 
             if (returnImmediately)
             {
@@ -199,7 +199,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
                 {
                     eventQueue.Complete();
                 }
-            }, backgroundCancellationToken);
+            }, CancellationToken.None);
         }
         catch (Exception ex)
         {
@@ -397,7 +397,7 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
                 {
                     eventQueue.Complete();
                 }
-            }, cancellationToken);
+            }, CancellationToken.None);
 
             await foreach (var response in eventQueue.WithCancellation(cancellationToken).ConfigureAwait(false))
             {
@@ -643,43 +643,16 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
                 }
             }
 
-            // Concurrent sends for one task are unsupported. GetOrAdd still prevents
-            // orphaning a CTS if such requests race.
             var newCts = new CancellationTokenSource();
-            var cts = _backgroundCancellations.GetOrAdd(context.TaskId, newCts);
-            CancellationTokenSource? ownedSource;
-
-            if (ReferenceEquals(cts, newCts))
-            {
-                ownedSource = newCts;
-            }
-            else
+            if (!_backgroundCancellations.TryAdd(context.TaskId, newCts))
             {
                 newCts.Dispose();
-                ownedSource = null;
+                throw new A2AException(
+                    $"Task '{context.TaskId}' already has a background operation.",
+                    A2AErrorCode.UnsupportedOperation);
             }
 
-            try
-            {
-                return (ownedSource, cts.Token);
-            }
-            catch (ObjectDisposedException)
-            {
-                ownedSource = new CancellationTokenSource();
-                while (true)
-                {
-                    if (_backgroundCancellations.TryAdd(context.TaskId, ownedSource))
-                    {
-                        return (ownedSource, ownedSource.Token);
-                    }
-
-                    if (_backgroundCancellations.TryGetValue(context.TaskId, out var current))
-                    {
-                        ownedSource.Dispose();
-                        return (null, current.Token);
-                    }
-                }
-            }
+            return (newCts, newCts.Token);
         }
     }
 

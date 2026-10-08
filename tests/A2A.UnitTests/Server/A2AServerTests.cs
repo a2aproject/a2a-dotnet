@@ -19,6 +19,43 @@ public class A2AServerTests
                ?? new TaskUpdater(eventQueue, context.TaskId, context.ContextId).CancelAsync(cancellationToken: cancellationToken).AsTask();
     }
 
+    private sealed class SignalingTaskStore(ITaskStore inner) : ITaskStore
+    {
+        private int _getCount;
+
+        public TaskCompletionSource FirstReadCompleted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task<AgentTask?> GetTaskAsync(
+            string taskId,
+            CancellationToken cancellationToken = default)
+        {
+            var task = await inner.GetTaskAsync(taskId, cancellationToken);
+            if (Interlocked.Increment(ref _getCount) == 1)
+            {
+                FirstReadCompleted.TrySetResult();
+            }
+
+            return task;
+        }
+
+        public Task SaveTaskAsync(
+            string taskId,
+            AgentTask task,
+            CancellationToken cancellationToken = default)
+            => inner.SaveTaskAsync(taskId, task, cancellationToken);
+
+        public Task DeleteTaskAsync(
+            string taskId,
+            CancellationToken cancellationToken = default)
+            => inner.DeleteTaskAsync(taskId, cancellationToken);
+
+        public Task<ListTasksResponse> ListTasksAsync(
+            ListTasksRequest request,
+            CancellationToken cancellationToken = default)
+            => inner.ListTasksAsync(request, cancellationToken);
+    }
+
     private static (A2AServer server, InMemoryTaskStore store, TestAgentHandler handler)
         CreateServer(A2AServerOptions? options = null)
     {
@@ -1026,7 +1063,8 @@ public class A2AServerTests
     public async Task GivenReturnImmediatelyContinuation_WhenTaskBecomesTerminalBeforeRegistration_ThenHandlerDoesNotStart()
     {
         var notifier = new ChannelEventNotifier();
-        var store = new InMemoryTaskStore();
+        var innerStore = new InMemoryTaskStore();
+        var store = new SignalingTaskStore(innerStore);
         var handler = new TestAgentHandler();
         var server = new A2AServer(
             handler,
@@ -1063,11 +1101,9 @@ public class A2AServerTests
             Configuration = new SendMessageConfiguration { ReturnImmediately = true },
         });
 
-        var firstCompleted = await Task.WhenAny(
-            handlerStarted.Task,
-            Task.Delay(TimeSpan.FromMilliseconds(250)));
+        await store.FirstReadCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        await store.SaveTaskAsync("t1", new AgentTask
+        await innerStore.SaveTaskAsync("t1", new AgentTask
         {
             Id = "t1",
             ContextId = "ctx-1",
@@ -1078,17 +1114,78 @@ public class A2AServerTests
 
         var ex = await Record.ExceptionAsync(() => sendTask);
 
-        Assert.NotSame(handlerStarted.Task, firstCompleted);
         var a2aException = Assert.IsType<A2AException>(ex);
         Assert.Equal(A2AErrorCode.UnsupportedOperation, a2aException.ErrorCode);
         Assert.False(handlerStarted.Task.IsCompleted);
     }
 
     [Fact]
+    public async Task GivenOverlappingReturnImmediatelyContinuation_WhenBackgroundOperationExists_ThenSecondSendIsRejected()
+    {
+        var (server, _, handler) = CreateServer(new A2AServerOptions { AutoAppendHistory = false });
+        var releaseFirstHandler = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var invocation = 0;
+
+        handler.OnExecute = async (ctx, eq, ct) =>
+        {
+            if (Interlocked.Increment(ref invocation) == 1)
+            {
+                var updater = new TaskUpdater(eq, ctx.TaskId, ctx.ContextId);
+                await updater.SubmitAsync(cancellationToken: ct);
+                await releaseFirstHandler.Task;
+                await updater.CompleteAsync(cancellationToken: ct);
+                return;
+            }
+
+            await eq.EnqueueMessageAsync(new Message
+            {
+                MessageId = "m2",
+                ContextId = ctx.ContextId,
+                TaskId = ctx.TaskId,
+                Role = Role.Agent,
+                Parts = [Part.FromText("overlap")],
+            }, ct);
+        };
+
+        var first = await server.SendMessageAsync(new SendMessageRequest
+        {
+            Message = new Message
+            {
+                MessageId = "u1",
+                Role = Role.User,
+                Parts = [Part.FromText("start")],
+            },
+            Configuration = new SendMessageConfiguration { ReturnImmediately = true },
+        });
+        Assert.NotNull(first.Task);
+
+        var ex = await Record.ExceptionAsync(() => server.SendMessageAsync(new SendMessageRequest
+        {
+            Message = new Message
+            {
+                MessageId = "u2",
+                TaskId = first.Task!.Id,
+                ContextId = first.Task.ContextId,
+                Role = Role.User,
+                Parts = [Part.FromText("continue")],
+            },
+            Configuration = new SendMessageConfiguration { ReturnImmediately = true },
+        }));
+
+        releaseFirstHandler.TrySetResult();
+        await server.DisposeAsync();
+
+        var a2aException = Assert.IsType<A2AException>(ex);
+        Assert.Equal(A2AErrorCode.UnsupportedOperation, a2aException.ErrorCode);
+        Assert.Equal(1, invocation);
+    }
+
+    [Fact]
     public async Task GivenStreamingContinuation_WhenTaskBecomesTerminalBeforeRegistration_ThenHandlerDoesNotStart()
     {
         var notifier = new ChannelEventNotifier();
-        var store = new InMemoryTaskStore();
+        var innerStore = new InMemoryTaskStore();
+        var store = new SignalingTaskStore(innerStore);
         var handler = new TestAgentHandler();
         var server = new A2AServer(
             handler,
@@ -1125,11 +1222,9 @@ public class A2AServerTests
         }).GetAsyncEnumerator();
         var moveNextTask = enumerator.MoveNextAsync().AsTask();
 
-        var firstCompleted = await Task.WhenAny(
-            handlerStarted.Task,
-            Task.Delay(TimeSpan.FromMilliseconds(250)));
+        await store.FirstReadCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        await store.SaveTaskAsync("t1", new AgentTask
+        await innerStore.SaveTaskAsync("t1", new AgentTask
         {
             Id = "t1",
             ContextId = "ctx-1",
@@ -1140,7 +1235,6 @@ public class A2AServerTests
 
         var ex = await Record.ExceptionAsync(() => moveNextTask);
 
-        Assert.NotSame(handlerStarted.Task, firstCompleted);
         var a2aException = Assert.IsType<A2AException>(ex);
         Assert.Equal(A2AErrorCode.UnsupportedOperation, a2aException.ErrorCode);
         Assert.False(handlerStarted.Task.IsCompleted);
