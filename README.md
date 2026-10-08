@@ -232,6 +232,12 @@ await foreach (var evt in client.SendStreamingMessageAsync(new SendMessageReques
     Console.WriteLine(evt.PayloadCase);
 }
 ```
+
+For gRPC interfaces, agent cards use the specification's `hostname:port` address format. Scheme-less
+addresses use TLS by default. For local plaintext HTTP/2 (h2c) endpoints, register the binding with
+`A2AGrpcClientRegistration.Register(useTlsForSchemeLessAddresses: false)`. Explicit legacy
+`http://` and `https://` addresses remain supported.
+
 > [!IMPORTANT]
 > `A2AClient`, `A2AHttpJsonClient`, and `A2ACardResolver` use a shared default `HttpClient` when one is not supplied. In multi-user or multi-tenant applications, inject a client configured with `HttpClientHandler.UseCookies = false`. If cookie-based sessions are required, isolate the `HttpClientHandler` and `CookieContainer` per user or security context. See [Client Cookie Isolation](docs/security.md#2-client-cookie-isolation).
 
@@ -304,4 +310,3 @@ This library builds upon [Darrel Miller's](https://github.com/darrelmiller) [sha
 ## License
 
 This project is licensed under the [Apache 2.0 License](LICENSE).
-
