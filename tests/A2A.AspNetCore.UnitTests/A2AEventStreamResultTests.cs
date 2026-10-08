@@ -77,7 +77,7 @@ public class A2AEventStreamResultTests
     public async Task ExecuteAsync_ExceptionAfterFirstEvent_ReturnsSseError()
     {
         var result = new A2AEventStreamResult(
-            YieldThenThrowAsyncEnumerable(new A2AException("Subscription failed.", A2AErrorCode.InvalidRequest)));
+            YieldThenThrowAsyncEnumerable(new A2AException("Task not found.", A2AErrorCode.TaskNotFound)));
         var httpContext = CreateHttpContext();
 
         await result.ExecuteAsync(httpContext);
@@ -86,8 +86,28 @@ public class A2AEventStreamResultTests
         Assert.Equal(StatusCodes.Status200OK, httpContext.Response.StatusCode);
         Assert.Equal("text/event-stream", httpContext.Response.ContentType);
         Assert.Contains("\"task-1\"", body);
-        Assert.Contains("An internal error occurred during streaming.", body);
-        Assert.DoesNotContain("Subscription failed.", body);
+        using var errorJson = JsonDocument.Parse(ExtractErrorDataLine(body));
+        var error = errorJson.RootElement.GetProperty("error");
+        Assert.Equal((int)A2AErrorCode.TaskNotFound, error.GetProperty("code").GetInt32());
+        Assert.Equal("Task not found.", error.GetProperty("message").GetString());
+        Assert.Equal("TASK_NOT_FOUND", error.GetProperty("data")[0].GetProperty("reason").GetString());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_GenericExceptionAfterFirstEvent_ReturnsInternalErrorWithoutLeakingMessage()
+    {
+        var result = new A2AEventStreamResult(
+            YieldThenThrowAsyncEnumerable(new InvalidOperationException("sensitive internal details")));
+        var httpContext = CreateHttpContext();
+
+        await result.ExecuteAsync(httpContext);
+
+        var body = GetResponseBody(httpContext);
+        using var errorJson = JsonDocument.Parse(ExtractErrorDataLine(body));
+        var error = errorJson.RootElement.GetProperty("error");
+        Assert.Equal((int)A2AErrorCode.InternalError, error.GetProperty("code").GetInt32());
+        Assert.Equal("An internal error occurred during streaming.", error.GetProperty("message").GetString());
+        Assert.DoesNotContain("sensitive internal details", body);
     }
 
     private static DefaultHttpContext CreateHttpContext()
@@ -102,6 +122,14 @@ public class A2AEventStreamResultTests
         context.Response.Body.Position = 0;
         using var reader = new StreamReader(context.Response.Body, Encoding.UTF8);
         return reader.ReadToEnd();
+    }
+
+    private static string ExtractErrorDataLine(string body)
+    {
+        var lines = body.Split('\n');
+        var dataLine = lines.FirstOrDefault(l => l.StartsWith("data: ", StringComparison.Ordinal) && l.Contains("\"error\""))
+            ?? throw new InvalidOperationException($"No SSE data line with error found in response body:\n{body}");
+        return dataLine["data: ".Length..];
     }
 
     private static async IAsyncEnumerable<StreamResponse> ThrowingAsyncEnumerable(

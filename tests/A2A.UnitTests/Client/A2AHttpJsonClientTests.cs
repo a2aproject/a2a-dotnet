@@ -142,6 +142,30 @@ public class A2AHttpJsonClientTests
     }
 
     [Fact]
+    public async Task SendStreamingMessageAsync_ErrorEvent_ThrowsAdvertisedA2AException()
+    {
+        var sut = CreateSseErrorClient(A2AErrorCode.TaskNotFound, "Task not found");
+
+        var exception = await Assert.ThrowsAsync<A2AException>(async () =>
+        {
+            await foreach (var _ in sut.SendStreamingMessageAsync(new SendMessageRequest
+            {
+                Message = new Message
+                {
+                    Parts = [Part.FromText("Hello")],
+                    Role = Role.User,
+                    MessageId = "m-1",
+                },
+            }))
+            {
+            }
+        });
+
+        Assert.Equal(A2AErrorCode.TaskNotFound, exception.ErrorCode);
+        Assert.Equal("Task not found", exception.Message);
+    }
+
+    [Fact]
     public async Task GetTaskAsync_UsesGetWithCorrectPath()
     {
         HttpRequestMessage? captured = null;
@@ -579,6 +603,35 @@ public class A2AHttpJsonClientTests
 
         var handler = new MockHttpMessageHandler(response, onRequest);
         return new A2AHttpJsonClient(new Uri("http://localhost"), new HttpClient(handler));
+    }
+
+    private static A2AHttpJsonClient CreateSseErrorClient(A2AErrorCode errorCode, string message)
+    {
+        var errorJson = JsonSerializer.Serialize(new
+        {
+            error = new
+            {
+                code = (int)errorCode,
+                message,
+                data = new[]
+                {
+                    new
+                    {
+                        @type = "type.googleapis.com/google.rpc.ErrorInfo",
+                        reason = "TASK_NOT_FOUND",
+                        domain = "a2a-protocol.org",
+                    },
+                },
+            },
+        });
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent($"data: {errorJson}\n\n", Encoding.UTF8, "text/event-stream"),
+        };
+
+        return new A2AHttpJsonClient(
+            new Uri("http://localhost"),
+            new HttpClient(new MockHttpMessageHandler(response)));
     }
 
     private static A2AHttpJsonClient CreateEmptyClient(HttpStatusCode statusCode, Action<HttpRequestMessage>? onRequest = null)
