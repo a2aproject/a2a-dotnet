@@ -10,7 +10,7 @@ namespace A2A;
 public sealed class ChannelEventNotifier
 {
     private readonly ConcurrentDictionary<string, SubscriberSet> _subscribers = new();
-    private readonly ConcurrentDictionary<string, SemaphoreSlim> _taskLocks = new();
+    private readonly ConcurrentDictionary<string, TaskLock> _taskLocks = new();
 
     /// <summary>
     /// Push an event to all registered subscriber channels for the given task.
@@ -65,7 +65,6 @@ public sealed class ChannelEventNotifier
             if (set.Channels.Count == 0)
             {
                 _subscribers.TryRemove(taskId, out _);
-                _taskLocks.TryRemove(taskId, out _);
             }
         }
     }
@@ -79,21 +78,39 @@ public sealed class ChannelEventNotifier
     public async Task<IDisposable> AcquireTaskLockAsync(
         string taskId, CancellationToken cancellationToken = default)
     {
-        // Retry loop handles the race where RemoveChannel evicts the
-        // semaphore between GetOrAdd and WaitAsync completion.
         while (true)
         {
-            var sem = _taskLocks.GetOrAdd(taskId, _ => new SemaphoreSlim(1, 1));
-            await sem.WaitAsync(cancellationToken).ConfigureAwait(false);
-
-            // Verify this semaphore is still the live entry.
-            if (_taskLocks.TryGetValue(taskId, out var current) && ReferenceEquals(current, sem))
+            var taskLock = _taskLocks.GetOrAdd(taskId, static _ => new TaskLock());
+            if (!taskLock.TryAddReference())
             {
-                return new TaskLockRelease(sem);
+                continue;
             }
 
-            // Evicted while waiting — release the orphaned semaphore and retry.
-            sem.Release();
+            try
+            {
+                await taskLock.Semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+                return new TaskLockRelease(this, taskId, taskLock);
+            }
+            catch
+            {
+                ReleaseTaskLockReference(taskId, taskLock);
+                throw;
+            }
+        }
+    }
+
+    private void ReleaseTaskLock(string taskId, TaskLock taskLock)
+    {
+        taskLock.Semaphore.Release();
+        ReleaseTaskLockReference(taskId, taskLock);
+    }
+
+    private void ReleaseTaskLockReference(string taskId, TaskLock taskLock)
+    {
+        if (taskLock.ReleaseReference())
+        {
+            ((ICollection<KeyValuePair<string, TaskLock>>)_taskLocks)
+                .Remove(new KeyValuePair<string, TaskLock>(taskId, taskLock));
         }
     }
 
@@ -103,13 +120,55 @@ public sealed class ChannelEventNotifier
         return state?.IsTerminal() == true;
     }
 
-    private sealed class TaskLockRelease(SemaphoreSlim semaphore) : IDisposable
+    private sealed class TaskLockRelease(
+        ChannelEventNotifier owner,
+        string taskId,
+        TaskLock taskLock) : IDisposable
     {
         private int _disposed;
         public void Dispose()
         {
             if (Interlocked.Exchange(ref _disposed, 1) == 0)
-                semaphore.Release();
+            {
+                owner.ReleaseTaskLock(taskId, taskLock);
+            }
+        }
+    }
+
+    private sealed class TaskLock
+    {
+        private int _referenceCount;
+        private bool _retired;
+
+        public SemaphoreSlim Semaphore { get; } = new(1, 1);
+
+        public bool TryAddReference()
+        {
+            lock (this)
+            {
+                if (_retired)
+                {
+                    return false;
+                }
+
+                _referenceCount++;
+                return true;
+            }
+        }
+
+        public bool ReleaseReference()
+        {
+            lock (this)
+            {
+                _referenceCount--;
+                if (_referenceCount == 0)
+                {
+                    _retired = true;
+                    return true;
+                }
+
+                return false;
+            }
         }
     }
 
