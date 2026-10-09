@@ -186,6 +186,10 @@ switch (response.PayloadCase)
 }
 ```
 
+For Aspire service names or logical URLs such as `https+http://agent-api`, see
+[.NET Service Discovery](docs/service-discovery.md). Configure the HTTP client
+for both agent-card discovery and subsequent agent calls.
+
 ### 3. Using the gRPC binding
 
 Host a gRPC endpoint alongside (or instead of) the JSON-RPC/HTTP endpoints. The gRPC service reuses the same agent registration and `IA2ARequestHandler` pipeline:
