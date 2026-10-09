@@ -428,6 +428,24 @@ public class A2AServer : IA2ARequestHandler, IAsyncDisposable
     public virtual async Task<ListTasksResponse> ListTasksAsync(
         ListTasksRequest request, CancellationToken cancellationToken = default)
     {
+        // JSON-RPC rejects these before it reaches the store. REST and gRPC call
+        // this handler directly, so pageSize 0 or below comes back as an empty
+        // success page, pageSize above 100 is not capped, and a negative
+        // historyLength drops the history on the returned tasks.
+        if (request.PageSize is { } ps && (ps <= 0 || ps > 100))
+        {
+            throw new A2AException(
+                $"Invalid pageSize: {ps}. Must be between 1 and 100.",
+                A2AErrorCode.InvalidParams);
+        }
+
+        if (request.HistoryLength is { } hl && hl < 0)
+        {
+            throw new A2AException(
+                $"Invalid historyLength: {hl}. Must be non-negative.",
+                A2AErrorCode.InvalidParams);
+        }
+
         return await _taskStore.ListTasksAsync(request, cancellationToken).ConfigureAwait(false);
     }
 

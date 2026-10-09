@@ -333,4 +333,81 @@ public class A2AHttpProcessorTests
         Assert.IsType<A2AResponseResult>(result);
         requestHandler.VerifyAll();
     }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(101)]
+    public async Task ListTasks_WithInvalidPageSize_ReturnsInvalidParams(int pageSize)
+    {
+        var (requestHandler, _) = CreateServer();
+
+        var result = await A2AHttpProcessor.ListTasksRestAsync(
+            requestHandler,
+            NullLogger.Instance,
+            null,
+            null,
+            pageSize,
+            null,
+            null,
+            null,
+            null,
+            CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, ((IStatusCodeHttpResult)result).StatusCode);
+
+        var httpContext = new DefaultHttpContext();
+        httpContext.Response.Body = new MemoryStream();
+        await result.ExecuteAsync(httpContext);
+        httpContext.Response.Body.Position = 0;
+        var body = await new StreamReader(httpContext.Response.Body).ReadToEndAsync();
+        Assert.Contains($"Invalid pageSize: {pageSize}", body);
+    }
+
+    [Fact]
+    public async Task ListTasks_WithNegativeHistoryLength_ReturnsInvalidParams()
+    {
+        var (requestHandler, _) = CreateServer();
+
+        var result = await A2AHttpProcessor.ListTasksRestAsync(
+            requestHandler,
+            NullLogger.Instance,
+            null,
+            null,
+            null,
+            null,
+            -1,
+            null,
+            null,
+            CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, ((IStatusCodeHttpResult)result).StatusCode);
+
+        var httpContext = new DefaultHttpContext();
+        httpContext.Response.Body = new MemoryStream();
+        await result.ExecuteAsync(httpContext);
+        httpContext.Response.Body.Position = 0;
+        var body = await new StreamReader(httpContext.Response.Body).ReadToEndAsync();
+        Assert.Contains("Invalid historyLength: -1", body);
+    }
+
+    [Fact]
+    public async Task ListTasks_WithValidPageSize_ReturnsTasks()
+    {
+        var (requestHandler, _) = CreateServer();
+
+        var result = await A2AHttpProcessor.ListTasksRestAsync(
+            requestHandler,
+            NullLogger.Instance,
+            null,
+            null,
+            1,
+            null,
+            0,
+            null,
+            null,
+            CancellationToken.None);
+
+        Assert.IsType<A2AResponseResult>(result);
+    }
 }
