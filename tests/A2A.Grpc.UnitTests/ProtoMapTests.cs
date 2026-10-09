@@ -228,6 +228,18 @@ public class ProtoMapTests
     }
 
     [Fact]
+    public void ListTasksRequest_ExplicitPageSize_IsPreserved()
+    {
+        var zero = ProtoMap.ToDomain(ProtoMap.ToProto(new ListTasksRequest { PageSize = 0 }));
+        var negative = ProtoMap.ToDomain(ProtoMap.ToProto(new ListTasksRequest { PageSize = -1 }));
+        var omitted = ProtoMap.ToDomain(ProtoMap.ToProto(new ListTasksRequest()));
+
+        Assert.Equal(0, zero.PageSize);
+        Assert.Equal(-1, negative.PageSize);
+        Assert.Null(omitted.PageSize);
+    }
+
+    [Fact]
     public void ListTasksRequest_UnspecifiedStatus_MapsToNull()
     {
         var result = ProtoMap.ToDomain(ProtoMap.ToProto(new ListTasksRequest()));
