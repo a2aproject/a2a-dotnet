@@ -22,11 +22,13 @@
         <!-- Testing / samples dependencies -->
         <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.5" />
         <PackageVersion Include="JsonSchema.Net" Version="9.4.0" />
+        <PackageVersion Include="Microsoft.Agents.AI.A2A" Version="1.24.0-preview.261006.1" />
+        <PackageVersion Include="Microsoft.Agents.AI.Hosting.A2A" Version="1.24.0-preview.261006.1" />
+        <PackageVersion Include="Microsoft.Agents.AI.Hosting.A2A.AspNetCore" Version="1.24.0-preview.261006.1" />
+        <PackageVersion Include="Microsoft.Agents.AI.OpenAI" Version="1.24.0" />
+        <PackageVersion Include="Microsoft.Extensions.AI" Version="10.10.0" />
         <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.10.1" />
         <PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.9" />
-        <PackageVersion Include="Microsoft.SemanticKernel.Agents.Core" Version="1.81.0" />
-        <PackageVersion Include="Microsoft.SemanticKernel.Agents.OpenAI" Version="1.59.0-preview" />
-        <PackageVersion Include="Microsoft.SemanticKernel.Connectors.AzureOpenAI" Version="1.59.0" />
         <PackageVersion Include="Moq" Version="4.21.0" />
         <PackageVersion Include="OpenTelemetry" Version="1.12.0" />
         <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.19.1" />
