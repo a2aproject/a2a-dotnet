@@ -12,6 +12,8 @@ public sealed class AgentEventQueue : IAsyncEnumerable<StreamResponse>
 {
     private readonly Channel<StreamResponse> _channel;
 
+    internal Task Completion => _channel.Reader.Completion;
+
     /// <summary>Creates a bounded event queue (default capacity 16).</summary>
     /// <param name="capacity">Maximum number of buffered events.</param>
     public AgentEventQueue(int capacity = 16)
