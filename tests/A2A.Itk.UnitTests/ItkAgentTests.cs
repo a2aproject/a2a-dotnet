@@ -17,7 +17,7 @@ public sealed class ItkAgentTests
             card.SupportedInterfaces,
             agentInterface => agentInterface.ProtocolBinding == ProtocolBindingNames.Grpc);
 
-        Assert.Equal("http://127.0.0.1:11002", grpcInterface.Url);
+        Assert.Equal("127.0.0.1:11002", grpcInterface.Url);
         Assert.Equal("1.0", grpcInterface.ProtocolVersion);
     }
 
@@ -30,7 +30,7 @@ public sealed class ItkAgentTests
             card.SupportedInterfaces,
             agentInterface => agentInterface.ProtocolBinding == ProtocolBindingNames.Grpc);
 
-        Assert.Equal("http://127.0.0.1:21002", grpcInterface.Url);
+        Assert.Equal("127.0.0.1:21002", grpcInterface.Url);
     }
 
     [Fact]

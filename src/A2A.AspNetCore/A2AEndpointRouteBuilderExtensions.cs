@@ -56,6 +56,40 @@ public static class A2ARouteBuilderExtensions
         return routeGroup;
     }
 
+    /// <summary>
+    /// Enables the JSON-RPC A2A endpoint with additional custom operation mappings.
+    /// </summary>
+    /// <param name="endpoints">The endpoint route builder.</param>
+    /// <param name="requestHandler">The standard A2A request handler.</param>
+    /// <param name="path">The route path for the A2A endpoint.</param>
+    /// <param name="customRegistry">The custom operation registry.</param>
+    /// <param name="customBindings">The custom JSON-RPC method mappings.</param>
+    /// <returns>An endpoint convention builder for further configuration.</returns>
+    public static IEndpointConventionBuilder MapA2A(
+        this IEndpointRouteBuilder endpoints,
+        IA2ARequestHandler requestHandler,
+        [StringSyntax("Route")] string path,
+        A2ACustomOperationRegistry customRegistry,
+        A2AJsonRpcCustomOperationBindings customBindings)
+    {
+        ArgumentNullException.ThrowIfNull(endpoints);
+        ArgumentNullException.ThrowIfNull(requestHandler);
+        ArgumentException.ThrowIfNullOrEmpty(path);
+        ArgumentNullException.ThrowIfNull(customRegistry);
+        ArgumentNullException.ThrowIfNull(customBindings);
+
+        var routeGroup = endpoints.MapGroup("");
+        routeGroup.MapPost(path, (HttpRequest request, CancellationToken cancellationToken) =>
+            A2AJsonRpcProcessor.ProcessRequestAsync(
+                requestHandler,
+                request,
+                customRegistry,
+                customBindings,
+                cancellationToken));
+
+        return routeGroup;
+    }
+
     /// <summary>Enables the well-known agent card endpoint for agent discovery.</summary>
     /// <param name="endpoints">The endpoint route builder.</param>
     /// <param name="agentCard">The agent card to serve.</param>
@@ -134,12 +168,7 @@ public static class A2ARouteBuilderExtensions
 
         // Reject unsupported A2A-Version header values on the HTTP+JSON binding, matching the
         // JSON-RPC binding (A2AJsonRpcProcessor.CheckPreflight). See GitHub issue #512.
-        routeGroup.AddEndpointFilter(static async (context, next) =>
-        {
-            var error = A2AVersionHeader.Validate(
-                context.HttpContext.Request.Headers[A2AVersionHeader.HeaderName]);
-            return error is not null ? new A2AErrorResult(error) : await next(context);
-        });
+        AddA2AVersionFilter(routeGroup);
 
         // Task operations
         routeGroup.MapGet("/tasks/{id}", (string id, [FromQuery] int? historyLength, CancellationToken ct)
@@ -187,5 +216,125 @@ public static class A2ARouteBuilderExtensions
             => A2AHttpProcessor.GetExtendedAgentCardRestAsync(requestHandler, logger, ct));
 
         return routeGroup;
+    }
+
+    /// <summary>
+    /// Maps the standard HTTP+JSON A2A endpoints and additional custom operation routes.
+    /// </summary>
+    /// <param name="endpoints">The endpoint route builder.</param>
+    /// <param name="requestHandler">The standard A2A request handler.</param>
+    /// <param name="path">The route prefix for all standard and custom HTTP endpoints.</param>
+    /// <param name="customRegistry">The custom operation registry.</param>
+    /// <param name="customBindings">The custom HTTP route mappings.</param>
+    /// <returns>An endpoint convention builder for further configuration.</returns>
+    public static IEndpointConventionBuilder MapHttpA2A(
+        this IEndpointRouteBuilder endpoints,
+        IA2ARequestHandler requestHandler,
+        [StringSyntax("Route")] string path,
+        A2ACustomOperationRegistry customRegistry,
+        A2AHttpCustomOperationBindings customBindings)
+    {
+        ArgumentNullException.ThrowIfNull(endpoints);
+        ArgumentNullException.ThrowIfNull(requestHandler);
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(customRegistry);
+        ArgumentNullException.ThrowIfNull(customBindings);
+
+        var routeGroup = endpoints.MapGroup(path);
+        MapHttpA2A(routeGroup, requestHandler);
+        var customRouteGroup = routeGroup.MapGroup("");
+        AddA2AVersionFilter(customRouteGroup);
+        var logger = endpoints.ServiceProvider
+            .GetRequiredService<ILoggerFactory>()
+            .CreateLogger("A2A.REST.Custom");
+
+        foreach (var binding in customBindings.Items)
+        {
+            customRouteGroup.MapMethods(
+                binding.Route,
+                [binding.HttpMethod],
+                async context =>
+                {
+                    try
+                    {
+                        object? request;
+                        try
+                        {
+                            request = await binding.BindAsync(
+                                context,
+                                context.RequestAborted).ConfigureAwait(false);
+                        }
+                        catch (JsonException exception)
+                        {
+                            throw new A2AException(
+                                "The custom operation request body is invalid.",
+                                exception,
+                                A2AErrorCode.InvalidParams);
+                        }
+
+                        IResult result;
+                        if (binding.Registration.Kind == A2ACustomOperationKind.Streaming)
+                        {
+                            result = new CustomHttpStreamedResult(
+                                customRegistry.InvokeStreamingAsync(
+                                    binding.Registration,
+                                    new A2ACustomOperationContext(
+                                        context.RequestServices,
+                                        context),
+                                    request!,
+                                    context.RequestAborted),
+                                binding.Registration.OutputTypeInfo,
+                                logger);
+                        }
+                        else
+                        {
+                            var response = await customRegistry.InvokeAsync(
+                                binding.Registration,
+                                new A2ACustomOperationContext(
+                                    context.RequestServices,
+                                    context),
+                                request!,
+                                context.RequestAborted).ConfigureAwait(false);
+                            result = new CustomHttpJsonResult(
+                                response,
+                                binding.Registration.OutputTypeInfo);
+                        }
+
+                        await result.ExecuteAsync(context).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+                    {
+                        // Client disconnected.
+                    }
+                    catch (A2AException exception)
+                    {
+                        await new A2AErrorResult(exception)
+                            .ExecuteAsync(context)
+                            .ConfigureAwait(false);
+                    }
+                    catch (Exception exception)
+                    {
+                        logger.UnexpectedErrorInActivityName(exception, "custom HTTP operation");
+                        await new A2AErrorResult(
+                            new A2AException(
+                                "An internal error occurred.",
+                                A2AErrorCode.InternalError))
+                            .ExecuteAsync(context)
+                            .ConfigureAwait(false);
+                    }
+                });
+        }
+
+        return routeGroup;
+    }
+
+    private static void AddA2AVersionFilter(RouteGroupBuilder routeGroup)
+    {
+        routeGroup.AddEndpointFilter(static async (context, next) =>
+        {
+            var error = A2AVersionHeader.Validate(
+                context.HttpContext.Request.Headers[A2AVersionHeader.HeaderName]);
+            return error is not null ? new A2AErrorResult(error) : await next(context);
+        });
     }
 }

@@ -373,6 +373,15 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
         {
             await foreach (var sseItem in SseParser.Create(stream).EnumerateAsync(cancellationToken).ConfigureAwait(false))
             {
+                var errorResponse = JsonSerializer.Deserialize<A2AErrorResponse>(
+                    sseItem.Data, A2AJsonUtilities.DefaultOptions);
+                if (errorResponse?.Error is { } error)
+                {
+                    throw new A2AException(
+                        error.Message ?? "Streaming REST request failed.",
+                        (A2AErrorCode)error.Code);
+                }
+
                 var result = JsonSerializer.Deserialize<StreamResponse>(sseItem.Data, A2AJsonUtilities.DefaultOptions)
                     ?? throw new A2AException("Failed to deserialize streaming REST response.", A2AErrorCode.InternalError);
 
