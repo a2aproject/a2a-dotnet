@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 /// <summary>Represents an interface supported by an agent.</summary>
 public sealed class AgentInterface
 {
-    /// <summary>Gets or sets the URL for this interface.</summary>
+    /// <summary>Gets or sets the URL or transport-specific address for this interface.</summary>
     [JsonRequired]
     public string Url { get; set; } = string.Empty;
 

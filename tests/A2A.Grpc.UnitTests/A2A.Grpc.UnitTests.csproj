@@ -18,6 +18,10 @@
   <ItemGroup>
     <PackageReference Include="coverlet.collector" />
     <PackageReference Include="Grpc.Net.Client" />
+    <PackageReference Include="Grpc.Tools">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="Microsoft.AspNetCore.TestHost">
       <VersionOverride Condition="'$(TargetFramework)' == 'net8.0'">8.0.15</VersionOverride>
     </PackageReference>
@@ -28,6 +32,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\A2A.Grpc.AspNetCore\A2A.Grpc.AspNetCore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Protobuf Include="Protos\test_custom_operations.proto" GrpcServices="Both" />
   </ItemGroup>
 
   <ItemGroup>

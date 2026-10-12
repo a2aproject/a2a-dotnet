@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package a2a.tests.custom.v1;
+
+option csharp_namespace = "A2A.Tests.GrpcCustom.Protos";
+
+service TestCustomOperations {
+  rpc Resume(TestCustomRequest) returns (TestCustomResponse);
+  rpc Watch(TestCustomRequest) returns (stream TestCustomResponse);
+}
+
+message TestCustomRequest {
+  string value = 1;
+}
+
+message TestCustomResponse {
+  string value = 1;
+}

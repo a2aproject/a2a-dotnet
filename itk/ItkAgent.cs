@@ -549,7 +549,7 @@ public sealed class ItkAgent(IHttpClientFactory httpClientFactory, ILogger<ItkAg
             new AgentInterface
             {
                 ProtocolBinding = ProtocolBindingNames.Grpc,
-                Url = $"http://127.0.0.1:{grpcPort}",
+                Url = $"127.0.0.1:{grpcPort}",
                 ProtocolVersion = "1.0",
             },
         ],

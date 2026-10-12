@@ -30,7 +30,7 @@ internal static class A2AVersionHeader
             if (!string.IsNullOrEmpty(version) && Array.IndexOf(s_supportedVersions, version) < 0)
             {
                 return new A2AException(
-                    $"Protocol version '{version}' is not supported. Supported versions: 0.3, 1.0",
+                    $"Protocol version '{version}' is not supported. Supported versions: {string.Join(", ", s_supportedVersions)}",
                     A2AErrorCode.VersionNotSupported);
             }
         }
