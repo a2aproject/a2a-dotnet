@@ -25,5 +25,8 @@ namespace A2A
 
         [LoggerMessage(4, LogLevel.Error, "Failed to transition task {TaskId} to Failed state after background processing error")]
         internal static partial void FailedToMarkTaskAsFailed(this ILogger logger, Exception exception, string TaskId);
+
+        [LoggerMessage(5, LogLevel.Warning, "A2A shutdown deadline reached; abandoning publication for {ExecutionCount} unfinished executions.")]
+        internal static partial void ServerShutdownAbandoned(this ILogger logger, int ExecutionCount);
     }
 }
