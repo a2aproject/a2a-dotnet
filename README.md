@@ -186,6 +186,10 @@ switch (response.PayloadCase)
 }
 ```
 
+For Aspire service names or logical URLs such as `https+http://agent-api`, see
+[.NET Service Discovery](docs/service-discovery.md). Configure the HTTP client
+for both agent-card discovery and subsequent agent calls.
+
 ### 3. Using the gRPC binding
 
 Host a gRPC endpoint alongside (or instead of) the JSON-RPC/HTTP endpoints. The gRPC service reuses the same agent registration and `IA2ARequestHandler` pipeline:
@@ -262,6 +266,11 @@ Server-side examples demonstrating how to build A2A-compatible agents:
 - **Echo Agent with Tasks**: Task-based version of the echo agent
 - **Researcher Agent**: More complex agent with research capabilities
 - **HTTP Test Suite**: Complete set of HTTP tests for all agent endpoints
+
+### Push Notification Receiver
+**[`samples/PushNotificationReceiver/`](samples/PushNotificationReceiver/README.md)**
+
+Loopback SDK push demo and authenticated receiver: configuration CRUD, persisted task updates, default HTTP delivery, and explicit configuration deletion. See the [push notification guide](docs/push-notifications.md) for protocol requirements, SDK policies, and production limits.
 
 ### Semantic Kernel Integration
 **[`samples/SemanticKernelAgent/`](samples/SemanticKernelAgent/README.md)**

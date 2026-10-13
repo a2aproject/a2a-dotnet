@@ -256,6 +256,27 @@ public class V03ServerProcessorTests
         return await JsonDocument.ParseAsync(ms);
     }
 
+    [Fact]
+    public async Task CustomHandler_RetainsItsExistingLegacyPushBehavior()
+    {
+        await using var handler = new CustomPushHandler();
+        var request = CreateHttpRequest(
+            """{"jsonrpc":"2.0","method":"tasks/pushNotificationConfig/set","id":73,"params":{"taskId":"custom","pushNotificationConfig":{"id":"cfg","url":"https://unused.example/"}}}""",
+            version: "0.3");
+        var result = await V03ServerProcessor.ProcessRequestAsync(handler, request, CancellationToken.None);
+        using var body = await ExecuteAndParseJson(result);
+        Assert.Equal(73, body.RootElement.GetProperty("id").GetInt32());
+        Assert.Equal("custom", body.RootElement.GetProperty("result").GetProperty("taskId").GetString());
+        Assert.False(body.RootElement.TryGetProperty("error", out _));
+    }
+
+    private sealed class CustomPushHandler()
+        : A2AServer(new MinimalAgentHandler(), new InMemoryTaskStore(), new ChannelEventNotifier(), NullLogger<A2AServer>.Instance)
+    {
+        public override Task<TaskPushNotificationConfig> CreateTaskPushNotificationConfigAsync(
+            TaskPushNotificationConfig config, CancellationToken cancellationToken = default) => Task.FromResult(config);
+    }
+
     private sealed class MinimalAgentHandler : IAgentHandler
     {
         public async Task ExecuteAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
@@ -264,7 +285,7 @@ public class V03ServerProcessorTests
             {
                 Id = context.TaskId,
                 ContextId = context.ContextId,
-                Status = new TaskStatus { State = TaskState.Submitted },
+                Status = new TaskStatus { State = TaskState.Completed },
                 History = [context.Message],
             };
             await eventQueue.EnqueueTaskAsync(task, cancellationToken);

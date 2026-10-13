@@ -419,6 +419,13 @@ What changed:
 
 ## Common migration issues
 
+Push configuration persistence is separate from the v1 task store:
+`IPushNotificationStore` provides atomic creation, independent snapshots,
+pagination, and generation-conditional deletion. `AddA2AAgent` registers the
+development store and bounded sender; enable them on the agent card. See the
+[push notification migration and delivery guide](push-notifications.md) before
+replacing old application-written webhook delivery.
+
 1. **`using TaskStatus = A2A.TaskStatus;`** — Add this to files that use
    `TaskStatus`, since `System.Threading.Tasks.TaskStatus` conflicts.
 

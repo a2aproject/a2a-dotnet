@@ -96,6 +96,28 @@ public static class V03ServerProcessor
             }
 
             var method = methodProp.GetString() ?? string.Empty;
+            bool unsupportedLegacyPush = requestHandler.GetType() == typeof(A2AServer) &&
+                method is "tasks/pushNotificationConfig/set" or "tasks/pushNotificationConfig/get" or
+                    "tasks/pushNotificationConfig/list" or "tasks/pushNotificationConfig/delete";
+            if (unsupportedLegacyPush)
+            {
+                var id = default(V03.JsonRpcId);
+                if (root.TryGetProperty("id", out var idElement))
+                {
+                    if (idElement.ValueKind == JsonValueKind.String)
+                    {
+                        id = new V03.JsonRpcId(idElement.GetString());
+                    }
+                    else if (idElement.ValueKind == JsonValueKind.Number &&
+                        idElement.TryGetInt64(out long number))
+                    {
+                        id = new V03.JsonRpcId(number);
+                    }
+                }
+                return MakeV03ErrorResult(id, new A2AException(
+                    "The v1 server does not implement v0.3 push notification delivery.",
+                    A2AErrorCode.PushNotificationNotSupported));
+            }
             if (!V03.A2AMethods.IsValidMethod(method))
             {
                 return MakeErrorResult(default, V03.JsonRpcResponse.MethodNotFoundResponse);
@@ -339,6 +361,12 @@ public static class V03ServerProcessor
             {
                 var v03Params = DeserializeParams<V03.MessageSendParams>(rpcRequest.Params.Value);
                 var v1Request = V03TypeConverter.ToV1SendMessageRequest(v03Params);
+                if (handler.GetType() == typeof(A2AServer) &&
+                    v1Request.Configuration?.TaskPushNotificationConfig is not null)
+                {
+                    throw new A2AException("The v1 server does not implement v0.3 push notification delivery.",
+                        A2AErrorCode.PushNotificationNotSupported);
+                }
                 if (v1Request.Message.Parts.Count == 0)
                     return MakeErrorResult(rpcRequest.Id, V03.JsonRpcResponse.InvalidParamsResponse);
                 var v1Response = await handler.SendMessageAsync(v1Request, ct).ConfigureAwait(false);
@@ -415,6 +443,12 @@ public static class V03ServerProcessor
             {
                 var v03Params = DeserializeParams<V03.MessageSendParams>(rpcRequest.Params.Value);
                 var v1Request = V03TypeConverter.ToV1SendMessageRequest(v03Params);
+                if (handler.GetType() == typeof(A2AServer) &&
+                    v1Request.Configuration?.TaskPushNotificationConfig is not null)
+                {
+                    throw new A2AException("The v1 server does not implement v0.3 push notification delivery.",
+                        A2AErrorCode.PushNotificationNotSupported);
+                }
                 if (v1Request.Message.Parts.Count == 0)
                     return MakeErrorResult(rpcRequest.Id, V03.JsonRpcResponse.InvalidParamsResponse);
                 var v1Events = handler.SendStreamingMessageAsync(v1Request, ct);

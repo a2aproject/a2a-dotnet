@@ -55,6 +55,20 @@ public class A2AErrorResultTests
     }
 
     [Fact]
+    public async Task InvalidParams_PreservesItsReasonForRestClients()
+    {
+        var result = new A2AErrorResult(new A2AException("Invalid configuration ID", A2AErrorCode.InvalidParams));
+        var (statusCode, doc) = await ExecuteResultAsync(result);
+        using (doc)
+        {
+            var error = doc.RootElement.GetProperty("error");
+            Assert.Equal(400, statusCode);
+            Assert.Equal("INVALID_ARGUMENT", error.GetProperty("status").GetString());
+            Assert.Equal("INVALID_PARAMS", error.GetProperty("details")[0].GetProperty("reason").GetString());
+        }
+    }
+
+    [Fact]
     public async Task InternalError_ReturnsEmptyDetailsArray()
     {
         var result = new A2AErrorResult(new A2AException("Something broke", A2AErrorCode.InternalError));
