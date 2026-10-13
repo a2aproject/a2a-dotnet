@@ -1067,9 +1067,10 @@ public class A2AServerTests
     [Fact]
     public async Task GivenReturnImmediately_WhenHandlerThrows_ThenTaskTransitionsToFailed()
     {
-        // Arrange — handler emits Submitted + Working then throws
+        // Arrange — handler emits Submitted + Working, then throws after shutdown cancellation
         var (server, store, handler) = CreateServer();
         var handlerStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cancellationObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         handler.OnExecute = async (ctx, eq, ct) =>
         {
@@ -1078,7 +1079,8 @@ public class A2AServerTests
             await updater.StartWorkAsync(cancellationToken: ct);
             handlerStarted.TrySetResult();
 
-            // Simulate unhandled failure in the handler
+            using var registration = ct.Register(cancellationObserved.SetResult);
+            await cancellationObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
             throw new InvalidOperationException("Simulated handler failure");
         };
 
@@ -1093,14 +1095,12 @@ public class A2AServerTests
         Assert.NotNull(result.Task);
         var taskId = result.Task!.Id;
 
-        // Wait for handler to have started (and thrown)
+        // Ensure disposal cancellation wins the race with the handler failure.
         await handlerStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        // DisposeAsync awaits all background drain tasks, guaranteeing the
-        // Failed transition has been applied before we read the store.
         await server.DisposeAsync();
+        await cancellationObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        // Assert — task should have transitioned to Failed, not remain as Working (zombie)
         var persisted = await store.GetTaskAsync(taskId);
         Assert.NotNull(persisted);
         Assert.Equal(TaskState.Failed, persisted!.Status.State);
