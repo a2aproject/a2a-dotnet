@@ -91,7 +91,15 @@ public static class A2AJsonRpcProcessor
 
         try
         {
-            rpcRequest = (JsonRpcRequest?)await JsonSerializer.DeserializeAsync(request.Body, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcRequest)), cancellationToken).ConfigureAwait(false);
+            using (var document = await JsonDocument.ParseAsync(request.Body, cancellationToken: cancellationToken).ConfigureAwait(false))
+            {
+                if (JsonRpcRequestValidation.HasDuplicateProperties(document.RootElement))
+                {
+                    throw new A2AException("Duplicate JSON properties are not allowed in JSON-RPC requests.", A2AErrorCode.InvalidRequest);
+                }
+
+                rpcRequest = (JsonRpcRequest?)document.RootElement.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcRequest)));
+            }
 
             activity?.SetTag("request.id", rpcRequest!.Id.ToString());
             activity?.SetTag("request.method", rpcRequest!.Method);

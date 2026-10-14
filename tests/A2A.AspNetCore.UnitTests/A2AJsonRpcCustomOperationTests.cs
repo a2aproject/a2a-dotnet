@@ -75,6 +75,55 @@ public sealed class A2AJsonRpcCustomOperationTests
         Assert.Equal(A2AErrorCode.InvalidParams, (A2AErrorCode)response.Error!.Code);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ProcessRequestAsync_CustomMethod_DuplicatePropertiesDoesNotInvokeHandler(bool streaming)
+    {
+        var invoked = false;
+        var builder = new A2ACustomOperationRegistryBuilder();
+        var unary = builder.Map<CustomRequest, CustomResult>(
+            new A2AOperationId("https://example.test/operations#echo"),
+            (request, _) =>
+            {
+                invoked = true;
+                return ValueTask.FromResult(new CustomResult(request.Value));
+            },
+            CustomJsonContext.Default.CustomRequest,
+            CustomJsonContext.Default.CustomResult);
+        var stream = builder.MapStreaming<CustomRequest, CustomResult>(
+            new A2AOperationId("https://example.test/operations#watch"),
+            (request, token) =>
+            {
+                invoked = true;
+                return StreamResults(request, token);
+            },
+            CustomJsonContext.Default.CustomRequest,
+            CustomJsonContext.Default.CustomResult);
+        var registry = builder.Build();
+        var bindings = new A2AJsonRpcCustomOperationBuilder()
+            .Map("example/echo", unary)
+            .MapStreaming("example/watch", stream)
+            .Build(registry);
+        var method = streaming ? "example/watch" : "example/echo";
+        var request = CreateRequest($$"""
+            {
+                "jsonrpc": "2.0", "id": "custom", "method": "{{method}}",
+                "params": { "value": "one", "value": "two" }
+            }
+            """);
+        var handler = new Mock<IA2ARequestHandler>(MockBehavior.Strict);
+
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(
+            handler.Object, request, registry, bindings, CancellationToken.None);
+
+        var response = await ExecuteJsonResultAsync(result);
+        Assert.Equal((int)A2AErrorCode.InvalidRequest, response.Error?.Code);
+        Assert.False(response.Id.HasValue);
+        Assert.False(invoked);
+        handler.VerifyNoOtherCalls();
+    }
+
     [Fact]
     public async Task ProcessRequestAsync_CustomUnaryMethod_UnexpectedFailureIsSanitized()
     {
