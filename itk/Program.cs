@@ -53,6 +53,7 @@ builder.Services.AddA2AGrpc();
 builder.Services.AddHttpClient();
 
 var app = builder.Build();
+var requestHandler = app.Services.GetRequiredService<IA2ARequestHandler>();
 
 // Ahead of every endpoint: the ACTS SEC-* tests need the credential checked before the
 // request reaches a handler, whichever binding carries it.
@@ -63,10 +64,14 @@ app.UseActsCredentials();
 // card, so it gets the v0.3 shape; ACTS and the v1.0 peers send `A2A-Version: 1.0`
 // and get the v1.0 one. The default is blended, so a reader that sends no header
 // still finds `supportedInterfaces` — which is what the ITK readiness probe does.
-app.MapAgentCardGetWithV03Compat(() => Task.FromResult(agentCard));
+app.MapAgentCardGetWithV03Compat(requestHandler, () => Task.FromResult(agentCard));
 
-// Also serve at /jsonrpc/.well-known/agent-card.json (ITK readiness check path)
-app.MapGet("/jsonrpc/.well-known/agent-card.json", () => Results.Ok(agentCard));
+// Also serve version-aware discovery at /jsonrpc/.well-known/agent-card.json
+// (the ITK readiness check path).
+app.MapAgentCardGetWithV03Compat(
+    requestHandler,
+    () => Task.FromResult(agentCard),
+    "/jsonrpc");
 
 // JSON-RPC at /jsonrpc (ITK expects this path) and at the root, both serving v0.3
 // and v1.0 from one endpoint. V03ServerProcessor routes on the A2A-Version header
@@ -76,7 +81,6 @@ app.MapGet("/jsonrpc/.well-known/agent-card.json", () => Results.Ok(agentCard));
 // express two: ToV03AgentCard takes its single top-level `url` from the first
 // JSONRPC interface on the v1.0 card, so whatever that entry points at is where
 // every v0.3 peer will dial.
-var requestHandler = app.Services.GetRequiredService<IA2ARequestHandler>();
 app.MapA2AWithV03Compat(requestHandler, "/jsonrpc");
 app.MapA2AWithV03Compat(requestHandler, "/");
 
