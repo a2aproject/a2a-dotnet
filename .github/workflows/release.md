@@ -21,6 +21,8 @@ The following process is used when publishing new releases to NuGet.org:
         - This should be retained, using the release title format matching the `v{major}.{minor}.{patch}-{suffix}` format
     - Augment the Release description as desired
         - This content is presented used on GitHub and is not persisted into any artifacts
+        - For the v1 previews, include the [v0.3 compatibility blocking warning](../../docs/migration-guide-v1.md#v03-compatibility-blocking-behavior) from #386:
+          v0.3 clients expecting a completed task response must explicitly send `configuration.blocking: true` when supplying a configuration to a v1 server through `A2A.V0_3Compat`. Otherwise, they may receive only an initial task snapshot without the final message or artifacts.
     - Check the 'Set as a pre-release' button under the release description if appropriate
     - Click 'Publish release'
 

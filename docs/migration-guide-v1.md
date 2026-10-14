@@ -10,7 +10,7 @@ Follow this 3-phase approach (from the [official A2A spec](https://google.github
 
 ### Phase 1: Compatibility Layer
 
-Add the `A2A.V0_3` package alongside `A2A` v1. Both can coexist in the same project using different namespaces (`A2A` for v1, `A2A.V0_3` for legacy). No code changes required — existing v0.3 code continues to work.
+Add the `A2A.V0_3` package alongside `A2A` v1. Both can coexist in the same project using different namespaces (`A2A` for v1, `A2A.V0_3` for legacy). Existing v0.3 code can continue using the legacy package. When a v0.3 client calls a v1 server through `A2A.V0_3Compat`, review the [blocking behavior change](#v03-compatibility-blocking-behavior) before upgrading the server.
 
 ```xml
 <PackageReference Include="A2A" Version="1.0.0" />
@@ -29,6 +29,49 @@ Remove the `A2A.V0_3` dependency entirely. All consumers are on v1.
 <PackageReference Include="A2A" Version="1.0.0" />
 <!-- Remove: <PackageReference Include="A2A.V0_3" /> -->
 ```
+
+---
+
+## V0.3 Compatibility: Blocking Behavior
+
+> [!IMPORTANT]
+> When upgrading a server from the v0.3 SDK to v1 with `A2A.V0_3Compat`, update v0.3 clients that expect a completed task response to explicitly send `configuration.blocking: true`.
+
+The v0.3 SDK's `TaskManager` ignored `Blocking` and waited for its task-created handler even when the client sent `false`. The v1 compatibility layer honors the field by mapping `ReturnImmediately = !Blocking`. The v0.3 .NET `MessageSendConfiguration.Blocking` property defaults to `false`, so creating a configuration only to set output modes or history length also selects a non-blocking response unless `Blocking` is explicitly set.
+
+With `blocking: false` (or an omitted `blocking` inside a supplied `configuration`), the response may contain only the initial task snapshot, such as `submitted`. Later status updates, the final agent message, and artifacts are not necessarily included in that response. This is not a protocol error: the task can continue in the background.
+
+For a v0.3 .NET client that expects the blocking behavior it previously observed:
+
+```csharp
+var sendParams = new A2A.V0_3.MessageSendParams
+{
+    Message = message,
+    Configuration = new A2A.V0_3.MessageSendConfiguration
+    {
+        AcceptedOutputModes = ["text/plain"],
+        Blocking = true
+    }
+};
+await client.SendMessageAsync(sendParams);
+```
+
+Other v0.3 clients should send the equivalent configuration:
+
+```json
+{
+  "acceptedOutputModes": ["text/plain"],
+  "blocking": true
+}
+```
+
+This example is the value of the request's `configuration` field, not the complete JSON-RPC request. Omitting `configuration` entirely leaves the v1 default blocking behavior in place; it is not equivalent to sending a configuration with `blocking` omitted.
+
+For intentional non-blocking use, retain `blocking: false`, keep the returned task ID, and retrieve the task with `tasks/get` or subscribe with `tasks/resubscribe` where supported. Do not treat the first task snapshot as the final result. Native v1 clients use `SendMessageConfiguration.ReturnImmediately = false` for blocking requests.
+
+Blocking does not guarantee a `completed` task: a response can also report failure, cancellation, rejection, or a request for input or authentication. Always inspect the returned task status.
+
+See [#386](https://github.com/a2aproject/a2a-dotnet/issues/386). Include this upgrade warning in release notes and notify known v0.3 client owners before switching their server to the v1 compatibility layer.
 
 ---
 
