@@ -227,11 +227,13 @@ internal static class A2AHttpProcessor
 
     // REST handler: Get extended agent card
     internal static Task<IResult> GetExtendedAgentCardRestAsync(
-        IA2ARequestHandler requestHandler, ILogger logger, CancellationToken cancellationToken)
+        IA2ARequestHandler requestHandler, ILogger logger, CancellationToken cancellationToken,
+        A2ACustomOperationRegistry? registry = null)
         => WithExceptionHandlingAsync(logger, "REST.GetExtendedAgentCard", async ct =>
         {
             var result = await requestHandler.GetExtendedAgentCardAsync(
                 new GetExtendedAgentCardRequest(), ct).ConfigureAwait(false);
+            if (registry is not null) result = registry.PrepareAgentCard(result);
             return new A2AResponseResult(result);
         }, cancellationToken: cancellationToken);
 
@@ -343,10 +345,10 @@ internal sealed class A2AEventStreamResult : IResult
 
                 do
                 {
-                    #pragma warning disable VSTHRD103 // Serialize to string is not blocking I/O
+#pragma warning disable VSTHRD103 // Serialize to string is not blocking I/O
                     var json = JsonSerializer.Serialize(enumerator.Current,
                         A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(StreamResponse)));
-                    #pragma warning restore VSTHRD103
+#pragma warning restore VSTHRD103
                     await httpContext.Response.BodyWriter.WriteAsync(
                         Encoding.UTF8.GetBytes($"data: {json}\n\n"), httpContext.RequestAborted);
                     await httpContext.Response.BodyWriter.FlushAsync(httpContext.RequestAborted);

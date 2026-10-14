@@ -11,6 +11,26 @@ namespace A2A.AspNetCore;
 /// </summary>
 public static class A2AServiceCollectionExtensions
 {
+    /// <summary>Registers an agent with registry-consistent discovery and extension-aware DI hosting.</summary>
+    /// <typeparam name="THandler">The agent handler type.</typeparam>
+    /// <param name="services">The service collection.</param>
+    /// <param name="extensionOptions">The authoritative registry and availability policy.</param>
+    /// <param name="agentCard">The host-provided Agent Card.</param>
+    /// <param name="configureOptions">Optional server configuration.</param>
+    /// <returns>The service collection.</returns>
+    /// <remarks>The input card is not mutated. Signed mismatches are rejected before registration.</remarks>
+    public static IServiceCollection AddA2AAgent<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler>(
+        this IServiceCollection services, A2AExtensionOptions extensionOptions, AgentCard agentCard,
+        Action<A2AServerOptions>? configureOptions = null) where THandler : class, IAgentHandler
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(extensionOptions);
+        var hostedCard = extensionOptions.Registry.PrepareAgentCard(agentCard);
+        AddA2AAgent<THandler>(services, hostedCard, configureOptions);
+        services.AddSingleton(extensionOptions);
+        return services;
+    }
+
     /// <summary>
     /// Registers an <see cref="IAgentHandler"/> and supporting infrastructure
     /// for the easy-path agent hosting pattern. Call <see cref="A2ARouteBuilderExtensions.MapA2A(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder, string)"/>

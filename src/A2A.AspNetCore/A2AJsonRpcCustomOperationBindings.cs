@@ -107,6 +107,14 @@ public sealed class A2AJsonRpcCustomOperationBindings
     internal bool IsStreamingMethod(string method) =>
         TryResolve(method, out var binding) &&
         binding.Registration.Kind == A2ACustomOperationKind.Streaming;
+
+    internal void EnsureRegistryOwnership(A2ACustomOperationRegistry registry)
+    {
+        foreach (var binding in _bindings.Values)
+        {
+            registry.EnsureOwnership(binding.RegistryToken);
+        }
+    }
 }
 
 internal sealed record JsonRpcCustomOperationBinding(
