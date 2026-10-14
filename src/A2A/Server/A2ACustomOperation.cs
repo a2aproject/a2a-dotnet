@@ -77,6 +77,9 @@ public sealed class A2ACustomOperation<TRequest, TResult>
     /// </summary>
     public A2AOperationId Id { get; }
 
+    /// <summary>Gets the owning extension, or <c>null</c> for an independent operation.</summary>
+    public A2AExtensionRegistration? Extension => Registration.Extension;
+
     internal object RegistryToken { get; }
 
     internal UnaryCustomOperationRegistration<TRequest, TResult> Registration { get; }
@@ -102,6 +105,9 @@ public sealed class A2AStreamingCustomOperation<TRequest, TEvent>
     /// </summary>
     public A2AOperationId Id { get; }
 
+    /// <summary>Gets the owning extension, or <c>null</c> for an independent operation.</summary>
+    public A2AExtensionRegistration? Extension => Registration.Extension;
+
     internal object RegistryToken { get; }
 
     internal StreamingCustomOperationRegistration<TRequest, TEvent> Registration { get; }
@@ -119,12 +125,14 @@ internal abstract class CustomOperationRegistration
         A2AOperationId id,
         JsonTypeInfo requestTypeInfo,
         JsonTypeInfo outputTypeInfo,
-        A2ACustomOperationKind kind)
+        A2ACustomOperationKind kind,
+        A2AExtensionRegistration? extension)
     {
         Id = id;
         RequestTypeInfo = requestTypeInfo;
         OutputTypeInfo = outputTypeInfo;
         Kind = kind;
+        Extension = extension;
     }
 
     internal A2AOperationId Id { get; }
@@ -134,6 +142,8 @@ internal abstract class CustomOperationRegistration
     internal JsonTypeInfo OutputTypeInfo { get; }
 
     internal A2ACustomOperationKind Kind { get; }
+
+    internal A2AExtensionRegistration? Extension { get; }
 
     internal virtual ValueTask<object?> InvokeUnaryAsync(
         A2ACustomOperationContext context,
@@ -158,8 +168,9 @@ internal sealed class UnaryCustomOperationRegistration<TRequest, TResult> : Cust
         A2AContextualCustomOperationHandler<TRequest, TResult> handler,
         JsonTypeInfo<TRequest> requestTypeInfo,
         JsonTypeInfo<TResult> resultTypeInfo,
-        A2ACustomOperationValidator<TRequest>? validator)
-        : base(id, requestTypeInfo, resultTypeInfo, A2ACustomOperationKind.Unary)
+        A2ACustomOperationValidator<TRequest>? validator,
+        A2AExtensionRegistration? extension = null)
+        : base(id, requestTypeInfo, resultTypeInfo, A2ACustomOperationKind.Unary, extension)
     {
         _handler = handler;
         _validator = validator;
@@ -208,8 +219,9 @@ internal sealed class StreamingCustomOperationRegistration<TRequest, TEvent> : C
         A2AContextualStreamingCustomOperationHandler<TRequest, TEvent> handler,
         JsonTypeInfo<TRequest> requestTypeInfo,
         JsonTypeInfo<TEvent> eventTypeInfo,
-        A2ACustomOperationValidator<TRequest>? validator)
-        : base(id, requestTypeInfo, eventTypeInfo, A2ACustomOperationKind.Streaming)
+        A2ACustomOperationValidator<TRequest>? validator,
+        A2AExtensionRegistration? extension = null)
+        : base(id, requestTypeInfo, eventTypeInfo, A2ACustomOperationKind.Streaming, extension)
     {
         _handler = handler;
         _validator = validator;
