@@ -21,8 +21,21 @@ public sealed class ActsServer(
     ChannelEventNotifier notifier,
     ILogger<A2AServer> logger,
     A2AServerOptions options,
+    AgentCard agentCard,
+    IPushNotificationStore pushNotificationStore,
+    IPushNotificationUrlValidator pushNotificationUrlValidator,
+    IPushNotificationSender pushNotificationSender,
     AgentCard extendedCard)
-    : A2AServer(handler, taskStore, notifier, logger, options)
+    : A2AServer(
+        handler,
+        taskStore,
+        notifier,
+        logger,
+        options,
+        agentCard,
+        pushNotificationStore,
+        pushNotificationUrlValidator,
+        pushNotificationSender)
 {
     private readonly bool _supported = options.SupportsExtendedAgentCard;
 

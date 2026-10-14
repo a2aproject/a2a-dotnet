@@ -31,14 +31,19 @@ builder.WebHost.ConfigureKestrel(options =>
 var agentCard = ItkAgent.GetAgentCard(httpPort, grpcPort);
 A2AGrpcClientRegistration.Register(useTlsForSchemeLessAddresses: false);
 
-// Registered before AddA2AAgent, whose TryAddSingleton then leaves it alone. ActsServer
-// only adds the extended agent card, which the stock server has no way to produce.
+// Registered before AddA2AAgent, whose TryAddSingleton registrations then leave these
+// ITK-specific implementations alone.
+builder.Services.AddSingleton<IPushNotificationUrlValidator, ItkPushNotificationUrlValidator>();
 builder.Services.AddSingleton<IA2ARequestHandler>(sp => new ActsServer(
     sp.GetRequiredService<IAgentHandler>(),
     sp.GetRequiredService<ITaskStore>(),
     sp.GetRequiredService<ChannelEventNotifier>(),
     sp.GetRequiredService<ILogger<A2AServer>>(),
     sp.GetRequiredService<A2AServerOptions>(),
+    sp.GetRequiredService<AgentCard>(),
+    sp.GetRequiredService<IPushNotificationStore>(),
+    sp.GetRequiredService<IPushNotificationUrlValidator>(),
+    sp.GetRequiredService<IPushNotificationSender>(),
     ActsServer.Extend(agentCard)));
 
 builder.Services.TryAddSingleton<ChannelEventNotifier>();

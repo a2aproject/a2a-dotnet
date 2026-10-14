@@ -53,9 +53,6 @@ public static partial class ActsBehaviors
     /// so they can never run against a fully capable agent. The runner starts a second SUT
     /// with <c>ITK_ACTS_REDUCED_CAPABILITIES</c> set to reach them.
     ///
-    /// PushNotifications stays false in both modes: A2AServer answers every push-config
-    /// operation with PushNotificationNotSupported, so advertising it would be a claim the
-    /// agent cannot honour.
     /// </remarks>
     public static AgentCapabilities Capabilities()
     {
@@ -65,7 +62,7 @@ public static partial class ActsBehaviors
         return new AgentCapabilities
         {
             Streaming = !reduced,
-            PushNotifications = false,
+            PushNotifications = !reduced,
             ExtendedAgentCard = !reduced,
         };
     }
