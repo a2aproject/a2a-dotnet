@@ -52,11 +52,13 @@ internal sealed class NegotiationDemo(
             if (jsonRpc)
             {
                 using var client = new A2AClient(new Uri(httpAddress, "/rpc"), requestedHttp);
+                await VerifyStandardAgentAsync(client, binding, cancellationToken);
                 await VerifySdkErrorAsync(client, binding, cancellationToken);
             }
             else
             {
                 using var client = new A2AHttpJsonClient(new Uri(httpAddress, "/http"), requestedHttp);
+                await VerifyStandardAgentAsync(client, binding, cancellationToken);
                 await VerifySdkErrorAsync(client, binding, cancellationToken);
             }
             Console.WriteLine($"{binding}: missing and unsupported requests rejected; activation, stream snapshot, later decline and SDK error passed.");
@@ -139,6 +141,7 @@ internal sealed class NegotiationDemo(
         availability.IsAvailable = true;
         using var requestedTransport = CreateHttpClient(DebateOperations.ExtensionUri);
         using var sdkClient = new A2AGrpcClient(grpcAddress, requestedTransport);
+        await VerifyStandardAgentAsync(sdkClient, "gRPC", cancellationToken);
         await VerifySdkErrorAsync(sdkClient, "gRPC", cancellationToken);
         Console.WriteLine("gRPC: missing request rejected; activation, stream snapshot, later decline and SDK error passed.");
 
@@ -165,6 +168,26 @@ internal sealed class NegotiationDemo(
         Ensure(chunks.All(chunk => chunk.IsActive), "The active set must stay fixed for the entire stream.");
         Ensure(chunks[0].AvailableForNewRequests && !chunks[1].AvailableForNewRequests, "Availability must change independently of the active snapshot.");
         Ensure(availability.PolicyCalls == previousPolicyCalls + 1, "Availability must be evaluated only once for the stream.");
+    }
+
+    private static async Task VerifyStandardAgentAsync(IA2AClient client, string binding, CancellationToken cancellationToken)
+    {
+        var request = new SendMessageRequest
+        {
+            Message = new Message { MessageId = Guid.NewGuid().ToString("N"), Role = Role.User, Parts = [Part.FromText("hello")] },
+        };
+        var unary = await client.SendMessageAsync(request, cancellationToken);
+        Ensure(unary.Message?.Parts[0].Text == "Debate extension active: hello",
+            "The standard agent must read activation through RequestContext, without transport access.");
+        var events = 0;
+        await foreach (var item in client.SendStreamingMessageAsync(request, cancellationToken))
+        {
+            Ensure(item.Message?.Parts[0].Text == "Debate extension active: hello",
+                "The streaming standard agent must receive the same activation.");
+            events++;
+        }
+        Ensure(events == 1, "The echo agent must return one message.");
+        Console.WriteLine($"{binding} standard agent: activation read from RequestContext for unary and streaming calls.");
     }
 
     private static async Task VerifySdkErrorAsync(IA2AClient client, string binding, CancellationToken cancellationToken)

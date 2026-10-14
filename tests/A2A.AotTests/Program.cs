@@ -207,6 +207,22 @@ foreach (var (path, method, value) in new[]
     }
 }
 
+// Exercise the additive context-aware interface and adapter under Native AOT, including
+// its default implementations for standard operations that do not execute agent code.
+var contextualServer = server.WithRequestContext(activation);
+var standardResponse = await contextualServer.SendMessageAsync(new SendMessageRequest
+{
+    Message = new Message { MessageId = "aot-standard", Role = Role.User, Parts = [Part.FromText("hello")] },
+}).ConfigureAwait(false);
+if (standardResponse.Message?.Parts[0].Text != "activation reached the agent")
+    throw new InvalidOperationException("Native standard agent context propagation failed.");
+try
+{
+    await contextualServer.GetTaskAsync(new GetTaskRequest { Id = "missing" }).ConfigureAwait(false);
+    throw new InvalidOperationException("Expected the legacy standard operation error.");
+}
+catch (A2AException error) when (error.ErrorCode == A2AErrorCode.TaskNotFound) { }
+
 var discoveryContext = new DefaultHttpContext { RequestServices = app.Services };
 discoveryContext.Request.Method = HttpMethods.Get;
 discoveryContext.Response.Body = new MemoryStream();
@@ -240,8 +256,13 @@ internal sealed record AotCustomRequest(string Value);
 
 internal sealed class AotAgentHandler : IAgentHandler
 {
-    public Task ExecuteAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
-        => throw new InvalidOperationException("The standard agent handler should not run in custom-operation smoke tests.");
+    public async Task ExecuteAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
+    {
+        if (context.ExtensionActivation?.ActivatedExtensions.Contains("https://example.test/extensions/aot/v1") != true)
+            throw new InvalidOperationException("The standard agent did not receive its activation snapshot.");
+        await new MessageResponder(eventQueue, context.ContextId)
+            .ReplyAsync("activation reached the agent", cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
 }
 
 internal sealed record AotCustomResult(string Value);

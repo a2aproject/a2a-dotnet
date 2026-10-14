@@ -101,9 +101,10 @@ app.MapHttpA2A(requestHandler, "/http", extensions, httpBindings);
 ```
 
 The optional custom mappings do not replace standard operations. Negotiation also
-applies to standard operations on these registry-aware endpoints. Standard handlers
-can read the snapshot from `HttpContext.Features.Get<A2ARequestContext>()`;
-custom handlers get it through `A2ACustomOperationContext`.
+applies to standard operations on these registry-aware endpoints. Standard agents
+receive the snapshot through `RequestContext.ExtensionActivation`; custom request
+handlers can opt into `IA2ARequestHandlerWithContext`. Custom operations get it
+through `A2ACustomOperationContext`. Transport features remain available to hosts.
 
 For easy-path DI hosting, register with
 `services.AddA2AAgent<MyAgent>(extensions, agentCard)`. The DI overload
@@ -138,6 +139,11 @@ This enables negotiation on the standard A2A service and the SDK's generic custo
 operation service. It does not intercept unrelated gRPC services. The
 parameterless `AddA2AGrpc()` remains negotiation-free.
 
+`AddA2AGrpcCustomOperations(registry)` scopes negotiation to the generic custom
+operation service. It does not enable required-extension checks on standard A2A
+operations. Use the explicit `AddA2AGrpc(options)` overload above when both services
+should negotiate, rather than combining the two registrations.
+
 For a dedicated protobuf service, opt in with
 `services.AddGrpc().WithA2AExtensions<MyGrpcService>(options)`. In its handler,
 pass `callContext.CreateA2AOperationContext()` when invoking a registry operation.
@@ -147,6 +153,51 @@ endpoint separately.
 These hooks cover unary and server-streaming calls. Request and response metadata
 use `a2a-extensions`. Successful negotiation stages initial response metadata and
 carries the same snapshot in final trailers, including RPC errors.
+
+## Read activation in standard agents and handlers
+
+An `IAgentHandler` can use the same code for JSON-RPC, HTTP+JSON and gRPC:
+
+```csharp
+public async Task ExecuteAsync(
+    RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
+{
+    bool active = context.ExtensionActivation?.ActivatedExtensions.Contains(
+        "https://example.org/extensions/debate/v1") == true;
+    await new MessageResponder(eventQueue, context.ContextId).ReplyAsync(
+        active ? "Debate extension active" : "Normal response",
+        cancellationToken: cancellationToken);
+}
+```
+
+`A2AServer` copies the negotiated snapshot into the agent context for send, streaming
+send and task cancellation. It retains the snapshot when execution continues after
+the initial response or stream disconnect. The snapshot is not stored on the task
+or conversation, and a later request negotiates independently. `null` means there
+was no negotiation; a negotiated context can instead have an empty activated set.
+No HTTP/gRPC accessor or ambient request state is required by the agent.
+
+For a custom standard request handler, implement `IA2ARequestHandlerWithContext`
+and override the three-argument operations that consume activation. Each default
+implementation forwards to its legacy operation, so unmodified
+`IA2ARequestHandler` implementations continue to work. The added cancellation-token
+arguments are deliberately required to avoid ambiguity in existing two-argument
+calls. For an `A2AServer` subclass, override the context-aware send/cancel overloads
+when customizing negotiated execution as well as the legacy path.
+
+Registry-aware hosting binds the context automatically in all three transports.
+A host calling handlers directly can bind a snapshot explicitly:
+
+```csharp
+var snapshot = await registry.NegotiateExtensionsAsync(
+    ["https://example.org/extensions/debate/v1"], cancellationToken: cancellationToken);
+var requestHandler = handler.WithRequestContext(snapshot);
+await requestHandler.SendMessageAsync(request, cancellationToken);
+```
+
+The adapter does not modify the shared handler. It captures only the immutable SDK
+context, not transport objects or request-scoped services. A handler that does not
+opt into the context-aware interface is returned unchanged.
 
 ## Required extensions and failures
 

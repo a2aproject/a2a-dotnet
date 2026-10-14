@@ -24,6 +24,10 @@ internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
         _registry = registry;
     }
 
+    private IA2ARequestHandler HandlerFor(ServerCallContext context) => _registry is null
+        ? _handler
+        : _handler.WithRequestContext(context.GetHttpContext().Features.Get<A2ARequestContext>());
+
     // Rejects requests declaring a protocol version this endpoint does not implement.
     // Unlike the JSON-RPC binding, which also serves v0.3 through the compatibility processor,
     // this endpoint only implements the v1 service contract (`lf.a2a.v1`), so "0.3" is rejected
@@ -44,7 +48,7 @@ internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
         try
         {
             EnsureSupportedVersion(context);
-            var response = await _handler.SendMessageAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false);
+            var response = await HandlerFor(context).SendMessageAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false);
             return ProtoMap.ToProto(response);
         }
         catch (A2AException exception)
@@ -58,7 +62,7 @@ internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
         try
         {
             EnsureSupportedVersion(context);
-            var task = await _handler.GetTaskAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false);
+            var task = await HandlerFor(context).GetTaskAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false);
             return ProtoMap.ToProto(task);
         }
         catch (A2AException exception)
@@ -72,7 +76,7 @@ internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
         try
         {
             EnsureSupportedVersion(context);
-            var response = await _handler.ListTasksAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false);
+            var response = await HandlerFor(context).ListTasksAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false);
             return ProtoMap.ToProto(response);
         }
         catch (A2AException exception)
@@ -86,7 +90,7 @@ internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
         try
         {
             EnsureSupportedVersion(context);
-            var task = await _handler.CancelTaskAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false);
+            var task = await HandlerFor(context).CancelTaskAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false);
             return ProtoMap.ToProto(task);
         }
         catch (A2AException exception)
@@ -100,7 +104,7 @@ internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
         try
         {
             EnsureSupportedVersion(context);
-            var config = await _handler.CreateTaskPushNotificationConfigAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false);
+            var config = await HandlerFor(context).CreateTaskPushNotificationConfigAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false);
             return ProtoMap.ToProto(config);
         }
         catch (A2AException exception)
@@ -114,7 +118,7 @@ internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
         try
         {
             EnsureSupportedVersion(context);
-            var config = await _handler.GetTaskPushNotificationConfigAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false);
+            var config = await HandlerFor(context).GetTaskPushNotificationConfigAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false);
             return ProtoMap.ToProto(config);
         }
         catch (A2AException exception)
@@ -128,7 +132,7 @@ internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
         try
         {
             EnsureSupportedVersion(context);
-            var response = await _handler.ListTaskPushNotificationConfigsAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false);
+            var response = await HandlerFor(context).ListTaskPushNotificationConfigsAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false);
             return ProtoMap.ToProto(response);
         }
         catch (A2AException exception)
@@ -142,7 +146,7 @@ internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
         try
         {
             EnsureSupportedVersion(context);
-            await _handler.DeleteTaskPushNotificationConfigAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false);
+            await HandlerFor(context).DeleteTaskPushNotificationConfigAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false);
             return new Empty();
         }
         catch (A2AException exception)
@@ -156,7 +160,7 @@ internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
         try
         {
             EnsureSupportedVersion(context);
-            var card = await _handler.GetExtendedAgentCardAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false);
+            var card = await HandlerFor(context).GetExtendedAgentCardAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false);
             if (_registry is not null && context.GetHttpContext().Features.Get<A2ARequestContext>() is { } activation)
             {
                 _registry.EnsureOwnership(activation.RegistryToken);
@@ -175,7 +179,7 @@ internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
         try
         {
             EnsureSupportedVersion(context);
-            await foreach (var streamEvent in _handler.SendStreamingMessageAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false))
+            await foreach (var streamEvent in HandlerFor(context).SendStreamingMessageAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false))
             {
                 await responseStream.WriteAsync(ProtoMap.ToProto(streamEvent)).ConfigureAwait(false);
             }
@@ -191,7 +195,7 @@ internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
         try
         {
             EnsureSupportedVersion(context);
-            await foreach (var streamEvent in _handler.SubscribeToTaskAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false))
+            await foreach (var streamEvent in HandlerFor(context).SubscribeToTaskAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false))
             {
                 await responseStream.WriteAsync(ProtoMap.ToProto(streamEvent)).ConfigureAwait(false);
             }

@@ -98,8 +98,9 @@ public static class A2AJsonRpcProcessor
 
             if (extensionOptions is not null)
             {
-                await A2AExtensionNegotiation.NegotiateAsync(
+                var activation = await A2AExtensionNegotiation.NegotiateAsync(
                     request.HttpContext, extensionOptions, cancellationToken).ConfigureAwait(false);
+                requestHandler = requestHandler.WithRequestContext(activation);
             }
 
             var operationContext = A2AExtensionNegotiation.CreateOperationContext(request.HttpContext);

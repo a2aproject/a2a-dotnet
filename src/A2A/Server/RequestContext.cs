@@ -10,6 +10,13 @@ public sealed class RequestContext
 {
     internal PushNotificationRequestState? PushNotifications { get; set; }
 
+    /// <summary>
+    /// Gets the immutable activation negotiated for the request that initiated this execution.
+    /// Null means the request did not use extension negotiation. The snapshot is retained
+    /// across streaming and detached execution; it is not stored as conversation or task state.
+    /// </summary>
+    public A2ARequestContext? ExtensionActivation { get; init; }
+
     /// <summary>The incoming client message.</summary>
     public required Message Message { get; init; }
 

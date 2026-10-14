@@ -31,6 +31,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\A2A.AspNetCore\A2A.AspNetCore.csproj" />
     <ProjectReference Include="..\..\src\A2A.Grpc.AspNetCore\A2A.Grpc.AspNetCore.csproj" />
   </ItemGroup>
 

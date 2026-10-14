@@ -49,7 +49,8 @@ resource-isolation policies.
    assigns it a unary and a streaming operation, and reads the negotiated
    `A2ARequestContext` in those handlers. Registration alone does not activate it.
 2. [Program.cs](Program.cs) supplies an availability policy, binds the same handles
-   to the three transports, and serves a registry-consistent Agent Card.
+   to the three transports, serves a registry-consistent Agent Card, and reads
+   `RequestContext.ExtensionActivation` in the standard echo agent.
 3. [NegotiationDemo.cs](NegotiationDemo.cs) acts as the caller and verifies the
    complete request and response behavior.
 
@@ -63,7 +64,9 @@ chunk. Both chunks remain active for the current request; the next request is
 declined. The chunks are produced from in-memory data. This does not promise that
 a real dependency will stay usable or that an in-flight operation cannot fail.
 
-Each SDK client also requests a missing standard task. Its `A2AException` retains
+Each SDK client checks that the standard echo agent receives activation on unary
+and streaming sends, without accessing HTTP/gRPC state. It then requests a missing
+standard task. Its `A2AException` retains
 `TaskNotFound` while reporting the successfully activated debate extension.
 Activation and execution success are separate facts.
 
@@ -76,7 +79,7 @@ introduce a typed custom-operation API on `IA2AClient` or claim that this gRPC
 envelope is a protocol-standard service.
 
 The normal `A2AClient`, `A2AHttpJsonClient` and `A2AGrpcClient` are used for the
-standard-operation error checks. Their caller-owned transport adds a fixed request
+standard-agent and error checks. Their caller-owned transport adds a fixed request
 header for the demo. Applications choosing different extensions concurrently
 should attach the choice to each request, not mutate shared default headers.
 The sample's generic gRPC calls use per-call `Metadata`.

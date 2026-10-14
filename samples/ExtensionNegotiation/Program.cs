@@ -96,5 +96,8 @@ internal sealed class EchoAgent : IAgentHandler
 {
     public async Task ExecuteAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
         => await new MessageResponder(eventQueue, context.ContextId).ReplyAsync(
-            context.UserText ?? "No text provided.", cancellationToken: cancellationToken);
+            context.ExtensionActivation?.ActivatedExtensions.Contains(DebateOperations.ExtensionUri) == true
+                ? "Debate extension active: " + context.UserText
+                : context.UserText ?? "No text provided.",
+            cancellationToken: cancellationToken);
 }

@@ -13,7 +13,7 @@ namespace A2A;
 /// Implements <see cref="IA2ARequestHandler"/> for the easy path where agent authors
 /// provide an <see cref="IAgentHandler"/> and the SDK handles everything else.
 /// </summary>
-public partial class A2AServer : IA2ARequestHandler, IAsyncDisposable
+public partial class A2AServer : IA2ARequestHandlerWithContext, IAsyncDisposable
 {
     private readonly IAgentHandler _handler;
     private readonly ITaskStore _taskStore;
@@ -50,8 +50,13 @@ public partial class A2AServer : IA2ARequestHandler, IAsyncDisposable
     }
 
     /// <inheritdoc />
-    public virtual async Task<SendMessageResponse> SendMessageAsync(
+    public virtual Task<SendMessageResponse> SendMessageAsync(
         SendMessageRequest request, CancellationToken cancellationToken = default)
+        => SendMessageAsync(request, requestContext: null, cancellationToken);
+
+    /// <inheritdoc />
+    public virtual async Task<SendMessageResponse> SendMessageAsync(
+        SendMessageRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken)
     {
         using var activity = A2ADiagnostics.Source.StartActivity("A2AServer.SendMessage", ActivityKind.Internal);
         var stopwatch = Stopwatch.StartNew();
@@ -63,7 +68,7 @@ public partial class A2AServer : IA2ARequestHandler, IAsyncDisposable
             A2ADiagnostics.RequestCount.Add(1);
 
             ValidateMessage(request.Message);
-            context = await ResolveContextAsync(request, streamingResponse: false, cancellationToken).ConfigureAwait(false);
+            context = await ResolveContextAsync(request, streamingResponse: false, requestContext, cancellationToken).ConfigureAwait(false);
             TagActivity(activity, context);
             GuardTerminalState(context);
 
@@ -100,8 +105,13 @@ public partial class A2AServer : IA2ARequestHandler, IAsyncDisposable
     }
 
     /// <inheritdoc />
+    public virtual IAsyncEnumerable<StreamResponse> SendStreamingMessageAsync(
+        SendMessageRequest request, CancellationToken cancellationToken = default)
+        => SendStreamingMessageAsync(request, requestContext: null, cancellationToken);
+
+    /// <inheritdoc />
     public virtual async IAsyncEnumerable<StreamResponse> SendStreamingMessageAsync(
-        SendMessageRequest request, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        SendMessageRequest request, A2ARequestContext? requestContext, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         using var activity = A2ADiagnostics.Source.StartActivity("A2AServer.SendStreamingMessage", ActivityKind.Internal);
         A2ADiagnostics.RequestCount.Add(1);
@@ -120,7 +130,7 @@ public partial class A2AServer : IA2ARequestHandler, IAsyncDisposable
             }
 
             ValidateMessage(request.Message);
-            context = await ResolveContextAsync(request, streamingResponse: true, cancellationToken).ConfigureAwait(false);
+            context = await ResolveContextAsync(request, streamingResponse: true, requestContext, cancellationToken).ConfigureAwait(false);
             TagActivity(activity, context);
             GuardTerminalState(context);
 
@@ -217,8 +227,13 @@ public partial class A2AServer : IA2ARequestHandler, IAsyncDisposable
     }
 
     /// <inheritdoc />
-    public virtual async Task<AgentTask> CancelTaskAsync(
+    public virtual Task<AgentTask> CancelTaskAsync(
         CancelTaskRequest request, CancellationToken cancellationToken = default)
+        => CancelTaskAsync(request, requestContext: null, cancellationToken);
+
+    /// <inheritdoc />
+    public virtual async Task<AgentTask> CancelTaskAsync(
+        CancelTaskRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken)
     {
         using var activity = A2ADiagnostics.Source.StartActivity("A2AServer.CancelTask", ActivityKind.Internal);
         activity?.SetTag("a2a.task.id", request.Id);
@@ -246,6 +261,7 @@ public partial class A2AServer : IA2ARequestHandler, IAsyncDisposable
             ContextId = task.ContextId,
             StreamingResponse = false,
             Metadata = request.Metadata,
+            ExtensionActivation = requestContext,
         };
 
         var execution = StartExecution(context, detachedLifetime: false, cancelHandler: true, cancellationToken);
@@ -390,7 +406,8 @@ public partial class A2AServer : IA2ARequestHandler, IAsyncDisposable
     }
 
     private async Task<RequestContext> ResolveContextAsync(
-        SendMessageRequest request, bool streamingResponse, CancellationToken cancellationToken)
+        SendMessageRequest request, bool streamingResponse, A2ARequestContext? requestContext,
+        CancellationToken cancellationToken)
     {
         if (request.Configuration?.HistoryLength is < 0)
         {
@@ -426,6 +443,7 @@ public partial class A2AServer : IA2ARequestHandler, IAsyncDisposable
             ContextId = contextId ?? Guid.NewGuid().ToString("N"),
             ClientProvidedContextId = contextId is not null,
             StreamingResponse = streamingResponse,
+            ExtensionActivation = requestContext,
             Configuration = request.Configuration,
             Metadata = request.Metadata,
         };
