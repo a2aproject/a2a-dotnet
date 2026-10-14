@@ -86,13 +86,19 @@ public static class GrpcA2ARouteBuilderExtensions
     /// <param name="services">The service collection.</param>
     /// <param name="registry">The custom operation registry used by the gRPC envelope.</param>
     /// <returns>An <see cref="IGrpcServerBuilder"/> for further gRPC configuration.</returns>
+    /// <remarks>
+    /// Negotiation is scoped to the generic custom operation service. To opt the standard
+    /// A2A service into negotiation as well, use AddA2AGrpc with explicit extension options.
+    /// </remarks>
     public static IGrpcServerBuilder AddA2AGrpcCustomOperations(
         this IServiceCollection services,
         A2A.A2ACustomOperationRegistry registry)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(registry);
-        return services.AddA2AGrpc(new A2AGrpcExtensionOptions(registry));
+        services.AddSingleton(registry);
+        return services.AddGrpc()
+            .WithA2AExtensions<A2AGrpcCustomOperationService>(new A2AGrpcExtensionOptions(registry));
     }
 
     /// <summary>

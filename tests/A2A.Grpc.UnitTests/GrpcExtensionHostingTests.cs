@@ -86,6 +86,28 @@ public sealed class GrpcExtensionHostingTests
         Assert.Null(error.Trailers.GetValue(MetadataKey));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CustomOnlyRegistration_DoesNotEnableNegotiationOnStandardOperations(bool streaming)
+    {
+        await using var host = await Host.StartAsync(requiredDebate: true, existingRegistration: true);
+        if (streaming)
+        {
+            using var call = host.StandardClient.SendStreamingMessage(StandardMessage());
+            Assert.True(await call.ResponseStream.MoveNext());
+            Assert.False(await call.ResponseStream.MoveNext());
+            Assert.Null((await call.ResponseHeadersAsync).GetValue(MetadataKey));
+        }
+        else
+        {
+            using var call = host.StandardClient.SendMessageAsync(StandardMessage());
+            await call.ResponseAsync;
+            Assert.Null((await call.ResponseHeadersAsync).GetValue(MetadataKey));
+        }
+        Assert.NotNull(host.Handler.LastSendMessage);
+    }
+
     [Fact]
     public async Task MetadataParsing_HandlesRepeatedValuesWhitespaceDuplicatesAndUnknownVersions()
     {
