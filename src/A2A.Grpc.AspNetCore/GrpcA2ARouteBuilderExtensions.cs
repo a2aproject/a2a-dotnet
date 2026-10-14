@@ -23,6 +23,63 @@ public static class GrpcA2ARouteBuilderExtensions
         return services.AddGrpc();
     }
 
+    /// <summary>Registers A2A gRPC services with request-scoped extension negotiation.</summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="extensionOptions">The authoritative registry and optional availability policy.</param>
+    /// <returns>A builder for further gRPC configuration.</returns>
+    /// <remarks>
+    /// Applies negotiation to the standard A2A service and generic custom operation service,
+    /// not to other gRPC services. Register an IA2ARequestHandler separately for standard calls.
+    /// The parameterless overload remains negotiation-free.
+    /// </remarks>
+    public static IGrpcServerBuilder AddA2AGrpc(
+        this IServiceCollection services,
+        A2AGrpcExtensionOptions extensionOptions)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(extensionOptions);
+        services.AddSingleton(extensionOptions.Registry);
+        return services.AddGrpc()
+            .WithA2AExtensions<A2AGrpcService>(extensionOptions)
+            .WithA2AExtensions<A2AGrpcCustomOperationService>(extensionOptions);
+    }
+
+    /// <summary>Adds extension negotiation to a dedicated unary/server-streaming gRPC service.</summary>
+    /// <typeparam name="TService">The dedicated gRPC service implementation.</typeparam>
+    /// <param name="builder">The gRPC server builder.</param>
+    /// <param name="extensionOptions">The authoritative registry and optional availability policy.</param>
+    /// <returns>The same builder for chaining.</returns>
+    /// <remarks>
+    /// The service should use CreateA2AOperationContext on its ServerCallContext when invoking
+    /// registry operations. This does not register the service's own dependencies or map its endpoint.
+    /// Repeated equivalent configuration is idempotent; conflicting registries or policies are rejected.
+    /// </remarks>
+    public static IGrpcServerBuilder WithA2AExtensions<TService>(
+        this IGrpcServerBuilder builder,
+        A2AGrpcExtensionOptions extensionOptions) where TService : class
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(extensionOptions);
+        return builder.AddServiceOptions<TService>(options =>
+        {
+            var existing = options.Interceptors.FirstOrDefault(registration =>
+                registration.Type == typeof(A2AGrpcExtensionInterceptor));
+            if (existing is not null)
+            {
+                if (existing.Arguments is [A2AGrpcExtensionOptions previous] &&
+                    ReferenceEquals(previous.Registry, extensionOptions.Registry) &&
+                    Equals(previous.CanActivate, extensionOptions.CanActivate))
+                {
+                    return;
+                }
+
+                throw new InvalidOperationException("Extension negotiation is already configured with a different registry or policy for this gRPC service.");
+            }
+
+            options.Interceptors.Add<A2AGrpcExtensionInterceptor>(extensionOptions);
+        });
+    }
+
     /// <summary>
     /// Adds the generic gRPC custom operation service and its immutable operation registry.
     /// </summary>
@@ -35,12 +92,11 @@ public static class GrpcA2ARouteBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(registry);
-        services.AddSingleton(registry);
-        return services.AddGrpc();
+        return services.AddA2AGrpc(new A2AGrpcExtensionOptions(registry));
     }
 
     /// <summary>
-    /// Maps the A2A gRPC service onto the endpoint pipeline. Requires <see cref="AddA2AGrpc"/> (or
+    /// Maps the A2A gRPC service onto the endpoint pipeline. Requires <see cref="AddA2AGrpc(IServiceCollection)"/> (or
     /// <c>AddGrpc</c>) and a registered <see cref="A2A.IA2ARequestHandler"/> in the service provider.
     /// </summary>
     /// <param name="endpoints">The endpoint route builder.</param>

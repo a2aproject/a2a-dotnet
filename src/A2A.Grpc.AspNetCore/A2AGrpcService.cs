@@ -15,11 +15,13 @@ internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
     private const string SupportedVersion = "1.0";
 
     private readonly IA2ARequestHandler _handler;
+    private readonly A2ACustomOperationRegistry? _registry;
 
-    public A2AGrpcService(IA2ARequestHandler handler)
+    public A2AGrpcService(IA2ARequestHandler handler, A2ACustomOperationRegistry? registry = null)
     {
         ArgumentNullException.ThrowIfNull(handler);
         _handler = handler;
+        _registry = registry;
     }
 
     // Rejects requests declaring a protocol version this endpoint does not implement.
@@ -155,6 +157,11 @@ internal sealed class A2AGrpcService : Protos.A2AService.A2AServiceBase
         {
             EnsureSupportedVersion(context);
             var card = await _handler.GetExtendedAgentCardAsync(ProtoMap.ToDomain(request), context.CancellationToken).ConfigureAwait(false);
+            if (_registry is not null && context.GetHttpContext().Features.Get<A2ARequestContext>() is { } activation)
+            {
+                _registry.EnsureOwnership(activation.RegistryToken);
+                card = _registry.PrepareAgentCard(card);
+            }
             return ProtoMap.ToProto(card);
         }
         catch (A2AException exception)
