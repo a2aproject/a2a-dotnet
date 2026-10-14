@@ -254,7 +254,7 @@ public sealed class A2AGrpcClient : IA2AClient, IDisposable
         using (call)
         {
             Metadata? headers = null;
-            try { headers = await call.ResponseHeadersAsync.ConfigureAwait(false); }
+            try { headers = await call.ResponseHeadersAsync.WaitAsync(cancellationToken).ConfigureAwait(false); }
             catch (RpcException exception) { throw GrpcErrorMapping.ToClientException(exception, cancellationToken); }
             var activation = ReadActivation(headers);
             var stream = call.ResponseStream;

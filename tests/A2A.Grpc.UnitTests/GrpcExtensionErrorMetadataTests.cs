@@ -93,6 +93,56 @@ public sealed class GrpcExtensionErrorMetadataTests
         Assert.Equal(1, invoker.Disposals);
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task EnumerationCancellation_InterruptsPendingHeadersAndDisposesTheCall(bool sendMessage, bool withCancellation)
+    {
+        var headers = new TaskCompletionSource<Metadata>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var rpcError = new RpcException(new Status(StatusCode.Cancelled, "cancelled"));
+        var invoker = new FailingCallInvoker(new Metadata(), rpcError, pendingHeaders: headers.Task);
+        using var client = new A2AGrpcClient(new Protos.A2AService.A2AServiceClient(invoker));
+        using var cancellation = new CancellationTokenSource();
+        var stream = sendMessage
+            ? client.SendStreamingMessageAsync(new SendMessageRequest
+            {
+                Message = new Message { MessageId = "m1", Role = Role.User, Parts = [Part.FromText("hello")] },
+            })
+            : client.SubscribeToTaskAsync(new SubscribeToTaskRequest { Id = "task" });
+        var failure = Record.ExceptionAsync(async () =>
+        {
+            if (withCancellation)
+            {
+                await foreach (var _ in stream.WithCancellation(cancellation.Token)) { }
+            }
+            else
+            {
+                await using var enumerator = stream.GetAsyncEnumerator(cancellation.Token);
+                await enumerator.MoveNextAsync();
+            }
+        });
+
+        Assert.False(invoker.CallToken.CanBeCanceled);
+        Assert.False(failure.IsCompleted);
+        await cancellation.CancelAsync();
+        try
+        {
+            var error = Assert.IsAssignableFrom<OperationCanceledException>(
+                await failure.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.Equal(cancellation.Token, error.CancellationToken);
+            Assert.Equal(1, invoker.Disposals);
+            Assert.False(headers.Task.IsCompleted);
+        }
+        finally
+        {
+            // Release a regressed implementation before disposing its async enumerator.
+            headers.TrySetResult(new Metadata());
+            await failure.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+    }
+
     [Fact]
     public void TrailerDecoder_UsesExactIdentifiersAndDoesNotInspectRequestedMetadata()
     {
@@ -109,9 +159,11 @@ public sealed class GrpcExtensionErrorMetadataTests
         Assert.Contains(ExtensionUri.ToUpperInvariant(), decoded.ActivatedExtensions);
     }
 
-    private sealed class FailingCallInvoker(Metadata headers, RpcException error, bool failHeaders = false, bool yieldEvent = false) : CallInvoker
+    private sealed class FailingCallInvoker(Metadata headers, RpcException error, bool failHeaders = false,
+        bool yieldEvent = false, Task<Metadata>? pendingHeaders = null) : CallInvoker
     {
         public int Disposals { get; private set; }
+        public CancellationToken CallToken { get; private set; }
 
         public override AsyncUnaryCall<TResponse> AsyncUnaryCall<TRequest, TResponse>(
             Method<TRequest, TResponse> method, string? host, CallOptions options, TRequest request)
@@ -119,9 +171,12 @@ public sealed class GrpcExtensionErrorMetadataTests
 
         public override AsyncServerStreamingCall<TResponse> AsyncServerStreamingCall<TRequest, TResponse>(
             Method<TRequest, TResponse> method, string? host, CallOptions options, TRequest request)
-            => new(new FailingReader<TResponse>(error, yieldEvent), Headers(), () => error.Status, () => error.Trailers, () => Disposals++);
+        {
+            CallToken = options.CancellationToken;
+            return new(new FailingReader<TResponse>(error, yieldEvent), Headers(), () => error.Status, () => error.Trailers, () => Disposals++);
+        }
 
-        private Task<Metadata> Headers() => failHeaders ? Task.FromException<Metadata>(error) : Task.FromResult(headers);
+        private Task<Metadata> Headers() => pendingHeaders ?? (failHeaders ? Task.FromException<Metadata>(error) : Task.FromResult(headers));
 
         public override TResponse BlockingUnaryCall<TRequest, TResponse>(
             Method<TRequest, TResponse> method, string? host, CallOptions options, TRequest request) => throw new NotSupportedException();
