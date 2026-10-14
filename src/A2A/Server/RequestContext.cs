@@ -8,6 +8,8 @@ namespace A2A;
 /// </summary>
 public sealed class RequestContext
 {
+    internal PushNotificationRequestState? PushNotifications { get; set; }
+
     /// <summary>The incoming client message.</summary>
     public required Message Message { get; init; }
 

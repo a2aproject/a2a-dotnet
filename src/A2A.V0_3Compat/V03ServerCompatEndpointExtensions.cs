@@ -89,6 +89,30 @@ public static class V03ServerCompatEndpointExtensions
         [StringSyntax("Route")] string path = "",
         bool blendedCard = true,
         AgentCardCacheOptions? cacheOptions = null)
+        => endpoints.MapAgentCardGetWithV03Compat(requestHandler: null, getAgentCardAsync, path, blendedCard, cacheOptions);
+
+    /// <summary>Maps versioned discovery for the handler actually serving this agent.</summary>
+    /// <remarks>
+    /// Stock <see cref="A2AServer"/> push is v1-only. Its legacy and blended cards suppress
+    /// push without changing explicit v1 discovery. Custom handlers retain their declared
+    /// capability. A null handler leaves version-specific capability declarations to the caller.
+    /// </remarks>
+    /// <param name="endpoints">The endpoint route builder.</param>
+    /// <param name="requestHandler">The handler mapped for this agent, not an unrelated DI registration.</param>
+    /// <param name="getAgentCardAsync">The card factory for this agent.</param>
+    /// <param name="path">The discovery route prefix.</param>
+    /// <param name="blendedCard">Whether unversioned discovery includes v1 interface fields.</param>
+    /// <param name="cacheOptions">Optional HTTP caching configuration.</param>
+    /// <returns>An endpoint convention builder.</returns>
+    [RequiresDynamicCode("MapAgentCardGetWithV03Compat uses runtime reflection for route binding. For AOT-compatible usage, use a source-generated host.")]
+    [RequiresUnreferencedCode("MapAgentCardGetWithV03Compat may perform reflection on types that are not preserved by trimming.")]
+    public static IEndpointConventionBuilder MapAgentCardGetWithV03Compat(
+        this IEndpointRouteBuilder endpoints,
+        IA2ARequestHandler? requestHandler,
+        Func<Task<AgentCard>> getAgentCardAsync,
+        [StringSyntax("Route")] string path = "",
+        bool blendedCard = true,
+        AgentCardCacheOptions? cacheOptions = null)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(getAgentCardAsync);
@@ -96,6 +120,7 @@ public static class V03ServerCompatEndpointExtensions
         var routeGroup = endpoints.MapGroup(path);
         var lastModified = DateTimeOffset.UtcNow.ToString("R", CultureInfo.InvariantCulture);
         var cacheControl = GetAgentCardCacheControl(cacheOptions);
+        bool stockV1Server = requestHandler?.GetType() == typeof(A2AServer);
 
         // Negotiate format via A2A-Version header.
         // Per spec, v1.0 clients MUST send A2A-Version; absent header indicates a v0.3 client.
@@ -105,7 +130,7 @@ public static class V03ServerCompatEndpointExtensions
         {
             var v1Card = await getAgentCardAsync();
             var version = request.Headers["A2A-Version"].FirstOrDefault();
-            return CreateAgentCardResult(v1Card, version, blendedCard, response, lastModified, cacheControl);
+            return CreateAgentCardResult(v1Card, version, blendedCard, response, lastModified, cacheControl, stockV1Server);
         });
 
         // Both v0.3 and v1.0 clients use GET .well-known/agent-card.json.
@@ -116,7 +141,7 @@ public static class V03ServerCompatEndpointExtensions
         {
             var v1Card = await getAgentCardAsync();
             var version = request.Headers["A2A-Version"].FirstOrDefault();
-            return CreateAgentCardResult(v1Card, version, blendedCard, response, lastModified, cacheControl);
+            return CreateAgentCardResult(v1Card, version, blendedCard, response, lastModified, cacheControl, stockV1Server);
         });
 
         return routeGroup;
@@ -128,7 +153,8 @@ public static class V03ServerCompatEndpointExtensions
         bool blendedCard,
         HttpResponse response,
         string lastModified,
-        string cacheControl)
+        string cacheControl,
+        bool stockV1Server)
     {
         string json;
         if (version == "1.0")
@@ -140,13 +166,22 @@ public static class V03ServerCompatEndpointExtensions
         else if (version == "0.3" || !blendedCard)
         {
             var v03Card = V03TypeConverter.ToV03AgentCard(v1Card);
+            if (stockV1Server)
+            {
+                v03Card.Capabilities.PushNotifications = false;
+            }
             json = JsonSerializer.Serialize(
                 v03Card,
                 V03.A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(V03.AgentCard)));
         }
         else
         {
-            json = V03TypeConverter.ToBlendedAgentCard(v1Card).ToJsonString();
+            var blended = V03TypeConverter.ToBlendedAgentCard(v1Card);
+            if (stockV1Server)
+            {
+                blended["capabilities"]!["pushNotifications"] = false;
+            }
+            json = blended.ToJsonString();
         }
 
         var jsonBytes = Encoding.UTF8.GetBytes(json);

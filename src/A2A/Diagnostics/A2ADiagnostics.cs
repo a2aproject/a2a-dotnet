@@ -40,6 +40,10 @@ internal static class A2ADiagnostics
         Meter.CreateHistogram<double>("a2a.server.stream.event.count",
             description: "Events per streaming request");
 
+    internal static readonly Counter<long> PushNotificationCount =
+        Meter.CreateCounter<long>("a2a.server.push.count",
+            description: "Push configuration and delivery events by action and failure category");
+
     // ─── Client Metrics ───
 
     internal static readonly Counter<long> ClientRequestCount =

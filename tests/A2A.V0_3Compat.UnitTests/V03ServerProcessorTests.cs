@@ -203,6 +203,117 @@ public class V03ServerProcessorTests
 
     // ── Malformed requests ───────────────────────────────────────────────────
 
+    public static IEnumerable<object?[]> DuplicatePropertyRequests()
+    {
+        string[] requests =
+        [
+            """{"method":"tasks/get","method":"message/send","params":{}}""",
+            """{"method":"message/send","params":{},"params":{"message":{}}}""",
+            """{"id":1,"id":2,"method":"tasks/get","params":{"id":"t"}}""",
+            """{"jsonrpc":"2.0","jsonrpc":"2.0","method":"tasks/get","params":{"id":"t"}}""",
+            """{"method":"tasks/get","params":{"id":"one","id":"two"}}""",
+            """{"method":"message/send","params":{"message":{},"message":{}}}""",
+            """{"method":"message/send","params":{"message":{"taskId":"one","taskId":"two"}}}""",
+            """{"method":"message/stream","params":{"message":{"taskId":"one","taskId":"two"}}}""",
+            """{"method":"tasks/resubscribe","params":{"id":"one","id":"two"}}""",
+            """{"method":"message/send","params":{"message":{"parts":[{"kind":"text","text":"one","text":"two"}]}}}""",
+            """{"method":"message/send","params":{"metadata":{"items":[{"key":1,"key":2}]}}}""",
+            """{"method":"message/send","params":{"metadata":{"key":1,"Key":2}}}""",
+            """{"method":"tasks/get","Method":"message/send","params":{"id":"t"}}""",
+            """{"method":"tasks/get","params":{"id":"one","Id":"two"}}""",
+            """{"method":"message/send","params":{"message":{"taskId":"one","TaskId":"two"}}}""",
+            """{"method":"tasks/get","params":{"id":"one","\u0069d":"two"}}"""
+        ];
+
+        foreach (var version in new string?[] { null, "0.3", "1.0" })
+        {
+            foreach (var json in requests)
+            {
+                var request = version == "1.0"
+                    ? json.Replace("tasks/get", "GetTask", StringComparison.Ordinal)
+                        .Replace("message/send", "SendMessage", StringComparison.Ordinal)
+                        .Replace("message/stream", "SendStreamingMessage", StringComparison.Ordinal)
+                        .Replace("tasks/resubscribe", "SubscribeToTask", StringComparison.Ordinal)
+                    : json;
+                yield return ["""{"jsonrpc":"2.0","id":"request",""" + request[1..], version];
+            }
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(DuplicatePropertyRequests))]
+    public async Task ProcessRequestAsync_DuplicateProperties_ReturnsInvalidRequestWithoutInvokingHandler(
+        string json, string? version)
+    {
+        await using var handler = new TrackingRequestHandler();
+        var result = await V03ServerProcessor.ProcessRequestAsync(
+            handler, CreateHttpRequest(json, version), CancellationToken.None);
+
+        using var body = await ExecuteAndParseJson(result);
+        Assert.Equal(-32600, body.RootElement.GetProperty("error").GetProperty("code").GetInt32());
+        Assert.Equal(JsonValueKind.Null, body.RootElement.GetProperty("id").ValueKind);
+        Assert.False(body.RootElement.TryGetProperty("result", out _));
+        Assert.False(handler.Invoked);
+
+        var responseJson = """{"jsonrpc":"2.0","id":"first","id":"last","result":{}}""";
+        if (version == "1.0")
+        {
+            var response = JsonSerializer.Deserialize<JsonRpcResponse>(responseJson, A2AJsonUtilities.DefaultOptions);
+            Assert.Equal("last", response!.Id.AsString());
+        }
+        else
+        {
+            var response = JsonSerializer.Deserialize<A2A.V0_3.JsonRpcResponse>(
+                responseJson, A2A.V0_3.A2AJsonUtilities.DefaultOptions);
+            Assert.Equal("last", response!.Id.AsString());
+        }
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("0.3")]
+    [InlineData("1.0")]
+    public async Task ProcessRequestAsync_DuplicateFollowedByMalformedJson_ReturnsParseError(string? version)
+    {
+        await using var handler = new TrackingRequestHandler();
+        var request = CreateHttpRequest("""{"method":"tasks/get","method":"tasks/get",""", version);
+        var result = await V03ServerProcessor.ProcessRequestAsync(handler, request, CancellationToken.None);
+
+        using var body = await ExecuteAndParseJson(result);
+        Assert.Equal(-32700, body.RootElement.GetProperty("error").GetProperty("code").GetInt32());
+        Assert.False(handler.Invoked);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("0.3")]
+    [InlineData("1.0")]
+    public async Task ProcessRequestAsync_ValidCasingAndRepeatedNamesInDifferentObjects_Succeeds(string? version)
+    {
+        var isV1 = version == "1.0";
+        var method = isV1 ? "SendMessage" : "message/send";
+        var role = isV1 ? "ROLE_USER" : "user";
+        var json = $$$"""
+            {
+                "jsonrpc": "2.0", "id": "valid", "method": "{{{method}}}",
+                "params": {
+                    "Message": {
+                        "kind": "message", "MessageId": "m", "Role": "{{{role}}}",
+                        "Parts": [{"kind": "text", "text": "one"}, {"kind": "text", "text": "two"}]
+                    },
+                    "metadata": {"one": {"key": 1}, "two": {"key": 2}}
+                }
+            }
+            """;
+        var result = await V03ServerProcessor.ProcessRequestAsync(
+            CreateRequestHandler(), CreateHttpRequest(json, version), CancellationToken.None);
+
+        using var body = await ExecuteAndParseJson(result);
+        Assert.False(body.RootElement.TryGetProperty("error", out _), body.RootElement.GetRawText());
+        Assert.True(body.RootElement.TryGetProperty("result", out _));
+        Assert.Equal("valid", body.RootElement.GetProperty("id").GetString());
+    }
+
     [Fact]
     public async Task ProcessRequestAsync_InvalidJson_ReturnsParseError()
     {
@@ -289,6 +400,57 @@ public class V03ServerProcessorTests
         return await JsonDocument.ParseAsync(ms);
     }
 
+    [Fact]
+    public async Task CustomHandler_RetainsItsExistingLegacyPushBehavior()
+    {
+        await using var handler = new CustomPushHandler();
+        var request = CreateHttpRequest(
+            """{"jsonrpc":"2.0","method":"tasks/pushNotificationConfig/set","id":73,"params":{"taskId":"custom","pushNotificationConfig":{"id":"cfg","url":"https://unused.example/"}}}""",
+            version: "0.3");
+        var result = await V03ServerProcessor.ProcessRequestAsync(handler, request, CancellationToken.None);
+        using var body = await ExecuteAndParseJson(result);
+        Assert.Equal(73, body.RootElement.GetProperty("id").GetInt32());
+        Assert.Equal("custom", body.RootElement.GetProperty("result").GetProperty("taskId").GetString());
+        Assert.False(body.RootElement.TryGetProperty("error", out _));
+    }
+
+    private sealed class TrackingRequestHandler()
+        : A2AServer(new MinimalAgentHandler(), new InMemoryTaskStore(), new ChannelEventNotifier(), NullLogger<A2AServer>.Instance)
+    {
+        public bool Invoked { get; private set; }
+
+        public override Task<SendMessageResponse> SendMessageAsync(
+            SendMessageRequest request, CancellationToken cancellationToken = default) => throw UnexpectedCall();
+
+        public override Task<AgentTask> GetTaskAsync(
+            GetTaskRequest request, CancellationToken cancellationToken = default) => throw UnexpectedCall();
+
+        public override Task<ListTasksResponse> ListTasksAsync(
+            ListTasksRequest request, CancellationToken cancellationToken = default) => throw UnexpectedCall();
+
+        public override Task<AgentTask> CancelTaskAsync(
+            CancelTaskRequest request, CancellationToken cancellationToken = default) => throw UnexpectedCall();
+
+        public override IAsyncEnumerable<StreamResponse> SendStreamingMessageAsync(
+            SendMessageRequest request, CancellationToken cancellationToken = default) => throw UnexpectedCall();
+
+        public override IAsyncEnumerable<StreamResponse> SubscribeToTaskAsync(
+            SubscribeToTaskRequest request, CancellationToken cancellationToken = default) => throw UnexpectedCall();
+
+        private InvalidOperationException UnexpectedCall()
+        {
+            Invoked = true;
+            return new InvalidOperationException("The request handler must not be invoked.");
+        }
+    }
+
+    private sealed class CustomPushHandler()
+        : A2AServer(new MinimalAgentHandler(), new InMemoryTaskStore(), new ChannelEventNotifier(), NullLogger<A2AServer>.Instance)
+    {
+        public override Task<TaskPushNotificationConfig> CreateTaskPushNotificationConfigAsync(
+            TaskPushNotificationConfig config, CancellationToken cancellationToken = default) => Task.FromResult(config);
+    }
+
     private sealed class MinimalAgentHandler : IAgentHandler
     {
         public async Task ExecuteAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
@@ -297,7 +459,7 @@ public class V03ServerProcessorTests
             {
                 Id = context.TaskId,
                 ContextId = context.ContextId,
-                Status = new TaskStatus { State = TaskState.Submitted },
+                Status = new TaskStatus { State = TaskState.Completed },
                 History = [context.Message],
             };
             await eventQueue.EnqueueTaskAsync(task, cancellationToken);

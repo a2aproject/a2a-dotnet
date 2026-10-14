@@ -25,6 +25,9 @@ If you're upgrading from the v0.3 SDK, see the **[Migration Guide](docs/migratio
 dotnet add package A2A.V0_3
 ```
 
+> [!IMPORTANT]
+> If a v0.3 client calls a v1 server through `A2A.V0_3Compat` and expects a completed task response, explicitly set `configuration.blocking: true`. The compatibility layer honors this field, unlike the old v0.3 server SDK. A supplied configuration without it can return an initial task snapshot without the final message or artifacts. See the [blocking migration guidance](docs/migration-guide-v1.md#v03-compatibility-blocking-behavior).
+
 ## Installation
 
 ### Core A2A Library
@@ -266,6 +269,11 @@ Server-side examples demonstrating how to build A2A-compatible agents:
 - **Echo Agent with Tasks**: Task-based version of the echo agent
 - **Researcher Agent**: More complex agent with research capabilities
 - **HTTP Test Suite**: Complete set of HTTP tests for all agent endpoints
+
+### Push Notification Receiver
+**[`samples/PushNotificationReceiver/`](samples/PushNotificationReceiver/README.md)**
+
+Loopback SDK push demo and authenticated receiver: configuration CRUD, persisted task updates, default HTTP delivery, and explicit configuration deletion. See the [push notification guide](docs/push-notifications.md) for protocol requirements, SDK policies, and production limits.
 
 ### Semantic Kernel Integration
 **[`samples/SemanticKernelAgent/`](samples/SemanticKernelAgent/README.md)**

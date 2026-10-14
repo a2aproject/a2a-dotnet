@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Hosting;
 
 namespace A2A.AspNetCore;
 
@@ -42,6 +43,23 @@ public static class A2AServiceCollectionExtensions
         services.TryAddSingleton<ChannelEventNotifier>();
 
         services.TryAddSingleton<ITaskStore, InMemoryTaskStore>();
+        services.TryAddSingleton<IPushNotificationStore, InMemoryPushNotificationStore>();
+        services.TryAddSingleton<PushNotificationUrlOptions>();
+        services.TryAddSingleton<PushNotificationDeliveryOptions>();
+        services.TryAddSingleton<TimeProvider>(TimeProvider.System);
+        services.TryAddSingleton<IPushNotificationUrlValidator, DefaultPushNotificationUrlValidator>();
+        services.TryAddSingleton<IPushNotificationSender, HttpPushNotificationSender>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, PushNotificationHostedService>());
+        services.AddHttpClient(HttpPushNotificationSender.HttpClientName, client => client.Timeout = Timeout.InfiniteTimeSpan)
+            .ConfigurePrimaryHttpMessageHandler(sp => new SocketsHttpHandler
+            {
+                AllowAutoRedirect = false,
+                UseCookies = false,
+                UseProxy = false,
+                ConnectCallback = new PushNotificationHttpConnector(
+                    sp.GetRequiredService<IPushNotificationUrlValidator>()).ConnectAsync,
+            })
+            .RemoveAllLoggers();
 
         services.TryAddSingleton<IA2ARequestHandler>(sp =>
             new A2AServer(
@@ -49,7 +67,11 @@ public static class A2AServiceCollectionExtensions
                 sp.GetRequiredService<ITaskStore>(),
                 sp.GetRequiredService<ChannelEventNotifier>(),
                 sp.GetRequiredService<ILogger<A2AServer>>(),
-                sp.GetRequiredService<A2AServerOptions>()));
+                sp.GetRequiredService<A2AServerOptions>(),
+                sp.GetRequiredService<AgentCard>(),
+                sp.GetRequiredService<IPushNotificationStore>(),
+                sp.GetRequiredService<IPushNotificationUrlValidator>(),
+                sp.GetRequiredService<IPushNotificationSender>()));
 
         return services;
     }
