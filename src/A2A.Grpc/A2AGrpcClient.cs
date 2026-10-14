@@ -54,8 +54,8 @@ public sealed class A2AGrpcClient : IA2AClient, IDisposable
         ArgumentNullException.ThrowIfNull(request);
         try
         {
-            var response = await _client.SendMessageAsync(ProtoMap.ToProto(request), _headers, cancellationToken: cancellationToken).ConfigureAwait(false);
-            return ProtoMap.ToDomain(response);
+            return await InvokeAsync(_client.SendMessageAsync(ProtoMap.ToProto(request), _headers, cancellationToken: cancellationToken),
+                static response => ProtoMap.ToDomain(response), cancellationToken).ConfigureAwait(false);
         }
         catch (RpcException exception)
         {
@@ -69,8 +69,8 @@ public sealed class A2AGrpcClient : IA2AClient, IDisposable
         ArgumentNullException.ThrowIfNull(request);
         try
         {
-            var response = await _client.GetTaskAsync(ProtoMap.ToProto(request), _headers, cancellationToken: cancellationToken).ConfigureAwait(false);
-            return ProtoMap.ToDomain(response);
+            return await InvokeAsync(_client.GetTaskAsync(ProtoMap.ToProto(request), _headers, cancellationToken: cancellationToken),
+                static response => ProtoMap.ToDomain(response), cancellationToken).ConfigureAwait(false);
         }
         catch (RpcException exception)
         {
@@ -84,8 +84,8 @@ public sealed class A2AGrpcClient : IA2AClient, IDisposable
         ArgumentNullException.ThrowIfNull(request);
         try
         {
-            var response = await _client.ListTasksAsync(ProtoMap.ToProto(request), _headers, cancellationToken: cancellationToken).ConfigureAwait(false);
-            return ProtoMap.ToDomain(response);
+            return await InvokeAsync(_client.ListTasksAsync(ProtoMap.ToProto(request), _headers, cancellationToken: cancellationToken),
+                static response => ProtoMap.ToDomain(response), cancellationToken).ConfigureAwait(false);
         }
         catch (RpcException exception)
         {
@@ -99,8 +99,8 @@ public sealed class A2AGrpcClient : IA2AClient, IDisposable
         ArgumentNullException.ThrowIfNull(request);
         try
         {
-            var response = await _client.CancelTaskAsync(ProtoMap.ToProto(request), _headers, cancellationToken: cancellationToken).ConfigureAwait(false);
-            return ProtoMap.ToDomain(response);
+            return await InvokeAsync(_client.CancelTaskAsync(ProtoMap.ToProto(request), _headers, cancellationToken: cancellationToken),
+                static response => ProtoMap.ToDomain(response), cancellationToken).ConfigureAwait(false);
         }
         catch (RpcException exception)
         {
@@ -114,8 +114,8 @@ public sealed class A2AGrpcClient : IA2AClient, IDisposable
         ArgumentNullException.ThrowIfNull(config);
         try
         {
-            var response = await _client.CreateTaskPushNotificationConfigAsync(ProtoMap.ToProto(config), _headers, cancellationToken: cancellationToken).ConfigureAwait(false);
-            return ProtoMap.ToDomain(response);
+            return await InvokeAsync(_client.CreateTaskPushNotificationConfigAsync(ProtoMap.ToProto(config), _headers, cancellationToken: cancellationToken),
+                static response => ProtoMap.ToDomain(response), cancellationToken).ConfigureAwait(false);
         }
         catch (RpcException exception)
         {
@@ -129,8 +129,8 @@ public sealed class A2AGrpcClient : IA2AClient, IDisposable
         ArgumentNullException.ThrowIfNull(request);
         try
         {
-            var response = await _client.GetTaskPushNotificationConfigAsync(ProtoMap.ToProto(request), _headers, cancellationToken: cancellationToken).ConfigureAwait(false);
-            return ProtoMap.ToDomain(response);
+            return await InvokeAsync(_client.GetTaskPushNotificationConfigAsync(ProtoMap.ToProto(request), _headers, cancellationToken: cancellationToken),
+                static response => ProtoMap.ToDomain(response), cancellationToken).ConfigureAwait(false);
         }
         catch (RpcException exception)
         {
@@ -144,8 +144,8 @@ public sealed class A2AGrpcClient : IA2AClient, IDisposable
         ArgumentNullException.ThrowIfNull(request);
         try
         {
-            var response = await _client.ListTaskPushNotificationConfigsAsync(ProtoMap.ToProto(request), _headers, cancellationToken: cancellationToken).ConfigureAwait(false);
-            return ProtoMap.ToDomain(response);
+            return await InvokeAsync(_client.ListTaskPushNotificationConfigsAsync(ProtoMap.ToProto(request), _headers, cancellationToken: cancellationToken),
+                static response => ProtoMap.ToDomain(response), cancellationToken).ConfigureAwait(false);
         }
         catch (RpcException exception)
         {
@@ -159,7 +159,8 @@ public sealed class A2AGrpcClient : IA2AClient, IDisposable
         ArgumentNullException.ThrowIfNull(request);
         try
         {
-            await _client.DeleteTaskPushNotificationConfigAsync(ProtoMap.ToProto(request), _headers, cancellationToken: cancellationToken).ConfigureAwait(false);
+            await InvokeAsync(_client.DeleteTaskPushNotificationConfigAsync(ProtoMap.ToProto(request), _headers, cancellationToken: cancellationToken),
+                static response => response, cancellationToken).ConfigureAwait(false);
         }
         catch (RpcException exception)
         {
@@ -173,8 +174,8 @@ public sealed class A2AGrpcClient : IA2AClient, IDisposable
         ArgumentNullException.ThrowIfNull(request);
         try
         {
-            var response = await _client.GetExtendedAgentCardAsync(ProtoMap.ToProto(request), _headers, cancellationToken: cancellationToken).ConfigureAwait(false);
-            return ProtoMap.ToDomain(response);
+            return await InvokeAsync(_client.GetExtendedAgentCardAsync(ProtoMap.ToProto(request), _headers, cancellationToken: cancellationToken),
+                static response => ProtoMap.ToDomain(response), cancellationToken).ConfigureAwait(false);
         }
         catch (RpcException exception)
         {
@@ -201,10 +202,61 @@ public sealed class A2AGrpcClient : IA2AClient, IDisposable
     /// <inheritdoc />
     public void Dispose() => _ownedChannel?.Dispose();
 
+    // gRPC owns these I/O completion tasks; they do not require the caller's synchronization
+    // context. ConfigureAwait(false) is used throughout, and the call is disposed in this scope.
+#pragma warning disable VSTHRD003
+    private static async Task<TResult> InvokeAsync<TResponse, TResult>(
+        AsyncUnaryCall<TResponse> call, Func<TResponse, TResult> convert, CancellationToken cancellationToken)
+        where TResponse : class
+    {
+        using (call)
+        {
+            Metadata? headers = null;
+            try
+            {
+                var response = await call.ResponseAsync.ConfigureAwait(false);
+                headers = await call.ResponseHeadersAsync.ConfigureAwait(false);
+                return convert(response);
+            }
+            catch (A2AException exception)
+            {
+                exception.ActivatedExtensions = ReadActivation(headers);
+                throw;
+            }
+            catch (RpcException exception)
+            {
+                var error = GrpcErrorMapping.ToClientException(exception, cancellationToken);
+                if (error is A2AException a2aException)
+                {
+                    headers ??= await TryReadHeadersAsync(call.ResponseHeadersAsync, cancellationToken).ConfigureAwait(false);
+                    // The initial snapshot takes precedence; trailers are a fallback for peers
+                    // that omit initial metadata. Never union conflicting activation lists.
+                    if (headers?.Get("a2a-extensions") is not null) a2aException.ActivatedExtensions = ReadActivation(headers);
+                }
+                throw error;
+            }
+        }
+    }
+
+    private static IReadOnlySet<string> ReadActivation(Metadata? headers)
+        => A2AResponseActivation.Read(headers?.Where(entry => !entry.IsBinary && entry.Key == "a2a-extensions")
+            .Select(entry => entry.Value) ?? []);
+
+    private static async Task<Metadata?> TryReadHeadersAsync(Task<Metadata> headers, CancellationToken cancellationToken)
+    {
+        try { return await headers.WaitAsync(cancellationToken).ConfigureAwait(false); }
+        catch (RpcException) { return null; }
+        catch (OperationCanceledException) { return null; }
+    }
+
     private static async IAsyncEnumerable<StreamResponse> ReadStreamAsync(AsyncServerStreamingCall<Protos.StreamResponse> call, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         using (call)
         {
+            Metadata? headers = null;
+            try { headers = await call.ResponseHeadersAsync.ConfigureAwait(false); }
+            catch (RpcException exception) { throw GrpcErrorMapping.ToClientException(exception, cancellationToken); }
+            var activation = ReadActivation(headers);
             var stream = call.ResponseStream;
             while (true)
             {
@@ -215,7 +267,10 @@ public sealed class A2AGrpcClient : IA2AClient, IDisposable
                 }
                 catch (RpcException exception)
                 {
-                    throw GrpcErrorMapping.ToClientException(exception, cancellationToken);
+                    var error = GrpcErrorMapping.ToClientException(exception, cancellationToken);
+                    if (error is A2AException a2aException && headers.Get("a2a-extensions") is not null)
+                        a2aException.ActivatedExtensions = activation;
+                    throw error;
                 }
 
                 if (!hasNext)
@@ -223,8 +278,12 @@ public sealed class A2AGrpcClient : IA2AClient, IDisposable
                     yield break;
                 }
 
-                yield return ProtoMap.ToDomain(stream.Current);
+                StreamResponse response;
+                try { response = ProtoMap.ToDomain(stream.Current); }
+                catch (A2AException exception) { exception.ActivatedExtensions = activation; throw; }
+                yield return response;
             }
         }
     }
+#pragma warning restore VSTHRD003
 }
