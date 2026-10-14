@@ -25,6 +25,9 @@ If you're upgrading from the v0.3 SDK, see the **[Migration Guide](docs/migratio
 dotnet add package A2A.V0_3
 ```
 
+> [!IMPORTANT]
+> If a v0.3 client calls a v1 server through `A2A.V0_3Compat` and expects a completed task response, explicitly set `configuration.blocking: true`. The compatibility layer honors this field, unlike the old v0.3 server SDK. A supplied configuration without it can return an initial task snapshot without the final message or artifacts. See the [blocking migration guidance](docs/migration-guide-v1.md#v03-compatibility-blocking-behavior).
+
 ## Installation
 
 ### Core A2A Library

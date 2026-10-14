@@ -64,6 +64,18 @@ var client = new A2AClient(agentUri, httpClient);
 
 The SDK uses `System.Text.Json` for all serialization and deserialization, with source-generated metadata via `A2AJsonUtilities`. STJ's default maximum depth (64) and other default limits apply.
 
+The v1 JSON-RPC processor and the v0.3/v1 compatibility endpoint reject duplicate
+property names before method dispatch, including nested objects and objects
+inside arrays. Names are compared using ordinal, case-insensitive equality
+within each object, so `taskId` and `TaskId` cannot supply conflicting values.
+This request-wide rule also applies inside application `data` and `metadata`;
+use keys that are distinct ignoring case. Reusing a name in separate objects
+is allowed, and valid DTO property casing remains accepted. A syntactically
+valid request with duplicates receives JSON-RPC `Invalid Request` (`-32600`)
+with a null response ID; malformed JSON remains `Parse Error` (`-32700`).
+Client response parsing and persistence serialization defaults are unchanged.
+This validation does not replace application authentication or authorization.
+
 **Required application controls:**
 - Configure request body size limits in Kestrel / reverse proxy (e.g., `MaxRequestBodySize`).
 - Enforce strict `Content-Type: application/json` on JSON-RPC endpoints.

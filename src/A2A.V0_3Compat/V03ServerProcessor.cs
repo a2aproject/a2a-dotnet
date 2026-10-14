@@ -59,6 +59,11 @@ public static class V03ServerProcessor
             using (doc)
             {
                 var root = doc.RootElement;
+                if (JsonRpcRequestValidation.HasDuplicateProperties(root))
+                {
+                    return MakeErrorResult(default, V03.JsonRpcResponse.InvalidRequestResponse);
+                }
+
                 if (!root.TryGetProperty("method", out var methodProp) ||
                     methodProp.ValueKind != JsonValueKind.String)
                 {
@@ -88,6 +93,11 @@ public static class V03ServerProcessor
         using (v03Doc)
         {
             var root = v03Doc.RootElement;
+            if (JsonRpcRequestValidation.HasDuplicateProperties(root))
+            {
+                return MakeErrorResult(default, V03.JsonRpcResponse.InvalidRequestResponse);
+            }
+
             if (!root.TryGetProperty("method", out var methodProp) ||
                 methodProp.ValueKind != JsonValueKind.String)
             {
