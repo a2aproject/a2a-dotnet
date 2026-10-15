@@ -21,6 +21,10 @@ public static class A2ARouteBuilderExtensions
     /// Maps A2A JSON-RPC endpoint and well-known agent card using DI-registered services.
     /// Requires prior call to <see cref="A2AServiceCollectionExtensions.AddA2AAgent{THandler}"/>.
     /// </summary>
+    /// <remarks>
+    /// This a2a-dotnet endpoint selects tenant-specific agents through the endpoint URL and
+    /// authenticated application context. It clears standard A2A tenant fields before dispatch.
+    /// </remarks>
     /// <param name="endpoints">The endpoint route builder.</param>
     /// <param name="path">The route path for the A2A endpoint.</param>
     /// <returns>An endpoint convention builder for further configuration.</returns>
@@ -39,6 +43,10 @@ public static class A2ARouteBuilderExtensions
     }
 
     /// <summary>Enables JSON-RPC A2A endpoints for the specified path.</summary>
+    /// <remarks>
+    /// This a2a-dotnet endpoint selects tenant-specific agents through the endpoint URL and
+    /// authenticated application context. It clears standard A2A tenant fields before dispatch.
+    /// </remarks>
     /// <param name="endpoints">The endpoint route builder.</param>
     /// <param name="requestHandler">The A2A request handler.</param>
     /// <param name="path">The route path for the A2A endpoint.</param>
@@ -59,6 +67,11 @@ public static class A2ARouteBuilderExtensions
     /// <summary>
     /// Enables the JSON-RPC A2A endpoint with additional custom operation mappings.
     /// </summary>
+    /// <remarks>
+    /// This a2a-dotnet endpoint selects tenant-specific agents through the endpoint URL and
+    /// authenticated application context. It clears tenant fields on standard A2A requests
+    /// before dispatch. Custom operation models are not modified.
+    /// </remarks>
     /// <param name="endpoints">The endpoint route builder.</param>
     /// <param name="requestHandler">The standard A2A request handler.</param>
     /// <param name="path">The route path for the A2A endpoint.</param>
@@ -145,9 +158,9 @@ public static class A2ARouteBuilderExtensions
     /// <remarks>
     /// <para>Routes follow the A2A specification (e.g., <c>/tasks/{id}</c>, <c>/message:send</c>).
     /// Use the <paramref name="path"/> parameter to add a base path prefix if needed.</para>
-    /// <para>For JSON-RPC and HTTP+JSON, select a tenant-specific agent through its URL,
-    /// with routing configured by the host application. Explicit tenant parameters are
-    /// intended for the gRPC binding, not tenant selection in the HTTP bindings.</para>
+    /// <para>This a2a-dotnet endpoint selects a tenant-specific agent through its URL,
+    /// with routing configured by the host application. It clears standard A2A tenant fields
+    /// before dispatch.</para>
     /// <para><strong>Limitation:</strong> This method does not automatically register
     /// tenant-parameter route variants or implement tenant selection from request fields.
     /// The host application is responsible for mapping tenant-specific agent URLs.</para>

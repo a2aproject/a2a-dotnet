@@ -21,6 +21,6 @@ public sealed class TaskPushNotificationConfig
     /// <summary>Gets or sets the authentication information.</summary>
     public AuthenticationInfo? Authentication { get; set; }
 
-    /// <summary>Gets or sets the tenant identifier.</summary>
+    /// <summary>Gets or sets the tenant routing identifier for the selected agent interface.</summary>
     public string? Tenant { get; set; }
 }
