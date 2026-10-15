@@ -534,7 +534,8 @@ V0.3 defines different push CRUD and webhook semantics, including list/delete.
 The stock v1 server does not claim that compatibility through set/get forwarding:
 its compatibility processor rejects legacy push and its associated legacy card
 view suppresses the capability. Existing custom handlers retain responsibility
-for their own version contracts. See [push notifications](push-notifications.md).
+for their own version contracts; v1-only custom handlers can implement
+`IV03PushNotificationCompatibility`. See [push notifications](push-notifications.md).
 
 ### Flattened Model
 

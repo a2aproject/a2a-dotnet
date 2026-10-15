@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 /// <summary>Represents a request to send a message.</summary>
 public sealed class SendMessageRequest
 {
-    /// <summary>Gets or sets the tenant identifier.</summary>
+    /// <summary>Gets or sets the tenant routing identifier for the selected agent interface.</summary>
     public string? Tenant { get; set; }
 
     /// <summary>Gets or sets the message to send.</summary>

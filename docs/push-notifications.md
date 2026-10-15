@@ -236,9 +236,13 @@ explicit v1 discovery retains the v1 capability. An unrelated DI handler never
 changes another agent's card. The original card-factory-only overload is
 preserved and leaves version-specific declarations to its caller.
 Custom handlers/subclasses keep their existing behavior and are responsible for
-their version-specific contracts. Manually composed handlers/card callbacks
-must likewise advertise only capabilities actually supplied. Full legacy push
-parity is a separate, unselected scope.
+their version-specific contracts. A custom handler whose push implementation is
+v1-only can implement `IV03PushNotificationCompatibility` and return `false`
+from `SupportsV03PushNotifications`; the compatibility processor will then
+reject legacy registration and suppress push in its associated legacy/blended
+card. Manually composed handlers/card callbacks must likewise advertise only
+capabilities actually supplied. Full legacy push parity is a separate,
+unselected scope.
 
 See the [owned-loopback demo](../samples/PushNotificationReceiver/README.md) and
 the [security guide](security.md).

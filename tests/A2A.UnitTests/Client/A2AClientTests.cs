@@ -20,6 +20,7 @@ public class A2AClientTests
 
         var sendRequest = new SendMessageRequest
         {
+            Tenant = "top-level-tenant",
             Message = new Message
             {
                 Parts = [Part.FromText("Hello")],
@@ -33,7 +34,11 @@ public class A2AClientTests
             Configuration = new SendMessageConfiguration
             {
                 AcceptedOutputModes = ["mode1"],
-                TaskPushNotificationConfig = new TaskPushNotificationConfig { Url = "http://push" },
+                TaskPushNotificationConfig = new TaskPushNotificationConfig
+                {
+                    Url = "http://push",
+                    Tenant = "embedded-tenant",
+                },
                 HistoryLength = 5,
                 ReturnImmediately = true
             },
@@ -49,8 +54,10 @@ public class A2AClientTests
         var requestJson = JsonDocument.Parse(capturedBody);
         Assert.Equal(A2AMethods.SendMessage, requestJson.RootElement.GetProperty("method").GetString());
         Assert.True(Guid.TryParse(requestJson.RootElement.GetProperty("id").GetString(), out _));
+        var rawParameters = requestJson.RootElement.GetProperty("params");
+        Assert.Equal("top-level-tenant", rawParameters.GetProperty("tenant").GetString());
 
-        var parameters = requestJson.RootElement.GetProperty("params").Deserialize<SendMessageRequest>(A2AJsonUtilities.DefaultOptions);
+        var parameters = rawParameters.Deserialize<SendMessageRequest>(A2AJsonUtilities.DefaultOptions);
         Assert.NotNull(parameters);
 
         Assert.Equal(sendRequest.Message.Parts.Count, parameters.Message.Parts.Count);
@@ -59,11 +66,14 @@ public class A2AClientTests
         Assert.Equal(sendRequest.Message.MessageId, parameters.Message.MessageId);
         Assert.Equal("task-1", parameters.Message.TaskId);
 
-        var pushConfig = requestJson.RootElement.GetProperty("params")
+        var pushConfig = rawParameters
             .GetProperty("configuration").GetProperty("taskPushNotificationConfig");
         Assert.Equal("http://push", pushConfig.GetProperty("url").GetString());
         Assert.False(pushConfig.TryGetProperty("taskId", out _));
         Assert.False(pushConfig.TryGetProperty("id", out _));
+        Assert.Equal("embedded-tenant", pushConfig.GetProperty("tenant").GetString());
+        Assert.Equal("top-level-tenant", sendRequest.Tenant);
+        Assert.Equal("embedded-tenant", sendRequest.Configuration.TaskPushNotificationConfig.Tenant);
     }
 
     [Fact]
@@ -106,7 +116,7 @@ public class A2AClientTests
 
         var sut = CreateA2AClient(new AgentTask { Id = "id-1", ContextId = "ctx-1" }, req => capturedBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
 
-        var request = new GetTaskRequest { Id = "task-1" };
+        var request = new GetTaskRequest { Id = "task-1", Tenant = "tenant-a" };
 
         // Act
         await sut.GetTaskAsync(request);
@@ -120,6 +130,8 @@ public class A2AClientTests
         var parameters = requestJson.RootElement.GetProperty("params").Deserialize<GetTaskRequest>(A2AJsonUtilities.DefaultOptions);
         Assert.NotNull(parameters);
         Assert.Equal("task-1", parameters.Id);
+        Assert.Equal("tenant-a", parameters.Tenant);
+        Assert.Equal("tenant-a", request.Tenant);
     }
 
     [Fact]
@@ -208,6 +220,46 @@ public class A2AClientTests
         Assert.Equal(expectedResponse.Message.Role, result.Message!.Role);
         Assert.Single(result.Message.Parts);
         Assert.Equal("Test text", result.Message.Parts[0].Text);
+    }
+
+    [Fact]
+    public async Task SendStreamingMessageAsync_SendsTenantFieldsWithoutMutatingRequest()
+    {
+        string? capturedBody = null;
+        var sut = CreateA2AClient(
+            new StreamResponse
+            {
+                Message = new Message { MessageId = "id-1", Role = Role.Agent, Parts = [] }
+            },
+            req => capturedBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult(),
+            isSse: true);
+        var request = new SendMessageRequest
+        {
+            Tenant = "top-level-tenant",
+            Message = new Message { MessageId = "m-1", Role = Role.User, Parts = [Part.FromText("hi")] },
+            Configuration = new SendMessageConfiguration
+            {
+                TaskPushNotificationConfig = new TaskPushNotificationConfig
+                {
+                    Url = "https://push.example",
+                    Tenant = "embedded-tenant",
+                },
+            },
+        };
+
+        await foreach (var _ in sut.SendStreamingMessageAsync(request))
+        {
+        }
+
+        Assert.NotNull(capturedBody);
+        using var json = JsonDocument.Parse(capturedBody);
+        var parameters = json.RootElement.GetProperty("params");
+        Assert.Equal("top-level-tenant", parameters.GetProperty("tenant").GetString());
+        Assert.Equal("embedded-tenant", parameters.GetProperty("configuration")
+            .GetProperty("taskPushNotificationConfig")
+            .GetProperty("tenant").GetString());
+        Assert.Equal("top-level-tenant", request.Tenant);
+        Assert.Equal("embedded-tenant", request.Configuration.TaskPushNotificationConfig.Tenant);
     }
 
     [Fact]
@@ -350,7 +402,15 @@ public class A2AClientTests
             req => capturedBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
 
         // Act
-        await sut.CreateTaskPushNotificationConfigAsync(new TaskPushNotificationConfig { Id = "cfg-1", TaskId = "t-1", Url = "http://push" });
+        var request = new TaskPushNotificationConfig
+        {
+            Id = "cfg-1",
+            TaskId = "t-1",
+            Url = "http://push",
+            Tenant = "tenant-a",
+        };
+
+        await sut.CreateTaskPushNotificationConfigAsync(request);
 
         // Assert
         Assert.NotNull(capturedBody);
@@ -361,6 +421,8 @@ public class A2AClientTests
         Assert.Equal("t-1", parameters.GetProperty("taskId").GetString());
         Assert.Equal("http://push", parameters.GetProperty("url").GetString());
         Assert.False(parameters.TryGetProperty("config", out _));
+        Assert.Equal("tenant-a", parameters.GetProperty("tenant").GetString());
+        Assert.Equal("tenant-a", request.Tenant);
     }
 
     [Fact]
