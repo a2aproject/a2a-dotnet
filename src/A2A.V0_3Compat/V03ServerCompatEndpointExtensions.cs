@@ -95,7 +95,9 @@ public static class V03ServerCompatEndpointExtensions
     /// <remarks>
     /// Stock <see cref="A2AServer"/> push is v1-only. Its legacy and blended cards suppress
     /// push without changing explicit v1 discovery. Custom handlers retain their declared
-    /// capability. A null handler leaves version-specific capability declarations to the caller.
+    /// capability unless they implement <see cref="IV03PushNotificationCompatibility"/> and
+    /// report that v0.3 push is unsupported. A null handler leaves version-specific capability
+    /// declarations to the caller.
     /// </remarks>
     /// <param name="endpoints">The endpoint route builder.</param>
     /// <param name="requestHandler">The handler mapped for this agent, not an unrelated DI registration.</param>
@@ -120,7 +122,8 @@ public static class V03ServerCompatEndpointExtensions
         var routeGroup = endpoints.MapGroup(path);
         var lastModified = DateTimeOffset.UtcNow.ToString("R", CultureInfo.InvariantCulture);
         var cacheControl = GetAgentCardCacheControl(cacheOptions);
-        bool stockV1Server = requestHandler?.GetType() == typeof(A2AServer);
+        bool v1OnlyPush = requestHandler is not null &&
+            V03PushNotificationCompatibility.IsV1Only(requestHandler);
 
         // Negotiate format via A2A-Version header.
         // Per spec, v1.0 clients MUST send A2A-Version; absent header indicates a v0.3 client.
@@ -130,7 +133,7 @@ public static class V03ServerCompatEndpointExtensions
         {
             var v1Card = await getAgentCardAsync();
             var version = request.Headers["A2A-Version"].FirstOrDefault();
-            return CreateAgentCardResult(v1Card, version, blendedCard, response, lastModified, cacheControl, stockV1Server);
+            return CreateAgentCardResult(v1Card, version, blendedCard, response, lastModified, cacheControl, v1OnlyPush);
         });
 
         // Both v0.3 and v1.0 clients use GET .well-known/agent-card.json.
@@ -141,7 +144,7 @@ public static class V03ServerCompatEndpointExtensions
         {
             var v1Card = await getAgentCardAsync();
             var version = request.Headers["A2A-Version"].FirstOrDefault();
-            return CreateAgentCardResult(v1Card, version, blendedCard, response, lastModified, cacheControl, stockV1Server);
+            return CreateAgentCardResult(v1Card, version, blendedCard, response, lastModified, cacheControl, v1OnlyPush);
         });
 
         return routeGroup;
@@ -154,7 +157,7 @@ public static class V03ServerCompatEndpointExtensions
         HttpResponse response,
         string lastModified,
         string cacheControl,
-        bool stockV1Server)
+        bool v1OnlyPush)
     {
         string json;
         if (version == "1.0")
@@ -166,7 +169,7 @@ public static class V03ServerCompatEndpointExtensions
         else if (version == "0.3" || !blendedCard)
         {
             var v03Card = V03TypeConverter.ToV03AgentCard(v1Card);
-            if (stockV1Server)
+            if (v1OnlyPush)
             {
                 v03Card.Capabilities.PushNotifications = false;
             }
@@ -177,7 +180,7 @@ public static class V03ServerCompatEndpointExtensions
         else
         {
             var blended = V03TypeConverter.ToBlendedAgentCard(v1Card);
-            if (stockV1Server)
+            if (v1OnlyPush)
             {
                 blended["capabilities"]!["pushNotifications"] = false;
             }
