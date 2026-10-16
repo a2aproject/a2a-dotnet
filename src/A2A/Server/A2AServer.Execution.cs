@@ -38,11 +38,18 @@ public partial class A2AServer
     }
 
     private ServerExecution StartExecution(RequestContext context, bool detachedLifetime, bool cancelHandler, CancellationToken cancellationToken)
+        => StartExecution(context.TaskId, token => RefreshExecutionContextAsync(context, cancelHandler, token),
+            detachedLifetime, cancelHandler, cancellationToken);
+
+    private ServerExecution StartExecution(string taskId, Func<CancellationToken, Task<RequestContext>> initializeContext,
+        bool detachedLifetime, bool cancelHandler, CancellationToken cancellationToken,
+        Func<TaskContinuationContext, CancellationToken, Task>? producer = null, TaskContinuationProgress? progress = null)
     {
         lock (_executionGate)
         {
             ObjectDisposedException.ThrowIf(_shutdown is not null, this);
-            var execution = new ServerExecution(this, context, detachedLifetime, cancelHandler, cancellationToken);
+            var execution = new ServerExecution(this, taskId, initializeContext, detachedLifetime, cancelHandler,
+                producer, progress, cancellationToken);
             _executions.Add(execution);
             execution.Start();
             return execution;
@@ -61,11 +68,15 @@ public partial class A2AServer
     {
         private readonly A2AServer _server;
         private readonly bool _cancelHandler;
+        private readonly Func<CancellationToken, Task<RequestContext>> _initializeContext;
+        private readonly Func<TaskContinuationContext, CancellationToken, Task>? _producer;
+        private readonly TaskContinuationProgress? _progress;
         private readonly CancellationToken _requestToken;
         private readonly AgentEventQueue _events = new();
         private readonly Channel<StreamResponse> _responses = Channel.CreateBounded<StreamResponse>(
             new BoundedChannelOptions(1) { SingleReader = true, SingleWriter = true, FullMode = BoundedChannelFullMode.Wait });
         private readonly CancellationTokenSource _cancellation;
+        private readonly CancellationTokenSource _admissionCancellation = new();
         private readonly CancellationTokenSource _responseStop = new();
         private readonly CancellationToken _executionToken;
         private readonly CancellationToken _responseToken;
@@ -74,12 +85,19 @@ public partial class A2AServer
         private Task? _cancelCallbacks;
         private bool _finished;
         private bool _abandoned;
+        private RequestContext? _context;
+        private Exception? _failure;
+        private Exception? _producerFailure;
 
-        internal ServerExecution(A2AServer server, RequestContext context, bool detachedLifetime,
-            bool cancelHandler, CancellationToken requestToken)
+        internal ServerExecution(A2AServer server, string taskId, Func<CancellationToken, Task<RequestContext>> initializeContext,
+            bool detachedLifetime, bool cancelHandler,
+            Func<TaskContinuationContext, CancellationToken, Task>? producer, TaskContinuationProgress? progress, CancellationToken requestToken)
         {
             _server = server;
-            Context = context;
+            TaskId = taskId;
+            _initializeContext = initializeContext;
+            _producer = producer;
+            _progress = progress;
             DetachedLifetime = detachedLifetime;
             _cancelHandler = cancelHandler;
             _requestToken = requestToken;
@@ -88,10 +106,26 @@ public partial class A2AServer
                 : CancellationTokenSource.CreateLinkedTokenSource(requestToken);
             _executionToken = _cancellation.Token;
             _responseToken = _responseStop.Token;
+            if (producer is not null)
+            {
+                _responseStop.Cancel();
+            }
         }
 
-        internal RequestContext Context { get; }
+        internal RequestContext Context => _context ?? throw new InvalidOperationException("Execution context has not been initialized.");
+        internal string TaskId { get; }
+        internal bool IsProactive => _producer is not null;
         internal bool DetachedLifetime { get; }
+
+        internal async Task<TaskContinuationResult> ContinueAsync(CancellationToken cancellationToken)
+        {
+            await _completion.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            if (_failure is not null)
+            {
+                throw _failure;
+            }
+            return _progress!.Result!;
+        }
 
         internal void Start() => _ = Task.Run(() => RunAsync(CancellationToken.None), CancellationToken.None);
 
@@ -110,11 +144,19 @@ public partial class A2AServer
             }
         }
 
-        internal Task CancelAsync(CancellationToken cancellationToken)
+        internal Task CancelAsync(bool cancelAdmission, CancellationToken cancellationToken)
         {
             lock (_gate)
             {
-                var callbacks = _finished ? Task.CompletedTask : _cancelCallbacks ??= _cancellation.CancelAsync();
+                if (!_finished)
+                {
+                    _cancelCallbacks ??= _cancellation.CancelAsync();
+                    if (cancelAdmission && !_admissionCancellation.IsCancellationRequested)
+                    {
+                        _cancelCallbacks = Task.WhenAll(_cancelCallbacks, _admissionCancellation.CancelAsync());
+                    }
+                }
+                var callbacks = _cancelCallbacks ?? Task.CompletedTask;
                 return callbacks.WaitAsync(cancellationToken);
             }
         }
@@ -124,7 +166,7 @@ public partial class A2AServer
             Detach();
             try
             {
-                await CancelAsync(cancellationToken).ConfigureAwait(false);
+                await CancelAsync(cancelAdmission: false, cancellationToken).ConfigureAwait(false);
             }
             finally
             {
@@ -149,11 +191,15 @@ public partial class A2AServer
         {
             Task? producer = null;
             Exception? failure = null;
+            IDisposable? executionLease = null;
             using var initialization = CancellationTokenSource.CreateLinkedTokenSource(_requestToken, _executionToken);
             try
             {
+                executionLease = await _server._notifier.AcquireTaskExecutionLockAsync(TaskId, initialization.Token).ConfigureAwait(false);
+                _context = await _initializeContext(initialization.Token).ConfigureAwait(false);
                 if (!_cancelHandler &&
                     Context.IsContinuation &&
+                    Context.IncomingMessage is not null &&
                     _server._options.AutoAppendHistory)
                 {
                     await _server.ApplyEventAsync(new StreamResponse { Message = Context.Message },
@@ -176,18 +222,32 @@ public partial class A2AServer
 
                 // One reader owns persistence/publication for the entire execution. A paused
                 // or disconnected SDK enumerator never owns this producer's bounded queue.
-                await foreach (var response in _events.WithCancellation(cancellationToken).ConfigureAwait(false))
+                var readerToken = IsProactive ? _executionToken : cancellationToken;
+                await foreach (var response in _events.WithCancellation(readerToken).ConfigureAwait(false))
                 {
                     if (Volatile.Read(ref _abandoned))
                     {
                         throw new OperationCanceledException("Agent event publication was abandoned.", _executionToken);
                     }
                     var persistenceToken = DetachedLifetime ? CancellationToken.None : _executionToken;
-                    await _server.ApplyEventAsync(response, Context, persistenceToken).ConfigureAwait(false);
-                    await WriteResponseAsync(response, _responseToken).ConfigureAwait(false);
+                    // Detached shutdown drains cleanup events; explicit task cancellation interrupts admission.
+                    var admissionToken = IsProactive ? _executionToken
+                        : DetachedLifetime ? _admissionCancellation.Token : CancellationToken.None;
+                    if (await _server.ApplyEventAsync(response, Context, persistenceToken, admissionToken).ConfigureAwait(false))
+                    {
+                        await WriteResponseAsync(response, _responseToken).ConfigureAwait(false);
+                    }
                 }
                 await producer.ConfigureAwait(false);
                 _server.RecordUnusedInlinePush(Context);
+                if (IsProactive)
+                {
+                    _executionToken.ThrowIfCancellationRequested();
+                }
+                if (_progress is { PersistedEventCount: 0 })
+                {
+                    throw _progress.Error(TaskContinuationFailureKind.NoEvents, "The continuation producer did not persist any events.");
+                }
             }
             catch (Exception exception)
             {
@@ -195,7 +255,7 @@ public partial class A2AServer
                 if (exception is not OperationCanceledException ||
                     !_executionToken.IsCancellationRequested)
                 {
-                    _server._logger.BackgroundEventProcessingFailed(exception, Context.TaskId);
+                    _server._logger.BackgroundEventProcessingFailed(exception, TaskId);
                 }
 
                 // A failed consumer must release blocked writers, cancel and join the handler
@@ -203,11 +263,11 @@ public partial class A2AServer
                 _events.Complete();
                 try
                 {
-                    await CancelAsync(CancellationToken.None).ConfigureAwait(false);
+                    await CancelAsync(cancelAdmission: false, CancellationToken.None).ConfigureAwait(false);
                 }
                 catch (Exception cancellationError)
                 {
-                    _server._logger.BackgroundEventProcessingFailed(cancellationError, Context.TaskId);
+                    _server._logger.BackgroundEventProcessingFailed(cancellationError, TaskId);
                 }
                 if (producer is not null)
                 {
@@ -227,7 +287,7 @@ public partial class A2AServer
                     {
                         if (!ReferenceEquals(exception, producerError))
                         {
-                            _server._logger.BackgroundEventProcessingFailed(producerError, Context.TaskId);
+                            _server._logger.BackgroundEventProcessingFailed(producerError, TaskId);
                         }
                     }
                 }
@@ -255,10 +315,30 @@ public partial class A2AServer
                 catch (Exception exception)
                 {
                     failure ??= exception;
-                    _server._logger.BackgroundEventProcessingFailed(exception, Context.TaskId);
+                    _server._logger.BackgroundEventProcessingFailed(exception, TaskId);
                 }
+                if (_progress is not null && failure is not null)
+                {
+                    bool producerFailed = ReferenceEquals(failure, _producerFailure);
+                    var continuationError = producerFailed ? null : failure as TaskContinuationException;
+                    var kind = continuationError is not null
+                        ? continuationError.FailureKind
+                        : failure is OperationCanceledException
+                            ? TaskContinuationFailureKind.Cancellation
+                            : producerFailed
+                                ? TaskContinuationFailureKind.Producer
+                                : _progress.FailureKind;
+                    failure = _progress.Error(kind,
+                        continuationError is not null
+                            ? continuationError.Message
+                            : $"Task continuation failed: {kind}. Committed events have not been rolled back.",
+                        continuationError is not null ? continuationError.InnerException : failure);
+                }
+                _failure = failure;
                 _cancellation.Dispose();
+                _admissionCancellation.Dispose();
                 _responseStop.Dispose();
+                executionLease?.Dispose();
                 _responses.Writer.TryComplete(failure);
                 _server.CompleteExecution(this);
                 _completion.TrySetResult();
@@ -269,7 +349,11 @@ public partial class A2AServer
         {
             try
             {
-                if (_cancelHandler)
+                if (_producer is not null)
+                {
+                    await _producer(new TaskContinuationContext(Context.Task!, _events, Context), cancellationToken).ConfigureAwait(false);
+                }
+                else if (_cancelHandler)
                 {
                     await _server._handler.CancelAsync(Context, _events, cancellationToken).ConfigureAwait(false);
                 }
@@ -277,6 +361,11 @@ public partial class A2AServer
                 {
                     await _server._handler.ExecuteAsync(Context, _events, cancellationToken).ConfigureAwait(false);
                 }
+            }
+            catch (Exception exception)
+            {
+                _producerFailure = exception;
+                throw;
             }
             finally
             {
