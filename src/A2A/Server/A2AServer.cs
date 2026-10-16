@@ -13,7 +13,7 @@ namespace A2A;
 /// Implements <see cref="IA2ARequestHandler"/> for the easy path where agent authors
 /// provide an <see cref="IAgentHandler"/> and the SDK handles everything else.
 /// </summary>
-public partial class A2AServer : IA2ARequestHandlerWithContext, IAsyncDisposable
+public partial class A2AServer : IA2ARequestHandler, IAsyncDisposable
 {
     private readonly IAgentHandler _handler;
     private readonly ITaskStore _taskStore;
@@ -50,13 +50,8 @@ public partial class A2AServer : IA2ARequestHandlerWithContext, IAsyncDisposable
     }
 
     /// <inheritdoc />
-    public virtual Task<SendMessageResponse> SendMessageAsync(
-        SendMessageRequest request, CancellationToken cancellationToken = default)
-        => SendMessageAsync(request, requestContext: null, cancellationToken);
-
-    /// <inheritdoc />
     public virtual async Task<SendMessageResponse> SendMessageAsync(
-        SendMessageRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken)
+        SendMessageRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default)
     {
         using var activity = A2ADiagnostics.Source.StartActivity("A2AServer.SendMessage", ActivityKind.Internal);
         var stopwatch = Stopwatch.StartNew();
@@ -105,13 +100,8 @@ public partial class A2AServer : IA2ARequestHandlerWithContext, IAsyncDisposable
     }
 
     /// <inheritdoc />
-    public virtual IAsyncEnumerable<StreamResponse> SendStreamingMessageAsync(
-        SendMessageRequest request, CancellationToken cancellationToken = default)
-        => SendStreamingMessageAsync(request, requestContext: null, cancellationToken);
-
-    /// <inheritdoc />
     public virtual async IAsyncEnumerable<StreamResponse> SendStreamingMessageAsync(
-        SendMessageRequest request, A2ARequestContext? requestContext, [EnumeratorCancellation] CancellationToken cancellationToken)
+        SendMessageRequest request, A2ARequestContext? requestContext, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         using var activity = A2ADiagnostics.Source.StartActivity("A2AServer.SendStreamingMessage", ActivityKind.Internal);
         A2ADiagnostics.RequestCount.Add(1);
@@ -187,7 +177,7 @@ public partial class A2AServer : IA2ARequestHandlerWithContext, IAsyncDisposable
 
     /// <inheritdoc />
     public virtual async Task<AgentTask> GetTaskAsync(
-        GetTaskRequest request, CancellationToken cancellationToken = default)
+        GetTaskRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default)
     {
         if (request.HistoryLength is { } hl && hl < 0)
         {
@@ -204,7 +194,7 @@ public partial class A2AServer : IA2ARequestHandlerWithContext, IAsyncDisposable
 
     /// <inheritdoc />
     public virtual async Task<ListTasksResponse> ListTasksAsync(
-        ListTasksRequest request, CancellationToken cancellationToken = default)
+        ListTasksRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default)
     {
         // JSON-RPC rejects these before the store. REST passes the query value
         // through, and gRPC keeps an explicit page_size, including 0. Reject
@@ -227,13 +217,8 @@ public partial class A2AServer : IA2ARequestHandlerWithContext, IAsyncDisposable
     }
 
     /// <inheritdoc />
-    public virtual Task<AgentTask> CancelTaskAsync(
-        CancelTaskRequest request, CancellationToken cancellationToken = default)
-        => CancelTaskAsync(request, requestContext: null, cancellationToken);
-
-    /// <inheritdoc />
     public virtual async Task<AgentTask> CancelTaskAsync(
-        CancelTaskRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken)
+        CancelTaskRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default)
     {
         using var activity = A2ADiagnostics.Source.StartActivity("A2AServer.CancelTask", ActivityKind.Internal);
         activity?.SetTag("a2a.task.id", request.Id);
@@ -285,6 +270,7 @@ public partial class A2AServer : IA2ARequestHandlerWithContext, IAsyncDisposable
     /// <inheritdoc />
     public virtual async IAsyncEnumerable<StreamResponse> SubscribeToTaskAsync(
         SubscribeToTaskRequest request,
+        A2ARequestContext? requestContext,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         using var activity = A2ADiagnostics.Source.StartActivity("A2AServer.SubscribeToTask", ActivityKind.Internal);
@@ -331,35 +317,35 @@ public partial class A2AServer : IA2ARequestHandlerWithContext, IAsyncDisposable
 
     /// <inheritdoc />
     public virtual Task<TaskPushNotificationConfig> CreateTaskPushNotificationConfigAsync(
-        TaskPushNotificationConfig config, CancellationToken cancellationToken = default)
+        TaskPushNotificationConfig config, A2ARequestContext? requestContext, CancellationToken cancellationToken = default)
     {
         return PushNotifications.CreateAsync(config, cancellationToken);
     }
 
     /// <inheritdoc />
     public virtual Task<TaskPushNotificationConfig> GetTaskPushNotificationConfigAsync(
-        GetTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default)
+        GetTaskPushNotificationConfigRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default)
     {
         return PushNotifications.GetAsync(request, cancellationToken);
     }
 
     /// <inheritdoc />
     public virtual Task<ListTaskPushNotificationConfigsResponse> ListTaskPushNotificationConfigsAsync(
-        ListTaskPushNotificationConfigsRequest request, CancellationToken cancellationToken = default)
+        ListTaskPushNotificationConfigsRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default)
     {
         return PushNotifications.ListAsync(request, cancellationToken);
     }
 
     /// <inheritdoc />
     public virtual Task DeleteTaskPushNotificationConfigAsync(
-        DeleteTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default)
+        DeleteTaskPushNotificationConfigRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default)
     {
         return PushNotifications.DeleteAsync(request, cancellationToken);
     }
 
     /// <inheritdoc />
     public virtual Task<AgentCard> GetExtendedAgentCardAsync(
-        GetExtendedAgentCardRequest request, CancellationToken cancellationToken = default)
+        GetExtendedAgentCardRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default)
     {
         if (_options.SupportsExtendedAgentCard)
         {

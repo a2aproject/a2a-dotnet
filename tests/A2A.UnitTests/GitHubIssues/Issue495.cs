@@ -39,7 +39,7 @@ namespace A2A.UnitTests.GitHubIssues
             var responsesSeen = 0;
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             {
-                await foreach (var response in server.SendStreamingMessageAsync(request).ConfigureAwait(false))
+                await foreach (var response in server.SendStreamingMessageAsync(request, null).ConfigureAwait(false))
                 {
                     responsesSeen++;
                 }

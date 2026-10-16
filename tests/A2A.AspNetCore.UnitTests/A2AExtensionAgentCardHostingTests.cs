@@ -78,7 +78,7 @@ public sealed class A2AExtensionAgentCardHostingTests
         if (hasSignatures) Sign(card);
         var before = Serialize(card);
         var handler = new Mock<IA2ARequestHandler>();
-        handler.Setup(h => h.GetExtendedAgentCardAsync(It.IsAny<GetExtendedAgentCardRequest>(), It.IsAny<CancellationToken>()))
+        handler.Setup(h => h.GetExtendedAgentCardAsync(It.IsAny<GetExtendedAgentCardRequest>(), It.IsAny<A2ARequestContext?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(card);
         await using var app = CreateApp();
         app.MapA2A(handler.Object, "/rpc", new A2AExtensionOptions(registry));
@@ -108,7 +108,7 @@ public sealed class A2AExtensionAgentCardHostingTests
         Sign(card);
         var before = Serialize(card);
         var handler = new Mock<IA2ARequestHandler>();
-        handler.Setup(h => h.GetExtendedAgentCardAsync(It.IsAny<GetExtendedAgentCardRequest>(), It.IsAny<CancellationToken>()))
+        handler.Setup(h => h.GetExtendedAgentCardAsync(It.IsAny<GetExtendedAgentCardRequest>(), It.IsAny<A2ARequestContext?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(card);
         await using var app = CreateApp();
         var options = new A2AExtensionOptions(CreateRegistry());
@@ -139,7 +139,7 @@ public sealed class A2AExtensionAgentCardHostingTests
             CanActivate = (_, _, _) => { calls++; return ValueTask.FromResult(true); },
         };
         var handler = new Mock<IA2ARequestHandler>();
-        handler.Setup(h => h.GetTaskAsync(It.IsAny<GetTaskRequest>(), It.IsAny<CancellationToken>()))
+        handler.Setup(h => h.GetTaskAsync(It.IsAny<GetTaskRequest>(), It.IsAny<A2ARequestContext?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AgentTask { Id = "task", ContextId = "context" });
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddSingleton(handler.Object);
@@ -157,7 +157,7 @@ public sealed class A2AExtensionAgentCardHostingTests
         Assert.Equal(ExtensionUri, Assert.Single(app.Services.GetRequiredService<AgentCard>().Capabilities.Extensions!).Uri);
         Assert.Equal(ExtensionUri, context.Response.Headers[HeaderName].ToString());
         Assert.Equal(1, calls);
-        handler.Verify(h => h.GetTaskAsync(It.IsAny<GetTaskRequest>(), It.IsAny<CancellationToken>()), Times.Once);
+        handler.Verify(h => h.GetTaskAsync(It.IsAny<GetTaskRequest>(), It.IsAny<A2ARequestContext?>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

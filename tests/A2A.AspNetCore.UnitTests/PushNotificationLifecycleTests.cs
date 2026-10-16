@@ -37,7 +37,7 @@ public sealed class PushNotificationLifecycleTests
         {
             var request = Request();
             request.Configuration!.ReturnImmediately = true;
-            var result = await server.SendMessageAsync(request);
+            var result = await server.SendMessageAsync(request, null);
             var cancellationSeen = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             using var cancellationRegistration = agent.ExecutionToken.Register(() => cancellationSeen.TrySetResult());
             await transport.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -75,7 +75,7 @@ public sealed class PushNotificationLifecycleTests
         var server = provider.GetRequiredService<IA2ARequestHandler>();
         Assert.Same(sender, provider.GetRequiredService<IPushNotificationSender>());
         await hosted.StartAsync(CancellationToken.None);
-        await using var stream = server.SendStreamingMessageAsync(Request()).GetAsyncEnumerator();
+        await using var stream = server.SendStreamingMessageAsync(Request(), null).GetAsyncEnumerator();
         Task? stopping = null;
         try
         {
@@ -130,7 +130,7 @@ public sealed class PushNotificationLifecycleTests
         var hosted = Assert.Single(provider.GetServices<IHostedService>());
         var server = provider.GetRequiredService<IA2ARequestHandler>();
         await hosted.StartAsync(CancellationToken.None);
-        await using var stream = server.SendStreamingMessageAsync(Request()).GetAsyncEnumerator();
+        await using var stream = server.SendStreamingMessageAsync(Request(), null).GetAsyncEnumerator();
         try
         {
             Assert.True(await stream.MoveNextAsync());
@@ -167,7 +167,7 @@ public sealed class PushNotificationLifecycleTests
         var hosted = Assert.Single(provider.GetServices<IHostedService>());
         var server = provider.GetRequiredService<IA2ARequestHandler>();
         await hosted.StartAsync(CancellationToken.None);
-        await using var stream = server.SendStreamingMessageAsync(Request()).GetAsyncEnumerator();
+        await using var stream = server.SendStreamingMessageAsync(Request(), null).GetAsyncEnumerator();
         using var deadline = new CancellationTokenSource();
         try
         {
@@ -205,7 +205,7 @@ public sealed class PushNotificationLifecycleTests
         var hosted = Assert.Single(provider.GetServices<IHostedService>());
         var server = provider.GetRequiredService<IA2ARequestHandler>();
         await hosted.StartAsync(CancellationToken.None);
-        await using var stream = server.SendStreamingMessageAsync(Request()).GetAsyncEnumerator();
+        await using var stream = server.SendStreamingMessageAsync(Request(), null).GetAsyncEnumerator();
         using var deadline = new CancellationTokenSource();
         try
         {
