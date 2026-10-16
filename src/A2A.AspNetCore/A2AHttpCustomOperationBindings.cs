@@ -233,6 +233,14 @@ public sealed class A2AHttpCustomOperationBindings
     }
 
     internal IReadOnlyList<HttpCustomOperationBinding> Items => _bindings;
+
+    internal void EnsureRegistryOwnership(A2ACustomOperationRegistry registry)
+    {
+        foreach (var binding in _bindings)
+        {
+            registry.EnsureOwnership(binding.RegistryToken);
+        }
+    }
 }
 
 internal sealed record HttpCustomOperationBinding(

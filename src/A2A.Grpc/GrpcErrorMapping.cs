@@ -106,7 +106,11 @@ internal static class GrpcErrorMapping
             code = mapped;
         }
 
-        return new A2AException(exception.Status.Detail, exception, code);
+        return new A2AException(exception.Status.Detail, exception, code)
+        {
+            ActivatedExtensions = A2AResponseActivation.Read(exception.Trailers
+                .Where(entry => !entry.IsBinary && entry.Key == "a2a-extensions").Select(entry => entry.Value)),
+        };
     }
 
     /// <summary>

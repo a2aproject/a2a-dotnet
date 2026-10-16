@@ -12,6 +12,14 @@
 /// </remarks>
 public class A2AException : Exception
 {
+    /// <summary>Gets the immutable extension activation metadata reported by the remote peer.</summary>
+    /// <remarks>
+    /// Empty when no usable metadata was reported. This is a response snapshot, not an
+    /// authorization grant, and is never inferred from the client's requested extensions.
+    /// Existing exception types, messages, and error codes are preserved.
+    /// </remarks>
+    public IReadOnlySet<string> ActivatedExtensions { get; internal set; } = System.Collections.Frozen.FrozenSet<string>.Empty;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="A2AException"/> class.
     /// </summary>

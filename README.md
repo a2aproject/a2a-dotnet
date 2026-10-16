@@ -275,6 +275,15 @@ Server-side examples demonstrating how to build A2A-compatible agents:
 
 Loopback SDK push demo and authenticated receiver: configuration CRUD, persisted task updates, default HTTP delivery, and explicit configuration deletion. See the [push notification guide](docs/push-notifications.md) for protocol requirements, SDK policies, and production limits.
 
+### Extension Negotiation
+
+**[`samples/ExtensionNegotiation/`](samples/ExtensionNegotiation/README.md)**
+
+Register a supported extension, bind its operations to JSON-RPC, HTTP+JSON and gRPC,
+and verify request-scoped activation, availability changes and SDK error metadata.
+The self-contained loopback demo requires no model credentials. See the
+[extension negotiation guide](docs/extensions.md) for API examples and Agent Card consistency.
+
 ### Semantic Kernel Integration
 **[`samples/SemanticKernelAgent/`](samples/SemanticKernelAgent/README.md)**
 

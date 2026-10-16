@@ -185,7 +185,7 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
 
             using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
             return await JsonSerializer.DeserializeAsync<TResult>(stream, A2AJsonUtilities.DefaultOptions, cancellationToken).ConfigureAwait(false)
-                ?? throw new A2AException("Failed to deserialize REST response.", A2AErrorCode.InternalError);
+                ?? throw new A2AException("Failed to deserialize REST response.", A2AErrorCode.InternalError) { ActivatedExtensions = A2AResponseActivation.Read(response) };
         }
         catch (A2AException) { throw; }
         catch (Exception ex)
@@ -224,7 +224,7 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
 
             using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
             return await JsonSerializer.DeserializeAsync<TResult>(stream, A2AJsonUtilities.DefaultOptions, cancellationToken).ConfigureAwait(false)
-                ?? throw new A2AException("Failed to deserialize REST response.", A2AErrorCode.InternalError);
+                ?? throw new A2AException("Failed to deserialize REST response.", A2AErrorCode.InternalError) { ActivatedExtensions = A2AResponseActivation.Read(response) };
         }
         catch (A2AException) { throw; }
         catch (Exception ex)
@@ -260,7 +260,7 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
 
             using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
             return await JsonSerializer.DeserializeAsync<TResult>(stream, A2AJsonUtilities.DefaultOptions, cancellationToken).ConfigureAwait(false)
-                ?? throw new A2AException("Failed to deserialize REST response.", A2AErrorCode.InternalError);
+                ?? throw new A2AException("Failed to deserialize REST response.", A2AErrorCode.InternalError) { ActivatedExtensions = A2AResponseActivation.Read(response) };
         }
         catch (A2AException) { throw; }
         catch (Exception ex)
@@ -371,6 +371,7 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
         using (response)
         using (stream)
         {
+            var activation = A2AResponseActivation.Read(response);
             await foreach (var sseItem in SseParser.Create(stream).EnumerateAsync(cancellationToken).ConfigureAwait(false))
             {
                 var errorResponse = JsonSerializer.Deserialize<A2AErrorResponse>(
@@ -379,11 +380,12 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
                 {
                     throw new A2AException(
                         error.Message ?? "Streaming REST request failed.",
-                        (A2AErrorCode)error.Code);
+                        (A2AErrorCode)error.Code)
+                    { ActivatedExtensions = activation };
                 }
 
                 var result = JsonSerializer.Deserialize<StreamResponse>(sseItem.Data, A2AJsonUtilities.DefaultOptions)
-                    ?? throw new A2AException("Failed to deserialize streaming REST response.", A2AErrorCode.InternalError);
+                    ?? throw new A2AException("Failed to deserialize streaming REST response.", A2AErrorCode.InternalError) { ActivatedExtensions = activation };
 
                 eventCount++;
                 yield return result;
@@ -454,6 +456,10 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
                 detail = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
             }
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch
         {
             // Best-effort body read
@@ -473,7 +479,7 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
             ? $"HTTP {(int)response.StatusCode}: {detail}"
             : $"HTTP {(int)response.StatusCode}: {response.ReasonPhrase}";
 
-        throw new A2AException(message, errorCode);
+        throw new A2AException(message, errorCode) { ActivatedExtensions = A2AResponseActivation.Read(response) };
     }
 
     private static string BuildQueryString(params (string key, string? value)[] parameters)

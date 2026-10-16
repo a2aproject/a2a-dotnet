@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace A2A;
 
 /// <summary>
@@ -30,15 +32,27 @@ public sealed class A2ACustomOperationContext
     /// </summary>
     public TFeature GetRequiredFeature<TFeature>() where TFeature : class
     {
-        foreach (var feature in _features.Values)
+        if (TryGetFeature<TFeature>(out var feature))
         {
-            if (feature is TFeature typedFeature)
-            {
-                return typedFeature;
-            }
+            return feature;
         }
 
         throw new InvalidOperationException(
             $"Custom operation feature '{typeof(TFeature).FullName}' is not available.");
+    }
+
+    internal bool TryGetFeature<TFeature>([NotNullWhen(true)] out TFeature? feature) where TFeature : class
+    {
+        foreach (var value in _features.Values)
+        {
+            if (value is TFeature typedFeature)
+            {
+                feature = typedFeature;
+                return true;
+            }
+        }
+
+        feature = null;
+        return false;
     }
 }

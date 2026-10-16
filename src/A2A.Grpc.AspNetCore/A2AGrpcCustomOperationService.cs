@@ -3,7 +3,6 @@ namespace A2A.Grpc.AspNetCore;
 using A2A.Grpc.Extensions.Protos;
 using global::Google.Protobuf;
 using global::Grpc.Core;
-using global::Grpc.AspNetCore.Server;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 
@@ -25,7 +24,7 @@ internal sealed class A2AGrpcCustomOperationService(
                 context.CancellationToken).ConfigureAwait(false);
             var result = await registry.InvokeAsync(
                 registration,
-                CreateOperationContext(context),
+                context.CreateA2AOperationContext(),
                 operationRequest,
                 context.CancellationToken).ConfigureAwait(false);
             return new ExtensionOperationResponse
@@ -75,7 +74,7 @@ internal sealed class A2AGrpcCustomOperationService(
 
             await foreach (var streamEvent in registry.InvokeStreamingAsync(
                 registration,
-                CreateOperationContext(context),
+                context.CreateA2AOperationContext(),
                 operationRequest,
                 context.CancellationToken).ConfigureAwait(false))
             {
@@ -142,16 +141,6 @@ internal sealed class A2AGrpcCustomOperationService(
         }
 
         return registration;
-    }
-
-    private static A2ACustomOperationContext CreateOperationContext(
-        ServerCallContext context)
-    {
-        var httpContext = context.GetHttpContext();
-        return new A2ACustomOperationContext(
-            httpContext.RequestServices,
-            httpContext,
-            context);
     }
 
     private static async Task<object> DeserializeRequestAsync(

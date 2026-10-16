@@ -49,6 +49,38 @@ public static class A2AJsonRpcProcessor
         A2ACustomOperationRegistry? customRegistry,
         A2AJsonRpcCustomOperationBindings? customBindings,
         CancellationToken cancellationToken)
+        => await ProcessRequestCoreAsync(
+            requestHandler,
+            request,
+            customRegistry is null ? null : new A2AExtensionOptions(customRegistry),
+            customBindings,
+            cancellationToken).ConfigureAwait(false);
+
+    /// <summary>Processes a JSON-RPC request with extension negotiation and optional custom methods.</summary>
+    /// <param name="requestHandler">The standard A2A request handler.</param>
+    /// <param name="request">The HTTP request containing the JSON-RPC payload.</param>
+    /// <param name="extensionOptions">The authoritative registry and optional availability policy.</param>
+    /// <param name="customBindings">The optional custom JSON-RPC method mappings.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The HTTP result for the JSON-RPC response.</returns>
+    public static Task<IResult> ProcessRequestWithExtensionsAsync(
+        IA2ARequestHandler requestHandler,
+        HttpRequest request,
+        A2AExtensionOptions extensionOptions,
+        A2AJsonRpcCustomOperationBindings? customBindings,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(extensionOptions);
+        customBindings?.EnsureRegistryOwnership(extensionOptions.Registry);
+        return ProcessRequestCoreAsync(requestHandler, request, extensionOptions, customBindings, cancellationToken);
+    }
+
+    private static async Task<IResult> ProcessRequestCoreAsync(
+        IA2ARequestHandler requestHandler,
+        HttpRequest request,
+        A2AExtensionOptions? extensionOptions,
+        A2AJsonRpcCustomOperationBindings? customBindings,
+        CancellationToken cancellationToken)
     {
         var preflightResult = CheckPreflight(request);
         if (preflightResult != null) return preflightResult;
@@ -72,14 +104,22 @@ public static class A2AJsonRpcProcessor
             activity?.SetTag("request.id", rpcRequest!.Id.ToString());
             activity?.SetTag("request.method", rpcRequest!.Method);
 
+            if (extensionOptions is not null)
+            {
+                var activation = await A2AExtensionNegotiation.NegotiateAsync(
+                    request.HttpContext, extensionOptions, cancellationToken).ConfigureAwait(false);
+                requestHandler = requestHandler.WithRequestContext(activation);
+            }
+
+            var operationContext = A2AExtensionNegotiation.CreateOperationContext(request.HttpContext);
+            var customRegistry = extensionOptions?.Registry;
+
             if (A2AMethods.IsStreamingMethod(rpcRequest!.Method) ||
                 customBindings?.IsStreamingMethod(rpcRequest.Method) == true)
             {
                 return StreamResponse(
                     requestHandler,
-                    new A2ACustomOperationContext(
-                        request.HttpContext.RequestServices,
-                        request.HttpContext),
+                    operationContext,
                     rpcRequest.Id,
                     rpcRequest.Method,
                     rpcRequest.Params,
@@ -90,15 +130,18 @@ public static class A2AJsonRpcProcessor
 
             return await SingleResponseAsync(
                 requestHandler,
-                new A2ACustomOperationContext(
-                    request.HttpContext.RequestServices,
-                    request.HttpContext),
+                operationContext,
                 rpcRequest.Id,
                 rpcRequest.Method,
                 rpcRequest.Params,
                 customRegistry,
                 customBindings,
                 cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (extensionOptions is not null &&
+            (cancellationToken.IsCancellationRequested || request.HttpContext.RequestAborted.IsCancellationRequested))
+        {
+            throw;
         }
         catch (A2AException ex)
         {
@@ -244,6 +287,7 @@ public static class A2AJsonRpcProcessor
             case A2AMethods.GetExtendedAgentCard:
                 var getCardRequest = DeserializeAndValidate<GetExtendedAgentCardRequest>(parameters.Value, method);
                 var extCard = await requestHandler.GetExtendedAgentCardAsync(getCardRequest, cancellationToken).ConfigureAwait(false);
+                if (customRegistry is not null) extCard = customRegistry.PrepareAgentCard(extCard);
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, extCard);
                 break;
             default:

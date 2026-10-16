@@ -37,6 +37,8 @@ jobs:
         run: dotnet build ./tests/A2ATests.slnx --framework ${{ matrix.framework }}
       - name: TestLibs
         run: dotnet test ./tests/A2ATests.slnx --no-build --verbosity normal --framework ${{ matrix.framework }}
+      - name: Run extension negotiation sample
+        run: dotnet run --project ./samples/ExtensionNegotiation/ExtensionNegotiation.csproj --framework ${{ matrix.framework }}
   nativeAot:
     runs-on: ubuntu-latest
     strategy:

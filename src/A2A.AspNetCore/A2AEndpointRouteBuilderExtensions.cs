@@ -19,7 +19,7 @@ public static class A2ARouteBuilderExtensions
 {
     /// <summary>
     /// Maps A2A JSON-RPC endpoint and well-known agent card using DI-registered services.
-    /// Requires prior call to <see cref="A2AServiceCollectionExtensions.AddA2AAgent{THandler}"/>.
+    /// Requires prior call to <see cref="A2AServiceCollectionExtensions.AddA2AAgent{THandler}(IServiceCollection, AgentCard, Action{A2AServerOptions})"/>.
     /// </summary>
     /// <remarks>
     /// This a2a-dotnet endpoint selects tenant-specific agents through the endpoint URL and
@@ -34,6 +34,10 @@ public static class A2ARouteBuilderExtensions
         ArgumentException.ThrowIfNullOrEmpty(path);
 
         var handler = endpoints.ServiceProvider.GetRequiredService<IA2ARequestHandler>();
+        if (endpoints.ServiceProvider.GetService<A2AExtensionOptions>() is { } extensionOptions)
+        {
+            return MapA2A(endpoints, handler, path, extensionOptions);
+        }
 
         var routeGroup = endpoints.MapGroup("");
         routeGroup.MapPost(path, (HttpRequest request, CancellationToken cancellationToken)
@@ -85,18 +89,42 @@ public static class A2ARouteBuilderExtensions
         A2ACustomOperationRegistry customRegistry,
         A2AJsonRpcCustomOperationBindings customBindings)
     {
+        ArgumentNullException.ThrowIfNull(customRegistry);
+        ArgumentNullException.ThrowIfNull(customBindings);
+        return MapA2A(endpoints, requestHandler, path, new A2AExtensionOptions(customRegistry), customBindings);
+    }
+
+    /// <summary>Maps JSON-RPC operations with request-scoped extension negotiation.</summary>
+    /// <param name="endpoints">The endpoint route builder.</param>
+    /// <param name="requestHandler">The standard A2A request handler.</param>
+    /// <param name="path">The JSON-RPC endpoint path.</param>
+    /// <param name="extensionOptions">The authoritative registry and optional availability policy.</param>
+    /// <param name="customBindings">Optional custom JSON-RPC method mappings.</param>
+    /// <returns>An endpoint convention builder for further configuration.</returns>
+    /// <remarks>
+    /// Negotiation results are available through <see cref="HttpContext.Features"/> as
+    /// an <see cref="A2ARequestContext"/> and through custom operation context features.
+    /// Handler-only overloads remain negotiation-free.
+    /// </remarks>
+    public static IEndpointConventionBuilder MapA2A(
+        this IEndpointRouteBuilder endpoints,
+        IA2ARequestHandler requestHandler,
+        [StringSyntax("Route")] string path,
+        A2AExtensionOptions extensionOptions,
+        A2AJsonRpcCustomOperationBindings? customBindings = null)
+    {
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(requestHandler);
         ArgumentException.ThrowIfNullOrEmpty(path);
-        ArgumentNullException.ThrowIfNull(customRegistry);
-        ArgumentNullException.ThrowIfNull(customBindings);
+        ArgumentNullException.ThrowIfNull(extensionOptions);
+        customBindings?.EnsureRegistryOwnership(extensionOptions.Registry);
 
         var routeGroup = endpoints.MapGroup("");
         routeGroup.MapPost(path, (HttpRequest request, CancellationToken cancellationToken) =>
-            A2AJsonRpcProcessor.ProcessRequestAsync(
+            A2AJsonRpcProcessor.ProcessRequestWithExtensionsAsync(
                 requestHandler,
                 request,
-                customRegistry,
+                extensionOptions,
                 customBindings,
                 cancellationToken));
 
@@ -138,6 +166,23 @@ public static class A2ARouteBuilderExtensions
         return routeGroup;
     }
 
+    /// <summary>Maps a registry-consistent, detached well-known Agent Card.</summary>
+    /// <param name="endpoints">The endpoint route builder.</param>
+    /// <param name="registry">The authoritative extension registry.</param>
+    /// <param name="agentCard">The host-provided Agent Card.</param>
+    /// <param name="path">An optional route prefix.</param>
+    /// <param name="cacheOptions">Optional HTTP caching configuration.</param>
+    /// <returns>An endpoint convention builder.</returns>
+    /// <remarks>Signed cards are not rewritten; declaration mismatches require updating and re-signing the card.</remarks>
+    public static IEndpointConventionBuilder MapWellKnownAgentCard(
+        this IEndpointRouteBuilder endpoints, A2ACustomOperationRegistry registry, AgentCard agentCard,
+        [StringSyntax("Route")] string path = "", AgentCardCacheOptions? cacheOptions = null)
+    {
+        ArgumentNullException.ThrowIfNull(endpoints);
+        ArgumentNullException.ThrowIfNull(registry);
+        return MapWellKnownAgentCard(endpoints, registry.PrepareAgentCard(agentCard), path, cacheOptions);
+    }
+
     private static string GetAgentCardCacheControl(AgentCardCacheOptions? cacheOptions)
     {
         var maxAge = cacheOptions?.MaxAge ?? TimeSpan.FromHours(1);
@@ -171,6 +216,11 @@ public static class A2ARouteBuilderExtensions
     /// <returns>An endpoint convention builder for further configuration.</returns>
     public static IEndpointConventionBuilder MapHttpA2A(
         this IEndpointRouteBuilder endpoints, IA2ARequestHandler requestHandler, [StringSyntax("Route")] string path = "")
+        => MapHttpA2ACore(endpoints, requestHandler, path, registry: null);
+
+    private static RouteGroupBuilder MapHttpA2ACore(
+        IEndpointRouteBuilder endpoints, IA2ARequestHandler requestHandler, string path,
+        A2ACustomOperationRegistry? registry)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(requestHandler);
@@ -184,49 +234,53 @@ public static class A2ARouteBuilderExtensions
         AddA2AVersionFilter(routeGroup);
 
         // Task operations
-        routeGroup.MapGet("/tasks/{id}", (string id, [FromQuery] int? historyLength, CancellationToken ct)
-            => A2AHttpProcessor.GetTaskRestAsync(requestHandler, logger, id, historyLength, ct));
+        IA2ARequestHandler HandlerFor(HttpContext context) => registry is null
+            ? requestHandler
+            : requestHandler.WithRequestContext(context.Features.Get<A2ARequestContext>());
 
-        routeGroup.MapPost("/tasks/{id}:cancel", (string id, CancellationToken ct)
-            => A2AHttpProcessor.CancelTaskRestAsync(requestHandler, logger, id, ct));
+        routeGroup.MapGet("/tasks/{id}", (HttpContext context, string id, [FromQuery] int? historyLength, CancellationToken ct)
+            => A2AHttpProcessor.GetTaskRestAsync(HandlerFor(context), logger, id, historyLength, ct));
 
-        routeGroup.MapPost("/tasks/{id}:subscribe", (string id, CancellationToken ct)
-            => A2AHttpProcessor.SubscribeToTaskRest(requestHandler, logger, id, ct));
+        routeGroup.MapPost("/tasks/{id}:cancel", (HttpContext context, string id, CancellationToken ct)
+            => A2AHttpProcessor.CancelTaskRestAsync(HandlerFor(context), logger, id, ct));
 
-        routeGroup.MapGet("/tasks", ([FromQuery] string? contextId, [FromQuery] string? status,
+        routeGroup.MapPost("/tasks/{id}:subscribe", (HttpContext context, string id, CancellationToken ct)
+            => A2AHttpProcessor.SubscribeToTaskRest(HandlerFor(context), logger, id, ct));
+
+        routeGroup.MapGet("/tasks", (HttpContext context, [FromQuery] string? contextId, [FromQuery] string? status,
             [FromQuery] int? pageSize, [FromQuery] string? pageToken, [FromQuery] int? historyLength,
             [FromQuery] DateTimeOffset? statusTimestampAfter, [FromQuery] bool? includeArtifacts,
             CancellationToken ct)
-            => A2AHttpProcessor.ListTasksRestAsync(requestHandler, logger, contextId, status, pageSize, pageToken,
+            => A2AHttpProcessor.ListTasksRestAsync(HandlerFor(context), logger, contextId, status, pageSize, pageToken,
                 historyLength, statusTimestampAfter, includeArtifacts, ct));
 
         // Message operations
-        routeGroup.MapPost("/message:send", ([FromBody] SendMessageRequest request, CancellationToken ct)
-            => A2AHttpProcessor.SendMessageRestAsync(requestHandler, logger, request, ct));
+        routeGroup.MapPost("/message:send", (HttpContext context, [FromBody] SendMessageRequest request, CancellationToken ct)
+            => A2AHttpProcessor.SendMessageRestAsync(HandlerFor(context), logger, request, ct));
 
-        routeGroup.MapPost("/message:stream", ([FromBody] SendMessageRequest request, CancellationToken ct)
-            => A2AHttpProcessor.SendMessageStreamRest(requestHandler, logger, request, ct));
+        routeGroup.MapPost("/message:stream", (HttpContext context, [FromBody] SendMessageRequest request, CancellationToken ct)
+            => A2AHttpProcessor.SendMessageStreamRest(HandlerFor(context), logger, request, ct));
 
         // Push notification config operations
         routeGroup.MapPost("/tasks/{id}/pushNotificationConfigs",
-            (string id, [FromBody] TaskPushNotificationConfig config, CancellationToken ct)
-            => A2AHttpProcessor.CreatePushNotificationConfigRestAsync(requestHandler, logger, id, config, ct));
+            (HttpContext context, string id, [FromBody] TaskPushNotificationConfig config, CancellationToken ct)
+            => A2AHttpProcessor.CreatePushNotificationConfigRestAsync(HandlerFor(context), logger, id, config, ct));
 
         routeGroup.MapGet("/tasks/{id}/pushNotificationConfigs",
-            (string id, [FromQuery] int? pageSize, [FromQuery] string? pageToken, CancellationToken ct)
-            => A2AHttpProcessor.ListPushNotificationConfigRestAsync(requestHandler, logger, id, pageSize, pageToken, ct));
+            (HttpContext context, string id, [FromQuery] int? pageSize, [FromQuery] string? pageToken, CancellationToken ct)
+            => A2AHttpProcessor.ListPushNotificationConfigRestAsync(HandlerFor(context), logger, id, pageSize, pageToken, ct));
 
         routeGroup.MapGet("/tasks/{id}/pushNotificationConfigs/{configId}",
-            (string id, string configId, CancellationToken ct)
-            => A2AHttpProcessor.GetPushNotificationConfigRestAsync(requestHandler, logger, id, configId, ct));
+            (HttpContext context, string id, string configId, CancellationToken ct)
+            => A2AHttpProcessor.GetPushNotificationConfigRestAsync(HandlerFor(context), logger, id, configId, ct));
 
         routeGroup.MapDelete("/tasks/{id}/pushNotificationConfigs/{configId}",
-            (string id, string configId, CancellationToken ct)
-            => A2AHttpProcessor.DeletePushNotificationConfigRestAsync(requestHandler, logger, id, configId, ct));
+            (HttpContext context, string id, string configId, CancellationToken ct)
+            => A2AHttpProcessor.DeletePushNotificationConfigRestAsync(HandlerFor(context), logger, id, configId, ct));
 
         // Extended agent card
-        routeGroup.MapGet("/extendedAgentCard", (CancellationToken ct)
-            => A2AHttpProcessor.GetExtendedAgentCardRestAsync(requestHandler, logger, ct));
+        routeGroup.MapGet("/extendedAgentCard", (HttpContext context, CancellationToken ct)
+            => A2AHttpProcessor.GetExtendedAgentCardRestAsync(HandlerFor(context), logger, ct, registry));
 
         return routeGroup;
     }
@@ -247,19 +301,48 @@ public static class A2ARouteBuilderExtensions
         A2ACustomOperationRegistry customRegistry,
         A2AHttpCustomOperationBindings customBindings)
     {
+        ArgumentNullException.ThrowIfNull(customRegistry);
+        ArgumentNullException.ThrowIfNull(customBindings);
+        return MapHttpA2A(endpoints, requestHandler, path, new A2AExtensionOptions(customRegistry), customBindings);
+    }
+
+    /// <summary>Maps HTTP+JSON operations with request-scoped extension negotiation.</summary>
+    /// <param name="endpoints">The endpoint route builder.</param>
+    /// <param name="requestHandler">The standard A2A request handler.</param>
+    /// <param name="path">The route prefix for standard and custom HTTP endpoints.</param>
+    /// <param name="extensionOptions">The authoritative registry and optional availability policy.</param>
+    /// <param name="customBindings">Optional custom HTTP route mappings.</param>
+    /// <returns>An endpoint convention builder for further configuration.</returns>
+    /// <remarks>
+    /// Negotiation results are available through <see cref="HttpContext.Features"/> as
+    /// an <see cref="A2ARequestContext"/> and through custom operation context features.
+    /// Handler-only overloads remain negotiation-free.
+    /// </remarks>
+    public static IEndpointConventionBuilder MapHttpA2A(
+        this IEndpointRouteBuilder endpoints,
+        IA2ARequestHandler requestHandler,
+        [StringSyntax("Route")] string path,
+        A2AExtensionOptions extensionOptions,
+        A2AHttpCustomOperationBindings? customBindings = null)
+    {
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(requestHandler);
         ArgumentNullException.ThrowIfNull(path);
-        ArgumentNullException.ThrowIfNull(customRegistry);
-        ArgumentNullException.ThrowIfNull(customBindings);
+        ArgumentNullException.ThrowIfNull(extensionOptions);
+        customBindings?.EnsureRegistryOwnership(extensionOptions.Registry);
 
         var routeGroup = endpoints.MapGroup(path);
-        MapHttpA2A(routeGroup, requestHandler);
-        var customRouteGroup = routeGroup.MapGroup("");
-        AddA2AVersionFilter(customRouteGroup);
         var logger = endpoints.ServiceProvider
             .GetRequiredService<ILoggerFactory>()
             .CreateLogger("A2A.REST.Custom");
+        var customRegistry = extensionOptions.Registry;
+        var standardRouteGroup = MapHttpA2ACore(routeGroup, requestHandler, "", customRegistry);
+        AddExtensionNegotiationFilter(standardRouteGroup, extensionOptions, logger);
+
+        if (customBindings is null) return routeGroup;
+
+        var customRouteGroup = routeGroup.MapGroup("");
+        AddA2AVersionFilter(customRouteGroup);
 
         foreach (var binding in customBindings.Items)
         {
@@ -270,6 +353,9 @@ public static class A2ARouteBuilderExtensions
                 {
                     try
                     {
+                        await A2AExtensionNegotiation.NegotiateAsync(
+                            context, extensionOptions, context.RequestAborted).ConfigureAwait(false);
+                        var operationContext = A2AExtensionNegotiation.CreateOperationContext(context);
                         object? request;
                         try
                         {
@@ -291,9 +377,7 @@ public static class A2ARouteBuilderExtensions
                             result = new CustomHttpStreamedResult(
                                 customRegistry.InvokeStreamingAsync(
                                     binding.Registration,
-                                    new A2ACustomOperationContext(
-                                        context.RequestServices,
-                                        context),
+                                    operationContext,
                                     request!,
                                     context.RequestAborted),
                                 binding.Registration.OutputTypeInfo,
@@ -303,9 +387,7 @@ public static class A2ARouteBuilderExtensions
                         {
                             var response = await customRegistry.InvokeAsync(
                                 binding.Registration,
-                                new A2ACustomOperationContext(
-                                    context.RequestServices,
-                                    context),
+                                operationContext,
                                 request!,
                                 context.RequestAborted).ConfigureAwait(false);
                             result = new CustomHttpJsonResult(
@@ -339,6 +421,36 @@ public static class A2ARouteBuilderExtensions
         }
 
         return routeGroup;
+    }
+
+    private static void AddExtensionNegotiationFilter(
+        RouteGroupBuilder routeGroup,
+        A2AExtensionOptions extensionOptions,
+        ILogger logger)
+    {
+        routeGroup.AddEndpointFilter(async (context, next) =>
+        {
+            var httpContext = context.HttpContext;
+            try
+            {
+                await A2AExtensionNegotiation.NegotiateAsync(
+                    httpContext, extensionOptions, httpContext.RequestAborted).ConfigureAwait(false);
+                return await next(context).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (httpContext.RequestAborted.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (A2AException exception)
+            {
+                return new A2AErrorResult(exception);
+            }
+            catch (Exception exception)
+            {
+                logger.UnexpectedErrorInActivityName(exception, "extension negotiation");
+                return new A2AErrorResult(new A2AException("An internal error occurred.", A2AErrorCode.InternalError));
+            }
+        });
     }
 
     private static void AddA2AVersionFilter(RouteGroupBuilder routeGroup)
