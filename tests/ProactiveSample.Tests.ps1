@@ -66,6 +66,7 @@ function Invoke-A2A([string]$Method, [hashtable]$Params) {
 Push-Location $root
 $server = $null
 $cli = $null
+$storeDirectory = $null
 try {
     dotnet build samples\AgentServer\AgentServer.csproj --no-restore -c $Configuration --verbosity quiet
     if ($LASTEXITCODE -ne 0) { throw 'AgentServer build failed.' }
@@ -74,10 +75,12 @@ try {
 
     $script:agentUrl = "http://127.0.0.1:$(Get-FreePort)"
     $receiverUrl = "http://127.0.0.1:$(Get-FreePort)"
+    $storeDirectory = Join-Path ([System.IO.Path]::GetTempPath()) "a2a-proactive-smoke-$([Guid]::NewGuid().ToString('N'))"
     $server = Start-SampleProcess @(
         "samples\AgentServer\bin\$Configuration\net10.0\AgentServer.dll",
         '--agent', 'proactive', '--urls', $agentUrl,
-        '--push-callback', "$receiverUrl/notify"
+        '--push-callback', "$receiverUrl/notify",
+        '--store', 'file', '--data-dir', $storeDirectory
     )
     $server.Output = $server.Process.StandardOutput.ReadToEndAsync()
     $ready = $false
@@ -140,6 +143,41 @@ try {
         throw 'Task history must contain the original input and both proactive messages, without synthetic input.'
     }
 
+    # Seed extra stored state while the task is idle to exercise full-snapshot preservation.
+    $snapshot = $persisted.result
+    $snapshot | Add-Member -NotePropertyName artifacts -NotePropertyValue @(
+        @{ artifactId = 'preserved-artifact'; parts = @(@{ text = 'Existing artifact content' }) }
+    ) -Force
+    $snapshot | Add-Member -NotePropertyName metadata -NotePropertyValue @{ source = 'preserved-metadata' } -Force
+    $snapshot | ConvertTo-Json -Depth 20 -Compress |
+        Set-Content -LiteralPath (Join-Path $storeDirectory "tasks\$($task.id).json") -Encoding utf8
+    $followUp = Invoke-A2A 'SendMessage' @{
+        message = @{
+            messageId = 'inbound-follow-up'; taskId = $task.id; contextId = $task.contextId
+            role = 'ROLE_USER'; parts = @(@{ text = 'Keep the previous updates' })
+        }
+        configuration = @{ returnImmediately = $true }
+    }
+    if ($followUp.error -or $followUp.result.task.id -ne $task.id) {
+        throw "Could not follow up on the existing task: $($followUp | ConvertTo-Json -Depth 20 -Compress)"
+    }
+    $null = Invoke-Trigger $task.id 'After inbound follow-up' 200
+    $null = Wait-CliLine $cli 'Push notification => \{"message":.*"text":"After inbound follow-up"'
+    $afterFollowUp = (Invoke-A2A 'GetTask' @{ id = $task.id }).result
+    if ($afterFollowUp.contextId -ne $task.contextId -or $afterFollowUp.status.state -ne 'TASK_STATE_WORKING' -or
+        $afterFollowUp.history.Count -ne 5 -or
+        $afterFollowUp.history[0].parts[0].text -cne 'Start a task for external updates' -or
+        $afterFollowUp.history[1].parts[0].text -cne $message -or
+        $afterFollowUp.history[2].parts[0].text -cne 'Another external update' -or
+        $afterFollowUp.history[3].messageId -ne 'inbound-follow-up' -or
+        $afterFollowUp.history[4].parts[0].text -cne 'After inbound follow-up' -or
+        $afterFollowUp.artifacts.Count -ne 1 -or
+        $afterFollowUp.artifacts[0].artifactId -ne 'preserved-artifact' -or
+        $afterFollowUp.artifacts[0].parts[0].text -cne 'Existing artifact content' -or
+        $afterFollowUp.metadata.source -cne 'preserved-metadata') {
+        throw 'An inbound follow-up must preserve all history, artifacts, metadata, and task/context identity.'
+    }
+
     $null = Invoke-Trigger $task.id ' ' 400
     $missing = Invoke-Trigger 'missing' 'Update' 404
     if ($missing.failureKind -ne 'TaskNotFound') {
@@ -175,7 +213,7 @@ try {
     if (!$cli.Process.WaitForExit(10000) -or $cli.Process.ExitCode -ne 0) {
         throw 'A2ACli did not exit cleanly.'
     }
-    Write-Host 'Proactive sample passed: real A2ACli push receipt, repeated triggers, persisted history, and HTTP errors.'
+    Write-Host 'Proactive sample passed: real A2ACli push receipt, repeated triggers, inbound follow-up state, and HTTP errors.'
 }
 finally {
     foreach ($child in @($cli, $server)) {
@@ -186,6 +224,9 @@ finally {
             }
             $child.Process.Dispose()
         }
+    }
+    if ($null -ne $storeDirectory -and (Test-Path -LiteralPath $storeDirectory)) {
+        Remove-Item -LiteralPath $storeDirectory -Recurse
     }
     Pop-Location
 }

@@ -10,8 +10,10 @@ internal sealed class ProactiveAgent() : IAgentHandler
         {
             Id = context.TaskId,
             ContextId = context.ContextId,
-            History = [context.Message],
-            Status = new A2A.TaskStatus
+            History = [.. (context.Task?.History ?? []), context.Message],
+            Artifacts = context.Task?.Artifacts,
+            Metadata = context.Task?.Metadata,
+            Status = context.Task?.Status ?? new A2A.TaskStatus
             {
                 State = TaskState.Working,
                 Timestamp = DateTimeOffset.UtcNow,

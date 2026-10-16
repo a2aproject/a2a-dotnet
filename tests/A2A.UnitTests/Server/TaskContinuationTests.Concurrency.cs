@@ -2,6 +2,135 @@ namespace A2A.UnitTests.Server;
 
 public sealed partial class TaskContinuationTests
 {
+    [Fact]
+    public async Task PausedStreamingResponse_CanBeCanceledWithoutResumingOrDisposingTheStream()
+    {
+        await SeedAsync();
+        await _registrations.SaveAsync(Config());
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var blockedResponse = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var producerStopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _sender.OnEnqueue = (_, response, _) =>
+        {
+            if (response.Message?.MessageId == "blocked-response")
+            {
+                blockedResponse.TrySetResult();
+            }
+            return Task.CompletedTask;
+        };
+        var handler = new Handler
+        {
+            Execute = async (_, queue, cancellationToken) =>
+            {
+                try
+                {
+                    await release.Task.WaitAsync(cancellationToken);
+                    await queue.EnqueueMessageAsync(Message("buffered-response"), cancellationToken);
+                    await queue.EnqueueMessageAsync(Message("blocked-response"), cancellationToken);
+                    await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                }
+                finally
+                {
+                    producerStopped.TrySetResult();
+                }
+            },
+        };
+        await using var server = Server(handler);
+        await using var stream = server.SendStreamingMessageAsync(new() { Message = Message("inbound") }).GetAsyncEnumerator();
+        try
+        {
+            Assert.True(await stream.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.NotNull(stream.Current.Task);
+            release.TrySetResult();
+            await blockedResponse.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            var canceled = await server.CancelTaskAsync(new() { Id = "task" }).WaitAsync(TimeSpan.FromSeconds(2));
+
+            Assert.Equal(TaskState.Canceled, canceled.Status.State);
+            Assert.True(producerStopped.Task.IsCompleted);
+            Assert.Contains(canceled.History!, message => message.MessageId == "blocked-response");
+        }
+        finally
+        {
+            release.TrySetResult();
+        }
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task InitialHistoryBlockedInAdmission_CanBeCanceledOrAbandonedWithoutInvokingHandler(bool streaming, bool shutdown)
+    {
+        await SeedAsync();
+        await _registrations.SaveAsync(Config());
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        bool handlerCalled = false;
+        _sender.OnEnqueue = async (_, response, cancellationToken) =>
+        {
+            if (response.Message?.MessageId == "inbound")
+            {
+                entered.TrySetResult();
+                await release.Task.WaitAsync(cancellationToken);
+            }
+        };
+        var handler = new Handler
+        {
+            Execute = (_, _, _) =>
+            {
+                handlerCalled = true;
+                return Task.CompletedTask;
+            },
+        };
+        await using var server = Server(handler);
+        var request = new SendMessageRequest
+        {
+            Message = Message("inbound"),
+            Configuration = new() { ReturnImmediately = true },
+        };
+        await using var stream = server.SendStreamingMessageAsync(request).GetAsyncEnumerator();
+        Task pendingRequest = streaming ? stream.MoveNextAsync().AsTask() : server.SendMessageAsync(request);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            if (shutdown)
+            {
+                using var deadline = new CancellationTokenSource();
+                var stopping = server.StopAsync(deadline.Token);
+                Assert.False(stopping.IsCompleted);
+                await deadline.CancelAsync();
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => stopping);
+                await server.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            else
+            {
+                var canceled = await server.CancelTaskAsync(new() { Id = "task" }).WaitAsync(TimeSpan.FromSeconds(2));
+                Assert.Equal(TaskState.Canceled, canceled.Status.State);
+            }
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pendingRequest.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.False(handlerCalled);
+            Assert.DoesNotContain("inbound", _sender.Events);
+            Assert.Contains((await _tasks.GetTaskAsync("task"))!.History!, message => message.MessageId == "inbound");
+        }
+        finally
+        {
+            release.TrySetResult();
+            if (streaming)
+            {
+                try
+                {
+                    await pendingRequest.WaitAsync(TimeSpan.FromSeconds(5));
+                }
+                catch (OperationCanceledException)
+                {
+                    // Join the pending MoveNext before disposing the stream.
+                }
+            }
+        }
+    }
+
     [Theory]
     [InlineData(false, false)]
     [InlineData(false, true)]
@@ -106,7 +235,9 @@ public sealed partial class TaskContinuationTests
                 await queue.EnqueueMessageAsync(Message("inbound-reply"), cancellationToken);
                 await queue.EnqueueStatusUpdateAsync(new()
                 {
-                    TaskId = context.TaskId, ContextId = context.ContextId, Status = new() { State = TaskState.InputRequired },
+                    TaskId = context.TaskId,
+                    ContextId = context.ContextId,
+                    Status = new() { State = TaskState.InputRequired },
                 }, cancellationToken);
             },
         };
@@ -220,7 +351,9 @@ public sealed partial class TaskContinuationTests
                 await queue.EnqueueMessageAsync(Message("late-inbound"), cancellationToken);
                 await queue.EnqueueStatusUpdateAsync(new()
                 {
-                    TaskId = context.TaskId, ContextId = context.ContextId, Status = new() { State = TaskState.InputRequired },
+                    TaskId = context.TaskId,
+                    ContextId = context.ContextId,
+                    Status = new() { State = TaskState.InputRequired },
                 }, cancellationToken);
             },
         };

@@ -153,6 +153,7 @@ public partial class A2AServer
                     _cancelCallbacks ??= _cancellation.CancelAsync();
                     if (cancelAdmission && !_admissionCancellation.IsCancellationRequested)
                     {
+                        _responseStop.Cancel();
                         _cancelCallbacks = Task.WhenAll(_cancelCallbacks, _admissionCancellation.CancelAsync());
                     }
                 }
@@ -197,13 +198,16 @@ public partial class A2AServer
             {
                 executionLease = await _server._notifier.AcquireTaskExecutionLockAsync(TaskId, initialization.Token).ConfigureAwait(false);
                 _context = await _initializeContext(initialization.Token).ConfigureAwait(false);
+                // Detached shutdown drains cleanup events; explicit task cancellation interrupts admission.
+                var admissionToken = IsProactive ? _executionToken
+                    : DetachedLifetime ? _admissionCancellation.Token : CancellationToken.None;
                 if (!_cancelHandler &&
                     Context.IsContinuation &&
                     Context.IncomingMessage is not null &&
                     _server._options.AutoAppendHistory)
                 {
                     await _server.ApplyEventAsync(new StreamResponse { Message = Context.Message },
-                        Context, initialization.Token).ConfigureAwait(false);
+                        Context, initialization.Token, admissionToken).ConfigureAwait(false);
                 }
 
                 producer = Task.Run(() => ExecuteHandlerAsync(_executionToken), CancellationToken.None);
@@ -230,9 +234,6 @@ public partial class A2AServer
                         throw new OperationCanceledException("Agent event publication was abandoned.", _executionToken);
                     }
                     var persistenceToken = DetachedLifetime ? CancellationToken.None : _executionToken;
-                    // Detached shutdown drains cleanup events; explicit task cancellation interrupts admission.
-                    var admissionToken = IsProactive ? _executionToken
-                        : DetachedLifetime ? _admissionCancellation.Token : CancellationToken.None;
                     if (await _server.ApplyEventAsync(response, Context, persistenceToken, admissionToken).ConfigureAwait(false))
                     {
                         await WriteResponseAsync(response, _responseToken).ConfigureAwait(false);
