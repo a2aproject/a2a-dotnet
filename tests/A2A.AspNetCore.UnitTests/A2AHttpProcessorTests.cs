@@ -129,7 +129,7 @@ public class A2AHttpProcessorTests
                 It.Is<SendMessageRequest>(request =>
                     request.Tenant == null &&
                     request.Configuration!.TaskPushNotificationConfig!.Tenant == null),
-                It.IsAny<CancellationToken>()))
+                It.IsAny<A2ARequestContext?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new SendMessageResponse
             {
                 Message = new Message { MessageId = "response", Role = Role.Agent, Parts = [] },
@@ -152,7 +152,7 @@ public class A2AHttpProcessorTests
                 It.Is<SendMessageRequest>(request =>
                     request.Tenant == null &&
                     request.Configuration!.TaskPushNotificationConfig!.Tenant == null),
-                It.IsAny<CancellationToken>()))
+                It.IsAny<A2ARequestContext?>(), It.IsAny<CancellationToken>()))
             .Returns(SingleStreamResponse());
         var request = CreateTenantBearingSendRequest();
 
@@ -358,7 +358,7 @@ public class A2AHttpProcessorTests
         requestHandler
             .Setup(handler => handler.ListTasksAsync(
                 It.Is<ListTasksRequest>(request => request.Status == expectedState),
-                It.IsAny<CancellationToken>()))
+                It.IsAny<A2ARequestContext?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ListTasksResponse { Tasks = [], NextPageToken = "" });
 
         var result = await A2AHttpProcessor.ListTasksRestAsync(

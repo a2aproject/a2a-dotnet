@@ -25,7 +25,7 @@ public class A2AEndpointRouteBuilderExtensionsTests
         requestHandler.Setup(handler => handler.ListTasksAsync(
                 It.Is<ListTasksRequest>(request =>
                     request.StatusTimestampAfter == statusTimestampAfter && request.IncludeArtifacts == true),
-                It.IsAny<CancellationToken>()))
+                It.IsAny<A2ARequestContext?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ListTasksResponse { Tasks = [], NextPageToken = "" });
         app.MapHttpA2A(requestHandler.Object);
 
@@ -65,7 +65,7 @@ public class A2AEndpointRouteBuilderExtensionsTests
                     config.Id == "cfg-1" && config.Url == "http://callback" &&
                     config.Token == "callback-token" &&
                     config.Authentication != null && config.Authentication.Scheme == "bearer"),
-                It.IsAny<CancellationToken>()))
+                It.IsAny<A2ARequestContext?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new TaskPushNotificationConfig
             {
                 Id = "cfg-1", TaskId = "route-task", Url = "http://callback"
@@ -335,7 +335,7 @@ public class A2AEndpointRouteBuilderExtensionsTests
         await using var app = builder.Build();
         var requestHandler = new Mock<IA2ARequestHandler>(MockBehavior.Strict);
         requestHandler
-            .Setup(handler => handler.GetTaskAsync(It.IsAny<GetTaskRequest>(), It.IsAny<CancellationToken>()))
+            .Setup(handler => handler.GetTaskAsync(It.IsAny<GetTaskRequest>(), It.IsAny<A2ARequestContext?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AgentTask { Id = "task-1", ContextId = "ctx-1" });
         app.MapHttpA2A(requestHandler.Object);
 
@@ -360,7 +360,7 @@ public class A2AEndpointRouteBuilderExtensionsTests
 
         Assert.NotEqual(StatusCodes.Status400BadRequest, context.Response.StatusCode);
         requestHandler.Verify(
-            handler => handler.GetTaskAsync(It.IsAny<GetTaskRequest>(), It.IsAny<CancellationToken>()),
+            handler => handler.GetTaskAsync(It.IsAny<GetTaskRequest>(), It.IsAny<A2ARequestContext?>(), It.IsAny<CancellationToken>()),
             Times.Once);
     }
     [Fact]

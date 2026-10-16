@@ -242,34 +242,37 @@ public sealed class A2AExtensionHostingTests
         var builder = new A2ACustomOperationRegistryBuilder();
         builder.RegisterExtension(new AgentExtension { Uri = ExtensionUri, Required = true });
         var options = new A2AExtensionOptions(builder.Build());
-        HttpContext? current = null;
         A2ARequestContext? seen = null;
+        using var cancellation = new CancellationTokenSource();
         var handler = new Mock<IA2ARequestHandler>();
-        handler.Setup(h => h.GetTaskAsync(It.IsAny<GetTaskRequest>(), It.IsAny<CancellationToken>()))
-            .Returns(() =>
+        handler.Setup(h => h.GetTaskAsync(It.IsAny<GetTaskRequest>(), It.IsAny<A2ARequestContext?>(), It.IsAny<CancellationToken>()))
+            .Returns((GetTaskRequest _, A2ARequestContext? requestContext, CancellationToken token) =>
             {
-                seen = current!.Features.Get<A2ARequestContext>();
+                Assert.Equal(cancellation.Token, token);
+                seen = requestContext;
                 return Task.FromResult(new AgentTask { Id = "task-42", ContextId = "context-42", Status = new A2A.TaskStatus { State = TaskState.Completed } });
             });
         await using var app = CreateApp();
         app.MapA2A(handler.Object, "/rpc", options);
         app.MapHttpA2A(handler.Object, "/http", options);
-        current = CreateContext(app, jsonRpc ? "/rpc" : "/http/tasks/{id}", jsonRpc ? HttpMethods.Post : HttpMethods.Get);
+        var current = CreateContext(app, jsonRpc ? "/rpc" : "/http/tasks/{id}", jsonRpc ? HttpMethods.Post : HttpMethods.Get);
         current.Request.RouteValues["id"] = "task-42";
         if (jsonRpc) SetRpcBody(current, A2AMethods.GetTask, "{\"id\":\"task-42\"}");
         await FindEndpoint(app, current.Request.Path).RequestDelegate!(current);
-        handler.Verify(h => h.GetTaskAsync(It.IsAny<GetTaskRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+        handler.Verify(h => h.GetTaskAsync(It.IsAny<GetTaskRequest>(), It.IsAny<A2ARequestContext?>(), It.IsAny<CancellationToken>()), Times.Never);
         await AssertErrorAsync(current, jsonRpc, A2AErrorCode.ExtensionSupportRequired, "EXTENSION_SUPPORT_REQUIRED");
 
         current = CreateContext(app, jsonRpc ? "/rpc" : "/http/tasks/{id}", jsonRpc ? HttpMethods.Post : HttpMethods.Get);
+        current.RequestAborted = cancellation.Token;
         current.Request.RouteValues["id"] = "task-42";
         current.Request.Headers[HeaderName] = ExtensionUri;
         if (jsonRpc) SetRpcBody(current, A2AMethods.GetTask, "{\"id\":\"task-42\"}");
         await FindEndpoint(app, current.Request.Path).RequestDelegate!(current);
 
+        Assert.Same(current.Features.Get<A2ARequestContext>(), seen);
         Assert.Equal(ExtensionUri, Assert.Single(seen!.ActivatedExtensions));
         Assert.Equal(ExtensionUri, current.Response.Headers[HeaderName].ToString());
-        handler.Verify(h => h.GetTaskAsync(It.IsAny<GetTaskRequest>(), It.IsAny<CancellationToken>()), Times.Once);
+        handler.Verify(h => h.GetTaskAsync(It.IsAny<GetTaskRequest>(), seen, cancellation.Token), Times.Once);
     }
 
     [Theory]
@@ -470,7 +473,7 @@ public sealed class A2AExtensionHostingTests
     public async Task HandlerOnlyOverloads_RemainNegotiationFree(bool jsonRpc)
     {
         var handler = new Mock<IA2ARequestHandler>();
-        handler.Setup(h => h.GetTaskAsync(It.IsAny<GetTaskRequest>(), It.IsAny<CancellationToken>()))
+        handler.Setup(h => h.GetTaskAsync(It.IsAny<GetTaskRequest>(), It.IsAny<A2ARequestContext?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AgentTask { Id = "task-42", ContextId = "context-42", Status = new A2A.TaskStatus { State = TaskState.Completed } });
         await using var app = CreateApp();
         app.MapA2A(handler.Object, "/rpc");
@@ -485,7 +488,7 @@ public sealed class A2AExtensionHostingTests
         Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
         Assert.Null(context.Features.Get<A2ARequestContext>());
         Assert.False(context.Response.Headers.ContainsKey(HeaderName));
-        handler.Verify(h => h.GetTaskAsync(It.IsAny<GetTaskRequest>(), It.IsAny<CancellationToken>()), Times.Once);
+        handler.Verify(h => h.GetTaskAsync(It.IsAny<GetTaskRequest>(), null, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Theory]
@@ -545,7 +548,7 @@ public sealed class A2AExtensionHostingTests
             CanActivate = (_, _, _) => ValueTask.FromResult(false),
         };
         var handler = new Mock<IA2ARequestHandler>();
-        handler.Setup(h => h.GetTaskAsync(It.IsAny<GetTaskRequest>(), It.IsAny<CancellationToken>()))
+        handler.Setup(h => h.GetTaskAsync(It.IsAny<GetTaskRequest>(), It.IsAny<A2ARequestContext?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AgentTask { Id = "task-42", ContextId = "context-42", Status = new A2A.TaskStatus { State = TaskState.Completed } });
         await using var app = CreateApp();
         app.MapA2A(handler.Object, "/rpc", options);
@@ -560,7 +563,7 @@ public sealed class A2AExtensionHostingTests
         Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
         Assert.Empty(context.Features.Get<A2ARequestContext>()!.ActivatedExtensions);
         Assert.False(context.Response.Headers.ContainsKey(HeaderName));
-        handler.Verify(h => h.GetTaskAsync(It.IsAny<GetTaskRequest>(), It.IsAny<CancellationToken>()), Times.Once);
+        handler.Verify(h => h.GetTaskAsync(It.IsAny<GetTaskRequest>(), It.IsAny<A2ARequestContext?>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Theory]
@@ -572,7 +575,7 @@ public sealed class A2AExtensionHostingTests
         builder.RegisterExtension(new AgentExtension { Uri = ExtensionUri });
         var options = new A2AExtensionOptions(builder.Build());
         var handler = new Mock<IA2ARequestHandler>();
-        handler.Setup(h => h.GetTaskAsync(It.IsAny<GetTaskRequest>(), It.IsAny<CancellationToken>()))
+        handler.Setup(h => h.GetTaskAsync(It.IsAny<GetTaskRequest>(), It.IsAny<A2ARequestContext?>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new A2AException("task not found", A2AErrorCode.TaskNotFound));
         await using var app = CreateApp();
         app.MapA2A(handler.Object, "/rpc", options);
@@ -616,15 +619,16 @@ public sealed class A2AExtensionHostingTests
         var builder = new A2ACustomOperationRegistryBuilder();
         builder.RegisterExtension(new AgentExtension { Uri = ExtensionUri });
         var options = new A2AExtensionOptions(builder.Build());
-        HttpContext? current = null;
         A2ARequestContext? seen = null;
+        using var cancellation = new CancellationTokenSource();
         var handler = new Mock<IA2ARequestHandler>();
-        handler.Setup(h => h.SendStreamingMessageAsync(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()))
-            .Returns((SendMessageRequest _, CancellationToken token) => Stream(token));
+        handler.Setup(h => h.SendStreamingMessageAsync(It.IsAny<SendMessageRequest>(), It.IsAny<A2ARequestContext?>(), It.IsAny<CancellationToken>()))
+            .Returns((SendMessageRequest _, A2ARequestContext? requestContext, CancellationToken token) => Stream(requestContext, token));
         await using var app = CreateApp();
         app.MapA2A(handler.Object, "/rpc", options);
         app.MapHttpA2A(handler.Object, "/http", options);
-        current = CreateContext(app, jsonRpc ? "/rpc" : "/http/message:stream");
+        var current = CreateContext(app, jsonRpc ? "/rpc" : "/http/message:stream");
+        current.RequestAborted = cancellation.Token;
         current.Request.Headers[HeaderName] = ExtensionUri;
         var parameters = JsonSerializer.Serialize(new SendMessageRequest
         {
@@ -648,11 +652,12 @@ public sealed class A2AExtensionHostingTests
         Assert.Equal("text/event-stream", current.Response.ContentType);
         Assert.Contains("agent reply", await ReadBodyAsync(current), StringComparison.Ordinal);
 
-        async IAsyncEnumerable<StreamResponse> Stream([EnumeratorCancellation] CancellationToken token)
+        async IAsyncEnumerable<StreamResponse> Stream(A2ARequestContext? requestContext, [EnumeratorCancellation] CancellationToken token)
         {
+            Assert.Equal(cancellation.Token, token);
             token.ThrowIfCancellationRequested();
             await Task.Yield();
-            seen = current!.Features.Get<A2ARequestContext>();
+            seen = requestContext;
             yield return new StreamResponse
             {
                 Message = new Message { MessageId = "agent-1", Role = Role.Agent, Parts = [new Part { Text = "agent reply" }] },
@@ -664,7 +669,7 @@ public sealed class A2AExtensionHostingTests
     public async Task Processor_LegacyExplicitNullArgumentsRemainSourceCompatibleAndNegotiationFree()
     {
         var handler = new Mock<IA2ARequestHandler>();
-        handler.Setup(h => h.GetTaskAsync(It.IsAny<GetTaskRequest>(), It.IsAny<CancellationToken>()))
+        handler.Setup(h => h.GetTaskAsync(It.IsAny<GetTaskRequest>(), It.IsAny<A2ARequestContext?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AgentTask { Id = "task-42", ContextId = "context-42" });
         await using var app = CreateApp();
         var context = CreateContext(app, "/rpc");
@@ -678,7 +683,7 @@ public sealed class A2AExtensionHostingTests
         Assert.Null(context.Features.Get<A2ARequestContext>());
         Assert.False(context.Response.Headers.ContainsKey(HeaderName));
         Assert.Contains("task-42", await ReadBodyAsync(context), StringComparison.Ordinal);
-        handler.Verify(h => h.GetTaskAsync(It.IsAny<GetTaskRequest>(), It.IsAny<CancellationToken>()), Times.Once);
+        handler.Verify(h => h.GetTaskAsync(It.IsAny<GetTaskRequest>(), It.IsAny<A2ARequestContext?>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

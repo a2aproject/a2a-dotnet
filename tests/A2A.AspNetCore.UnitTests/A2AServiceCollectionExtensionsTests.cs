@@ -24,7 +24,7 @@ public class A2AServiceCollectionExtensionsTests
         var server = serviceProvider.GetRequiredService<IA2ARequestHandler>();
 
         var exception = await Assert.ThrowsAsync<A2AException>(() =>
-            server.GetExtendedAgentCardAsync(new GetExtendedAgentCardRequest()));
+            server.GetExtendedAgentCardAsync(new GetExtendedAgentCardRequest(), null));
 
         Assert.Equal(expectedErrorCode, exception.ErrorCode);
     }
