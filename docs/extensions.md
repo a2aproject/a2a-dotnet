@@ -217,6 +217,103 @@ The callback runs once per requested supported extension for the request. It sho
 honor the supplied cancellation token. The SDK does not re-run it between streamed
 events or implement extension dependencies, version fallback or distributed leases.
 
+### Error representations across bindings
+
+`A2AErrorCode.ExtensionSupportRequired` has the same meaning across the v1
+bindings, but its wire representation depends on the binding:
+
+| Binding | Wire representation |
+| --- | --- |
+| JSON-RPC | `error.code` is `-32008`. |
+| HTTP+JSON | HTTP 400; `error.code` is `400`, `error.status` is `FAILED_PRECONDITION`, and an `error.details` entry has reason `EXTENSION_SUPPORT_REQUIRED`. |
+| gRPC | Status `FAILED_PRECONDITION` (9); a `google.rpc.ErrorInfo` detail has reason `EXTENSION_SUPPORT_REQUIRED` in the `a2a-protocol.org` domain. |
+
+These are the protocol's
+[error code mappings](https://a2a-protocol.org/latest/specification/#54-error-code-mappings),
+implemented by the SDK's shared `A2AErrorCodeMapping`. Several A2A errors share
+HTTP 400 or gRPC `FAILED_PRECONDITION`, so that status alone does not identify
+an extension-support failure. Read the structured reason instead; do not expect
+the JSON-RPC number `-32008` in an HTTP+JSON or gRPC status-code field.
+
+For example, a request missing a required extension can receive this JSON-RPC
+response (the request ID is echoed; the message is illustrative):
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "1",
+  "error": {
+    "code": -32008,
+    "message": "Extension 'https://example.org/extensions/debate/v1' must be activated for this request."
+  }
+}
+```
+
+For HTTP+JSON, the same failure before the response starts is HTTP 400 with
+`Content-Type: application/a2a+json` and this body:
+
+```json
+{
+  "error": {
+    "code": 400,
+    "status": "FAILED_PRECONDITION",
+    "message": "Extension 'https://example.org/extensions/debate/v1' must be activated for this request.",
+    "details": [
+      {
+        "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+        "reason": "EXTENSION_SUPPORT_REQUIRED",
+        "domain": "a2a-protocol.org"
+      }
+    ]
+  }
+}
+```
+
+For gRPC, the SDK sends `FAILED_PRECONDITION` and a binary `google.rpc.Status`
+in the `grpc-status-details-bin` trailer. The following is the decoded status
+shown as ProtoJSON for readability, not a JSON response body:
+
+```json
+{
+  "code": 9,
+  "message": "Extension 'https://example.org/extensions/debate/v1' must be activated for this request.",
+  "details": [
+    {
+      "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+      "reason": "EXTENSION_SUPPORT_REQUIRED",
+      "domain": "a2a-protocol.org"
+    }
+  ]
+}
+```
+
+With these structured responses, `A2AClient`, `A2AHttpJsonClient` and
+`A2AGrpcClient` normalize the failure to an `A2AException` whose `ErrorCode` is
+`A2AErrorCode.ExtensionSupportRequired`. For a peer that omits the structured
+reason, a generic HTTP/gRPC status is insufficient to recover that exact error.
+
+Activation metadata describes the stage at which an error occurred:
+
+- A rejected negotiation publishes no activation snapshot, even if some optional
+  extensions were considered before a required extension was declined.
+- After negotiation succeeds, an operation failure preserves the negotiated
+  snapshot in the `A2A-Extensions` response parameter or `a2a-extensions` gRPC
+  metadata. The operation's own error code is not replaced by an extension error.
+
+These HTTP examples describe failures before a streaming response has started.
+Once an SSE response starts, its HTTP status and headers cannot be changed;
+subsequent errors use the binding's stream error representation. Do not infer
+a new HTTP 400 response or renegotiation from a later stream error. gRPC reports
+its final status and error details in trailers and retains the initial activation
+snapshot as described under [client errors](#read-activation-on-client-errors).
+
+See the [runnable negotiation sample](../samples/ExtensionNegotiation/README.md)
+and the regression coverage for
+[HTTP/JSON-RPC hosting](../tests/A2A.AspNetCore.UnitTests/A2AExtensionHostingTests.cs),
+[HTTP/JSON-RPC client metadata](../tests/A2A.UnitTests/Client/A2AExtensionErrorMetadataTests.cs),
+[gRPC hosting](../tests/A2A.Grpc.UnitTests/GrpcExtensionHostingTests.cs), and
+[gRPC client metadata](../tests/A2A.Grpc.UnitTests/GrpcExtensionErrorMetadataTests.cs).
+
 ## Agent Card consistency
 
 Keep discovery aligned with the authoritative registry:
