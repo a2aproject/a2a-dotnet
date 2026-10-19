@@ -45,6 +45,26 @@ if (inputCard.Capabilities.Extensions is not null || hostedCard.Capabilities.Ext
 }
 hostedCard.Signatures = [new AgentCardSignature { Protected = "test-header", Signature = "test-signature" }];
 var cardTypeInfo = (JsonTypeInfo<AgentCard>)A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(AgentCard));
+using var nullParameters = JsonDocument.Parse("null");
+conditionalCard.Capabilities.Extensions!.Add(new AgentExtension
+{
+    Uri = "https://example.test/extensions/unrelated/v1",
+    Params = nullParameters.RootElement,
+});
+foreach (var hasSignatures in new[] { false, true })
+{
+    conditionalCard.Signatures = hasSignatures
+        ? [new AgentCardSignature { Protected = "test-header", Signature = "test-signature" }]
+        : null;
+    var beforeConditionalCard = JsonSerializer.Serialize(conditionalCard, cardTypeInfo);
+    var preparedConditionalCard = extension.EnsureAgentCardDeclaration(conditionalCard);
+    if (JsonSerializer.Serialize(preparedConditionalCard, cardTypeInfo) != beforeConditionalCard
+        || preparedConditionalCard.Capabilities.Extensions![1].Params?.ValueKind != JsonValueKind.Null)
+    {
+        throw new InvalidOperationException("Conditional discovery did not preserve explicit-null parameters.");
+    }
+}
+
 var beforeSignedCard = JsonSerializer.Serialize(hostedCard, cardTypeInfo);
 if (JsonSerializer.Serialize(registry.PrepareAgentCard(hostedCard), cardTypeInfo) != beforeSignedCard
     || JsonSerializer.Serialize(extension.EnsureAgentCardDeclaration(hostedCard), cardTypeInfo) != beforeSignedCard)

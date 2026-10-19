@@ -78,7 +78,23 @@ internal static class A2AExtensionAgentCards
     private static AgentCard Clone(AgentCard agentCard)
     {
         var typeInfo = (JsonTypeInfo<AgentCard>)A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(AgentCard));
-        return JsonSerializer.Deserialize(JsonSerializer.SerializeToUtf8Bytes(agentCard, typeInfo), typeInfo)!;
+        var copy = JsonSerializer.Deserialize(JsonSerializer.SerializeToUtf8Bytes(agentCard, typeInfo), typeInfo)!;
+
+        // A nullable JsonElement round-trip turns JSON null into an absent value.
+        // Restore each parameter tree independently, preserving explicit nulls
+        // without retaining the source JsonDocument's lifetime.
+        if (agentCard.Capabilities.Extensions is { } declarations)
+        {
+            for (var index = 0; index < declarations.Count; index++)
+            {
+                if (declarations[index] is { } declaration)
+                {
+                    copy.Capabilities.Extensions![index].Params = declaration.Params?.Clone();
+                }
+            }
+        }
+
+        return copy;
     }
 
     // These protobuf scalar fields have implicit default semantics, not optional

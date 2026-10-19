@@ -77,6 +77,80 @@ public sealed class A2AExtensionDeclarationTests
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void UnrelatedExplicitNullParameters_ArePreservedWithoutChangingSignedOrUnsignedCards(bool hasSignatures)
+    {
+        var extension = CreateRegistration();
+        var card = CreateCard();
+        var unrelated = new AgentExtension { Uri = OtherUri, Params = Json("null") };
+        card.Capabilities.Extensions =
+        [
+            unrelated,
+            extension.ToAgentExtension(),
+            new AgentExtension { Uri = "https://example.org/extensions/without-params/v1" },
+        ];
+        if (hasSignatures) Sign(card);
+        var before = Serialize(card);
+
+        var prepared = extension.EnsureAgentCardDeclaration(card);
+
+        var declarations = prepared.Capabilities.Extensions!;
+        Assert.True(declarations[0].Params.HasValue);
+        Assert.Equal(JsonValueKind.Null, declarations[0].Params!.Value.ValueKind);
+        Assert.Null(declarations[2].Params);
+        Assert.Equal(before, Serialize(prepared));
+        Assert.Equal(before, Serialize(card));
+        Assert.NotSame(unrelated, declarations[0]);
+        if (hasSignatures)
+        {
+            Assert.Equal("signature", Assert.Single(prepared.Signatures!).Signature);
+            Assert.Equal("protected", prepared.Signatures![0].Protected);
+            Assert.Equal("original", prepared.Signatures[0].Header!["kid"].GetString());
+        }
+    }
+
+    [Fact]
+    public void AddingTheTargetDeclaration_PreservesUnrelatedExplicitNullParameters()
+    {
+        var card = CreateCard();
+        card.Capabilities.Extensions = [new AgentExtension { Uri = OtherUri, Params = Json("null") }];
+        var before = Serialize(card);
+
+        var prepared = CreateRegistration().EnsureAgentCardDeclaration(card);
+
+        var declarations = prepared.Capabilities.Extensions!;
+        Assert.Equal(new[] { OtherUri, ExtensionUri }, declarations.Select(item => item.Uri));
+        Assert.True(declarations[0].Params.HasValue);
+        Assert.Equal(JsonValueKind.Null, declarations[0].Params!.Value.ValueKind);
+        Assert.Equal(before, Serialize(card));
+    }
+
+    [Theory]
+    [InlineData("null")]
+    [InlineData("{\"nested\":{\"value\":null}}")]
+    public void UnrelatedParameters_RemainReadableAfterTheSourceDocumentIsDisposed(string json)
+    {
+        var extension = CreateRegistration();
+        AgentCard prepared;
+        using (var document = JsonDocument.Parse(json))
+        {
+            var card = CreateCard();
+            card.Capabilities.Extensions =
+            [
+                extension.ToAgentExtension(),
+                new AgentExtension { Uri = OtherUri, Params = document.RootElement },
+            ];
+            prepared = extension.EnsureAgentCardDeclaration(card);
+        }
+
+        var parameters = prepared.Capabilities.Extensions![1].Params;
+        Assert.True(parameters.HasValue);
+        Assert.True(JsonElement.DeepEquals(Json(json), parameters!.Value));
+        Assert.NotEmpty(Serialize(prepared));
+    }
+
+    [Theory]
     [InlineData(false, false)]
     [InlineData(false, true)]
     [InlineData(true, false)]
