@@ -28,5 +28,36 @@ public sealed class A2ARequestContext
     /// <summary>Gets the extensions activated for this request.</summary>
     public IReadOnlySet<string> ActivatedExtensions { get; }
 
+    /// <summary>Gets whether the registered extension was activated for this request.</summary>
+    /// <param name="registration">An extension registered by the registry that created this context.</param>
+    /// <returns><see langword="true"/> when the extension is in the activated snapshot.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="registration"/> is null.</exception>
+    /// <exception cref="InvalidOperationException">The registration belongs to a different registry.</exception>
+    public bool IsActivated(A2AExtensionRegistration registration)
+    {
+        EnsureOwnership(registration);
+        return ActivatedExtensions.Contains(registration.Uri);
+    }
+
+    /// <summary>Gets whether the client requested the registered extension for this request.</summary>
+    /// <param name="registration">An extension registered by the registry that created this context.</param>
+    /// <returns><see langword="true"/> when the extension is in the requested snapshot, even if activation was declined.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="registration"/> is null.</exception>
+    /// <exception cref="InvalidOperationException">The registration belongs to a different registry.</exception>
+    public bool WasRequested(A2AExtensionRegistration registration)
+    {
+        EnsureOwnership(registration);
+        return RequestedExtensions.Contains(registration.Uri);
+    }
+
     internal object RegistryToken { get; }
+
+    private void EnsureOwnership(A2AExtensionRegistration registration)
+    {
+        ArgumentNullException.ThrowIfNull(registration);
+        if (!ReferenceEquals(registration.RegistryToken, RegistryToken))
+        {
+            throw new InvalidOperationException("The extension registration does not belong to this registry.");
+        }
+    }
 }
