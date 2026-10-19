@@ -44,4 +44,21 @@ public sealed class A2AExtensionRegistration
         Required = Required,
         Params = Params?.Clone(),
     };
+
+    /// <summary>Creates a detached Agent Card containing a declaration consistent with this registration.</summary>
+    /// <param name="agentCard">The host-provided Agent Card.</param>
+    /// <returns>A detached copy; the original card is never modified.</returns>
+    /// <remarks>
+    /// Adds a missing declaration to an unsigned card, or validates an existing declaration.
+    /// Matching declarations retain their supplied representation. Duplicate or conflicting
+    /// declarations for this extension are rejected. Signed cards must already contain a
+    /// matching declaration; otherwise update and re-sign the card before hosting.
+    /// Other extensions are preserved, not validated against a registry. This does not
+    /// change runtime support or activation, validate the complete card, or verify signatures.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="agentCard"/> is null.</exception>
+    /// <exception cref="ArgumentException">The card's capabilities are null.</exception>
+    /// <exception cref="InvalidOperationException">The declaration conflicts, is duplicated, or is missing from a signed card.</exception>
+    public AgentCard EnsureAgentCardDeclaration(AgentCard agentCard)
+        => A2AExtensionAgentCards.EnsureDeclaration(this, agentCard);
 }
