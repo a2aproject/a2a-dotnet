@@ -370,6 +370,36 @@ collection. Extended cards returned by `IA2ARequestHandler` are checked at respo
 time in all three bindings. A per-request availability decline does not remove
 support declarations from the card.
 
+### Compose one declaration conditionally
+
+When a host composes a card independently of the complete-registry hosting APIs,
+it can choose to advertise one registered capability based on agent configuration:
+
+```csharp
+if (agentUsesDebate)
+{
+    agentCard = debate.EnsureAgentCardDeclaration(agentCard);
+}
+```
+
+Here `debate` is an `A2AExtensionRegistration`. The helper returns a detached copy
+without modifying the input. On an unsigned card, it adds a missing declaration;
+an existing declaration must match the registration. Matching declarations retain
+their supplied representation, including implicit scalar defaults and structurally
+equivalent JSON parameters. Duplicate declarations for that exact URI and
+conflicting content are rejected. Other declarations and their order are preserved;
+they are not validated against this registration's registry.
+
+A signed card must already contain exactly one matching declaration. Otherwise
+the host must update and re-sign it; the helper never rewrites a signed card or
+removes its signatures. It does not verify cryptographic signatures.
+
+This is declaration composition only, not a per-agent runtime support scope.
+Skipping the call does not remove a previously supplied declaration or disable
+an extension. Negotiation, required-extension checks and operation dispatch still
+use the registry as before. The complete-registry APIs above still reject a
+partial declaration list; this helper does not bypass those hosting checks.
+
 ## Read activation on client errors
 
 The standard SDK clients attach the peer's response activation to protocol errors:

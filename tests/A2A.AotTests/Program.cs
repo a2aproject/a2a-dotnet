@@ -36,15 +36,38 @@ var streaming = registryBuilder.MapStreaming<AotCustomRequest, AotCustomResult>(
 var registry = registryBuilder.Build();
 var inputCard = new AgentCard { Name = "AOT agent", Description = "Extension smoke tests", Version = "1.0" };
 var hostedCard = registry.PrepareAgentCard(inputCard);
+var conditionalCard = extension.EnsureAgentCardDeclaration(inputCard);
 registry.ValidateAgentCard(hostedCard);
-if (inputCard.Capabilities.Extensions is not null || hostedCard.Capabilities.Extensions?.Single().Uri != extension.Uri)
+if (inputCard.Capabilities.Extensions is not null || hostedCard.Capabilities.Extensions?.Single().Uri != extension.Uri
+    || conditionalCard.Capabilities.Extensions?.Single().Uri != extension.Uri)
 {
     throw new InvalidOperationException("Registry-consistent discovery changed the original card.");
 }
 hostedCard.Signatures = [new AgentCardSignature { Protected = "test-header", Signature = "test-signature" }];
 var cardTypeInfo = (JsonTypeInfo<AgentCard>)A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(AgentCard));
+using var nullParameters = JsonDocument.Parse("null");
+conditionalCard.Capabilities.Extensions!.Add(new AgentExtension
+{
+    Uri = "https://example.test/extensions/unrelated/v1",
+    Params = nullParameters.RootElement,
+});
+foreach (var hasSignatures in new[] { false, true })
+{
+    conditionalCard.Signatures = hasSignatures
+        ? [new AgentCardSignature { Protected = "test-header", Signature = "test-signature" }]
+        : null;
+    var beforeConditionalCard = JsonSerializer.Serialize(conditionalCard, cardTypeInfo);
+    var preparedConditionalCard = extension.EnsureAgentCardDeclaration(conditionalCard);
+    if (JsonSerializer.Serialize(preparedConditionalCard, cardTypeInfo) != beforeConditionalCard
+        || preparedConditionalCard.Capabilities.Extensions![1].Params?.ValueKind != JsonValueKind.Null)
+    {
+        throw new InvalidOperationException("Conditional discovery did not preserve explicit-null parameters.");
+    }
+}
+
 var beforeSignedCard = JsonSerializer.Serialize(hostedCard, cardTypeInfo);
-if (JsonSerializer.Serialize(registry.PrepareAgentCard(hostedCard), cardTypeInfo) != beforeSignedCard)
+if (JsonSerializer.Serialize(registry.PrepareAgentCard(hostedCard), cardTypeInfo) != beforeSignedCard
+    || JsonSerializer.Serialize(extension.EnsureAgentCardDeclaration(hostedCard), cardTypeInfo) != beforeSignedCard)
 {
     throw new InvalidOperationException("Preparing a matching signed card changed its content.");
 }
