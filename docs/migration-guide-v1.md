@@ -636,10 +636,28 @@ Task<ListTaskPushNotificationConfigResponse> ListTaskPushNotificationConfigAsync
 
 // V1
 Task<TaskPushNotificationConfig> CreateTaskPushNotificationConfigAsync(
-    TaskPushNotificationConfig config, CancellationToken ct);
+    TaskPushNotificationConfig config, A2ARequestContext? requestContext, CancellationToken ct = default);
 Task<ListTaskPushNotificationConfigsResponse> ListTaskPushNotificationConfigsAsync(
-    ListTaskPushNotificationConfigsRequest request, CancellationToken ct);
+    ListTaskPushNotificationConfigsRequest request, A2ARequestContext? requestContext, CancellationToken ct = default);
 ```
+
+All eleven `IA2ARequestHandler` operations now require an
+`A2ARequestContext? requestContext` argument between the request and the optional
+cancellation token. This is a breaking change from earlier v1 previews: update
+custom implementations, `A2AServer` overrides, mocks, and direct calls. The separate
+`IA2ARequestHandlerWithContext` interface and `WithRequestContext` adapter have been
+removed; implement `IA2ARequestHandler` and pass the context directly instead.
+
+```csharp
+await handler.SendMessageAsync(request, requestContext, cancellationToken);
+// Direct calls without extension negotiation must explicitly pass null.
+await handler.SendMessageAsync(request, null, cancellationToken);
+```
+
+Registry-aware JSON-RPC, HTTP+JSON, and gRPC hosting supplies the negotiated
+snapshot automatically. Handler-only hosting passes `null`. `IAgentHandler` and
+`IA2AClient` signatures are unchanged. See [extension negotiation](extensions.md)
+for context lifetime and activation semantics.
 
 ---
 

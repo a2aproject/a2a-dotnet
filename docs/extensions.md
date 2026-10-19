@@ -30,6 +30,22 @@ This follows the protocol's
 [extension activation model](https://a2a-protocol.org/latest/topics/extensions/#extension-activation).
 Negotiation is not an authorization mechanism.
 
+When a handler retains an `A2AExtensionRegistration`, use the typed snapshot
+helpers rather than comparing its URI alone:
+
+```csharp
+bool requested = requestContext.WasRequested(debate);
+bool active = requestContext.IsActivated(debate);
+```
+
+Both helpers require a registration from the same registry that created the
+context. A registration from another registry throws `InvalidOperationException`,
+even if its URI is identical; a null registration throws `ArgumentNullException`.
+An optional extension declined by the availability policy was requested but is
+not active. The helpers only read the frozen snapshot: they do not renegotiate or
+reevaluate availability. The read-only identifier sets remain available for
+consumers without a registration handle.
+
 ## Register an extension and an operation
 
 The following types and JSON metadata come from
@@ -103,7 +119,7 @@ app.MapHttpA2A(requestHandler, "/http", extensions, httpBindings);
 The optional custom mappings do not replace standard operations. Negotiation also
 applies to standard operations on these registry-aware endpoints. Standard agents
 receive the snapshot through `RequestContext.ExtensionActivation`; custom request
-handlers can opt into `IA2ARequestHandlerWithContext`. Custom operations get it
+handlers receive it as the `requestContext` argument on `IA2ARequestHandler`. Custom operations get it
 through `A2ACustomOperationContext`. Transport features remain available to hosts.
 
 For easy-path DI hosting, register with
@@ -177,27 +193,29 @@ or conversation, and a later request negotiates independently. `null` means ther
 was no negotiation; a negotiated context can instead have an empty activated set.
 No HTTP/gRPC accessor or ambient request state is required by the agent.
 
-For a custom standard request handler, implement `IA2ARequestHandlerWithContext`
-and override the three-argument operations that consume activation. Each default
-implementation forwards to its legacy operation, so unmodified
-`IA2ARequestHandler` implementations continue to work. The added cancellation-token
-arguments are deliberately required to avoid ambiguity in existing two-argument
-calls. For an `A2AServer` subclass, override the context-aware send/cancel overloads
-when customizing negotiated execution as well as the legacy path.
+For a custom standard request handler, implement `IA2ARequestHandler`. Every
+operation accepts an `A2ARequestContext? requestContext` argument between the
+request and the optional cancellation token. For an `A2AServer` subclass, override
+these same context-aware methods when customizing execution. There are no separate
+legacy overloads or opt-in interfaces.
 
-Registry-aware hosting binds the context automatically in all three transports.
-A host calling handlers directly can bind a snapshot explicitly:
+Delegating handlers should forward the received `requestContext` unchanged to the
+inner handler. Pass `null` only when no negotiation context exists; replacing a
+received context with `null` discards its negotiated extension state.
+
+Registry-aware hosting passes the context automatically in all three transports.
+A host calling handlers directly supplies a snapshot explicitly, or `null` when
+no negotiation occurred:
 
 ```csharp
 var snapshot = await registry.NegotiateExtensionsAsync(
     ["https://example.org/extensions/debate/v1"], cancellationToken: cancellationToken);
-var requestHandler = handler.WithRequestContext(snapshot);
-await requestHandler.SendMessageAsync(request, cancellationToken);
+await handler.SendMessageAsync(request, snapshot, cancellationToken);
 ```
 
-The adapter does not modify the shared handler. It captures only the immutable SDK
-context, not transport objects or request-scoped services. A handler that does not
-opt into the context-aware interface is returned unchanged.
+The context is an immutable SDK snapshot, not a transport object or a container
+for request-scoped services. Passing it explicitly does not modify the shared
+handler, so concurrent requests retain their own negotiated state.
 
 ## Required extensions and failures
 
@@ -216,6 +234,103 @@ that request's activation metadata.
 The callback runs once per requested supported extension for the request. It should
 honor the supplied cancellation token. The SDK does not re-run it between streamed
 events or implement extension dependencies, version fallback or distributed leases.
+
+### Error representations across bindings
+
+`A2AErrorCode.ExtensionSupportRequired` has the same meaning across the v1
+bindings, but its wire representation depends on the binding:
+
+| Binding | Wire representation |
+| --- | --- |
+| JSON-RPC | `error.code` is `-32008`. |
+| HTTP+JSON | HTTP 400; `error.code` is `400`, `error.status` is `FAILED_PRECONDITION`, and an `error.details` entry has reason `EXTENSION_SUPPORT_REQUIRED`. |
+| gRPC | Status `FAILED_PRECONDITION` (9); a `google.rpc.ErrorInfo` detail has reason `EXTENSION_SUPPORT_REQUIRED` in the `a2a-protocol.org` domain. |
+
+These are the protocol's
+[error code mappings](https://a2a-protocol.org/latest/specification/#54-error-code-mappings),
+implemented by the SDK's shared `A2AErrorCodeMapping`. Several A2A errors share
+HTTP 400 or gRPC `FAILED_PRECONDITION`, so that status alone does not identify
+an extension-support failure. Read the structured reason instead; do not expect
+the JSON-RPC number `-32008` in an HTTP+JSON or gRPC status-code field.
+
+For example, a request missing a required extension can receive this JSON-RPC
+response (the request ID is echoed; the message is illustrative):
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "1",
+  "error": {
+    "code": -32008,
+    "message": "Extension 'https://example.org/extensions/debate/v1' must be activated for this request."
+  }
+}
+```
+
+For HTTP+JSON, the same failure before the response starts is HTTP 400 with
+`Content-Type: application/a2a+json` and this body:
+
+```json
+{
+  "error": {
+    "code": 400,
+    "status": "FAILED_PRECONDITION",
+    "message": "Extension 'https://example.org/extensions/debate/v1' must be activated for this request.",
+    "details": [
+      {
+        "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+        "reason": "EXTENSION_SUPPORT_REQUIRED",
+        "domain": "a2a-protocol.org"
+      }
+    ]
+  }
+}
+```
+
+For gRPC, the SDK sends `FAILED_PRECONDITION` and a binary `google.rpc.Status`
+in the `grpc-status-details-bin` trailer. The following is the decoded status
+shown as ProtoJSON for readability, not a JSON response body:
+
+```json
+{
+  "code": 9,
+  "message": "Extension 'https://example.org/extensions/debate/v1' must be activated for this request.",
+  "details": [
+    {
+      "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+      "reason": "EXTENSION_SUPPORT_REQUIRED",
+      "domain": "a2a-protocol.org"
+    }
+  ]
+}
+```
+
+With these structured responses, `A2AClient`, `A2AHttpJsonClient` and
+`A2AGrpcClient` normalize the failure to an `A2AException` whose `ErrorCode` is
+`A2AErrorCode.ExtensionSupportRequired`. For a peer that omits the structured
+reason, a generic HTTP/gRPC status is insufficient to recover that exact error.
+
+Activation metadata describes the stage at which an error occurred:
+
+- A rejected negotiation publishes no activation snapshot, even if some optional
+  extensions were considered before a required extension was declined.
+- After negotiation succeeds, an operation failure preserves the negotiated
+  snapshot in the `A2A-Extensions` response parameter or `a2a-extensions` gRPC
+  metadata. The operation's own error code is not replaced by an extension error.
+
+These HTTP examples describe failures before a streaming response has started.
+Once an SSE response starts, its HTTP status and headers cannot be changed;
+subsequent errors use the binding's stream error representation. Do not infer
+a new HTTP 400 response or renegotiation from a later stream error. gRPC reports
+its final status and error details in trailers and retains the initial activation
+snapshot as described under [client errors](#read-activation-on-client-errors).
+
+See the [runnable negotiation sample](../samples/ExtensionNegotiation/README.md)
+and the regression coverage for
+[HTTP/JSON-RPC hosting](../tests/A2A.AspNetCore.UnitTests/A2AExtensionHostingTests.cs),
+[HTTP/JSON-RPC client metadata](../tests/A2A.UnitTests/Client/A2AExtensionErrorMetadataTests.cs),
+[gRPC hosting](../tests/A2A.Grpc.UnitTests/GrpcExtensionHostingTests.cs), and
+[gRPC client metadata](../tests/A2A.Grpc.UnitTests/GrpcExtensionErrorMetadataTests.cs).
 
 ## Agent Card consistency
 

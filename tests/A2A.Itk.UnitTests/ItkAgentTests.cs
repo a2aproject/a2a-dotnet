@@ -86,7 +86,7 @@ public sealed class ItkAgentTests
             {
                 TaskId = "missing-task",
                 Url = "http://127.0.0.1:1234/notifications",
-            }));
+            }, null));
 
         Assert.Equal(A2AErrorCode.TaskNotFound, exception.ErrorCode);
     }

@@ -46,10 +46,10 @@ public sealed class ActsServer(
 
     /// <inheritdoc />
     public override Task<AgentCard> GetExtendedAgentCardAsync(
-        GetExtendedAgentCardRequest request, CancellationToken cancellationToken = default)
+        GetExtendedAgentCardRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default)
         => _supported
             ? Task.FromResult(extendedCard)
-            : base.GetExtendedAgentCardAsync(request, cancellationToken);
+            : base.GetExtendedAgentCardAsync(request, requestContext, cancellationToken);
 
     /// <summary>
     /// The extended card: the public one plus a skill only an authenticated caller sees.

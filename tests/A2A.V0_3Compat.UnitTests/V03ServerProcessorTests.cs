@@ -420,22 +420,22 @@ public class V03ServerProcessorTests
         public bool Invoked { get; private set; }
 
         public override Task<SendMessageResponse> SendMessageAsync(
-            SendMessageRequest request, CancellationToken cancellationToken = default) => throw UnexpectedCall();
+            SendMessageRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default) => throw UnexpectedCall();
 
         public override Task<AgentTask> GetTaskAsync(
-            GetTaskRequest request, CancellationToken cancellationToken = default) => throw UnexpectedCall();
+            GetTaskRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default) => throw UnexpectedCall();
 
         public override Task<ListTasksResponse> ListTasksAsync(
-            ListTasksRequest request, CancellationToken cancellationToken = default) => throw UnexpectedCall();
+            ListTasksRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default) => throw UnexpectedCall();
 
         public override Task<AgentTask> CancelTaskAsync(
-            CancelTaskRequest request, CancellationToken cancellationToken = default) => throw UnexpectedCall();
+            CancelTaskRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default) => throw UnexpectedCall();
 
         public override IAsyncEnumerable<StreamResponse> SendStreamingMessageAsync(
-            SendMessageRequest request, CancellationToken cancellationToken = default) => throw UnexpectedCall();
+            SendMessageRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default) => throw UnexpectedCall();
 
         public override IAsyncEnumerable<StreamResponse> SubscribeToTaskAsync(
-            SubscribeToTaskRequest request, CancellationToken cancellationToken = default) => throw UnexpectedCall();
+            SubscribeToTaskRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default) => throw UnexpectedCall();
 
         private InvalidOperationException UnexpectedCall()
         {
@@ -448,7 +448,7 @@ public class V03ServerProcessorTests
         : A2AServer(new MinimalAgentHandler(), new InMemoryTaskStore(), new ChannelEventNotifier(), NullLogger<A2AServer>.Instance)
     {
         public override Task<TaskPushNotificationConfig> CreateTaskPushNotificationConfigAsync(
-            TaskPushNotificationConfig config, CancellationToken cancellationToken = default) => Task.FromResult(config);
+            TaskPushNotificationConfig config, A2ARequestContext? requestContext, CancellationToken cancellationToken = default) => Task.FromResult(config);
     }
 
     private sealed class MinimalAgentHandler : IAgentHandler
@@ -479,7 +479,7 @@ public class V03ServerProcessorTests
         internal SendMessageRequest? LastStreamingSendRequest { get; private set; }
 
         public Task<SendMessageResponse> SendMessageAsync(
-            SendMessageRequest request, CancellationToken cancellationToken = default)
+            SendMessageRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default)
         {
             LastSendMessageRequest = request;
             return Task.FromResult(new SendMessageResponse
@@ -489,43 +489,43 @@ public class V03ServerProcessorTests
         }
 
         public IAsyncEnumerable<StreamResponse> SendStreamingMessageAsync(
-            SendMessageRequest request, CancellationToken cancellationToken = default)
+            SendMessageRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default)
         {
             LastStreamingSendRequest = request;
             return SingleStreamResponse();
         }
 
-        public Task<AgentTask> GetTaskAsync(GetTaskRequest request, CancellationToken cancellationToken = default) =>
+        public Task<AgentTask> GetTaskAsync(GetTaskRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<ListTasksResponse> ListTasksAsync(ListTasksRequest request, CancellationToken cancellationToken = default) =>
+        public Task<ListTasksResponse> ListTasksAsync(ListTasksRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<AgentTask> CancelTaskAsync(CancelTaskRequest request, CancellationToken cancellationToken = default) =>
+        public Task<AgentTask> CancelTaskAsync(CancelTaskRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public IAsyncEnumerable<StreamResponse> SubscribeToTaskAsync(
-            SubscribeToTaskRequest request, CancellationToken cancellationToken = default) =>
+            SubscribeToTaskRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<TaskPushNotificationConfig> CreateTaskPushNotificationConfigAsync(
-            TaskPushNotificationConfig config, CancellationToken cancellationToken = default) =>
+            TaskPushNotificationConfig config, A2ARequestContext? requestContext, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<TaskPushNotificationConfig> GetTaskPushNotificationConfigAsync(
-            GetTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default) =>
+            GetTaskPushNotificationConfigRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<ListTaskPushNotificationConfigsResponse> ListTaskPushNotificationConfigsAsync(
-            ListTaskPushNotificationConfigsRequest request, CancellationToken cancellationToken = default) =>
+            ListTaskPushNotificationConfigsRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task DeleteTaskPushNotificationConfigAsync(
-            DeleteTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default) =>
+            DeleteTaskPushNotificationConfigRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<AgentCard> GetExtendedAgentCardAsync(
-            GetExtendedAgentCardRequest request, CancellationToken cancellationToken = default) =>
+            GetExtendedAgentCardRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         private static async IAsyncEnumerable<StreamResponse> SingleStreamResponse()

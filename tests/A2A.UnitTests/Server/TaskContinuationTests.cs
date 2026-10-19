@@ -22,7 +22,7 @@ public sealed partial class TaskContinuationTests
         await _registrations.SaveAsync(Config("second"));
         await using var server = Server();
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await using var subscriber = server.SubscribeToTaskAsync(new() { Id = "task" }, timeout.Token)
+        await using var subscriber = server.SubscribeToTaskAsync(new() { Id = "task" }, null, timeout.Token)
             .GetAsyncEnumerator(timeout.Token);
         Assert.True(await subscriber.MoveNextAsync());
 
@@ -209,7 +209,7 @@ public sealed partial class TaskContinuationTests
         var error = await Assert.ThrowsAsync<TaskContinuationException>(() =>
             server.ContinueTaskAsync("task", async (context, cancellationToken) =>
             {
-                await server.DeleteTaskPushNotificationConfigAsync(new() { TaskId = "task", Id = "config" }, cancellationToken);
+                await server.DeleteTaskPushNotificationConfigAsync(new() { TaskId = "task", Id = "config" }, null, cancellationToken);
                 await context.EventQueue.EnqueueMessageAsync(Message("committed"), cancellationToken);
             }));
         Assert.Equal(TaskContinuationFailureKind.PushAdmission, error.FailureKind);
@@ -301,7 +301,7 @@ public sealed partial class TaskContinuationTests
         };
         await using var server = Server(handler);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await using var stream = server.SendStreamingMessageAsync(new() { Message = Message("inbound") }, timeout.Token)
+        await using var stream = server.SendStreamingMessageAsync(new() { Message = Message("inbound") }, null, timeout.Token)
             .GetAsyncEnumerator(timeout.Token);
         try
         {

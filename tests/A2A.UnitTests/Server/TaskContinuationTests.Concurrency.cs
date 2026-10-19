@@ -36,7 +36,7 @@ public sealed partial class TaskContinuationTests
             },
         };
         await using var server = Server(handler);
-        await using var stream = server.SendStreamingMessageAsync(new() { Message = Message("inbound") }).GetAsyncEnumerator();
+        await using var stream = server.SendStreamingMessageAsync(new() { Message = Message("inbound") }, null).GetAsyncEnumerator();
         try
         {
             Assert.True(await stream.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5)));
@@ -44,7 +44,7 @@ public sealed partial class TaskContinuationTests
             release.TrySetResult();
             await blockedResponse.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-            var canceled = await server.CancelTaskAsync(new() { Id = "task" }).WaitAsync(TimeSpan.FromSeconds(2));
+            var canceled = await server.CancelTaskAsync(new() { Id = "task" }, null).WaitAsync(TimeSpan.FromSeconds(2));
 
             Assert.Equal(TaskState.Canceled, canceled.Status.State);
             Assert.True(producerStopped.Task.IsCompleted);
@@ -90,8 +90,8 @@ public sealed partial class TaskContinuationTests
             Message = Message("inbound"),
             Configuration = new() { ReturnImmediately = true },
         };
-        await using var stream = server.SendStreamingMessageAsync(request).GetAsyncEnumerator();
-        Task pendingRequest = streaming ? stream.MoveNextAsync().AsTask() : server.SendMessageAsync(request);
+        await using var stream = server.SendStreamingMessageAsync(request, null).GetAsyncEnumerator();
+        Task pendingRequest = streaming ? stream.MoveNextAsync().AsTask() : server.SendMessageAsync(request, null);
         try
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -106,7 +106,7 @@ public sealed partial class TaskContinuationTests
             }
             else
             {
-                var canceled = await server.CancelTaskAsync(new() { Id = "task" }).WaitAsync(TimeSpan.FromSeconds(2));
+                var canceled = await server.CancelTaskAsync(new() { Id = "task" }, null).WaitAsync(TimeSpan.FromSeconds(2));
                 Assert.Equal(TaskState.Canceled, canceled.Status.State);
             }
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pendingRequest.WaitAsync(TimeSpan.FromSeconds(5)));
@@ -177,12 +177,12 @@ public sealed partial class TaskContinuationTests
         {
             if (streaming)
             {
-                await using var stream = server.SendStreamingMessageAsync(request).GetAsyncEnumerator();
+                await using var stream = server.SendStreamingMessageAsync(request, null).GetAsyncEnumerator();
                 Assert.True(await stream.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5)));
             }
             else
             {
-                Assert.NotNull((await server.SendMessageAsync(request).WaitAsync(TimeSpan.FromSeconds(5))).Task);
+                Assert.NotNull((await server.SendMessageAsync(request, null).WaitAsync(TimeSpan.FromSeconds(5))).Task);
             }
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
             if (shutdown)
@@ -197,7 +197,7 @@ public sealed partial class TaskContinuationTests
             }
             else
             {
-                var canceled = await server.CancelTaskAsync(new() { Id = "task" }).WaitAsync(TimeSpan.FromSeconds(2));
+                var canceled = await server.CancelTaskAsync(new() { Id = "task" }, null).WaitAsync(TimeSpan.FromSeconds(2));
                 Assert.Equal(TaskState.Canceled, canceled.Status.State);
             }
             Assert.True(producerStopped.Task.IsCompleted);
@@ -261,12 +261,12 @@ public sealed partial class TaskContinuationTests
             await context.EventQueue.EnqueueMessageAsync(Message("proactive"), cancellationToken);
         }, timeout.Token);
 
-        Task first = inboundFirst ? server.SendMessageAsync(request, timeout.Token) : ContinueAsync();
+        Task first = inboundFirst ? server.SendMessageAsync(request, null, timeout.Token) : ContinueAsync();
         Task? second = null;
         try
         {
             await entered.Task.WaitAsync(timeout.Token);
-            second = inboundFirst ? ContinueAsync() : server.SendMessageAsync(request, timeout.Token);
+            second = inboundFirst ? ContinueAsync() : server.SendMessageAsync(request, null, timeout.Token);
             Assert.False(second.IsCompleted);
             if (inboundFirst)
             {
@@ -369,12 +369,12 @@ public sealed partial class TaskContinuationTests
         {
             if (streaming)
             {
-                await using var stream = server.SendStreamingMessageAsync(request, timeout.Token).GetAsyncEnumerator(timeout.Token);
+                await using var stream = server.SendStreamingMessageAsync(request, null, timeout.Token).GetAsyncEnumerator(timeout.Token);
                 Assert.True(await stream.MoveNextAsync());
             }
             else
             {
-                Assert.NotNull((await server.SendMessageAsync(request, timeout.Token)).Task);
+                Assert.NotNull((await server.SendMessageAsync(request, null, timeout.Token)).Task);
             }
             await entered.Task.WaitAsync(timeout.Token);
             continuation = server.ContinueTaskAsync("task", async (context, cancellationToken) =>

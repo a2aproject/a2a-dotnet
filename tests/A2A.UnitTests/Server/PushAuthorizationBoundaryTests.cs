@@ -26,10 +26,10 @@ public sealed class PushAuthorizationBoundaryTests
             _configs, new Validator(), new Sender());
         var operations = new Func<Task>[]
         {
-            () => server.CreateTaskPushNotificationConfigAsync(new() { TaskId = "private", Url = "https://callback.example/" }),
-            () => server.GetTaskPushNotificationConfigAsync(new() { TaskId = "private", Id = "config" }),
-            () => server.ListTaskPushNotificationConfigsAsync(new() { TaskId = "private" }),
-            () => server.DeleteTaskPushNotificationConfigAsync(new() { TaskId = "private", Id = "config" }),
+            () => server.CreateTaskPushNotificationConfigAsync(new() { TaskId = "private", Url = "https://callback.example/" }, null),
+            () => server.GetTaskPushNotificationConfigAsync(new() { TaskId = "private", Id = "config" }, null),
+            () => server.ListTaskPushNotificationConfigsAsync(new() { TaskId = "private" }, null),
+            () => server.DeleteTaskPushNotificationConfigAsync(new() { TaskId = "private", Id = "config" }, null),
         };
         foreach (var operation in operations)
         {
