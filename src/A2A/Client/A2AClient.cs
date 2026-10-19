@@ -236,6 +236,13 @@ public sealed class A2AClient : IA2AClient, IDisposable
                     ? new A2AException(error.Message, (A2AErrorCode)error.Code)
                     : new A2AException("Expected a streaming JSON-RPC response.", A2AErrorCode.InvalidAgentResponse);
             }
+
+            // Anything else that is not an event stream has no `data:` lines, so the SSE parser would
+            // end the call with no events and no error.
+            if (!string.Equals(response.Content.Headers.ContentType?.MediaType, "text/event-stream", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new A2AException("Expected an event stream from the streaming call.", A2AErrorCode.InvalidAgentResponse);
+            }
         }
         catch (Exception ex)
         {

@@ -309,6 +309,75 @@ public class A2AClientTests
     }
 
     [Fact]
+    public async Task SendStreamingMessageAsync_ThrowsOnPlainJsonRpcErrorResponse()
+    {
+        // A server answers a failure that happens before the stream starts (for example
+        // A2AJsonRpcProcessor, since #476) with a plain application/json JSON-RPC error
+        // instead of an event stream. It must surface as the error, not an empty stream.
+        var sut = CreateA2AClient(JsonRpcResponse.InvalidParamsResponse("test-id"), isSse: false);
+
+        var sendRequest = new SendMessageRequest { Message = new Message { Parts = [], Role = Role.User } };
+
+        var exception = await Assert.ThrowsAsync<A2AException>(async () =>
+        {
+            await foreach (var _ in sut.SendStreamingMessageAsync(sendRequest))
+            {
+            }
+        });
+
+        Assert.Equal(A2AErrorCode.InvalidParams, exception.ErrorCode);
+    }
+
+    [Fact]
+    public async Task SubscribeToTaskAsync_ThrowsOnPlainJsonRpcErrorResponse()
+    {
+        var sut = CreateA2AClient(JsonRpcResponse.TaskNotFoundResponse("test-id"), isSse: false);
+
+        var exception = await Assert.ThrowsAsync<A2AException>(async () =>
+        {
+            await foreach (var _ in sut.SubscribeToTaskAsync(new SubscribeToTaskRequest { Id = "missing" }))
+            {
+            }
+        });
+
+        Assert.Equal(A2AErrorCode.TaskNotFound, exception.ErrorCode);
+    }
+
+    [Fact]
+    public async Task SendStreamingMessageAsync_ThrowsWhenTheBodyIsNeitherAnEventStreamNorAJsonRpcResponse()
+    {
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("<html>not a stream</html>", Encoding.UTF8, "text/html")
+        };
+        var sut = new A2AClient(new Uri("http://localhost"), new HttpClient(new MockHttpMessageHandler(response)));
+
+        await Assert.ThrowsAsync<A2AException>(async () =>
+        {
+            await foreach (var _ in sut.SendStreamingMessageAsync(
+                new SendMessageRequest { Message = new Message { Parts = [], Role = Role.User } }))
+            {
+            }
+        });
+    }
+
+    [Fact]
+    public async Task SendStreamingMessageAsync_ThrowsA2AExceptionOnMalformedPlainJsonRpcResult()
+    {
+        // A valid JSON-RPC envelope whose result is not a StreamResponse must surface as
+        // A2AException, not a raw JsonException.
+        var sut = CreateA2AClient(new JsonRpcResponse { Id = "test-id", Result = System.Text.Json.Nodes.JsonValue.Create(42) }, isSse: false);
+
+        await Assert.ThrowsAsync<A2AException>(async () =>
+        {
+            await foreach (var _ in sut.SendStreamingMessageAsync(
+                new SendMessageRequest { Message = new Message { Parts = [], Role = Role.User } }))
+            {
+            }
+        });
+    }
+
+    [Fact]
     public async Task SendMessageAsync_ThrowsOnJsonRpcError()
     {
         // Arrange
