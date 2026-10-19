@@ -30,6 +30,22 @@ This follows the protocol's
 [extension activation model](https://a2a-protocol.org/latest/topics/extensions/#extension-activation).
 Negotiation is not an authorization mechanism.
 
+When a handler retains an `A2AExtensionRegistration`, use the typed snapshot
+helpers rather than comparing its URI alone:
+
+```csharp
+bool requested = requestContext.WasRequested(debate);
+bool active = requestContext.IsActivated(debate);
+```
+
+Both helpers require a registration from the same registry that created the
+context. A registration from another registry throws `InvalidOperationException`,
+even if its URI is identical; a null registration throws `ArgumentNullException`.
+An optional extension declined by the availability policy was requested but is
+not active. The helpers only read the frozen snapshot: they do not renegotiate or
+reevaluate availability. The read-only identifier sets remain available for
+consumers without a registration handle.
+
 ## Register an extension and an operation
 
 The following types and JSON metadata come from
