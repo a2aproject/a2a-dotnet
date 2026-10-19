@@ -280,7 +280,7 @@ public class A2AJsonRpcProcessorTests
                 It.Is<SendMessageRequest>(request =>
                     request.Tenant == null &&
                     request.Configuration!.TaskPushNotificationConfig!.Tenant == null),
-                It.IsAny<CancellationToken>()))
+                It.IsAny<A2ARequestContext?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new SendMessageResponse
             {
                 Message = new Message { MessageId = "response", Role = Role.Agent, Parts = [] },
@@ -349,7 +349,7 @@ public class A2AJsonRpcProcessorTests
                 It.Is<SendMessageRequest>(request =>
                     request.Tenant == null &&
                     request.Configuration!.TaskPushNotificationConfig!.Tenant == null),
-                It.IsAny<CancellationToken>()))
+                It.IsAny<A2ARequestContext?>(), It.IsAny<CancellationToken>()))
             .Returns(SingleStreamResponse());
         var request = new SendMessageRequest
         {

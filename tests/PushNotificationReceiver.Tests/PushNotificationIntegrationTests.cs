@@ -863,7 +863,7 @@ public sealed class PushNotificationIntegrationTests(Xunit.Abstractions.ITestOut
         }
 
         public override Task<TaskPushNotificationConfig> CreateTaskPushNotificationConfigAsync(
-            TaskPushNotificationConfig config, CancellationToken cancellationToken = default) => Task.FromResult(config);
+            TaskPushNotificationConfig config, A2ARequestContext? requestContext, CancellationToken cancellationToken = default) => Task.FromResult(config);
     }
 
     public sealed class IntegrationAgent : IAgentHandler

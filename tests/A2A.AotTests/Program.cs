@@ -231,19 +231,17 @@ foreach (var (path, method, value) in new[]
     }
 }
 
-// Exercise the additive context-aware interface and adapter under Native AOT, including
-// its default implementations for standard operations that do not execute agent code.
-var contextualServer = server.WithRequestContext(activation);
-var standardResponse = await contextualServer.SendMessageAsync(new SendMessageRequest
+// Exercise explicit request context propagation under Native AOT.
+var standardResponse = await server.SendMessageAsync(new SendMessageRequest
 {
     Message = new Message { MessageId = "aot-standard", Role = Role.User, Parts = [Part.FromText("hello")] },
-}).ConfigureAwait(false);
+}, activation).ConfigureAwait(false);
 if (standardResponse.Message?.Parts[0].Text != "activation reached the agent")
     throw new InvalidOperationException("Native standard agent context propagation failed.");
 try
 {
-    await contextualServer.GetTaskAsync(new GetTaskRequest { Id = "missing" }).ConfigureAwait(false);
-    throw new InvalidOperationException("Expected the legacy standard operation error.");
+    await server.GetTaskAsync(new GetTaskRequest { Id = "missing" }, activation).ConfigureAwait(false);
+    throw new InvalidOperationException("Expected the standard operation error.");
 }
 catch (A2AException error) when (error.ErrorCode == A2AErrorCode.TaskNotFound) { }
 

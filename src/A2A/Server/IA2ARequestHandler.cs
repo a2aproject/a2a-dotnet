@@ -4,71 +4,87 @@ namespace A2A;
 /// Contract between protocol processors and the task management layer.
 /// Implemented by <see cref="A2AServer"/> (easy path) and by custom implementations (difficult path).
 /// </summary>
+/// <remarks>
+/// Every operation receives an immutable, transport-neutral request context.
+/// A null context means the request did not use registry-aware extension negotiation.
+/// The context belongs to this request, not the task or conversation.
+/// </remarks>
 public interface IA2ARequestHandler
 {
     /// <summary>Handles a send message request.</summary>
     /// <param name="request">The send message request.</param>
+    /// <param name="requestContext">The negotiated request snapshot, or null.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The send message response.</returns>
-    Task<SendMessageResponse> SendMessageAsync(SendMessageRequest request, CancellationToken cancellationToken = default);
+    Task<SendMessageResponse> SendMessageAsync(SendMessageRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default);
 
     /// <summary>Handles a streaming send message request.</summary>
     /// <param name="request">The send message request.</param>
+    /// <param name="requestContext">The negotiated request snapshot, or null.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>An asynchronous enumerable of streaming responses.</returns>
-    IAsyncEnumerable<StreamResponse> SendStreamingMessageAsync(SendMessageRequest request, CancellationToken cancellationToken = default);
+    IAsyncEnumerable<StreamResponse> SendStreamingMessageAsync(SendMessageRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default);
 
     /// <summary>Gets a task by ID.</summary>
     /// <param name="request">The get task request.</param>
+    /// <param name="requestContext">The negotiated request snapshot, or null.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The agent task.</returns>
-    Task<AgentTask> GetTaskAsync(GetTaskRequest request, CancellationToken cancellationToken = default);
+    Task<AgentTask> GetTaskAsync(GetTaskRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default);
 
     /// <summary>Lists tasks with pagination.</summary>
     /// <param name="request">The list tasks request.</param>
+    /// <param name="requestContext">The negotiated request snapshot, or null.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The list tasks response.</returns>
-    Task<ListTasksResponse> ListTasksAsync(ListTasksRequest request, CancellationToken cancellationToken = default);
+    Task<ListTasksResponse> ListTasksAsync(ListTasksRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default);
 
     /// <summary>Cancels a task.</summary>
     /// <param name="request">The cancel task request.</param>
+    /// <param name="requestContext">The negotiated request snapshot, or null.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The canceled agent task.</returns>
-    Task<AgentTask> CancelTaskAsync(CancelTaskRequest request, CancellationToken cancellationToken = default);
+    Task<AgentTask> CancelTaskAsync(CancelTaskRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default);
 
     /// <summary>Subscribes to task updates.</summary>
     /// <param name="request">The subscribe to task request.</param>
+    /// <param name="requestContext">The negotiated request snapshot, or null.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>An asynchronous enumerable of streaming responses.</returns>
-    IAsyncEnumerable<StreamResponse> SubscribeToTaskAsync(SubscribeToTaskRequest request, CancellationToken cancellationToken = default);
+    IAsyncEnumerable<StreamResponse> SubscribeToTaskAsync(SubscribeToTaskRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default);
 
     /// <summary>Creates a push notification configuration.</summary>
     /// <param name="config">The push notification configuration to create.</param>
+    /// <param name="requestContext">The negotiated request snapshot, or null.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The created push notification configuration.</returns>
-    Task<TaskPushNotificationConfig> CreateTaskPushNotificationConfigAsync(TaskPushNotificationConfig config, CancellationToken cancellationToken = default);
+    Task<TaskPushNotificationConfig> CreateTaskPushNotificationConfigAsync(TaskPushNotificationConfig config, A2ARequestContext? requestContext, CancellationToken cancellationToken = default);
 
     /// <summary>Gets a push notification configuration.</summary>
     /// <param name="request">The get push notification config request.</param>
+    /// <param name="requestContext">The negotiated request snapshot, or null.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The push notification configuration.</returns>
-    Task<TaskPushNotificationConfig> GetTaskPushNotificationConfigAsync(GetTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default);
+    Task<TaskPushNotificationConfig> GetTaskPushNotificationConfigAsync(GetTaskPushNotificationConfigRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default);
 
     /// <summary>Lists push notification configurations.</summary>
     /// <param name="request">The list push notification configs request.</param>
+    /// <param name="requestContext">The negotiated request snapshot, or null.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The list push notification configs response.</returns>
-    Task<ListTaskPushNotificationConfigsResponse> ListTaskPushNotificationConfigsAsync(ListTaskPushNotificationConfigsRequest request, CancellationToken cancellationToken = default);
+    Task<ListTaskPushNotificationConfigsResponse> ListTaskPushNotificationConfigsAsync(ListTaskPushNotificationConfigsRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default);
 
     /// <summary>Deletes a push notification configuration.</summary>
     /// <param name="request">The delete push notification config request.</param>
+    /// <param name="requestContext">The negotiated request snapshot, or null.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    Task DeleteTaskPushNotificationConfigAsync(DeleteTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default);
+    Task DeleteTaskPushNotificationConfigAsync(DeleteTaskPushNotificationConfigRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default);
 
     /// <summary>Gets the extended agent card.</summary>
     /// <param name="request">The get extended agent card request.</param>
+    /// <param name="requestContext">The negotiated request snapshot, or null.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The extended agent card.</returns>
-    Task<AgentCard> GetExtendedAgentCardAsync(GetExtendedAgentCardRequest request, CancellationToken cancellationToken = default);
+    Task<AgentCard> GetExtendedAgentCardAsync(GetExtendedAgentCardRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default);
 }

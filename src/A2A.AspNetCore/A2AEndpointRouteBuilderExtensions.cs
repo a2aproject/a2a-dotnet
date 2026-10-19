@@ -234,53 +234,53 @@ public static class A2ARouteBuilderExtensions
         AddA2AVersionFilter(routeGroup);
 
         // Task operations
-        IA2ARequestHandler HandlerFor(HttpContext context) => registry is null
-            ? requestHandler
-            : requestHandler.WithRequestContext(context.Features.Get<A2ARequestContext>());
+        A2ARequestContext? RequestContextFor(HttpContext context) => registry is null
+            ? null
+            : context.Features.Get<A2ARequestContext>();
 
         routeGroup.MapGet("/tasks/{id}", (HttpContext context, string id, [FromQuery] int? historyLength, CancellationToken ct)
-            => A2AHttpProcessor.GetTaskRestAsync(HandlerFor(context), logger, id, historyLength, ct));
+            => A2AHttpProcessor.GetTaskRestAsync(requestHandler, logger, id, historyLength, ct, RequestContextFor(context)));
 
         routeGroup.MapPost("/tasks/{id}:cancel", (HttpContext context, string id, CancellationToken ct)
-            => A2AHttpProcessor.CancelTaskRestAsync(HandlerFor(context), logger, id, ct));
+            => A2AHttpProcessor.CancelTaskRestAsync(requestHandler, logger, id, ct, RequestContextFor(context)));
 
         routeGroup.MapPost("/tasks/{id}:subscribe", (HttpContext context, string id, CancellationToken ct)
-            => A2AHttpProcessor.SubscribeToTaskRest(HandlerFor(context), logger, id, ct));
+            => A2AHttpProcessor.SubscribeToTaskRest(requestHandler, logger, id, ct, RequestContextFor(context)));
 
         routeGroup.MapGet("/tasks", (HttpContext context, [FromQuery] string? contextId, [FromQuery] string? status,
             [FromQuery] int? pageSize, [FromQuery] string? pageToken, [FromQuery] int? historyLength,
             [FromQuery] DateTimeOffset? statusTimestampAfter, [FromQuery] bool? includeArtifacts,
             CancellationToken ct)
-            => A2AHttpProcessor.ListTasksRestAsync(HandlerFor(context), logger, contextId, status, pageSize, pageToken,
-                historyLength, statusTimestampAfter, includeArtifacts, ct));
+            => A2AHttpProcessor.ListTasksRestAsync(requestHandler, logger, contextId, status, pageSize, pageToken,
+                historyLength, statusTimestampAfter, includeArtifacts, ct, RequestContextFor(context)));
 
         // Message operations
         routeGroup.MapPost("/message:send", (HttpContext context, [FromBody] SendMessageRequest request, CancellationToken ct)
-            => A2AHttpProcessor.SendMessageRestAsync(HandlerFor(context), logger, request, ct));
+            => A2AHttpProcessor.SendMessageRestAsync(requestHandler, logger, request, ct, RequestContextFor(context)));
 
         routeGroup.MapPost("/message:stream", (HttpContext context, [FromBody] SendMessageRequest request, CancellationToken ct)
-            => A2AHttpProcessor.SendMessageStreamRest(HandlerFor(context), logger, request, ct));
+            => A2AHttpProcessor.SendMessageStreamRest(requestHandler, logger, request, ct, RequestContextFor(context)));
 
         // Push notification config operations
         routeGroup.MapPost("/tasks/{id}/pushNotificationConfigs",
             (HttpContext context, string id, [FromBody] TaskPushNotificationConfig config, CancellationToken ct)
-            => A2AHttpProcessor.CreatePushNotificationConfigRestAsync(HandlerFor(context), logger, id, config, ct));
+            => A2AHttpProcessor.CreatePushNotificationConfigRestAsync(requestHandler, logger, id, config, ct, RequestContextFor(context)));
 
         routeGroup.MapGet("/tasks/{id}/pushNotificationConfigs",
             (HttpContext context, string id, [FromQuery] int? pageSize, [FromQuery] string? pageToken, CancellationToken ct)
-            => A2AHttpProcessor.ListPushNotificationConfigRestAsync(HandlerFor(context), logger, id, pageSize, pageToken, ct));
+            => A2AHttpProcessor.ListPushNotificationConfigRestAsync(requestHandler, logger, id, pageSize, pageToken, ct, RequestContextFor(context)));
 
         routeGroup.MapGet("/tasks/{id}/pushNotificationConfigs/{configId}",
             (HttpContext context, string id, string configId, CancellationToken ct)
-            => A2AHttpProcessor.GetPushNotificationConfigRestAsync(HandlerFor(context), logger, id, configId, ct));
+            => A2AHttpProcessor.GetPushNotificationConfigRestAsync(requestHandler, logger, id, configId, ct, RequestContextFor(context)));
 
         routeGroup.MapDelete("/tasks/{id}/pushNotificationConfigs/{configId}",
             (HttpContext context, string id, string configId, CancellationToken ct)
-            => A2AHttpProcessor.DeletePushNotificationConfigRestAsync(HandlerFor(context), logger, id, configId, ct));
+            => A2AHttpProcessor.DeletePushNotificationConfigRestAsync(requestHandler, logger, id, configId, ct, RequestContextFor(context)));
 
         // Extended agent card
         routeGroup.MapGet("/extendedAgentCard", (HttpContext context, CancellationToken ct)
-            => A2AHttpProcessor.GetExtendedAgentCardRestAsync(HandlerFor(context), logger, ct, registry));
+            => A2AHttpProcessor.GetExtendedAgentCardRestAsync(requestHandler, logger, ct, registry, RequestContextFor(context)));
 
         return routeGroup;
     }

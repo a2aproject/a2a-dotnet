@@ -106,6 +106,7 @@ public sealed class GrpcExtensionHostingTests
             Assert.Null((await call.ResponseHeadersAsync).GetValue(MetadataKey));
         }
         Assert.NotNull(host.Handler.LastSendMessage);
+        Assert.Null(host.Handler.LastRequestContext);
     }
 
     [Fact]
@@ -222,6 +223,9 @@ public sealed class GrpcExtensionHostingTests
             Assert.NotNull(host.Handler.LastGetTask);
             Assert.Equal(ExtensionUri, (await accepted.ResponseHeadersAsync).GetValue(MetadataKey));
         }
+        var activation = Assert.IsType<A2ARequestContext>(host.Handler.LastRequestContext);
+        Assert.Equal(ExtensionUri, Assert.Single(activation.ActivatedExtensions));
+        Assert.True(host.Handler.LastCancellationToken.CanBeCanceled);
     }
 
     [Fact]
@@ -233,6 +237,9 @@ public sealed class GrpcExtensionHostingTests
         await call.ResponseAsync;
 
         Assert.NotNull(host.Handler.LastGetTask);
+        var activation = Assert.IsType<A2ARequestContext>(host.Handler.LastRequestContext);
+        Assert.Empty(activation.ActivatedExtensions);
+        Assert.Equal(ExtensionUri, Assert.Single(activation.RequestedExtensions));
         Assert.Null((await call.ResponseHeadersAsync).GetValue(MetadataKey));
     }
 
@@ -524,6 +531,7 @@ public sealed class GrpcExtensionHostingTests
         await call.ResponseAsync;
 
         Assert.NotNull(host.Handler.LastGetTask);
+        Assert.Null(host.Handler.LastRequestContext);
         Assert.Null((await call.ResponseHeadersAsync).GetValue(MetadataKey));
     }
 
