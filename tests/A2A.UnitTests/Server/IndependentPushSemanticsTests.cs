@@ -20,7 +20,7 @@ public sealed class IndependentPushSemanticsTests
         {
             Url = "https://callback.example/notify",
         };
-        var response = await server.SendMessageAsync(request);
+        var response = await server.SendMessageAsync(request, null);
         Assert.NotNull(response.Message);
         Assert.Null(response.Task);
         Assert.Empty(_sender.Events);
@@ -34,7 +34,7 @@ public sealed class IndependentPushSemanticsTests
         await using var server = Server();
         var request = Request();
         request.Configuration!.HistoryLength = 0;
-        var response = await server.SendMessageAsync(request);
+        var response = await server.SendMessageAsync(request, null);
         Assert.NotNull(response.Task);
         Assert.Empty(response.Task.History ?? []);
         Assert.Equal(2, (await _tasks.GetTaskAsync(response.Task.Id))!.History!.Count);
@@ -64,7 +64,7 @@ public sealed class IndependentPushSemanticsTests
         var request = Request();
         request.Message.TaskId = "task";
         var events = new List<StreamResponse>();
-        await foreach (var response in server.SendStreamingMessageAsync(request))
+        await foreach (var response in server.SendStreamingMessageAsync(request, null))
         {
             events.Add(response);
         }
@@ -79,7 +79,7 @@ public sealed class IndependentPushSemanticsTests
         _handler.ProduceTask = true;
         _handler.ResponseState = TaskState.Working;
         await using var server = Server();
-        var exception = await Assert.ThrowsAsync<A2AException>(() => server.SendMessageAsync(Request()));
+        var exception = await Assert.ThrowsAsync<A2AException>(() => server.SendMessageAsync(Request(), null));
         Assert.Equal(A2AErrorCode.InvalidAgentResponse, exception.ErrorCode);
     }
 

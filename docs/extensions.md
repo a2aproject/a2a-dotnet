@@ -119,7 +119,7 @@ app.MapHttpA2A(requestHandler, "/http", extensions, httpBindings);
 The optional custom mappings do not replace standard operations. Negotiation also
 applies to standard operations on these registry-aware endpoints. Standard agents
 receive the snapshot through `RequestContext.ExtensionActivation`; custom request
-handlers can opt into `IA2ARequestHandlerWithContext`. Custom operations get it
+handlers receive it as the `requestContext` argument on `IA2ARequestHandler`. Custom operations get it
 through `A2ACustomOperationContext`. Transport features remain available to hosts.
 
 For easy-path DI hosting, register with
@@ -193,27 +193,29 @@ or conversation, and a later request negotiates independently. `null` means ther
 was no negotiation; a negotiated context can instead have an empty activated set.
 No HTTP/gRPC accessor or ambient request state is required by the agent.
 
-For a custom standard request handler, implement `IA2ARequestHandlerWithContext`
-and override the three-argument operations that consume activation. Each default
-implementation forwards to its legacy operation, so unmodified
-`IA2ARequestHandler` implementations continue to work. The added cancellation-token
-arguments are deliberately required to avoid ambiguity in existing two-argument
-calls. For an `A2AServer` subclass, override the context-aware send/cancel overloads
-when customizing negotiated execution as well as the legacy path.
+For a custom standard request handler, implement `IA2ARequestHandler`. Every
+operation accepts an `A2ARequestContext? requestContext` argument between the
+request and the optional cancellation token. For an `A2AServer` subclass, override
+these same context-aware methods when customizing execution. There are no separate
+legacy overloads or opt-in interfaces.
 
-Registry-aware hosting binds the context automatically in all three transports.
-A host calling handlers directly can bind a snapshot explicitly:
+Delegating handlers should forward the received `requestContext` unchanged to the
+inner handler. Pass `null` only when no negotiation context exists; replacing a
+received context with `null` discards its negotiated extension state.
+
+Registry-aware hosting passes the context automatically in all three transports.
+A host calling handlers directly supplies a snapshot explicitly, or `null` when
+no negotiation occurred:
 
 ```csharp
 var snapshot = await registry.NegotiateExtensionsAsync(
     ["https://example.org/extensions/debate/v1"], cancellationToken: cancellationToken);
-var requestHandler = handler.WithRequestContext(snapshot);
-await requestHandler.SendMessageAsync(request, cancellationToken);
+await handler.SendMessageAsync(request, snapshot, cancellationToken);
 ```
 
-The adapter does not modify the shared handler. It captures only the immutable SDK
-context, not transport objects or request-scoped services. A handler that does not
-opt into the context-aware interface is returned unchanged.
+The context is an immutable SDK snapshot, not a transport object or a container
+for request-scoped services. Passing it explicitly does not modify the shared
+handler, so concurrent requests retain their own negotiated state.
 
 ## Required extensions and failures
 

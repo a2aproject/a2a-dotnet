@@ -21,11 +21,11 @@ public sealed class PushNotificationServerTests
     public async Task DisabledCapability_RejectsEveryOperationAndInlineConfig(bool? enabled)
     {
         await using var server = Server(enabled);
-        await ErrorAsync(A2AErrorCode.PushNotificationNotSupported, () => server.CreateTaskPushNotificationConfigAsync(Config()));
-        await ErrorAsync(A2AErrorCode.PushNotificationNotSupported, () => server.GetTaskPushNotificationConfigAsync(new() { TaskId = "task", Id = "config" }));
-        await ErrorAsync(A2AErrorCode.PushNotificationNotSupported, () => server.ListTaskPushNotificationConfigsAsync(new() { TaskId = "task" }));
-        await ErrorAsync(A2AErrorCode.PushNotificationNotSupported, () => server.DeleteTaskPushNotificationConfigAsync(new() { TaskId = "task", Id = "config" }));
-        await ErrorAsync(A2AErrorCode.PushNotificationNotSupported, () => server.SendMessageAsync(Request(inline: true)));
+        await ErrorAsync(A2AErrorCode.PushNotificationNotSupported, () => server.CreateTaskPushNotificationConfigAsync(Config(), null));
+        await ErrorAsync(A2AErrorCode.PushNotificationNotSupported, () => server.GetTaskPushNotificationConfigAsync(new() { TaskId = "task", Id = "config" }, null));
+        await ErrorAsync(A2AErrorCode.PushNotificationNotSupported, () => server.ListTaskPushNotificationConfigsAsync(new() { TaskId = "task" }, null));
+        await ErrorAsync(A2AErrorCode.PushNotificationNotSupported, () => server.DeleteTaskPushNotificationConfigAsync(new() { TaskId = "task", Id = "config" }, null));
+        await ErrorAsync(A2AErrorCode.PushNotificationNotSupported, () => server.SendMessageAsync(Request(inline: true), null));
         Assert.Equal(0, _handler.Calls);
         Assert.Equal(0, _validator.Calls);
     }
@@ -37,43 +37,43 @@ public sealed class PushNotificationServerTests
         await using var server = Server();
         var input = Config();
         input.Id = null;
-        var created = await server.CreateTaskPushNotificationConfigAsync(input);
+        var created = await server.CreateTaskPushNotificationConfigAsync(input, null);
         Assert.True(Guid.TryParse(created.Id, out _));
         Assert.Null(input.Id);
         Assert.Equal("credential", created.Authentication!.Credentials);
         Assert.Equal("token", created.Token);
         created.Authentication.Credentials = "changed-by-client";
-        var get = await server.GetTaskPushNotificationConfigAsync(new() { TaskId = "task", Id = created.Id! });
+        var get = await server.GetTaskPushNotificationConfigAsync(new() { TaskId = "task", Id = created.Id! }, null);
         Assert.Null(get.Token);
         Assert.Null(get.Authentication!.Credentials);
         Assert.Equal("Bearer", get.Authentication.Scheme);
-        var list = await server.ListTaskPushNotificationConfigsAsync(new() { TaskId = "task" });
+        var list = await server.ListTaskPushNotificationConfigsAsync(new() { TaskId = "task" }, null);
         Assert.Null(Assert.Single(list.Configs!).Token);
         Assert.Null(list.Configs![0].Authentication!.Credentials);
         Assert.Equal(string.Empty, list.NextPageToken);
         Assert.Equal("credential", (await _configs.GetAsync("task", created.Id!))!.Configuration.Authentication!.Credentials);
-        await ErrorAsync(A2AErrorCode.InvalidParams, () => server.CreateTaskPushNotificationConfigAsync(created));
-        await server.DeleteTaskPushNotificationConfigAsync(new() { TaskId = "task", Id = created.Id! });
-        await server.DeleteTaskPushNotificationConfigAsync(new() { TaskId = "task", Id = created.Id! });
-        await ErrorAsync(A2AErrorCode.TaskNotFound, () => server.GetTaskPushNotificationConfigAsync(new() { TaskId = "task", Id = created.Id! }));
+        await ErrorAsync(A2AErrorCode.InvalidParams, () => server.CreateTaskPushNotificationConfigAsync(created, null));
+        await server.DeleteTaskPushNotificationConfigAsync(new() { TaskId = "task", Id = created.Id! }, null);
+        await server.DeleteTaskPushNotificationConfigAsync(new() { TaskId = "task", Id = created.Id! }, null);
+        await ErrorAsync(A2AErrorCode.TaskNotFound, () => server.GetTaskPushNotificationConfigAsync(new() { TaskId = "task", Id = created.Id! }, null));
     }
 
     [Fact]
     public async Task AllCrud_RequireAnExistingTaskAndValidIdentifiers()
     {
         await using var server = Server();
-        await ErrorAsync(A2AErrorCode.TaskNotFound, () => server.CreateTaskPushNotificationConfigAsync(Config()));
-        await ErrorAsync(A2AErrorCode.TaskNotFound, () => server.GetTaskPushNotificationConfigAsync(new() { TaskId = "task", Id = "id" }));
-        await ErrorAsync(A2AErrorCode.TaskNotFound, () => server.ListTaskPushNotificationConfigsAsync(new() { TaskId = "task" }));
-        await ErrorAsync(A2AErrorCode.TaskNotFound, () => server.DeleteTaskPushNotificationConfigAsync(new() { TaskId = "task", Id = "id" }));
+        await ErrorAsync(A2AErrorCode.TaskNotFound, () => server.CreateTaskPushNotificationConfigAsync(Config(), null));
+        await ErrorAsync(A2AErrorCode.TaskNotFound, () => server.GetTaskPushNotificationConfigAsync(new() { TaskId = "task", Id = "id" }, null));
+        await ErrorAsync(A2AErrorCode.TaskNotFound, () => server.ListTaskPushNotificationConfigsAsync(new() { TaskId = "task" }, null));
+        await ErrorAsync(A2AErrorCode.TaskNotFound, () => server.DeleteTaskPushNotificationConfigAsync(new() { TaskId = "task", Id = "id" }, null));
         await SeedAsync();
-        await ErrorAsync(A2AErrorCode.InvalidParams, () => server.GetTaskPushNotificationConfigAsync(new() { TaskId = "task", Id = "" }));
-        await ErrorAsync(A2AErrorCode.InvalidParams, () => server.DeleteTaskPushNotificationConfigAsync(new() { TaskId = "task", Id = null! }));
-        await ErrorAsync(A2AErrorCode.InvalidParams, () => server.ListTaskPushNotificationConfigsAsync(new() { TaskId = "" }));
-        await ErrorAsync(A2AErrorCode.InvalidParams, () => server.ListTaskPushNotificationConfigsAsync(new() { TaskId = "task", PageSize = -1 }));
+        await ErrorAsync(A2AErrorCode.InvalidParams, () => server.GetTaskPushNotificationConfigAsync(new() { TaskId = "task", Id = "" }, null));
+        await ErrorAsync(A2AErrorCode.InvalidParams, () => server.DeleteTaskPushNotificationConfigAsync(new() { TaskId = "task", Id = null! }, null));
+        await ErrorAsync(A2AErrorCode.InvalidParams, () => server.ListTaskPushNotificationConfigsAsync(new() { TaskId = "" }, null));
+        await ErrorAsync(A2AErrorCode.InvalidParams, () => server.ListTaskPushNotificationConfigsAsync(new() { TaskId = "task", PageSize = -1 }, null));
         using var canceled = new CancellationTokenSource();
         await canceled.CancelAsync();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => server.CreateTaskPushNotificationConfigAsync(Config(), canceled.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => server.CreateTaskPushNotificationConfigAsync(Config(), null, canceled.Token));
     }
 
     [Theory]
@@ -91,15 +91,15 @@ public sealed class PushNotificationServerTests
         await using var server = Server();
         var config = Config();
         config.Id = id;
-        await ErrorAsync(A2AErrorCode.InvalidParams, () => server.CreateTaskPushNotificationConfigAsync(config));
-        await ErrorAsync(A2AErrorCode.InvalidParams, () => server.GetTaskPushNotificationConfigAsync(new() { TaskId = "task", Id = id }));
-        await ErrorAsync(A2AErrorCode.InvalidParams, () => server.DeleteTaskPushNotificationConfigAsync(new() { TaskId = "task", Id = id }));
+        await ErrorAsync(A2AErrorCode.InvalidParams, () => server.CreateTaskPushNotificationConfigAsync(config, null));
+        await ErrorAsync(A2AErrorCode.InvalidParams, () => server.GetTaskPushNotificationConfigAsync(new() { TaskId = "task", Id = id }, null));
+        await ErrorAsync(A2AErrorCode.InvalidParams, () => server.DeleteTaskPushNotificationConfigAsync(new() { TaskId = "task", Id = id }, null));
         var request = Request(inline: true);
         request.Configuration!.TaskPushNotificationConfig!.Id = id;
-        await ErrorAsync(A2AErrorCode.InvalidParams, () => server.SendMessageAsync(request));
+        await ErrorAsync(A2AErrorCode.InvalidParams, () => server.SendMessageAsync(request, null));
         await ErrorAsync(A2AErrorCode.InvalidParams, async () =>
         {
-            await foreach (var response in server.SendStreamingMessageAsync(request))
+            await foreach (var response in server.SendStreamingMessageAsync(request, null))
             {
                 Assert.NotNull(response);
             }
@@ -124,7 +124,7 @@ public sealed class PushNotificationServerTests
             case "credentials": config.Authentication!.Credentials = "bad\nheader"; break;
             case "scheme": config.Authentication!.Scheme = "bad scheme"; break;
         }
-        await ErrorAsync(A2AErrorCode.InvalidParams, () => server.SendMessageAsync(request));
+        await ErrorAsync(A2AErrorCode.InvalidParams, () => server.SendMessageAsync(request, null));
         Assert.Equal(0, _handler.Calls);
         Assert.Empty(_sender.Events);
     }
@@ -138,10 +138,10 @@ public sealed class PushNotificationServerTests
         await using var server = Server();
         var request = Request(inline: true);
         request.Configuration!.TaskPushNotificationConfig!.Url = value!;
-        await ErrorAsync(A2AErrorCode.InvalidParams, () => server.SendMessageAsync(request));
+        await ErrorAsync(A2AErrorCode.InvalidParams, () => server.SendMessageAsync(request, null));
         request = Request(inline: true);
         request.Configuration!.TaskPushNotificationConfig!.Authentication!.Scheme = value!;
-        await ErrorAsync(A2AErrorCode.InvalidParams, () => server.SendMessageAsync(request));
+        await ErrorAsync(A2AErrorCode.InvalidParams, () => server.SendMessageAsync(request, null));
         Assert.Equal(0, _handler.Calls);
     }
 
@@ -150,9 +150,9 @@ public sealed class PushNotificationServerTests
     {
         _validator.Reject = true;
         await using var server = Server();
-        await ErrorAsync(A2AErrorCode.InvalidParams, () => server.SendMessageAsync(Request(inline: true)));
+        await ErrorAsync(A2AErrorCode.InvalidParams, () => server.SendMessageAsync(Request(inline: true), null));
         await SeedAsync();
-        await ErrorAsync(A2AErrorCode.InvalidParams, () => server.CreateTaskPushNotificationConfigAsync(Config()));
+        await ErrorAsync(A2AErrorCode.InvalidParams, () => server.CreateTaskPushNotificationConfigAsync(Config(), null));
         Assert.Equal(0, _handler.Calls);
         Assert.Empty(await _configs.GetAllAsync("task"));
     }
@@ -174,7 +174,7 @@ public sealed class PushNotificationServerTests
         await using var server = Server();
         var request = Request(inline: true);
         request.Configuration!.TaskPushNotificationConfig!.TaskId = "not-authoritative";
-        var result = await server.SendMessageAsync(request);
+        var result = await server.SendMessageAsync(request, null);
         Assert.NotNull(result.Task);
         Assert.Equal(TaskState.Completed, result.Task.Status.State);
         Assert.Equal(_handler.TaskId, result.Task.Id);
@@ -203,7 +203,7 @@ public sealed class PushNotificationServerTests
         if (streaming)
         {
             var events = new List<StreamResponse>();
-            await foreach (var response in server.SendStreamingMessageAsync(request))
+            await foreach (var response in server.SendStreamingMessageAsync(request, null))
             {
                 events.Add(response);
             }
@@ -213,7 +213,7 @@ public sealed class PushNotificationServerTests
         }
         else
         {
-            var result = await server.SendMessageAsync(request);
+            var result = await server.SendMessageAsync(request, null);
             task = result.Task;
             message = result.Message;
         }
@@ -241,7 +241,7 @@ public sealed class PushNotificationServerTests
         {
             await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             {
-                await foreach (var response in server.SendStreamingMessageAsync(request))
+                await foreach (var response in server.SendStreamingMessageAsync(request, null))
                 {
                     Assert.Null(response.Task);
                     Assert.NotNull(response.Message);
@@ -250,7 +250,7 @@ public sealed class PushNotificationServerTests
         }
         else
         {
-            await Assert.ThrowsAsync<InvalidOperationException>(() => server.SendMessageAsync(request));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => server.SendMessageAsync(request, null));
         }
         Assert.Null(await _tasks.GetTaskAsync(_handler.TaskId!));
         Assert.Empty(await _configs.GetAllAsync(_handler.TaskId!));
@@ -262,7 +262,7 @@ public sealed class PushNotificationServerTests
     {
         _handler.Execute = EmitMessageAsync;
         await using var server = Server();
-        var result = await server.SendMessageAsync(Request(inline: false));
+        var result = await server.SendMessageAsync(Request(inline: false), null);
         Assert.NotNull(result.Message);
         Assert.Null(result.Task);
         Assert.Empty(_sender.Events);
@@ -274,10 +274,10 @@ public sealed class PushNotificationServerTests
     {
         await SeedAsync();
         await using var server = Server();
-        await server.CreateTaskPushNotificationConfigAsync(Config());
+        await server.CreateTaskPushNotificationConfigAsync(Config(), null);
         var second = Config();
         second.Id = "second";
-        await server.CreateTaskPushNotificationConfigAsync(second);
+        await server.CreateTaskPushNotificationConfigAsync(second, null);
         _handler.Execute = async (context, queue, cancellationToken) =>
         {
             var updater = new TaskUpdater(queue, context.TaskId, context.ContextId);
@@ -286,7 +286,7 @@ public sealed class PushNotificationServerTests
         };
         var request = Request(inline: false);
         request.Message.TaskId = "task";
-        var result = await server.SendMessageAsync(request);
+        var result = await server.SendMessageAsync(request, null);
         Assert.Equal(TaskState.Completed, result.Task!.Status.State);
         Assert.Equal(TaskState.Completed, (await _tasks.GetTaskAsync("task"))!.Status.State);
         Assert.Equal(6, _sender.Events.Count); // incoming history message plus two statuses, for two configs
@@ -297,7 +297,7 @@ public sealed class PushNotificationServerTests
     {
         await SeedAsync();
         await using var server = Server();
-        await server.CreateTaskPushNotificationConfigAsync(Config());
+        await server.CreateTaskPushNotificationConfigAsync(Config(), null);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var resume = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var channel = _notifier.CreateChannel("task");
@@ -313,11 +313,11 @@ public sealed class PushNotificationServerTests
             new TaskUpdater(queue, context.TaskId, context.ContextId).CompleteAsync(cancellationToken: cancellationToken).AsTask();
         var request = Request(inline: false);
         request.Message.TaskId = "task";
-        var sending = server.SendMessageAsync(request);
+        var sending = server.SendMessageAsync(request, null);
         try
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            var canceling = server.CancelTaskAsync(new() { Id = "task" });
+            var canceling = server.CancelTaskAsync(new() { Id = "task" }, null);
             Assert.NotNull((await channel.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5))).Message);
             var canceledEvent = await channel.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
             Assert.Equal(TaskState.Canceled, canceledEvent.StatusUpdate!.Status.State);
@@ -343,16 +343,16 @@ public sealed class PushNotificationServerTests
         await SeedAsync();
         var store = new FailingStore(_configs) { FailSave = true };
         await using var server = Server(store: store);
-        await Assert.ThrowsAsync<IOException>(() => server.CreateTaskPushNotificationConfigAsync(Config()));
+        await Assert.ThrowsAsync<IOException>(() => server.CreateTaskPushNotificationConfigAsync(Config(), null));
         Assert.Empty(await _configs.GetAllAsync("task"));
         store.FailSave = false;
-        await server.CreateTaskPushNotificationConfigAsync(Config());
+        await server.CreateTaskPushNotificationConfigAsync(Config(), null);
         store.FailEnumeration = true;
         _handler.Execute = (context, queue, cancellationToken) =>
             new TaskUpdater(queue, context.TaskId, context.ContextId).CompleteAsync(cancellationToken: cancellationToken).AsTask();
         var request = Request(inline: false);
         request.Message.TaskId = "task";
-        await Assert.ThrowsAsync<IOException>(() => server.SendMessageAsync(request));
+        await Assert.ThrowsAsync<IOException>(() => server.SendMessageAsync(request, null));
         Assert.Empty(_sender.Events);
         Assert.Equal(TaskState.Submitted, (await _tasks.GetTaskAsync("task"))!.Status.State);
         Assert.Equal(0, _handler.Calls);
@@ -363,11 +363,11 @@ public sealed class PushNotificationServerTests
     {
         await SeedAsync();
         await using var server = Server();
-        await server.CreateTaskPushNotificationConfigAsync(Config());
+        await server.CreateTaskPushNotificationConfigAsync(Config(), null);
         _sender.Fail = true;
         var request = Request(inline: false);
         request.Message.TaskId = "task";
-        await Assert.ThrowsAsync<PushNotificationAdmissionException>(() => server.SendMessageAsync(request));
+        await Assert.ThrowsAsync<PushNotificationAdmissionException>(() => server.SendMessageAsync(request, null));
         Assert.Equal(TaskState.Submitted, (await _tasks.GetTaskAsync("task"))!.Status.State);
         Assert.NotNull(await _configs.GetAsync("task", "config"));
         Assert.Equal(0, _handler.Calls);
@@ -383,7 +383,7 @@ public sealed class PushNotificationServerTests
             Status = new TaskStatus { State = TaskState.Completed },
         });
         await using var server = Server();
-        await server.CreateTaskPushNotificationConfigAsync(Config());
+        await server.CreateTaskPushNotificationConfigAsync(Config(), null);
         var sent = Assert.Single(_sender.Events);
         Assert.Equal(TaskState.Completed, sent.Response.Task!.Status.State);
         Assert.NotNull(await _configs.GetAsync("task", "config"));
@@ -395,7 +395,7 @@ public sealed class PushNotificationServerTests
         var taskStore = new TaskStoreProbe(_tasks) { FailSave = true };
         _handler.Execute = EmitLifecycleAsync;
         await using var server = Server(tasks: taskStore);
-        await Assert.ThrowsAsync<IOException>(() => server.SendMessageAsync(Request(inline: true)));
+        await Assert.ThrowsAsync<IOException>(() => server.SendMessageAsync(Request(inline: true), null));
         Assert.Null(await _tasks.GetTaskAsync(_handler.TaskId!));
         Assert.Empty(await _configs.GetAllAsync(_handler.TaskId!));
         Assert.Empty(_sender.Events);
@@ -407,7 +407,7 @@ public sealed class PushNotificationServerTests
         var configStore = new FailingStore(_configs) { FailSave = true };
         _handler.Execute = EmitLifecycleAsync;
         await using var server = Server(store: configStore);
-        await Assert.ThrowsAsync<IOException>(() => server.SendMessageAsync(Request(inline: true)));
+        await Assert.ThrowsAsync<IOException>(() => server.SendMessageAsync(Request(inline: true), null));
         var persisted = await _tasks.GetTaskAsync(_handler.TaskId!);
         Assert.NotNull(persisted);
         Assert.Equal(TaskState.Submitted, persisted.Status.State);
@@ -426,13 +426,13 @@ public sealed class PushNotificationServerTests
         var subscriber = _notifier.CreateChannel("task");
         var request = Request(inline: false);
         request.Message.TaskId = "task";
-        var sending = server.SendMessageAsync(request);
+        var sending = server.SendMessageAsync(request, null);
         Task<TaskPushNotificationConfig>? creating = null;
         try
         {
             await taskStore.TerminalSaved.Task.WaitAsync(TimeSpan.FromSeconds(5));
             _notifier.RemoveChannel("task", subscriber);
-            creating = server.CreateTaskPushNotificationConfigAsync(Config());
+            creating = server.CreateTaskPushNotificationConfigAsync(Config(), null);
             Assert.False(creating.IsCompleted, "Registration must share the still-held task lock after subscriber removal.");
         }
         finally

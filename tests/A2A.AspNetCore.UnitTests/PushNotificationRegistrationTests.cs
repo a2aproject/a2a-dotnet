@@ -22,7 +22,7 @@ public sealed class PushNotificationRegistrationTests
         Assert.IsType<DefaultPushNotificationUrlValidator>(provider.GetRequiredService<IPushNotificationUrlValidator>());
         Assert.IsType<HttpPushNotificationSender>(provider.GetRequiredService<IPushNotificationSender>());
         var exception = await Assert.ThrowsAsync<A2AException>(() =>
-            provider.GetRequiredService<IA2ARequestHandler>().CreateTaskPushNotificationConfigAsync(new()));
+            provider.GetRequiredService<IA2ARequestHandler>().CreateTaskPushNotificationConfigAsync(new(), null));
         Assert.Equal(A2AErrorCode.PushNotificationNotSupported, exception.ErrorCode);
     }
 

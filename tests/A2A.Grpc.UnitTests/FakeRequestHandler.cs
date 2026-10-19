@@ -12,6 +12,10 @@ internal sealed class FakeRequestHandler : IA2ARequestHandler
 {
     public A2AException? Error { get; set; }
 
+    public A2ARequestContext? LastRequestContext { get; private set; }
+
+    public CancellationToken LastCancellationToken { get; private set; }
+
     public SendMessageResponse SendMessageResult { get; set; } = new();
 
     public AgentTask TaskResult { get; set; } = new() { Id = "task", ContextId = "ctx" };
@@ -34,68 +38,68 @@ internal sealed class FakeRequestHandler : IA2ARequestHandler
 
     public DeleteTaskPushNotificationConfigRequest? LastDeleteConfig { get; private set; }
 
-    public Task<SendMessageResponse> SendMessageAsync(SendMessageRequest request, CancellationToken cancellationToken = default)
+    public Task<SendMessageResponse> SendMessageAsync(SendMessageRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default)
     {
         LastSendMessage = request;
-        ThrowIfConfigured();
+        ThrowIfConfigured(requestContext, cancellationToken);
         return Task.FromResult(SendMessageResult);
     }
 
-    public Task<AgentTask> GetTaskAsync(GetTaskRequest request, CancellationToken cancellationToken = default)
+    public Task<AgentTask> GetTaskAsync(GetTaskRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default)
     {
         LastGetTask = request;
-        ThrowIfConfigured();
+        ThrowIfConfigured(requestContext, cancellationToken);
         return Task.FromResult(TaskResult);
     }
 
-    public Task<ListTasksResponse> ListTasksAsync(ListTasksRequest request, CancellationToken cancellationToken = default)
+    public Task<ListTasksResponse> ListTasksAsync(ListTasksRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default)
     {
-        ThrowIfConfigured();
+        ThrowIfConfigured(requestContext, cancellationToken);
         return Task.FromResult(ListTasksResult);
     }
 
-    public Task<AgentTask> CancelTaskAsync(CancelTaskRequest request, CancellationToken cancellationToken = default)
+    public Task<AgentTask> CancelTaskAsync(CancelTaskRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default)
     {
-        ThrowIfConfigured();
+        ThrowIfConfigured(requestContext, cancellationToken);
         return Task.FromResult(TaskResult);
     }
 
-    public Task<TaskPushNotificationConfig> CreateTaskPushNotificationConfigAsync(TaskPushNotificationConfig config, CancellationToken cancellationToken = default)
+    public Task<TaskPushNotificationConfig> CreateTaskPushNotificationConfigAsync(TaskPushNotificationConfig config, A2ARequestContext? requestContext, CancellationToken cancellationToken = default)
     {
         LastCreateConfig = config;
-        ThrowIfConfigured();
+        ThrowIfConfigured(requestContext, cancellationToken);
         return Task.FromResult(PushConfigResult);
     }
 
-    public Task<TaskPushNotificationConfig> GetTaskPushNotificationConfigAsync(GetTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default)
+    public Task<TaskPushNotificationConfig> GetTaskPushNotificationConfigAsync(GetTaskPushNotificationConfigRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default)
     {
-        ThrowIfConfigured();
+        ThrowIfConfigured(requestContext, cancellationToken);
         return Task.FromResult(PushConfigResult);
     }
 
-    public Task<ListTaskPushNotificationConfigsResponse> ListTaskPushNotificationConfigsAsync(ListTaskPushNotificationConfigsRequest request, CancellationToken cancellationToken = default)
+    public Task<ListTaskPushNotificationConfigsResponse> ListTaskPushNotificationConfigsAsync(ListTaskPushNotificationConfigsRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default)
     {
-        ThrowIfConfigured();
+        ThrowIfConfigured(requestContext, cancellationToken);
         return Task.FromResult(ListPushConfigResult);
     }
 
-    public Task DeleteTaskPushNotificationConfigAsync(DeleteTaskPushNotificationConfigRequest request, CancellationToken cancellationToken = default)
+    public Task DeleteTaskPushNotificationConfigAsync(DeleteTaskPushNotificationConfigRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default)
     {
         LastDeleteConfig = request;
-        ThrowIfConfigured();
+        ThrowIfConfigured(requestContext, cancellationToken);
         return Task.CompletedTask;
     }
 
-    public Task<AgentCard> GetExtendedAgentCardAsync(GetExtendedAgentCardRequest request, CancellationToken cancellationToken = default)
+    public Task<AgentCard> GetExtendedAgentCardAsync(GetExtendedAgentCardRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default)
     {
-        ThrowIfConfigured();
+        ThrowIfConfigured(requestContext, cancellationToken);
         return Task.FromResult(AgentCardResult);
     }
 
-    public async IAsyncEnumerable<StreamResponse> SendStreamingMessageAsync(SendMessageRequest request, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public async IAsyncEnumerable<StreamResponse> SendStreamingMessageAsync(SendMessageRequest request, A2ARequestContext? requestContext, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         LastSendMessage = request;
-        ThrowIfConfigured();
+        ThrowIfConfigured(requestContext, cancellationToken);
         foreach (var streamEvent in StreamEvents)
         {
             await Task.Yield();
@@ -103,9 +107,9 @@ internal sealed class FakeRequestHandler : IA2ARequestHandler
         }
     }
 
-    public async IAsyncEnumerable<StreamResponse> SubscribeToTaskAsync(SubscribeToTaskRequest request, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public async IAsyncEnumerable<StreamResponse> SubscribeToTaskAsync(SubscribeToTaskRequest request, A2ARequestContext? requestContext, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        ThrowIfConfigured();
+        ThrowIfConfigured(requestContext, cancellationToken);
         foreach (var streamEvent in StreamEvents)
         {
             await Task.Yield();
@@ -113,8 +117,10 @@ internal sealed class FakeRequestHandler : IA2ARequestHandler
         }
     }
 
-    private void ThrowIfConfigured()
+    private void ThrowIfConfigured(A2ARequestContext? requestContext, CancellationToken cancellationToken)
     {
+        LastRequestContext = requestContext;
+        LastCancellationToken = cancellationToken;
         if (Error is not null)
         {
             throw Error;
