@@ -183,6 +183,10 @@ request and the optional cancellation token. For an `A2AServer` subclass, overri
 these same context-aware methods when customizing execution. There are no separate
 legacy overloads or opt-in interfaces.
 
+Delegating handlers should forward the received `requestContext` unchanged to the
+inner handler. Pass `null` only when no negotiation context exists; replacing a
+received context with `null` discards its negotiated extension state.
+
 Registry-aware hosting passes the context automatically in all three transports.
 A host calling handlers directly supplies a snapshot explicitly, or `null` when
 no negotiation occurred:
