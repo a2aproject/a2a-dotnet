@@ -28,6 +28,17 @@ public sealed class A2ACustomOperationContext
     public IServiceProvider? RequestServices { get; }
 
     /// <summary>
+    /// Gets the immutable extension activation snapshot supplied for this request, if any.
+    /// </summary>
+    /// <remarks>
+    /// Returns the existing <see cref="A2ARequestContext"/> feature, or <see langword="null"/>
+    /// when no snapshot was supplied. A present snapshot may contain no activated extensions.
+    /// This property does not negotiate extensions or reevaluate their availability.
+    /// </remarks>
+    public A2ARequestContext? ExtensionActivation =>
+        TryGetFeature<A2ARequestContext>(out var activation) ? activation : null;
+
+    /// <summary>
     /// Gets a required request feature by assignable type.
     /// </summary>
     public TFeature GetRequiredFeature<TFeature>() where TFeature : class
@@ -41,7 +52,13 @@ public sealed class A2ACustomOperationContext
             $"Custom operation feature '{typeof(TFeature).FullName}' is not available.");
     }
 
-    internal bool TryGetFeature<TFeature>([NotNullWhen(true)] out TFeature? feature) where TFeature : class
+    /// <summary>
+    /// Tries to get a request feature by assignable type.
+    /// </summary>
+    /// <typeparam name="TFeature">The requested feature type.</typeparam>
+    /// <param name="feature">The feature when found; otherwise, <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> when an assignable feature is available; otherwise, <see langword="false"/>.</returns>
+    public bool TryGetFeature<TFeature>([NotNullWhen(true)] out TFeature? feature) where TFeature : class
     {
         foreach (var value in _features.Values)
         {

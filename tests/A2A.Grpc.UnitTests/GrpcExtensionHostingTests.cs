@@ -41,6 +41,9 @@ public sealed class GrpcExtensionHostingTests
             onInvoke: context =>
             {
                 seenActivation = context.GetRequiredFeature<A2ARequestContext>();
+                Assert.Same(seenActivation, context.ExtensionActivation);
+                Assert.True(context.TryGetFeature<ServerCallContext>(out var callContext));
+                Assert.Same(seenCall, callContext);
                 Assert.Same(seenCall, context.GetRequiredFeature<ServerCallContext>());
                 Assert.Same(seenActivation, context.GetRequiredFeature<HttpContext>().Features.Get<A2ARequestContext>());
             });
