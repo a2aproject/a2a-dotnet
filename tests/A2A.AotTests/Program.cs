@@ -134,6 +134,27 @@ if (inactive.ActivatedExtensions.Count != 0 || !activation.ActivatedExtensions.C
 }
 
 var operationContext = new A2ACustomOperationContext(features: [activation]);
+if (!ReferenceEquals(operationContext.ExtensionActivation, activation) ||
+    !operationContext.TryGetFeature<A2ARequestContext>(out var observedActivation) ||
+    !ReferenceEquals(observedActivation, activation) || !observedActivation.IsActivated(extension))
+{
+    throw new InvalidOperationException("Custom operation context accessors lost the negotiated snapshot.");
+}
+
+var contextWithoutActivation = new A2ACustomOperationContext();
+if (contextWithoutActivation.ExtensionActivation is not null ||
+    contextWithoutActivation.TryGetFeature<A2ARequestContext>(out var missingActivation) ||
+    missingActivation is not null)
+{
+    throw new InvalidOperationException("A context without negotiation unexpectedly exposed an activation snapshot.");
+}
+
+var inactiveOperationContext = new A2ACustomOperationContext(features: [inactive]);
+if (!ReferenceEquals(inactiveOperationContext.ExtensionActivation, inactive))
+{
+    throw new InvalidOperationException("An empty activation snapshot was confused with a missing feature.");
+}
+
 var unaryResult = await registry.InvokeAsync(unary, operationContext, new AotCustomRequest("unary")).ConfigureAwait(false);
 if (unaryResult.Value != "unary" || !activation.ActivatedExtensions.Contains(extension.Uri))
 {

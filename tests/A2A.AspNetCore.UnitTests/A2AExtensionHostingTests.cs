@@ -30,6 +30,9 @@ public sealed class A2AExtensionHostingTests
             (context, request, _) =>
             {
                 seen = context.GetRequiredFeature<A2ARequestContext>();
+                Assert.Same(seen, context.ExtensionActivation);
+                Assert.True(context.TryGetFeature<HttpContext>(out var http));
+                Assert.Same(context.GetRequiredFeature<HttpContext>(), http);
                 Assert.Same(seen, context.GetRequiredFeature<HttpContext>().Features.Get<A2ARequestContext>());
                 return ValueTask.FromResult(new CustomResult(request.Value));
             },
