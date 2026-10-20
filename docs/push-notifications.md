@@ -31,6 +31,36 @@ The original five-argument `A2AServer` constructor remains available without
 push. Direct construction with push uses the overload accepting a card, store,
 destination policy, and sender. Dispose directly owned servers/senders.
 
+### Local development callbacks
+
+`PushNotificationUrlOptions.AllowLoopback` defaults to `false`. Explicitly enable
+it to receive callbacks at URLs such as `http://localhost:5000/notify` without a
+public tunnel. To opt in only during development, replace the options registration
+above with:
+
+```csharp
+builder.Services.AddSingleton(new PushNotificationUrlOptions
+{
+    AllowedHosts = ["callbacks.example.com", "localhost", "127.0.0.1", "::1"],
+    AllowLoopback = builder.Environment.IsDevelopment(),
+});
+```
+
+Register these options before `AddA2AAgent`. The SDK does not inspect the hosting
+environment or automatically relax its policy in Development.
+
+The exception permits HTTP or HTTPS only for `localhost` and loopback IP literals
+(IPv4, IPv6, and IPv4-mapped IPv6). Every DNS answer for `localhost` must be
+loopback. Other hostnames that resolve to loopback, LAN/private addresses,
+link-local/metadata addresses, and public HTTP destinations remain blocked.
+Host allowlists and connection-time address validation still apply; HTTPS still
+requires a valid certificate.
+
+Only enable this for trusted local development callers: registrations can target
+other services on the server's loopback interface, and HTTP sends configured
+credentials without TLS. The callback must be reachable from the server's network
+namespace; `localhost` inside a container refers to that container, not its host.
+
 ## Protocol requirements and SDK choices
 
 | Area | Requirement | SDK policy |
@@ -40,7 +70,7 @@ destination policy, and sender. Dispose directly owned servers/senders.
 | Response kind | An agent may return a `Task` or a direct `Message` | Preserve the handler's choice; no automatic task synthesis |
 | Config lifetime | Persist until task completion or explicit deletion; delete is idempotent | Retain after completion/failure until explicitly deleted or removed by application retention |
 | Pagination | Consistent shared semantics; proto3 zero has no distinct presence | Zero/omitted defaults to 50, cap 100; negative is invalid |
-| Security | Configured authentication and host authorization; HTTPS/SSRF protection are recommended | Fail-closed HTTPS/public-address policy and connection enforcement |
+| Security | Configured authentication and host authorization; HTTPS/SSRF protection are recommended | Fail-closed HTTPS/public-address policy by default, explicit loopback opt-in, and connection enforcement |
 | Read secrets | Protect credentials | Return accepted create values; redact token/credentials on get/list |
 
 The sender uses `application/a2a+json`, following the
@@ -307,11 +337,13 @@ must be idempotent. Custom dependencies must honor cancellation.
 
 ## Destination and credential boundaries
 
-The URL policy requires an absolute HTTPS URL without userinfo/fragment and
+By default, the URL policy requires an absolute HTTPS URL without userinfo/fragment and
 only approved public DNS answers. Private, loopback, unspecified, link-local,
 multicast, reserved/documentation and tunnel ranges are excluded. Exact hosts
 and explicit `*.example.com` subdomains are supported; empty/`*` lists disable
 only host filtering, not address checks. Use ASCII/punycode host entries.
+The [local development opt-in](#local-development-callbacks) permits HTTP/HTTPS
+loopback callbacks only; it does not disable the other destination checks.
 
 `IPushNotificationUrlValidator.ValidateAsync` returns approved addresses. The
 default connector runs the selected policy at connection establishment and
