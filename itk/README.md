@@ -94,6 +94,15 @@ SDK's own client for the §10 CLIENT-* tests. PR ACTS runs require MUST conforma
 JSON-RPC, HTTP+JSON, and gRPC; any transport failing, missing, or producing a malformed
 report fails the workflow.
 
+SHOULD/MAY failures and errors do not fail the ACTS conformance gate. A separate
+`ACTS PR reporting` workflow posts them in one updatable PR comment, including each
+test's level, transport, ID, reason, and a link to the full run. Later runs update
+the same comment and mark it clear when no advisory findings remain; clean PRs do
+not receive a new comment. The publisher supports fork PRs by reading report
+artifacts as data and running only default-branch code. It becomes active after
+the reporting workflow is merged into the default branch. ITK interoperability
+results are unchanged and have no SHOULD/MAY classification.
+
 ## Debugging
 
 ```bash
