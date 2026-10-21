@@ -11,6 +11,8 @@ const run = {
   name: 'ACTS',
   path: '.github/workflows/acts.yaml',
   event: 'pull_request',
+  status: 'completed',
+  conclusion: 'success',
   head_sha: 'a'.repeat(40),
   head_branch: 'feature',
   head_repository: { full_name: 'contributor/a2a-dotnet', owner: { login: 'contributor' } },
@@ -116,20 +118,30 @@ test('rejects incomplete, duplicate, inconsistent, and malformed reports rather 
   assert.throws(() => buildComment(malformed, run), /test/i);
 });
 
+const pull = {
+  number: 569,
+  state: 'open',
+  head: { sha: run.head_sha, repo: { full_name: run.head_repository.full_name } },
+  base: { repo: { full_name: run.repository.full_name } },
+};
+
 async function withPublisher(options, action) {
   const directory = mkdtempSync(join(tmpdir(), 'acts-pr-comment-'));
   const input = options.reports ?? reports();
   for (const item of input) {
     writeFileSync(join(directory, `acts-report-${item.transport}.json`), JSON.stringify(item));
   }
-  const pull = {
-    number: 569,
-    state: 'open',
-    head: { sha: run.head_sha, repo: { full_name: run.head_repository.full_name } },
-    base: { repo: { full_name: run.repository.full_name } },
-  };
   const state = { comments: options.comments ?? [], writes: [], logs: [] };
   const api = {
+    actions: {
+      listWorkflowRuns: async params => {
+        assert.equal(params.workflow_id, 'acts.yaml');
+        assert.equal(params.event, 'pull_request');
+        assert.equal(params.head_sha, run.head_sha);
+        assert.equal(params.branch, run.head_branch);
+        return options.workflowRuns ?? [options.run ?? run];
+      },
+    },
     pulls: {
       list: async params => {
         assert.equal(params.head, 'contributor:feature');
@@ -189,6 +201,34 @@ test('finds fork PRs without workflow_run.pull_requests and creates an advisory 
   });
 });
 
+test('selects the associated PR when two open PRs share a source branch and head SHA', async () => {
+  await withPublisher({
+    reports: failingReports(),
+    pulls: [{ ...pull, number: 570 }, pull],
+    run: { ...run, pull_requests: [{ number: 569 }] },
+  }, state => {
+    assert.equal(state.writes.length, 1);
+    assert.equal(state.writes[0].issue_number, 569);
+  });
+});
+
+test('skips ambiguous PR matches when run associations are unavailable', async () => {
+  await withPublisher({
+    reports: failingReports(),
+    pulls: [pull, { ...pull, number: 570 }],
+  }, state => {
+    assert.deepEqual(state.writes, []);
+    assert.ok(state.logs.length > 0);
+  });
+});
+
+test('does not fall back to an unrelated PR when the associated PR no longer matches', async () => {
+  await withPublisher({
+    reports: failingReports(),
+    run: { ...run, pull_requests: [{ number: 570 }] },
+  }, state => assert.deepEqual(state.writes, []));
+});
+
 test('updates the bot comment and marks resolved advisory failures as clear', async () => {
   await withPublisher({ comments: [botComment()] }, state => {
     assert.equal(state.writes.length, 1);
@@ -228,6 +268,54 @@ test('does not overwrite newer runs or newer attempts of the same run', async ()
       assert.deepEqual(state.writes, []);
     });
   }
+});
+
+test('does not publish an older failure after a newer clean run that created no comment', async () => {
+  const newer = { ...run, id: 124 };
+  const workflowRuns = [newer, run];
+  await withPublisher({ run: newer, workflowRuns }, state => {
+    assert.deepEqual(state.writes, []);
+  });
+  await withPublisher({ reports: failingReports(), workflowRuns }, state => {
+    assert.deepEqual(state.writes, []);
+    assert.ok(state.logs.length > 0);
+  });
+});
+
+test('skips an old attempt even when the newer attempt has not posted a comment', async () => {
+  for (const status of ['queued', 'in_progress', 'completed']) {
+    await withPublisher({
+      reports: failingReports(),
+      workflowRuns: [{ ...run, run_attempt: 2, status }],
+    }, state => assert.deepEqual(state.writes, []));
+  }
+});
+
+test('does not overwrite an existing warning when newer workflow metadata exists', async () => {
+  await withPublisher({
+    comments: [botComment()],
+    workflowRuns: [{ ...run, id: 124 }, run],
+  }, state => assert.deepEqual(state.writes, []));
+});
+
+test('ignores newer runs belonging to other PRs, commits, source branches, or forks', async () => {
+  const unrelated = [
+    { pull_requests: [{ number: 570 }] },
+    { head_sha: 'b'.repeat(40) },
+    { head_branch: 'other' },
+    { head_repository: { full_name: 'other/a2a-dotnet' } },
+  ].map(override => ({ ...run, id: 124, ...override }));
+  await withPublisher({
+    reports: failingReports(),
+    workflowRuns: [...unrelated, run],
+  }, state => assert.equal(state.writes.length, 1));
+});
+
+test('skips publication when workflow metadata cannot confirm the current run', async () => {
+  await withPublisher({
+    reports: failingReports(),
+    workflowRuns: [],
+  }, state => assert.deepEqual(state.writes, []));
 });
 
 test('updates the same comment for a newer attempt', async () => {

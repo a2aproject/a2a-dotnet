@@ -129,15 +129,18 @@ async function publishComment({ github, context, core, reportDirectory }) {
     head: `${run.head_repository.owner.login}:${run.head_branch}`,
     per_page: 100,
   });
+  const associatedPulls = new Set(run.pull_requests.map(pull => pull.number));
   const matches = pull => pull.state === 'open' &&
+    (associatedPulls.size === 0 || associatedPulls.has(pull.number)) &&
     pull.head.sha === run.head_sha &&
     pull.head.repo?.full_name === run.head_repository.full_name &&
     pull.base.repo.full_name === `${owner}/${repo}`;
-  const pull = pulls.find(matches);
-  if (!pull) {
-    core.info('No open PR matches this ACTS run and head commit.');
+  const candidates = pulls.filter(matches);
+  if (candidates.length !== 1) {
+    core.info('Expected exactly one matching open PR for this ACTS run and head commit.');
     return;
   }
+  const [pull] = candidates;
 
   const result = buildComment(readReports(reportDirectory), run);
   const comments = await github.paginate(github.rest.issues.listComments, {
@@ -159,6 +162,22 @@ async function publishComment({ github, context, core, reportDirectory }) {
   const current = await github.rest.pulls.get({ owner, repo, pull_number: pull.number });
   if (!matches(current.data)) {
     core.info('The PR changed or closed while the ACTS reports were being processed.');
+    return;
+  }
+  const workflowRuns = await github.paginate(github.rest.actions.listWorkflowRuns, {
+    owner, repo, workflow_id: 'acts.yaml', event: 'pull_request',
+    head_sha: run.head_sha, branch: run.head_branch, per_page: 100,
+  });
+  const latest = workflowRuns.filter(candidate =>
+    candidate.head_sha === run.head_sha &&
+    candidate.head_branch === run.head_branch &&
+    candidate.head_repository?.full_name === run.head_repository.full_name &&
+    (candidate.pull_requests.length === 0 ||
+      candidate.pull_requests.some(associated => associated.number === pull.number)))
+    .sort((left, right) => right.id - left.id || right.run_attempt - left.run_attempt)[0];
+  if (!latest || latest.id !== run.id || latest.run_attempt !== run.run_attempt ||
+      latest.status !== 'completed') {
+    core.info('This is not the latest completed ACTS run attempt for the PR and head commit.');
     return;
   }
   if (existing) {
