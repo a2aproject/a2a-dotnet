@@ -94,6 +94,52 @@ replacement's URL/credentials. Custom stores must provide a generation-scoped
 `RemovalToken` on snapshots and signal it for deletion; distributed stores must
 coordinate invalidation across their actual deployment.
 
+### Credential lifetime and renewal
+
+A saved push notification configuration does not extend the lifetime of its
+authentication credentials. The A2A protocol does not define a credential refresh
+handshake or a standard credential-expiration field in the configuration.
+Applications must manage this separately: the client supplying short-lived
+credentials is responsible for obtaining replacements and refreshing its
+task registrations before those credentials expire. This is application
+guidance, not an additional protocol requirement.
+
+Keep track of the credential's expiry using information from its issuer; do not
+assume that every credential is a JWT or infer expiry from the registration's
+lifetime. Renew early enough to allow for clock skew, network delays, and retries.
+For OAuth, obtain a new access token from the identity provider using the
+appropriate supported flow. The SDK sender uses the configured credential; it
+does not acquire or refresh OAuth tokens on the client's behalf. Get/list responses
+redact credentials, so they cannot reconstruct the client's renewal state.
+
+With this SDK's v1 API, create is **not an update**. To rotate a task's credential:
+
+1. Make the callback receiver accept the fresh credential before registering it.
+2. Create a replacement configuration for the same server-assigned task ID, using
+   a new configuration ID and the fresh credential.
+3. After creation succeeds, delete the old configuration. Retain receiver
+   acceptance of the previous credential for an appropriate overlap period,
+   bounded by its expiry.
+
+Create-before-delete avoids an intentional registration gap, but overlapping
+registrations can deliver duplicate events. Deletion cancels queued work and
+retries for the old registration; it does not migrate that work to the new one.
+Design receivers to tolerate duplicates and use task retrieval/reconciliation
+where needed rather than assuming lossless or exactly-once delivery.
+
+On renewal failure, preserve the existing registration, report the failure without
+logging secrets, and retry within the remaining lifetime. A timed-out create might
+have succeeded remotely: retain its attempted ID so that it can be cleaned up.
+If renewal cannot succeed before expiry, authentication failures can interrupt
+notifications even though the registration still exists. Monitor this condition;
+delivery retries are finite and do not provide credential recovery.
+
+[A2ACli](../samples/A2ACli/README.md#push-notifications) demonstrates this lifecycle
+with locally issued, five-minute Bearer credentials and automatic renewal one
+minute before expiry. It is a loopback-only development example, not an OAuth
+provider integration. Renewal runs while the CLI is alive and a task is not known
+to be terminal, including during console input waits.
+
 ## Inline settings and task/message semantics
 
 Inline `SendMessageConfiguration.TaskPushNotificationConfig` is validated before

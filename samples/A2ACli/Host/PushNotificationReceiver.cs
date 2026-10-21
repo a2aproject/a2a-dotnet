@@ -24,10 +24,12 @@ internal sealed class PushNotificationReceiver : IAsyncDisposable
     internal static async Task<PushNotificationReceiver> StartAsync(
         Uri receiverUri,
         Action<StreamResponse> notificationHandler,
+        PushNotificationSession session,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(receiverUri);
         ArgumentNullException.ThrowIfNull(notificationHandler);
+        ArgumentNullException.ThrowIfNull(session);
 
         if (!receiverUri.IsAbsoluteUri ||
             receiverUri.Scheme is not ("http" or "https"))
@@ -37,7 +39,7 @@ internal sealed class PushNotificationReceiver : IAsyncDisposable
 
         if (!receiverUri.IsLoopback)
         {
-            throw new ArgumentException("The unauthenticated push notification receiver must use a loopback URL.", nameof(receiverUri));
+            throw new ArgumentException("The sample push notification receiver must use a loopback URL.", nameof(receiverUri));
         }
 
         var builder = WebApplication.CreateSlimBuilder();
@@ -48,6 +50,11 @@ internal sealed class PushNotificationReceiver : IAsyncDisposable
         string callbackPath = $"{receiverUri.AbsolutePath.TrimEnd('/')}/notify";
         application.MapPost(callbackPath, async context =>
         {
+            if (!session.TryAuthenticate(context.Request.Headers.Authorization.ToString(), out string registrationId))
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                return;
+            }
             try
             {
                 var notification = await JsonSerializer.DeserializeAsync<StreamResponse>(
@@ -61,6 +68,7 @@ internal sealed class PushNotificationReceiver : IAsyncDisposable
                     return;
                 }
 
+                session.ObserveNotification(registrationId, notification);
                 notificationHandler(notification);
                 context.Response.StatusCode = StatusCodes.Status200OK;
             }

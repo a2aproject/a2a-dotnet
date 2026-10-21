@@ -93,19 +93,6 @@ public static class A2ACli
 
         try
         {
-            await using var notificationReceiver = usePushNotifications
-                ? await PushNotificationReceiver.StartAsync(
-                    new Uri(pushNotificationReceiver),
-                    notification => Console.WriteLine(
-                        $"\nPush notification => {JsonSerializer.Serialize(notification, A2AJsonUtilities.DefaultOptions)}"),
-                    cancellationToken)
-                : null;
-
-            if (notificationReceiver is not null)
-            {
-                Console.WriteLine($"Push notification receiver listening at {notificationReceiver.NotificationUri}");
-            }
-
             // Create the card resolver and get agentUrl card
             var cardResolver = new A2ACardResolver(new Uri(agentUrl));
             var card = await cardResolver.GetAgentCardAsync(cancellationToken);
@@ -113,8 +100,25 @@ public static class A2ACli
             Console.WriteLine("======= Agent Card ========");
             Console.WriteLine(JsonSerializer.Serialize(card, s_jsonOptions));
 
-            // Create A2A client
-            var client = new A2AClient(new Uri(card.SupportedInterfaces.First().Url));
+            using var client = new A2AClient(new Uri(card.SupportedInterfaces.First().Url));
+            await using var pushSession = usePushNotifications
+                ? new PushNotificationSession(client, logger, cancellationToken: cancellationToken)
+                : null;
+            await using var notificationReceiver = usePushNotifications
+                ? await PushNotificationReceiver.StartAsync(
+                    new Uri(pushNotificationReceiver),
+                    notification => Console.WriteLine(
+                        $"\nPush notification => {JsonSerializer.Serialize(notification, A2AJsonUtilities.DefaultOptions)}"),
+                    pushSession!,
+                    cancellationToken)
+                : null;
+
+            if (notificationReceiver is not null)
+            {
+                Console.WriteLine($"Push notification receiver listening at {notificationReceiver.NotificationUri}");
+                Console.WriteLine("Push credentials expire after 5 minutes and refresh automatically 1 minute before expiry.");
+                pushSession!.Start();
+            }
 
             // Create or use provided session ID
             string sessionId = session == "0" ? Guid.NewGuid().ToString("N") : session;
@@ -130,6 +134,7 @@ public static class A2ACli
                     client,
                     streaming,
                     notificationReceiver?.NotificationUri,
+                    pushSession,
                     taskId,
                     sessionId,
                     cancellationToken);
@@ -164,6 +169,7 @@ public static class A2ACli
         A2AClient client,
         bool streaming,
         Uri? notificationReceiverUri,
+        PushNotificationSession? pushSession,
         string taskId,
         string sessionId,
         CancellationToken cancellationToken)
@@ -224,10 +230,7 @@ public static class A2ACli
         // Add push notification configuration if enabled
         if (notificationReceiverUri is not null)
         {
-            payload.Configuration.TaskPushNotificationConfig = new TaskPushNotificationConfig
-            {
-                Url = notificationReceiverUri.ToString()
-            };
+            payload.Configuration.TaskPushNotificationConfig = pushSession!.CreateConfiguration(notificationReceiverUri);
         }
 
         AgentTask? agentTask = null;
@@ -239,11 +242,18 @@ public static class A2ACli
         };
 
         // Process the task based on streaming capability
-        Console.WriteLine($"Send task payload => {JsonSerializer.Serialize(payload, jsonOptions)}");
+        // Do not print the push configuration, which contains callback credentials.
+        Console.WriteLine(payload.Configuration.TaskPushNotificationConfig is null
+            ? $"Send task payload => {JsonSerializer.Serialize(payload, jsonOptions)}"
+            : $"Send message => {JsonSerializer.Serialize(message, jsonOptions)}");
         if (streaming)
         {
             await foreach (var result in client.SendStreamingMessageAsync(payload, cancellationToken))
             {
+                if (payload.Configuration.TaskPushNotificationConfig is { Id: { } configId })
+                {
+                    pushSession!.ObserveNotification(configId, result);
+                }
                 Console.WriteLine($"Stream event => {JsonSerializer.Serialize(result, jsonOptions)}");
             }
 
@@ -253,6 +263,10 @@ public static class A2ACli
         {
             var response = await client.SendMessageAsync(payload, cancellationToken);
             agentTask = response.Task;
+            if (payload.Configuration.TaskPushNotificationConfig is { Id: { } configId })
+            {
+                pushSession!.TrackTask(configId, agentTask);
+            }
             Console.WriteLine($"\n{JsonSerializer.Serialize(agentTask, jsonOptions)}");
             agentTask?.Artifacts?
                 .SelectMany(artifact => artifact.Parts.Where(p => p.Text is not null))
@@ -267,6 +281,7 @@ public static class A2ACli
                 client,
                 streaming,
                 notificationReceiverUri,
+                pushSession,
                 taskId,
                 sessionId,
                 cancellationToken);
