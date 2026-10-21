@@ -51,17 +51,12 @@ internal sealed class SdkPushNotificationDemo
         var remaining = await client.ListTaskPushNotificationConfigsAsync(new() { TaskId = task.Id }, cancellationToken);
         bool succeeded = (completed.Task?.Status.State).GetValueOrDefault() == TaskState.Completed &&
             _received.Count == 3 &&
-            remaining.Configs!.Count == 1;
+            remaining.Configs!.Count == 0;
         if (!succeeded)
         {
-            throw new InvalidOperationException("SDK delivery or configuration retention did not match the contract.");
+            throw new InvalidOperationException("SDK delivery or automatic terminal configuration cleanup did not match the contract.");
         }
-        await client.DeleteTaskPushNotificationConfigAsync(new() { TaskId = task.Id, Id = config.Id! }, cancellationToken);
-        if ((await client.ListTaskPushNotificationConfigsAsync(new() { TaskId = task.Id }, cancellationToken)).Configs!.Count != 0)
-        {
-            throw new InvalidOperationException("Explicit configuration deletion did not complete.");
-        }
-        Console.WriteLine("SDK push demo passed: 3 webhook events, task Completed, configuration explicitly deleted.");
+        Console.WriteLine("SDK push demo passed: 3 webhook events, task Completed, terminal configuration automatically deleted.");
         await receiver.StopAsync(cancellationToken);
         await agent.StopAsync(cancellationToken);
     }

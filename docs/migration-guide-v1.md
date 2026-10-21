@@ -525,8 +525,10 @@ push operations and inline configs.
 - Consume v1 `StreamResponse` webhook wrappers and `AuthenticationInfo`-derived
   Authorization. The legacy token header is optional/configurable.
 - Delete signals the registration generation and suppresses later attempts.
-  Terminal delivery/failure does not delete client configuration; use explicit
-  deletion or an application retention policy.
+  The built-in HTTP sender now automatically deletes terminal-task configs by
+  default after delivery succeeds or its retry/revalidation policy ends. Set
+  `PushNotificationDeliveryOptions.AutoDeleteOnTerminalState = false` to retain
+  them; custom senders define their own retention behavior.
 - Move old task-store push persistence into `IPushNotificationStore`. Replace
   the in-memory store/sender for encryption, durable delivery, or tenant scoping.
 

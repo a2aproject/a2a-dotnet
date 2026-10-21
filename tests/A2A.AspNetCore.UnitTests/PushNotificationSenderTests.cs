@@ -32,7 +32,7 @@ public sealed class PushNotificationSenderTests : IDisposable
     [InlineData(503, 3)]
     [InlineData(599, 3)]
     [InlineData(600, 1)]
-    public async Task StatusPolicy_IsBoundedWithoutChangingRegistrationRetention(int status, int expected)
+    public async Task StatusPolicy_IsBoundedAndCleansTerminalRegistrationAfterFinalAttempt(int status, int expected)
     {
         _transport.Respond = (_, _) => Task.FromResult(new HttpResponseMessage((HttpStatusCode)status));
         var registration = await _store.SaveAsync(Config());
@@ -41,7 +41,7 @@ public sealed class PushNotificationSenderTests : IDisposable
         await sender.StopAsync(CancellationToken.None);
         Assert.Equal(expected, _transport.Requests.Count);
         Assert.Equal(expected, _validator.Calls);
-        Assert.NotNull(await _store.GetAsync("task", "config"));
+        Assert.Null(await _store.GetAsync("task", "config"));
     }
 
     [Theory]
@@ -62,7 +62,7 @@ public sealed class PushNotificationSenderTests : IDisposable
         await sender.EnqueueAsync(registration, Event(terminal: true));
         await sender.StopAsync(CancellationToken.None);
         Assert.Equal(3, _transport.Requests.Count);
-        Assert.NotNull(await _store.GetAsync("task", "config"));
+        Assert.Null(await _store.GetAsync("task", "config"));
         Assert.DoesNotContain(_credential, string.Join('\n', _logger.Messages), StringComparison.Ordinal);
         Assert.Contains(_logger.Messages, entry => entry.Contains("failed", StringComparison.Ordinal));
     }
@@ -214,7 +214,7 @@ public sealed class PushNotificationSenderTests : IDisposable
     }
 
     [Fact]
-    public async Task DeleteRecreate_SuppressesRetryAndOldTerminalCleanupDoesNotDeleteNewGeneration()
+    public async Task DeleteRecreate_SuppressesTheInFlightRetryAndPreservesNewGeneration()
     {
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var resume = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -237,7 +237,7 @@ public sealed class PushNotificationSenderTests : IDisposable
     }
 
     [Fact]
-    public async Task RevalidationFailure_SuppressesLaterAttemptsAndRetainsConfiguration()
+    public async Task RevalidationFailure_SuppressesLaterAttemptsAndCleansTerminalConfiguration()
     {
         _transport.Respond = (_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
         _validator.Check = (_, _) => _validator.Calls == 2
@@ -249,7 +249,7 @@ public sealed class PushNotificationSenderTests : IDisposable
         await sender.StopAsync(CancellationToken.None);
         Assert.Single(_transport.Requests);
         Assert.Equal(2, _validator.Calls);
-        Assert.NotNull(await _store.GetAsync("task", "config"));
+        Assert.Null(await _store.GetAsync("task", "config"));
     }
 
     [Theory]
@@ -414,22 +414,26 @@ public sealed class PushNotificationSenderTests : IDisposable
         await using var sender = Sender(options);
         options.MaximumAttempts = 10;
         options.LegacyTokenHeaderName = "Authorization";
+        options.AutoDeleteOnTerminalState = false;
         _transport.Respond = (_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
         await sender.EnqueueAsync(await _store.SaveAsync(Config()), Event(terminal: true));
         await sender.StopAsync(CancellationToken.None);
         Assert.Single(_transport.Requests);
         Assert.Equal("legacy-token", _transport.Requests.Single().Headers["X-A2A-Notification-Token"]);
+        Assert.Null(await _store.GetAsync("task", "config"));
     }
 
     [Theory]
-    [InlineData(TaskState.Completed)]
-    [InlineData(TaskState.Failed)]
-    [InlineData(TaskState.Canceled)]
-    [InlineData(TaskState.Rejected)]
-    [InlineData(TaskState.InputRequired)]
-    [InlineData(TaskState.AuthRequired)]
-    [InlineData(TaskState.Working)]
-    public async Task DeliveryState_DoesNotDecideConfigurationRetention(TaskState state)
+    [InlineData(TaskState.Completed, true)]
+    [InlineData(TaskState.Failed, true)]
+    [InlineData(TaskState.Canceled, true)]
+    [InlineData(TaskState.Rejected, true)]
+    [InlineData(TaskState.Unspecified, false)]
+    [InlineData(TaskState.Submitted, false)]
+    [InlineData(TaskState.InputRequired, false)]
+    [InlineData(TaskState.AuthRequired, false)]
+    [InlineData(TaskState.Working, false)]
+    public async Task TerminalDeliveryStateControlsConfigurationCleanup(TaskState state, bool isTerminal)
     {
         var registration = await _store.SaveAsync(Config());
         var response = Event();
@@ -438,23 +442,107 @@ public sealed class PushNotificationSenderTests : IDisposable
         await sender.EnqueueAsync(registration, response);
         await sender.StopAsync(CancellationToken.None);
         Assert.Single(_transport.Requests);
+        var remaining = await _store.GetAsync("task", "config");
+        Assert.Equal(isTerminal, remaining is null);
+    }
+
+    [Theory]
+    [InlineData(TaskState.Completed)]
+    [InlineData(TaskState.Failed)]
+    [InlineData(TaskState.Canceled)]
+    [InlineData(TaskState.Rejected)]
+    public async Task TerminalTaskSnapshot_CleansRegistrationAfterDelivery(TaskState state)
+    {
+        var registration = await _store.SaveAsync(Config());
+        _transport.Respond = async (_, cancellationToken) =>
+        {
+            Assert.NotNull(await _store.GetAsync("task", "config", cancellationToken));
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        };
+        var response = new StreamResponse
+        {
+            Task = new AgentTask
+            {
+                Id = "task",
+                ContextId = _contextId,
+                Status = new A2A.TaskStatus { State = state },
+            },
+        };
+        await using var sender = Sender();
+        await sender.EnqueueAsync(registration, response);
+        await sender.StopAsync(CancellationToken.None);
+        Assert.Single(_transport.Requests);
+        Assert.Null(await _store.GetAsync("task", "config"));
+    }
+
+    [Fact]
+    public async Task TerminalEvent_WaitsForEarlierQueuedDeliveryBeforeCleanup()
+    {
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var resume = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _transport.Respond = async (_, cancellationToken) =>
+        {
+            if (_transport.Requests.Count == 1)
+            {
+                entered.TrySetResult();
+                await resume.Task.WaitAsync(cancellationToken);
+            }
+            else
+            {
+                Assert.NotNull(await _store.GetAsync("task", "config", cancellationToken));
+            }
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        };
+        var registration = await _store.SaveAsync(Config());
+        await using var sender = Sender();
+        await sender.EnqueueAsync(registration, Event());
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await sender.EnqueueAsync(registration, Event(terminal: true));
+        Assert.NotNull(await _store.GetAsync("task", "config"));
+        resume.TrySetResult();
+        await sender.StopAsync(CancellationToken.None);
+        Assert.Equal(2, _transport.Requests.Count);
+        Assert.Null(await _store.GetAsync("task", "config"));
+    }
+
+    [Fact]
+    public async Task TerminalEvent_CleansEachRegistrationIndependently()
+    {
+        var first = await _store.SaveAsync(Config());
+        var secondConfig = Config();
+        secondConfig.Id = "second";
+        var second = await _store.SaveAsync(secondConfig);
+        await using var sender = Sender();
+        await sender.EnqueueAsync(first, Event(terminal: true));
+        await sender.EnqueueAsync(second, Event(terminal: true));
+        await sender.StopAsync(CancellationToken.None);
+        Assert.Equal(2, _transport.Requests.Count);
+        Assert.Empty(await _store.GetAllAsync("task"));
+    }
+
+    [Fact]
+    public async Task TerminalCleanupCanBeDisabled()
+    {
+        var registration = await _store.SaveAsync(Config());
+        await using var sender = Sender(new() { AutoDeleteOnTerminalState = false });
+        await sender.EnqueueAsync(registration, Event(terminal: true));
+        await sender.StopAsync(CancellationToken.None);
+        Assert.Single(_transport.Requests);
         Assert.NotNull(await _store.GetAsync("task", "config"));
     }
 
     [Fact]
-    public async Task Delivery_DoesNotWriteToTheConfigurationStore()
+    public async Task CleanupFailure_DoesNotRetryTheTerminalDelivery()
     {
-        var slow = new SlowCleanupStore(_store);
-        var options = new PushNotificationDeliveryOptions
-        {
-            RequestTimeout = TimeSpan.FromMilliseconds(30),
-            ShutdownDrainTimeout = TimeSpan.FromMilliseconds(20),
-        };
-        await using var sender = new HttpPushNotificationSender(slow, _validator, new Factory(_transport), options, _logger);
-        await sender.EnqueueAsync(await _store.SaveAsync(Config()), Event(terminal: true));
-        await sender.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.False(slow.Entered.Task.IsCompleted);
+        var failing = new FailingCleanupStore(_store);
+        await using var sender = new HttpPushNotificationSender(failing, _validator, new Factory(_transport),
+            new PushNotificationDeliveryOptions { InitialRetryDelay = TimeSpan.Zero }, _logger);
+        await sender.EnqueueAsync(await failing.SaveAsync(Config()), Event(terminal: true));
+        await sender.StopAsync(CancellationToken.None);
+        Assert.Single(_transport.Requests);
+        Assert.Equal(1, failing.DeleteCalls);
         Assert.NotNull(await _store.GetAsync("task", "config"));
+        Assert.Contains(_logger.Messages, entry => entry.Contains("cleanup_failed", StringComparison.Ordinal));
     }
 
     [Theory]
@@ -525,9 +613,9 @@ public sealed class PushNotificationSenderTests : IDisposable
         },
     };
 
-    private sealed class SlowCleanupStore(IPushNotificationStore inner) : IPushNotificationStore
+    private sealed class FailingCleanupStore(IPushNotificationStore inner) : IPushNotificationStore
     {
-        internal TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal int DeleteCalls { get; private set; }
         public Task<PushNotificationConfigSnapshot> SaveAsync(TaskPushNotificationConfig config, CancellationToken cancellationToken = default) =>
             inner.SaveAsync(config, cancellationToken);
         public Task<PushNotificationConfigSnapshot?> GetAsync(string taskId, string configId, CancellationToken cancellationToken = default) =>
@@ -536,10 +624,10 @@ public sealed class PushNotificationSenderTests : IDisposable
             inner.GetAllAsync(taskId, cancellationToken);
         public Task<ListTaskPushNotificationConfigsResponse> ListAsync(ListTaskPushNotificationConfigsRequest request, CancellationToken cancellationToken = default) =>
             inner.ListAsync(request, cancellationToken);
-        public async Task DeleteAsync(string taskId, string configId, string? version = null, CancellationToken cancellationToken = default)
+        public Task DeleteAsync(string taskId, string configId, string? version = null, CancellationToken cancellationToken = default)
         {
-            Entered.TrySetResult();
-            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            DeleteCalls++;
+            return Task.FromException(new IOException("synthetic cleanup failure"));
         }
     }
 
