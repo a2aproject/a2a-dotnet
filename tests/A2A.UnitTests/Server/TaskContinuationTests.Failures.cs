@@ -2,6 +2,76 @@ namespace A2A.UnitTests.Server;
 
 public sealed partial class TaskContinuationTests
 {
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task FaultedQueueCompletion_ReportsProducerFailureAndCommittedProgress(bool committed, bool continuationError)
+    {
+        await SeedAsync();
+        await _registrations.SaveAsync(Config());
+        await using var server = Server();
+        Exception failure = continuationError
+            ? await Assert.ThrowsAsync<TaskContinuationException>(() =>
+                server.ContinueTaskAsync("missing", (_, _) => Task.CompletedTask))
+            : new InvalidOperationException("queue failed");
+
+        var error = await Assert.ThrowsAsync<TaskContinuationException>(() =>
+            server.ContinueTaskAsync("task", async (context, cancellationToken) =>
+            {
+                if (committed)
+                {
+                    await context.EventQueue.EnqueueMessageAsync(Message("committed"), cancellationToken);
+                }
+                context.EventQueue.Complete(failure);
+            }));
+
+        Assert.Equal(TaskContinuationFailureKind.Producer, error.FailureKind);
+        Assert.Same(failure, error.InnerException);
+        Assert.Equal(committed ? 1 : 0, error.Progress!.PersistedEventCount);
+        Assert.Equal(committed ? 1 : 0, error.Progress.AcceptedPushNotificationCount);
+        Assert.Equal(committed ? ["original", "committed"] : ["original"],
+            error.Progress.Task.History!.Select(message => message.MessageId));
+        Assert.Equal(committed ? ["committed"] : [], _sender.Events);
+        Assert.Equal(committed ? 2 : 1, (await _tasks.GetTaskAsync("task"))!.History!.Count);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PublicationFailure_BeforeFaultedQueueCompletion_PreservesItsOwnStage(bool admission)
+    {
+        await SeedAsync();
+        await _registrations.SaveAsync(Config());
+        var store = new TaskStoreProbe(_tasks) { FailSave = !admission };
+        var admissionError = new IOException("admission failed");
+        _sender.OnEnqueue = (_, _, _) => Task.FromException(admissionError);
+        await using var server = Server(tasks: store);
+
+        var error = await Assert.ThrowsAsync<TaskContinuationException>(() =>
+            server.ContinueTaskAsync("task", async (context, cancellationToken) =>
+            {
+                await context.EventQueue.EnqueueMessageAsync(Message("committed"), cancellationToken);
+                context.EventQueue.Complete(new InvalidOperationException("queue failed"));
+            }));
+
+        Assert.Equal(admission ? TaskContinuationFailureKind.PushAdmission : TaskContinuationFailureKind.TaskStore,
+            error.FailureKind);
+        if (admission)
+        {
+            Assert.Same(admissionError, error.InnerException!.InnerException);
+        }
+        else
+        {
+            Assert.IsType<IOException>(error.InnerException);
+        }
+        Assert.Equal(admission ? 1 : 0, error.Progress!.PersistedEventCount);
+        Assert.Equal(0, error.Progress.AcceptedPushNotificationCount);
+        Assert.Empty(_sender.Events);
+        Assert.Equal(admission ? 2 : 1, (await _tasks.GetTaskAsync("task"))!.History!.Count);
+    }
+
     [Fact]
     public async Task ProducerPropagatingAnotherContinuationFailure_PreservesProducerStageAndInnerError()
     {

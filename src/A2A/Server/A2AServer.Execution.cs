@@ -192,15 +192,16 @@ public partial class A2AServer
         {
             Task? producer = null;
             Exception? failure = null;
+            Exception? queueFailure = null;
             IDisposable? executionLease = null;
             using var initialization = CancellationTokenSource.CreateLinkedTokenSource(_requestToken, _executionToken);
+            // Detached shutdown drains cleanup events; explicit task cancellation interrupts admission.
+            var admissionToken = IsProactive ? _executionToken
+                : DetachedLifetime ? _admissionCancellation.Token : CancellationToken.None;
             try
             {
                 executionLease = await _server._notifier.AcquireTaskExecutionLockAsync(TaskId, initialization.Token).ConfigureAwait(false);
                 _context = await _initializeContext(initialization.Token).ConfigureAwait(false);
-                // Detached shutdown drains cleanup events; explicit task cancellation interrupts admission.
-                var admissionToken = IsProactive ? _executionToken
-                    : DetachedLifetime ? _admissionCancellation.Token : CancellationToken.None;
                 if (!_cancelHandler &&
                     Context.IsContinuation &&
                     Context.IncomingMessage is not null &&
@@ -227,8 +228,22 @@ public partial class A2AServer
                 // One reader owns persistence/publication for the entire execution. A paused
                 // or disconnected SDK enumerator never owns this producer's bounded queue.
                 var readerToken = IsProactive ? _executionToken : cancellationToken;
-                await foreach (var response in _events.WithCancellation(readerToken).ConfigureAwait(false))
+                await using var events = _events.GetAsyncEnumerator(readerToken);
+                while (true)
                 {
+                    try
+                    {
+                        if (!await events.MoveNextAsync().ConfigureAwait(false))
+                        {
+                            break;
+                        }
+                    }
+                    catch (Exception exception)
+                    {
+                        queueFailure = exception;
+                        throw;
+                    }
+                    var response = events.Current;
                     if (Volatile.Read(ref _abandoned))
                     {
                         throw new OperationCanceledException("Agent event publication was abandoned.", _executionToken);
@@ -298,7 +313,7 @@ public partial class A2AServer
                     !Volatile.Read(ref _abandoned);
                 if (markFailed)
                 {
-                    await _server.TryTransitionToFailedAsync(Context, cancellationToken).ConfigureAwait(false);
+                    await _server.TryTransitionToFailedAsync(Context, cancellationToken, admissionToken).ConfigureAwait(false);
                 }
             }
             finally
@@ -320,7 +335,7 @@ public partial class A2AServer
                 }
                 if (_progress is not null && failure is not null)
                 {
-                    bool producerFailed = ReferenceEquals(failure, _producerFailure);
+                    bool producerFailed = ReferenceEquals(failure, _producerFailure) || ReferenceEquals(failure, queueFailure);
                     var continuationError = producerFailed ? null : failure as TaskContinuationException;
                     var kind = continuationError is not null
                         ? continuationError.FailureKind

@@ -363,7 +363,9 @@ public partial class A2AServer : IA2ARequestHandler, IAsyncDisposable
     /// </summary>
     /// <param name="context">The request context identifying the task to transition.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    private async Task TryTransitionToFailedAsync(RequestContext context, CancellationToken cancellationToken = default)
+    /// <param name="admissionCancellationToken">Cancels pending push admission without interrupting persistence.</param>
+    private async Task TryTransitionToFailedAsync(RequestContext context, CancellationToken cancellationToken,
+        CancellationToken admissionCancellationToken)
     {
         try
         {
@@ -382,7 +384,7 @@ public partial class A2AServer : IA2ARequestHandler, IAsyncDisposable
                             Timestamp = DateTimeOffset.UtcNow,
                         },
                     },
-                }, context, cancellationToken).ConfigureAwait(false);
+                }, context, cancellationToken, admissionCancellationToken).ConfigureAwait(false);
             }
         }
         catch (Exception innerEx)

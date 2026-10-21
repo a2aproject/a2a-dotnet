@@ -2,6 +2,93 @@ namespace A2A.UnitTests.Server;
 
 public sealed partial class TaskContinuationTests
 {
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task DetachedCleanupFailure_InterruptsAdmissionOnCancellationButDrainsOnShutdown(bool streaming, bool shutdown)
+    {
+        await SeedAsync();
+        await _registrations.SaveAsync(Config());
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var failedAdmission = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var producerStopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _sender.OnEnqueue = async (_, response, cancellationToken) =>
+        {
+            if (response.StatusUpdate?.Status.State == TaskState.Failed)
+            {
+                failedAdmission.TrySetResult();
+                await release.Task.WaitAsync(cancellationToken);
+            }
+        };
+        var handler = new Handler
+        {
+            Execute = async (_, queue, cancellationToken) =>
+            {
+                try
+                {
+                    await queue.EnqueueTaskAsync((await _tasks.GetTaskAsync("task", cancellationToken))!, cancellationToken);
+                    entered.TrySetResult();
+                    await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw new InvalidOperationException("cleanup failed");
+                }
+                finally
+                {
+                    producerStopped.TrySetResult();
+                }
+            },
+        };
+        await using var server = Server(handler);
+        var request = new SendMessageRequest
+        {
+            Message = Message("inbound"),
+            Configuration = new() { ReturnImmediately = true },
+        };
+        try
+        {
+            if (streaming)
+            {
+                await using var stream = server.SendStreamingMessageAsync(request, null).GetAsyncEnumerator();
+                Assert.True(await stream.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5)));
+            }
+            else
+            {
+                Assert.NotNull((await server.SendMessageAsync(request, null).WaitAsync(TimeSpan.FromSeconds(5))).Task);
+            }
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            if (shutdown)
+            {
+                var stopping = server.StopAsync(CancellationToken.None);
+                await failedAdmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                Assert.True(producerStopped.Task.IsCompleted);
+                Assert.False(stopping.IsCompleted);
+                release.TrySetResult();
+                await stopping.WaitAsync(TimeSpan.FromSeconds(5));
+                Assert.Contains("failed", _sender.Events);
+            }
+            else
+            {
+                // The Failed event is persisted first, so cancellation must release the
+                // execution lease and observe the terminal state rather than hang.
+                var error = await Assert.ThrowsAsync<A2AException>(() =>
+                    server.CancelTaskAsync(new() { Id = "task" }, null).WaitAsync(TimeSpan.FromSeconds(2)));
+                Assert.Equal(A2AErrorCode.TaskNotCancelable, error.ErrorCode);
+                Assert.True(producerStopped.Task.IsCompleted);
+                Assert.DoesNotContain("failed", _sender.Events);
+            }
+            Assert.Equal(TaskState.Failed, (await _tasks.GetTaskAsync("task"))!.Status.State);
+        }
+        finally
+        {
+            release.TrySetResult();
+        }
+    }
+
     [Fact]
     public async Task PausedStreamingResponse_CanBeCanceledWithoutResumingOrDisposingTheStream()
     {
