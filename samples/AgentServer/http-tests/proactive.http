@@ -1,0 +1,29 @@
+@host = http://127.0.0.1:5048
+@taskId = REPLACE_WITH_TASK_ID_FROM_A2ACLI
+
+# Start --agent proactive and A2ACli with --return-immediately and
+# --use-push-notifications as described in ../README.md.
+# Copy the returned task ID above and leave the CLI running.
+
+### Send the exact text as an agent message on the existing task.
+# Repeat with different text; the task stays Working.
+POST {{host}}/proactive/tasks/{{taskId}}/continue
+Content-Type: application/json
+
+{
+  "message": "External job finished"
+}
+
+### Inspect persisted state and history without sending another message.
+POST {{host}}/proactive
+A2A-Version: 1.0
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": "inspect-proactive-task",
+  "method": "GetTask",
+  "params": {
+    "id": "{{taskId}}"
+  }
+}
