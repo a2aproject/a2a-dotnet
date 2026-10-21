@@ -1,6 +1,12 @@
 namespace A2A;
 
 /// <summary>Stores task-scoped push registrations. Implementations must isolate tenants as appropriate.</summary>
+/// <remarks>
+/// Configurations contain secrets. Persistent implementations are responsible for encryption,
+/// access control, retention, and cross-process generation invalidation.
+/// See <see href="https://github.com/a2aproject/a2a-dotnet/blob/main/docs/push-notifications.md#implementing-a-persistent-push-notification-store">persistent store security guidance</see>.
+/// Persisting registrations does not refresh credentials or make notification delivery durable.
+/// </remarks>
 public interface IPushNotificationStore
 {
     /// <summary>Atomically creates a registration with a generation-scoped deletion signal, rejecting duplicate IDs.</summary>
