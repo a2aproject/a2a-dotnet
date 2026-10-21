@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace A2A.UnitTests.GitHubIssues
 {
@@ -39,7 +39,7 @@ namespace A2A.UnitTests.GitHubIssues
                 eq.Complete();
             };
 
-            var cancelTask = server.CancelTaskAsync(new CancelTaskRequest { Id = taskId });
+            var cancelTask = server.CancelTaskAsync(new CancelTaskRequest { Id = taskId }, null);
             await cancelReachedHandler.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
             // A concurrent writer persists a terminal (Completed) state inside the race window.
@@ -78,7 +78,7 @@ namespace A2A.UnitTests.GitHubIssues
             {
                 Message = new Message { MessageId = "u1", Parts = [Part.FromText("hi")], Role = Role.User },
                 Configuration = new SendMessageConfiguration { ReturnImmediately = true },
-            });
+            }, null);
             var taskId = result.Task!.Id;
 
             await handlerStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));

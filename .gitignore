@@ -52,6 +52,9 @@ CodeCoverage/
 # Copilot tracking artifacts
 .copilot-tracking/
 
+# Superpowers artifacts
+**/superpowers/
+
 # MSBuild Binary and Structured Log
 *.binlog
 

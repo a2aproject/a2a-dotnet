@@ -16,7 +16,8 @@ public static class V03ServerProcessor
     /// <summary>
     /// Processes an A2A JSON-RPC request, handling both v0.3 and v1.0 wire formats.
     /// v0.3 requests are translated to v1.0, processed, and responses are translated back to v0.3.
-    /// v1.0 requests are passed through to the handler unchanged.
+    /// v1.0 requests are passed through after standard tenant fields are cleared in accordance
+    /// with the a2a-dotnet HTTP server tenant policy.
     /// </summary>
     /// <param name="requestHandler">The v1.0 A2A request handler.</param>
     /// <param name="request">The incoming HTTP request.</param>
@@ -59,6 +60,11 @@ public static class V03ServerProcessor
             using (doc)
             {
                 var root = doc.RootElement;
+                if (JsonRpcRequestValidation.HasDuplicateProperties(root))
+                {
+                    return MakeErrorResult(default, V03.JsonRpcResponse.InvalidRequestResponse);
+                }
+
                 if (!root.TryGetProperty("method", out var methodProp) ||
                     methodProp.ValueKind != JsonValueKind.String)
                 {
@@ -88,6 +94,11 @@ public static class V03ServerProcessor
         using (v03Doc)
         {
             var root = v03Doc.RootElement;
+            if (JsonRpcRequestValidation.HasDuplicateProperties(root))
+            {
+                return MakeErrorResult(default, V03.JsonRpcResponse.InvalidRequestResponse);
+            }
+
             if (!root.TryGetProperty("method", out var methodProp) ||
                 methodProp.ValueKind != JsonValueKind.String)
             {
@@ -96,6 +107,28 @@ public static class V03ServerProcessor
             }
 
             var method = methodProp.GetString() ?? string.Empty;
+            bool unsupportedLegacyPush = V03PushNotificationCompatibility.IsV1Only(requestHandler) &&
+                method is "tasks/pushNotificationConfig/set" or "tasks/pushNotificationConfig/get" or
+                    "tasks/pushNotificationConfig/list" or "tasks/pushNotificationConfig/delete";
+            if (unsupportedLegacyPush)
+            {
+                var id = default(V03.JsonRpcId);
+                if (root.TryGetProperty("id", out var idElement))
+                {
+                    if (idElement.ValueKind == JsonValueKind.String)
+                    {
+                        id = new V03.JsonRpcId(idElement.GetString());
+                    }
+                    else if (idElement.ValueKind == JsonValueKind.Number &&
+                        idElement.TryGetInt64(out long number))
+                    {
+                        id = new V03.JsonRpcId(number);
+                    }
+                }
+                return MakeV03ErrorResult(id, new A2AException(
+                    "The v1 server does not implement v0.3 push notification delivery.",
+                    A2AErrorCode.PushNotificationNotSupported));
+            }
             if (!V03.A2AMethods.IsValidMethod(method))
             {
                 return MakeErrorResult(default, V03.JsonRpcResponse.MethodNotFoundResponse);
@@ -193,7 +226,7 @@ public static class V03ServerProcessor
         // For push notification methods, probe support before deserializing params.
         if (A2AMethods.IsPushNotificationMethod(method))
         {
-            try { await handler.GetTaskPushNotificationConfigAsync(null!, ct).ConfigureAwait(false); }
+            try { await handler.GetTaskPushNotificationConfigAsync(null!, null, ct).ConfigureAwait(false); }
             catch (A2AException ex) when (ex.ErrorCode == A2AErrorCode.PushNotificationNotSupported) { throw; }
             catch { /* any other exception means push is supported; continue */ }
         }
@@ -203,61 +236,61 @@ public static class V03ServerProcessor
         {
             case A2AMethods.SendMessage:
             {
-                var req = DeserializeV1Params<SendMessageRequest>(paramsEl.Value, id);
-                response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.SendMessageAsync(req, ct).ConfigureAwait(false));
+                var req = DeserializeV1Params<SendMessageRequest>(paramsEl.Value, id, method);
+                response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.SendMessageAsync(req, null, ct).ConfigureAwait(false));
                 break;
             }
             case A2AMethods.GetTask:
             {
-                var req = DeserializeV1Params<GetTaskRequest>(paramsEl.Value, id);
-                response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.GetTaskAsync(req, ct).ConfigureAwait(false));
+                var req = DeserializeV1Params<GetTaskRequest>(paramsEl.Value, id, method);
+                response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.GetTaskAsync(req, null, ct).ConfigureAwait(false));
                 break;
             }
             case A2AMethods.ListTasks:
             {
-                var req = DeserializeV1Params<ListTasksRequest>(paramsEl.Value, id);
+                var req = DeserializeV1Params<ListTasksRequest>(paramsEl.Value, id, method);
                 if (req.PageSize is { } ps && (ps <= 0 || ps > 100))
                     throw new A2AException($"Invalid pageSize: {ps}. Must be between 1 and 100.", A2AErrorCode.InvalidParams);
                 if (req.HistoryLength is { } hl && hl < 0)
                     throw new A2AException($"Invalid historyLength: {hl}. Must be non-negative.", A2AErrorCode.InvalidParams);
-                response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.ListTasksAsync(req, ct).ConfigureAwait(false));
+                response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.ListTasksAsync(req, null, ct).ConfigureAwait(false));
                 break;
             }
             case A2AMethods.CancelTask:
             {
-                var req = DeserializeV1Params<CancelTaskRequest>(paramsEl.Value, id);
-                response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.CancelTaskAsync(req, ct).ConfigureAwait(false));
+                var req = DeserializeV1Params<CancelTaskRequest>(paramsEl.Value, id, method);
+                response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.CancelTaskAsync(req, null, ct).ConfigureAwait(false));
                 break;
             }
             case A2AMethods.CreateTaskPushNotificationConfig:
             {
-                var req = DeserializeV1Params<TaskPushNotificationConfig>(paramsEl.Value, id);
-                response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.CreateTaskPushNotificationConfigAsync(req, ct).ConfigureAwait(false));
+                var req = DeserializeV1Params<TaskPushNotificationConfig>(paramsEl.Value, id, method);
+                response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.CreateTaskPushNotificationConfigAsync(req, null, ct).ConfigureAwait(false));
                 break;
             }
             case A2AMethods.GetTaskPushNotificationConfig:
             {
-                var req = DeserializeV1Params<GetTaskPushNotificationConfigRequest>(paramsEl.Value, id);
-                response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.GetTaskPushNotificationConfigAsync(req, ct).ConfigureAwait(false));
+                var req = DeserializeV1Params<GetTaskPushNotificationConfigRequest>(paramsEl.Value, id, method);
+                response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.GetTaskPushNotificationConfigAsync(req, null, ct).ConfigureAwait(false));
                 break;
             }
             case A2AMethods.ListTaskPushNotificationConfigs:
             {
-                var req = DeserializeV1Params<ListTaskPushNotificationConfigsRequest>(paramsEl.Value, id);
-                response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.ListTaskPushNotificationConfigsAsync(req, ct).ConfigureAwait(false));
+                var req = DeserializeV1Params<ListTaskPushNotificationConfigsRequest>(paramsEl.Value, id, method);
+                response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.ListTaskPushNotificationConfigsAsync(req, null, ct).ConfigureAwait(false));
                 break;
             }
             case A2AMethods.DeleteTaskPushNotificationConfig:
             {
-                var req = DeserializeV1Params<DeleteTaskPushNotificationConfigRequest>(paramsEl.Value, id);
-                await handler.DeleteTaskPushNotificationConfigAsync(req, ct).ConfigureAwait(false);
+                var req = DeserializeV1Params<DeleteTaskPushNotificationConfigRequest>(paramsEl.Value, id, method);
+                await handler.DeleteTaskPushNotificationConfigAsync(req, null, ct).ConfigureAwait(false);
                 response = JsonRpcResponse.CreateJsonRpcResponse(id, (object?)null);
                 break;
             }
             case A2AMethods.GetExtendedAgentCard:
             {
-                var req = DeserializeV1Params<GetExtendedAgentCardRequest>(paramsEl.Value, id);
-                response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.GetExtendedAgentCardAsync(req, ct).ConfigureAwait(false));
+                var req = DeserializeV1Params<GetExtendedAgentCardRequest>(paramsEl.Value, id, method);
+                response = JsonRpcResponse.CreateJsonRpcResponse(id, await handler.GetExtendedAgentCardAsync(req, null, ct).ConfigureAwait(false));
                 break;
             }
             default:
@@ -285,20 +318,20 @@ public static class V03ServerProcessor
         {
             case A2AMethods.SubscribeToTask:
             {
-                var req = DeserializeV1Params<SubscribeToTaskRequest>(paramsEl.Value, id);
-                return new JsonRpcStreamedResult(handler.SubscribeToTaskAsync(req, ct), id);
+                var req = DeserializeV1Params<SubscribeToTaskRequest>(paramsEl.Value, id, method);
+                return new JsonRpcStreamedResult(handler.SubscribeToTaskAsync(req, null, ct), id);
             }
             case A2AMethods.SendStreamingMessage:
             {
-                var req = DeserializeV1Params<SendMessageRequest>(paramsEl.Value, id);
-                return new JsonRpcStreamedResult(handler.SendStreamingMessageAsync(req, ct), id);
+                var req = DeserializeV1Params<SendMessageRequest>(paramsEl.Value, id, method);
+                return new JsonRpcStreamedResult(handler.SendStreamingMessageAsync(req, null, ct), id);
             }
             default:
                 return new JsonRpcResponseResult(JsonRpcResponse.MethodNotFoundResponse(id));
         }
     }
 
-    private static T DeserializeV1Params<T>(JsonElement element, JsonRpcId id) where T : class
+    private static T DeserializeV1Params<T>(JsonElement element, JsonRpcId id, string method) where T : class
     {
         T? result;
         try
@@ -320,6 +353,7 @@ public static class V03ServerProcessor
             throw new A2AException("Message parts cannot be empty", A2AErrorCode.InvalidParams);
         }
 
+        A2AHttpRequestPolicy.NormalizeIncomingRequest(result, "JSONRPC", method);
         return result;
     }
 
@@ -339,9 +373,15 @@ public static class V03ServerProcessor
             {
                 var v03Params = DeserializeParams<V03.MessageSendParams>(rpcRequest.Params.Value);
                 var v1Request = V03TypeConverter.ToV1SendMessageRequest(v03Params);
+                if (V03PushNotificationCompatibility.IsV1Only(handler) &&
+                    v1Request.Configuration?.TaskPushNotificationConfig is not null)
+                {
+                    throw new A2AException("The v1 server does not implement v0.3 push notification delivery.",
+                        A2AErrorCode.PushNotificationNotSupported);
+                }
                 if (v1Request.Message.Parts.Count == 0)
                     return MakeErrorResult(rpcRequest.Id, V03.JsonRpcResponse.InvalidParamsResponse);
-                var v1Response = await handler.SendMessageAsync(v1Request, ct).ConfigureAwait(false);
+                var v1Response = await handler.SendMessageAsync(v1Request, null, ct).ConfigureAwait(false);
                 var v03Response = V03TypeConverter.ToV03Response(v1Response);
                 return MakeSuccessResult(rpcRequest.Id, v03Response, typeof(V03.A2AResponse));
             }
@@ -350,7 +390,7 @@ public static class V03ServerProcessor
             {
                 var v03Params = DeserializeParams<V03.TaskQueryParams>(rpcRequest.Params.Value);
                 var v1Request = V03TypeConverter.ToV1GetTaskRequest(v03Params);
-                var agentTask = await handler.GetTaskAsync(v1Request, ct).ConfigureAwait(false);
+                var agentTask = await handler.GetTaskAsync(v1Request, null, ct).ConfigureAwait(false);
                 return MakeSuccessResult(rpcRequest.Id, V03TypeConverter.ToV03AgentTask(agentTask), typeof(V03.AgentTask));
             }
 
@@ -358,7 +398,7 @@ public static class V03ServerProcessor
             {
                 var v03Params = DeserializeParams<V03.TaskIdParams>(rpcRequest.Params.Value);
                 var v1Request = V03TypeConverter.ToV1CancelTaskRequest(v03Params);
-                var agentTask = await handler.CancelTaskAsync(v1Request, ct).ConfigureAwait(false);
+                var agentTask = await handler.CancelTaskAsync(v1Request, null, ct).ConfigureAwait(false);
                 return MakeSuccessResult(rpcRequest.Id, V03TypeConverter.ToV03AgentTask(agentTask), typeof(V03.AgentTask));
             }
 
@@ -366,7 +406,7 @@ public static class V03ServerProcessor
             {
                 var v03Config = DeserializeParams<V03.TaskPushNotificationConfig>(rpcRequest.Params.Value);
                 var v1Request = V03TypeConverter.ToV1TaskPushNotificationConfig(v03Config);
-                var v1Result = await handler.CreateTaskPushNotificationConfigAsync(v1Request, ct).ConfigureAwait(false);
+                var v1Result = await handler.CreateTaskPushNotificationConfigAsync(v1Request, null, ct).ConfigureAwait(false);
                 var v03Result = new V03.TaskPushNotificationConfig
                 {
                     TaskId = v1Result.TaskId ?? string.Empty,
@@ -383,7 +423,7 @@ public static class V03ServerProcessor
                     TaskId = v03Params.Id,
                     Id = v03Params.PushNotificationConfigId ?? string.Empty,
                 };
-                var v1Result = await handler.GetTaskPushNotificationConfigAsync(v1Request, ct).ConfigureAwait(false);
+                var v1Result = await handler.GetTaskPushNotificationConfigAsync(v1Request, null, ct).ConfigureAwait(false);
                 var v03Result = new V03.TaskPushNotificationConfig
                 {
                     TaskId = v1Result.TaskId ?? string.Empty,
@@ -415,9 +455,15 @@ public static class V03ServerProcessor
             {
                 var v03Params = DeserializeParams<V03.MessageSendParams>(rpcRequest.Params.Value);
                 var v1Request = V03TypeConverter.ToV1SendMessageRequest(v03Params);
+                if (V03PushNotificationCompatibility.IsV1Only(handler) &&
+                    v1Request.Configuration?.TaskPushNotificationConfig is not null)
+                {
+                    throw new A2AException("The v1 server does not implement v0.3 push notification delivery.",
+                        A2AErrorCode.PushNotificationNotSupported);
+                }
                 if (v1Request.Message.Parts.Count == 0)
                     return MakeErrorResult(rpcRequest.Id, V03.JsonRpcResponse.InvalidParamsResponse);
-                var v1Events = handler.SendStreamingMessageAsync(v1Request, ct);
+                var v1Events = handler.SendStreamingMessageAsync(v1Request, null, ct);
                 return new V03JsonRpcStreamedResult(v1Events.Select(V03TypeConverter.ToV03Event), rpcRequest.Id);
             }
 
@@ -425,7 +471,7 @@ public static class V03ServerProcessor
             {
                 var v03Params = DeserializeParams<V03.TaskIdParams>(rpcRequest.Params.Value);
                 var subscribeRequest = new SubscribeToTaskRequest { Id = v03Params.Id };
-                var v1Events = handler.SubscribeToTaskAsync(subscribeRequest, ct);
+                var v1Events = handler.SubscribeToTaskAsync(subscribeRequest, null, ct);
                 return new V03JsonRpcStreamedResult(v1Events.Select(V03TypeConverter.ToV03Event), rpcRequest.Id);
             }
 

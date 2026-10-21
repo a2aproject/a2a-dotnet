@@ -10,6 +10,7 @@
 // UnsupportedOperation, which is exactly what SEC-EXTCARD-003 expects of the
 // reduced-capability SUT, so overriding it too would break the test it exists for.
 
+using A2A.V0_3Compat;
 using Microsoft.Extensions.Logging;
 
 namespace A2A.Itk;
@@ -21,17 +22,34 @@ public sealed class ActsServer(
     ChannelEventNotifier notifier,
     ILogger<A2AServer> logger,
     A2AServerOptions options,
+    AgentCard agentCard,
+    IPushNotificationStore pushNotificationStore,
+    IPushNotificationUrlValidator pushNotificationUrlValidator,
+    IPushNotificationSender pushNotificationSender,
     AgentCard extendedCard)
-    : A2AServer(handler, taskStore, notifier, logger, options)
+    : A2AServer(
+        handler,
+        taskStore,
+        notifier,
+        logger,
+        options,
+        agentCard,
+        pushNotificationStore,
+        pushNotificationUrlValidator,
+        pushNotificationSender),
+        IV03PushNotificationCompatibility
 {
     private readonly bool _supported = options.SupportsExtendedAgentCard;
 
     /// <inheritdoc />
+    bool IV03PushNotificationCompatibility.SupportsV03PushNotifications => false;
+
+    /// <inheritdoc />
     public override Task<AgentCard> GetExtendedAgentCardAsync(
-        GetExtendedAgentCardRequest request, CancellationToken cancellationToken = default)
+        GetExtendedAgentCardRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default)
         => _supported
             ? Task.FromResult(extendedCard)
-            : base.GetExtendedAgentCardAsync(request, cancellationToken);
+            : base.GetExtendedAgentCardAsync(request, requestContext, cancellationToken);
 
     /// <summary>
     /// The extended card: the public one plus a skill only an authenticated caller sees.

@@ -64,6 +64,18 @@ var client = new A2AClient(agentUri, httpClient);
 
 The SDK uses `System.Text.Json` for all serialization and deserialization, with source-generated metadata via `A2AJsonUtilities`. STJ's default maximum depth (64) and other default limits apply.
 
+The v1 JSON-RPC processor and the v0.3/v1 compatibility endpoint reject duplicate
+property names before method dispatch, including nested objects and objects
+inside arrays. Names are compared using ordinal, case-insensitive equality
+within each object, so `taskId` and `TaskId` cannot supply conflicting values.
+This request-wide rule also applies inside application `data` and `metadata`;
+use keys that are distinct ignoring case. Reusing a name in separate objects
+is allowed, and valid DTO property casing remains accepted. A syntactically
+valid request with duplicates receives JSON-RPC `Invalid Request` (`-32600`)
+with a null response ID; malformed JSON remains `Parse Error` (`-32700`).
+Client response parsing and persistence serialization defaults are unchanged.
+This validation does not replace application authentication or authorization.
+
 **Required application controls:**
 - Configure request body size limits in Kestrel / reverse proxy (e.g., `MaxRequestBodySize`).
 - Enforce strict `Content-Type: application/json` on JSON-RPC endpoints.
@@ -84,30 +96,49 @@ Streaming (Server-Sent Events via `message/stream` and `tasks/resubscribe`) uses
 
 ### 5. Webhook / Push Notification Security
 
-Push notifications introduce an outbound HTTP request path whose URL and token are supplied by clients. The SDK stores `PushNotificationConfig` (including `Token` and `Authentication` fields) but **does not**:
-- Validate webhook URLs for SSRF (private ranges, localhost, link-local).
-- Perform URL allowlisting.
-- Verify webhook request authenticity.
-- Provide a constant-time token comparison API.
+When the registered card enables push notifications, the easy-path server stores
+task-scoped configurations and delivers v1 `StreamResponse` events. The default
+validator requires HTTPS, rejects userinfo/fragments and non-public addresses,
+checks every DNS answer, and supports exact/wildcard host allowlists. Empty or
+`*` host lists do not bypass address checks. The selected policy returns approved
+IP addresses; the connector validates at connection establishment and dials those
+addresses without an unchecked second resolution, preserving normal TLS/SNI.
+Destinations are also revalidated before each attempt. The default HTTP client does not follow redirects or retain cookies,
+and implicit proxies and factory URL logging are disabled.
 
 **Required application controls (agent side — sending notifications):**
-- Validate webhook URLs before storing or using them:
-  - Block localhost, private ranges (RFC 1918), and link-local ranges.
-  - Require HTTPS scheme.
-  - Consider a per-tenant domain allowlist.
-- Apply egress firewalling to the agent process for the strongest protection.
+- Use destination allowlists and egress firewalling as defense in depth. Custom
+  handlers must preserve approved-address connection enforcement.
+- Scope task and config access to the authenticated tenant/principal. The SDK
+  does not introduce a tenant authorization system.
+- Replace the development-only store with encrypted durable storage and apply
+  quotas/retention. Use a durable outbox sender when restart loss is unacceptable.
+- Preserve redirect/cookie protections when customizing HTTP handlers; explicitly
+  configure trusted proxies and normal certificate validation.
+- Redact destination URLs and secrets in application-level HTTP instrumentation.
 - Use an ownership verification challenge before enabling notifications.
-- Use a conservative retry policy (exponential backoff with caps) to prevent retry storms.
+- Keep retries, queue capacity, timeouts, and shutdown drain bounded.
 
 **Required application controls (client side — receiving notifications):**
-- Authenticate incoming webhook requests using the configured token.
+- Authenticate `Authorization` from `AuthenticationInfo`; additionally verify
+  the legacy token header when configured. A legacy token does not replace
+  normative v1 authentication.
 - Perform token comparison in a constant-time manner to prevent timing attacks.
 - Validate that `taskId` belongs to the expected tenant/principal; ignore unknown task IDs.
-- Consider anti-replay measures (timestamp/nonce) depending on your auth scheme.
+- Use idempotent processing and appropriate replay protection. Timeouts can cause
+  duplicate receipt even when an earlier attempt was processed successfully.
 
-> **Note:** The SDK stores webhook tokens but does not expose a validation helper. Implement token comparison manually in your webhook receiver.
+Create returns accepted secrets; get/list redact credentials and tokens without
+changing stored delivery values. Deletion prevents later attempts but cannot
+recall already-transmitted bytes. Registrations carry a generation-scoped
+invalidation signal; terminal delivery/failure does not delete client
+configuration. Retention is an explicit store/application policy.
+The sender logs failures without changing task state; bounded, process-local
+delivery is not a durable or exactly-once guarantee.
 
-See: [A2A specification — Push Notification Config](https://a2a-protocol.org/v0.3.0/specification/#68-pushnotificationconfig-object), [Security Considerations for Push Notifications](https://a2a-protocol.org/v0.3.0/topics/streaming-and-async/#security-considerations-for-push-notifications)
+See the [push notification guide](push-notifications.md) and
+[receiver sample](../samples/PushNotificationReceiver/README.md). The sample's
+exact-loopback policy is only for its owned local listener, not production.
 
 ### 6. File Handling
 
@@ -122,10 +153,11 @@ The SDK treats `FilePart` payloads (both `bytes` and `uri` variants) as opaque d
 
 ### 7. Tenant Isolation
 
-The SDK does not enforce any tenant boundaries. Task IDs, push notification configs, and artifacts are not inherently scoped to a caller identity.
+The SDK does not enforce any tenant boundaries. Task IDs, push notification configs, and artifacts are not inherently scoped to a caller identity. The SDK's clients serialize `Tenant` fields for interoperability with A2A servers that use them. The a2a-dotnet JSON-RPC and HTTP+JSON server bindings select handlers through host routing and clear incoming `Tenant` values before dispatch. Custom operation models are not modified.
 
 **Required application controls:**
 - Derive tenant context from the authenticated principal (claims, API key mapping, or mTLS identity) — never from client-supplied request fields.
+- Route tenant-specific JSON-RPC and HTTP+JSON agents through tenant-specific URLs or authenticated host-application context.
 - Persist tenant and principal ownership metadata alongside every task and push notification config.
 - Enforce tenant scoping on every `tasks/get`, `tasks/cancel`, `tasks/resubscribe`, and push config API call.
 - Use non-predictable task IDs (UUIDs) to prevent enumeration.
@@ -153,7 +185,7 @@ The SDK does not guarantee, and cannot provide, protection for:
 |----------|-------------|
 | Tenant isolation correctness | Tenant ID and isolation strategy are entirely application-defined. |
 | Prompt injection / cross-agent instruction smuggling | Requires application-level control design (e.g., approval gates, tool permission isolation). Treat all remote agent outputs as untrusted. |
-| Webhook egress safety (SSRF) | Requires explicit URL validation and/or egress firewalling in the application. |
+| Complete webhook egress safety (SSRF) | Default HTTPS/public-address checks reduce risk; applications still need allowlists and egress controls. |
 | Data retention, archival, or lifecycle compliance | No retention requirement is specified by the SDK; applications must implement their own policy. |
 
 ---
@@ -164,8 +196,8 @@ The SDK does not guarantee, and cannot provide, protection for:
 |----------|------------------|------------------------------|
 | Network (Client ↔ Agent HTTP) | Routes and dispatches JSON-RPC; maps errors to ProblemDetails; uses a shared default `HttpClient` when none is supplied | Authenticate, authorize, enforce HTTPS, rate-limit, size-limit, and disable or isolate cookies |
 | Streaming (SSE) | Writes incremental events to the response stream | Concurrency limits, idle timeouts, backpressure, content redaction |
-| Webhooks (Agent → Client callback) | Stores `PushNotificationConfig`; delivery is app-implemented | URL validation (SSRF), token verification, retry caps |
-| Tenant isolation | None | Scope every task and config operation to authenticated identity |
+| Webhooks (Agent → Client callback) | Capability-gated storage, approved-address connection policy, bounded attempts, redaction, and deletion cancellation | Tenant scoping, egress controls, receiver auth/idempotency, retention, durable encrypted replacements |
+| Tenant isolation | Clients serialize standard request `Tenant` fields; a2a-dotnet HTTP servers ignore them before dispatch and do not authorize or scope resources | Scope every task and config operation to authenticated identity and route HTTP requests to the correct agent |
 | Storage | Provides `ITaskStore` interface + `InMemoryTaskStore` (dev only) | Production store, encryption, quotas, TTL cleanup |
 
 ---

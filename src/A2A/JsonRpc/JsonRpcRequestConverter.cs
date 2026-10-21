@@ -149,12 +149,6 @@ internal sealed class JsonRpcRequestConverter : JsonConverter<JsonRpcRequest>
                     .WithRequestId(requestId);
             }
 
-            if (!A2AMethods.IsValidMethod(method!))
-            {
-                throw new A2AException("Invalid JSON-RPC request: 'method' field is not a valid A2A method.", A2AErrorCode.MethodNotFound)
-                    .WithRequestId(requestId);
-            }
-
             return method!;
         }
 

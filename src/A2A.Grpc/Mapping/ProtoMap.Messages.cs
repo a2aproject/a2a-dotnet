@@ -671,8 +671,9 @@ internal static partial class ProtoMap
         Tenant = NullIfEmpty(request.Tenant),
         ContextId = NullIfEmpty(request.ContextId),
         Status = request.Status == Protos.TaskState.Unspecified ? null : (TaskState)(int)request.Status,
-        // page_size has a minimum of 1; treat 0 (or unset) as "unspecified" so the server applies its default.
-        PageSize = request.HasPageSize && request.PageSize > 0 ? request.PageSize : null,
+        // An omitted page_size stays null so the server default applies.
+        // An explicit 0 or a negative value is preserved and rejected by the handler.
+        PageSize = request.HasPageSize ? request.PageSize : null,
         PageToken = NullIfEmpty(request.PageToken),
         HistoryLength = request.HasHistoryLength ? request.HistoryLength : null,
         StatusTimestampAfter = request.StatusTimestampAfter?.ToDateTimeOffset(),
@@ -882,12 +883,12 @@ internal static partial class ProtoMap
     {
         var result = new ListTaskPushNotificationConfigsResponse
         {
-            NextPageToken = NullIfEmpty(response.NextPageToken),
+            Configs = [],
+            NextPageToken = response.NextPageToken,
         };
 
         if (response.Configs.Count > 0)
         {
-            result.Configs = [];
             foreach (var config in response.Configs)
             {
                 result.Configs.Add(ToDomain(config));

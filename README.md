@@ -25,6 +25,9 @@ If you're upgrading from the v0.3 SDK, see the **[Migration Guide](docs/migratio
 dotnet add package A2A.V0_3
 ```
 
+> [!IMPORTANT]
+> If a v0.3 client calls a v1 server through `A2A.V0_3Compat` and expects a completed task response, explicitly set `configuration.blocking: true`. The compatibility layer honors this field, unlike the old v0.3 server SDK. A supplied configuration without it can return an initial task snapshot without the final message or artifacts. See the [blocking migration guidance](docs/migration-guide-v1.md#v03-compatibility-blocking-behavior).
+
 ## Installation
 
 ### Core A2A Library
@@ -186,6 +189,10 @@ switch (response.PayloadCase)
 }
 ```
 
+For Aspire service names or logical URLs such as `https+http://agent-api`, see
+[.NET Service Discovery](docs/service-discovery.md). Configure the HTTP client
+for both agent-card discovery and subsequent agent calls.
+
 ### 3. Using the gRPC binding
 
 Host a gRPC endpoint alongside (or instead of) the JSON-RPC/HTTP endpoints. The gRPC service reuses the same agent registration and `IA2ARequestHandler` pipeline:
@@ -232,6 +239,12 @@ await foreach (var evt in client.SendStreamingMessageAsync(new SendMessageReques
     Console.WriteLine(evt.PayloadCase);
 }
 ```
+
+For gRPC interfaces, agent cards use the specification's `hostname:port` address format. Scheme-less
+addresses use TLS by default. For local plaintext HTTP/2 (h2c) endpoints, register the binding with
+`A2AGrpcClientRegistration.Register(useTlsForSchemeLessAddresses: false)`. Explicit legacy
+`http://` and `https://` addresses remain supported.
+
 > [!IMPORTANT]
 > `A2AClient`, `A2AHttpJsonClient`, and `A2ACardResolver` use a shared default `HttpClient` when one is not supplied. In multi-user or multi-tenant applications, inject a client configured with `HttpClientHandler.UseCookies = false`. If cookie-based sessions are required, isolate the `HttpClientHandler` and `CookieContainer` per user or security context. See [Client Cookie Isolation](docs/security.md#2-client-cookie-isolation).
 
@@ -256,6 +269,20 @@ Server-side examples demonstrating how to build A2A-compatible agents:
 - **Echo Agent with Tasks**: Task-based version of the echo agent
 - **Researcher Agent**: More complex agent with research capabilities
 - **HTTP Test Suite**: Complete set of HTTP tests for all agent endpoints
+
+### Push Notification Receiver
+**[`samples/PushNotificationReceiver/`](samples/PushNotificationReceiver/README.md)**
+
+Loopback SDK push demo and authenticated receiver: configuration CRUD, persisted task updates, default HTTP delivery, and explicit configuration deletion. See the [push notification guide](docs/push-notifications.md) for protocol requirements, SDK policies, and production limits.
+
+### Extension Negotiation
+
+**[`samples/ExtensionNegotiation/`](samples/ExtensionNegotiation/README.md)**
+
+Register a supported extension, bind its operations to JSON-RPC, HTTP+JSON and gRPC,
+and verify request-scoped activation, availability changes and SDK error metadata.
+The self-contained loopback demo requires no model credentials. See the
+[extension negotiation guide](docs/extensions.md) for API examples and Agent Card consistency.
 
 ### Microsoft Agent Framework Integration
 **[`samples/MAF/`](samples/MAF/README.md)**

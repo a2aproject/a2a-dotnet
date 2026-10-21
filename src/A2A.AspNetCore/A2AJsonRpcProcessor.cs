@@ -23,7 +23,64 @@ public static class A2AJsonRpcProcessor
         return null;
     }
 
-    internal static async Task<IResult> ProcessRequestAsync(IA2ARequestHandler requestHandler, HttpRequest request, CancellationToken cancellationToken)
+    /// <summary>Processes a JSON-RPC request using the standard A2A operations.</summary>
+    /// <param name="requestHandler">The standard A2A request handler.</param>
+    /// <param name="request">The HTTP request containing the JSON-RPC payload.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The HTTP result for the JSON-RPC response.</returns>
+    public static async Task<IResult> ProcessRequestAsync(IA2ARequestHandler requestHandler, HttpRequest request, CancellationToken cancellationToken)
+        => await ProcessRequestAsync(
+            requestHandler,
+            request,
+            customRegistry: null,
+            customBindings: null,
+            cancellationToken).ConfigureAwait(false);
+
+    /// <summary>Processes a JSON-RPC request using standard and custom A2A operations.</summary>
+    /// <param name="requestHandler">The standard A2A request handler.</param>
+    /// <param name="request">The HTTP request containing the JSON-RPC payload.</param>
+    /// <param name="customRegistry">The optional custom operation registry.</param>
+    /// <param name="customBindings">The optional custom JSON-RPC method mappings.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The HTTP result for the JSON-RPC response.</returns>
+    public static async Task<IResult> ProcessRequestAsync(
+        IA2ARequestHandler requestHandler,
+        HttpRequest request,
+        A2ACustomOperationRegistry? customRegistry,
+        A2AJsonRpcCustomOperationBindings? customBindings,
+        CancellationToken cancellationToken)
+        => await ProcessRequestCoreAsync(
+            requestHandler,
+            request,
+            customRegistry is null ? null : new A2AExtensionOptions(customRegistry),
+            customBindings,
+            cancellationToken).ConfigureAwait(false);
+
+    /// <summary>Processes a JSON-RPC request with extension negotiation and optional custom methods.</summary>
+    /// <param name="requestHandler">The standard A2A request handler.</param>
+    /// <param name="request">The HTTP request containing the JSON-RPC payload.</param>
+    /// <param name="extensionOptions">The authoritative registry and optional availability policy.</param>
+    /// <param name="customBindings">The optional custom JSON-RPC method mappings.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The HTTP result for the JSON-RPC response.</returns>
+    public static Task<IResult> ProcessRequestWithExtensionsAsync(
+        IA2ARequestHandler requestHandler,
+        HttpRequest request,
+        A2AExtensionOptions extensionOptions,
+        A2AJsonRpcCustomOperationBindings? customBindings,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(extensionOptions);
+        customBindings?.EnsureRegistryOwnership(extensionOptions.Registry);
+        return ProcessRequestCoreAsync(requestHandler, request, extensionOptions, customBindings, cancellationToken);
+    }
+
+    private static async Task<IResult> ProcessRequestCoreAsync(
+        IA2ARequestHandler requestHandler,
+        HttpRequest request,
+        A2AExtensionOptions? extensionOptions,
+        A2AJsonRpcCustomOperationBindings? customBindings,
+        CancellationToken cancellationToken)
     {
         var preflightResult = CheckPreflight(request);
         if (preflightResult != null) return preflightResult;
@@ -34,17 +91,59 @@ public static class A2AJsonRpcProcessor
 
         try
         {
-            rpcRequest = (JsonRpcRequest?)await JsonSerializer.DeserializeAsync(request.Body, A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcRequest)), cancellationToken).ConfigureAwait(false);
+            using (var document = await JsonDocument.ParseAsync(request.Body, cancellationToken: cancellationToken).ConfigureAwait(false))
+            {
+                if (JsonRpcRequestValidation.HasDuplicateProperties(document.RootElement))
+                {
+                    throw new A2AException("Duplicate JSON properties are not allowed in JSON-RPC requests.", A2AErrorCode.InvalidRequest);
+                }
+
+                rpcRequest = (JsonRpcRequest?)document.RootElement.Deserialize(A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(JsonRpcRequest)));
+            }
 
             activity?.SetTag("request.id", rpcRequest!.Id.ToString());
             activity?.SetTag("request.method", rpcRequest!.Method);
 
-            if (A2AMethods.IsStreamingMethod(rpcRequest!.Method))
+            A2ARequestContext? requestContext = null;
+            if (extensionOptions is not null)
             {
-                return StreamResponse(requestHandler, rpcRequest.Id, rpcRequest.Method, rpcRequest.Params, cancellationToken);
+                requestContext = await A2AExtensionNegotiation.NegotiateAsync(
+                    request.HttpContext, extensionOptions, cancellationToken).ConfigureAwait(false);
             }
 
-            return await SingleResponseAsync(requestHandler, rpcRequest.Id, rpcRequest.Method, rpcRequest.Params, cancellationToken).ConfigureAwait(false);
+            var operationContext = A2AExtensionNegotiation.CreateOperationContext(request.HttpContext);
+            var customRegistry = extensionOptions?.Registry;
+
+            if (A2AMethods.IsStreamingMethod(rpcRequest!.Method) ||
+                customBindings?.IsStreamingMethod(rpcRequest.Method) == true)
+            {
+                return StreamResponse(
+                    requestHandler,
+                    operationContext,
+                    rpcRequest.Id,
+                    rpcRequest.Method,
+                    rpcRequest.Params,
+                    customRegistry,
+                    customBindings,
+                    requestContext,
+                    cancellationToken);
+            }
+
+            return await SingleResponseAsync(
+                requestHandler,
+                operationContext,
+                rpcRequest.Id,
+                rpcRequest.Method,
+                rpcRequest.Params,
+                customRegistry,
+                customBindings,
+                requestContext,
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (extensionOptions is not null &&
+            (cancellationToken.IsCancellationRequested || request.HttpContext.RequestAborted.IsCancellationRequested))
+        {
+            throw;
         }
         catch (A2AException ex)
         {
@@ -76,6 +175,27 @@ public static class A2AJsonRpcProcessor
     }
 
     internal static async Task<JsonRpcResponseResult> SingleResponseAsync(IA2ARequestHandler requestHandler, JsonRpcId requestId, string method, JsonElement? parameters, CancellationToken cancellationToken)
+        => await SingleResponseAsync(
+            requestHandler,
+            new A2ACustomOperationContext(),
+            requestId,
+            method,
+            parameters,
+            customRegistry: null,
+            customBindings: null,
+            requestContext: null,
+            cancellationToken).ConfigureAwait(false);
+
+    private static async Task<JsonRpcResponseResult> SingleResponseAsync(
+        IA2ARequestHandler requestHandler,
+        A2ACustomOperationContext operationContext,
+        JsonRpcId requestId,
+        string method,
+        JsonElement? parameters,
+        A2ACustomOperationRegistry? customRegistry,
+        A2AJsonRpcCustomOperationBindings? customBindings,
+        A2ARequestContext? requestContext,
+        CancellationToken cancellationToken)
     {
         using var activity = A2AAspNetCoreDiagnostics.Source.StartActivity($"SingleResponse/{method}", ActivityKind.Server);
         activity?.SetTag("request.id", requestId.ToString());
@@ -96,7 +216,7 @@ public static class A2AJsonRpcProcessor
         {
             try
             {
-                await requestHandler.GetTaskPushNotificationConfigAsync(null!, cancellationToken).ConfigureAwait(false);
+                await requestHandler.GetTaskPushNotificationConfigAsync(null!, requestContext, cancellationToken).ConfigureAwait(false);
             }
             catch (A2AException ex) when (ex.ErrorCode == A2AErrorCode.PushNotificationNotSupported)
             {
@@ -112,17 +232,17 @@ public static class A2AJsonRpcProcessor
         switch (method)
         {
             case A2AMethods.SendMessage:
-                var sendRequest = DeserializeAndValidate<SendMessageRequest>(parameters.Value);
-                var sendResult = await requestHandler.SendMessageAsync(sendRequest, cancellationToken).ConfigureAwait(false);
+                var sendRequest = DeserializeAndValidate<SendMessageRequest>(parameters.Value, method);
+                var sendResult = await requestHandler.SendMessageAsync(sendRequest, requestContext, cancellationToken).ConfigureAwait(false);
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, sendResult);
                 break;
             case A2AMethods.GetTask:
-                var getTaskRequest = DeserializeAndValidate<GetTaskRequest>(parameters.Value);
-                var agentTask = await requestHandler.GetTaskAsync(getTaskRequest, cancellationToken).ConfigureAwait(false);
+                var getTaskRequest = DeserializeAndValidate<GetTaskRequest>(parameters.Value, method);
+                var agentTask = await requestHandler.GetTaskAsync(getTaskRequest, requestContext, cancellationToken).ConfigureAwait(false);
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, agentTask);
                 break;
             case A2AMethods.ListTasks:
-                var listTasksRequest = DeserializeAndValidate<ListTasksRequest>(parameters.Value);
+                var listTasksRequest = DeserializeAndValidate<ListTasksRequest>(parameters.Value, method);
 
                 // Validate pageSize: must be 1-100 if specified
                 if (listTasksRequest.PageSize is { } ps && (ps <= 0 || ps > 100))
@@ -140,48 +260,72 @@ public static class A2AJsonRpcProcessor
                         A2AErrorCode.InvalidParams);
                 }
 
-                var listResult = await requestHandler.ListTasksAsync(listTasksRequest, cancellationToken).ConfigureAwait(false);
+                var listResult = await requestHandler.ListTasksAsync(listTasksRequest, requestContext, cancellationToken).ConfigureAwait(false);
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, listResult);
                 break;
             case A2AMethods.CancelTask:
-                var cancelRequest = DeserializeAndValidate<CancelTaskRequest>(parameters.Value);
-                var cancelledTask = await requestHandler.CancelTaskAsync(cancelRequest, cancellationToken).ConfigureAwait(false);
+                var cancelRequest = DeserializeAndValidate<CancelTaskRequest>(parameters.Value, method);
+                var cancelledTask = await requestHandler.CancelTaskAsync(cancelRequest, requestContext, cancellationToken).ConfigureAwait(false);
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, cancelledTask);
                 break;
             case A2AMethods.CreateTaskPushNotificationConfig:
-                var createPnConfig = DeserializeAndValidate<TaskPushNotificationConfig>(parameters.Value);
-                var createdConfig = await requestHandler.CreateTaskPushNotificationConfigAsync(createPnConfig, cancellationToken).ConfigureAwait(false);
+                var createPnConfig = DeserializeAndValidate<TaskPushNotificationConfig>(parameters.Value, method);
+                var createdConfig = await requestHandler.CreateTaskPushNotificationConfigAsync(createPnConfig, requestContext, cancellationToken).ConfigureAwait(false);
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, createdConfig);
                 break;
             case A2AMethods.GetTaskPushNotificationConfig:
-                var getPnConfig = DeserializeAndValidate<GetTaskPushNotificationConfigRequest>(parameters.Value);
-                var gotConfig = await requestHandler.GetTaskPushNotificationConfigAsync(getPnConfig, cancellationToken).ConfigureAwait(false);
+                var getPnConfig = DeserializeAndValidate<GetTaskPushNotificationConfigRequest>(parameters.Value, method);
+                var gotConfig = await requestHandler.GetTaskPushNotificationConfigAsync(getPnConfig, requestContext, cancellationToken).ConfigureAwait(false);
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, gotConfig);
                 break;
             case A2AMethods.ListTaskPushNotificationConfigs:
-                var listPnConfig = DeserializeAndValidate<ListTaskPushNotificationConfigsRequest>(parameters.Value);
-                var listPnResult = await requestHandler.ListTaskPushNotificationConfigsAsync(listPnConfig, cancellationToken).ConfigureAwait(false);
+                var listPnConfig = DeserializeAndValidate<ListTaskPushNotificationConfigsRequest>(parameters.Value, method);
+                var listPnResult = await requestHandler.ListTaskPushNotificationConfigsAsync(listPnConfig, requestContext, cancellationToken).ConfigureAwait(false);
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, listPnResult);
                 break;
             case A2AMethods.DeleteTaskPushNotificationConfig:
-                var deletePnConfig = DeserializeAndValidate<DeleteTaskPushNotificationConfigRequest>(parameters.Value);
-                await requestHandler.DeleteTaskPushNotificationConfigAsync(deletePnConfig, cancellationToken).ConfigureAwait(false);
+                var deletePnConfig = DeserializeAndValidate<DeleteTaskPushNotificationConfigRequest>(parameters.Value, method);
+                await requestHandler.DeleteTaskPushNotificationConfigAsync(deletePnConfig, requestContext, cancellationToken).ConfigureAwait(false);
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, (object?)null);
                 break;
             case A2AMethods.GetExtendedAgentCard:
-                var getCardRequest = DeserializeAndValidate<GetExtendedAgentCardRequest>(parameters.Value);
-                var extCard = await requestHandler.GetExtendedAgentCardAsync(getCardRequest, cancellationToken).ConfigureAwait(false);
+                var getCardRequest = DeserializeAndValidate<GetExtendedAgentCardRequest>(parameters.Value, method);
+                var extCard = await requestHandler.GetExtendedAgentCardAsync(getCardRequest, requestContext, cancellationToken).ConfigureAwait(false);
+                if (customRegistry is not null) extCard = customRegistry.PrepareAgentCard(extCard);
                 response = JsonRpcResponse.CreateJsonRpcResponse(requestId, extCard);
                 break;
             default:
-                response = JsonRpcResponse.MethodNotFoundResponse(requestId);
+                if (customRegistry is not null &&
+                    customBindings?.TryResolve(method, out var binding) == true)
+                {
+                    if (binding.Registration.Kind != A2ACustomOperationKind.Unary)
+                    {
+                        response = JsonRpcResponse.MethodNotFoundResponse(requestId);
+                        break;
+                    }
+
+                    var customRequest = DeserializeCustomRequest(parameters.Value, binding.Registration);
+                    var customResult = await customRegistry.InvokeAsync(
+                        binding.Registration,
+                        operationContext,
+                        customRequest,
+                        cancellationToken).ConfigureAwait(false);
+                    response = JsonRpcResponse.CreateJsonRpcResponse(
+                        requestId,
+                        customResult,
+                        binding.Registration.OutputTypeInfo);
+                }
+                else
+                {
+                    response = JsonRpcResponse.MethodNotFoundResponse(requestId);
+                }
                 break;
         }
 
         return new JsonRpcResponseResult(response);
     }
 
-    private static T DeserializeAndValidate<T>(JsonElement jsonParamValue) where T : class
+    private static T DeserializeAndValidate<T>(JsonElement jsonParamValue, string method) where T : class
     {
         T? parms;
         try
@@ -203,10 +347,32 @@ public static class A2AJsonRpcProcessor
             throw new A2AException("Message parts cannot be empty", A2AErrorCode.InvalidParams);
         }
 
+        A2AHttpRequestPolicy.NormalizeIncomingRequest(parms, "JSONRPC", method);
         return parms;
     }
 
     internal static IResult StreamResponse(IA2ARequestHandler requestHandler, JsonRpcId requestId, string method, JsonElement? parameters, CancellationToken cancellationToken)
+        => StreamResponse(
+            requestHandler,
+            new A2ACustomOperationContext(),
+            requestId,
+            method,
+            parameters,
+            customRegistry: null,
+            customBindings: null,
+            requestContext: null,
+            cancellationToken);
+
+    private static IResult StreamResponse(
+        IA2ARequestHandler requestHandler,
+        A2ACustomOperationContext operationContext,
+        JsonRpcId requestId,
+        string method,
+        JsonElement? parameters,
+        A2ACustomOperationRegistry? customRegistry,
+        A2AJsonRpcCustomOperationBindings? customBindings,
+        A2ARequestContext? requestContext,
+        CancellationToken cancellationToken)
     {
         using var activity = A2AAspNetCoreDiagnostics.Source.StartActivity("StreamResponse", ActivityKind.Server);
         activity?.SetTag("request.id", requestId.ToString());
@@ -220,16 +386,52 @@ public static class A2AJsonRpcProcessor
         switch (method)
         {
             case A2AMethods.SubscribeToTask:
-                var subscribeRequest = DeserializeAndValidate<SubscribeToTaskRequest>(parameters.Value);
-                var taskEvents = requestHandler.SubscribeToTaskAsync(subscribeRequest, cancellationToken);
+                var subscribeRequest = DeserializeAndValidate<SubscribeToTaskRequest>(parameters.Value, method);
+                var taskEvents = requestHandler.SubscribeToTaskAsync(subscribeRequest, requestContext, cancellationToken);
                 return new JsonRpcStreamedResult(taskEvents, requestId);
             case A2AMethods.SendStreamingMessage:
-                var sendRequest = DeserializeAndValidate<SendMessageRequest>(parameters.Value);
-                var sendEvents = requestHandler.SendStreamingMessageAsync(sendRequest, cancellationToken);
+                var sendRequest = DeserializeAndValidate<SendMessageRequest>(parameters.Value, method);
+                var sendEvents = requestHandler.SendStreamingMessageAsync(sendRequest, requestContext, cancellationToken);
                 return new JsonRpcStreamedResult(sendEvents, requestId);
             default:
+                if (customRegistry is not null &&
+                    customBindings?.TryResolve(method, out var binding) == true &&
+                    binding.Registration.Kind == A2ACustomOperationKind.Streaming)
+                {
+                    var customRequest = DeserializeCustomRequest(parameters.Value, binding.Registration);
+                    var customEvents = customRegistry.InvokeStreamingAsync(
+                        binding.Registration,
+                        operationContext,
+                        customRequest,
+                        cancellationToken);
+                    return new CustomJsonRpcStreamedResult(
+                        customEvents,
+                        binding.Registration.OutputTypeInfo,
+                        requestId);
+                }
+
                 activity?.SetStatus(ActivityStatusCode.Error, "Invalid method");
                 return new JsonRpcResponseResult(JsonRpcResponse.MethodNotFoundResponse(requestId));
+        }
+    }
+
+    private static object DeserializeCustomRequest(
+        JsonElement parameters,
+        CustomOperationRegistration registration)
+    {
+        try
+        {
+            return parameters.Deserialize(registration.RequestTypeInfo)
+                ?? throw new A2AException(
+                    $"Failed to deserialize parameters as {registration.RequestTypeInfo.Type.Name}",
+                    A2AErrorCode.InvalidParams);
+        }
+        catch (JsonException exception)
+        {
+            throw new A2AException(
+                $"Invalid parameters: request body could not be deserialized as {registration.RequestTypeInfo.Type.Name}.",
+                exception,
+                A2AErrorCode.InvalidParams);
         }
     }
 }

@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -262,11 +264,116 @@ public class A2AJsonRpcProcessorTests
 
         Assert.NotNull(sendMessageResponse?.Task);
         var agentTask = sendMessageResponse.Task;
-        Assert.Equal(TaskState.Submitted, agentTask.Status.State);
+        Assert.Equal(TaskState.Completed, agentTask.Status.State);
         Assert.NotEmpty(agentTask.History!);
         Assert.Equal(Role.User, agentTask.History[0].Role);
         Assert.Equal("hi", agentTask.History[0].Parts[0].Text);
         Assert.Equal("test-message-id", agentTask.History[0].MessageId);
+    }
+
+    [Fact]
+    public async Task ProcessRequest_SendMessage_ClearsTenantFieldsAndRecordsOneDiagnosticEvent()
+    {
+        var requestHandler = new Mock<IA2ARequestHandler>(MockBehavior.Strict);
+        requestHandler
+            .Setup(handler => handler.SendMessageAsync(
+                It.Is<SendMessageRequest>(request =>
+                    request.Tenant == null &&
+                    request.Configuration!.TaskPushNotificationConfig!.Tenant == null),
+                It.IsAny<A2ARequestContext?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SendMessageResponse
+            {
+                Message = new Message { MessageId = "response", Role = Role.Agent, Parts = [] },
+            });
+
+        using var parentActivity = new Activity("tenant-policy-test").Start();
+        var recordedEvents = new ConcurrentBag<ActivityEvent>();
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == "A2A.AspNetCore",
+            Sample = static (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
+            ActivityStopped = activity =>
+            {
+                if (activity.TraceId == parentActivity.TraceId)
+                {
+                    foreach (var activityEvent in activity.Events)
+                    {
+                        recordedEvents.Add(activityEvent);
+                    }
+                }
+            },
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        var request = CreateHttpRequestFromJson($$"""
+        {
+            "jsonrpc": "2.0",
+            "method": "{{A2AMethods.SendMessage}}",
+            "id": "tenant-1",
+            "params": {
+                "tenant": "top-level-secret",
+                "message": {
+                    "messageId": "m-1",
+                    "role": "ROLE_USER",
+                    "parts": [{"text":"hi"}]
+                },
+                "configuration": {
+                    "taskPushNotificationConfig": {
+                        "url": "https://push.example",
+                        "tenant": "embedded-secret"
+                    }
+                }
+            }
+        }
+        """);
+
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(
+            requestHandler.Object, request, CancellationToken.None);
+
+        Assert.IsType<JsonRpcResponseResult>(result);
+        requestHandler.VerifyAll();
+        var tenantEvent = Assert.Single(recordedEvents, item => item.Name == "a2a.tenant.ignored");
+        var tags = tenantEvent.Tags.ToDictionary(tag => tag.Key, tag => tag.Value);
+        Assert.Equal("JSONRPC", tags["a2a.protocol.binding"]);
+        Assert.Equal(A2AMethods.SendMessage, tags["a2a.operation"]);
+        Assert.DoesNotContain("top-level-secret", tenantEvent.ToString());
+        Assert.DoesNotContain("embedded-secret", tenantEvent.ToString());
+    }
+
+    [Fact]
+    public void StreamResponse_SendStreamingMessage_ClearsTenantFields()
+    {
+        var requestHandler = new Mock<IA2ARequestHandler>(MockBehavior.Strict);
+        requestHandler
+            .Setup(handler => handler.SendStreamingMessageAsync(
+                It.Is<SendMessageRequest>(request =>
+                    request.Tenant == null &&
+                    request.Configuration!.TaskPushNotificationConfig!.Tenant == null),
+                It.IsAny<A2ARequestContext?>(), It.IsAny<CancellationToken>()))
+            .Returns(SingleStreamResponse());
+        var request = new SendMessageRequest
+        {
+            Tenant = "top-level-tenant",
+            Message = new Message { MessageId = "m-1", Role = Role.User, Parts = [Part.FromText("hi")] },
+            Configuration = new SendMessageConfiguration
+            {
+                TaskPushNotificationConfig = new TaskPushNotificationConfig
+                {
+                    Url = "https://push.example",
+                    Tenant = "embedded-tenant",
+                },
+            },
+        };
+
+        var result = A2AJsonRpcProcessor.StreamResponse(
+            requestHandler.Object,
+            "tenant-stream",
+            A2AMethods.SendStreamingMessage,
+            ToJsonElement(request),
+            CancellationToken.None);
+
+        Assert.IsType<JsonRpcStreamedResult>(result);
+        requestHandler.VerifyAll();
     }
 
     [Fact]
@@ -442,9 +549,69 @@ public class A2AJsonRpcProcessorTests
     }
 
     [Theory]
+    [InlineData("""{"method":"ListTasks","method":"SendMessage","params":{}}""")]
+    [InlineData("""{"method":"SendMessage","params":{},"params":{"message":{}}}""")]
+    [InlineData("""{"id":1,"id":2,"method":"GetTask","params":{"id":"t"}}""")]
+    [InlineData("""{"jsonrpc":"2.0","jsonrpc":"2.0","method":"GetTask","params":{"id":"t"}}""")]
+    [InlineData("""{"method":"GetTask","params":{"id":"one","id":"two"}}""")]
+    [InlineData("""{"method":"SendMessage","params":{"message":{},"message":{}}}""")]
+    [InlineData("""{"method":"SendMessage","params":{"message":{"taskId":"one","taskId":"two"}}}""")]
+    [InlineData("""{"method":"SendStreamingMessage","params":{"message":{"taskId":"one","taskId":"two"}}}""")]
+    [InlineData("""{"method":"SubscribeToTask","params":{"id":"one","id":"two"}}""")]
+    [InlineData("""{"method":"SendMessage","params":{"message":{"parts":[{"text":"one","text":"two"}]}}}""")]
+    [InlineData("""{"method":"SendMessage","params":{"metadata":{"items":[{"key":1,"key":2}]}}}""")]
+    [InlineData("""{"method":"SendMessage","params":{"metadata":{"key":1,"Key":2}}}""")]
+    [InlineData("""{"method":"GetTask","Method":"SendMessage","params":{"id":"t"}}""")]
+    [InlineData("""{"method":"GetTask","params":{"id":"one","Id":"two"}}""")]
+    [InlineData("""{"method":"SendMessage","params":{"message":{"taskId":"one","TaskId":"two"}}}""")]
+    [InlineData("""{"method":"GetTask","params":{"id":"one","\u0069d":"two"}}""")]
+    public async Task ProcessRequestAsync_DuplicateProperties_ReturnsInvalidRequestWithoutInvokingHandler(string json)
+    {
+        json = """{"jsonrpc":"2.0","id":"request",""" + json[1..];
+        var handler = new Mock<IA2ARequestHandler>(MockBehavior.Strict);
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(
+            handler.Object, CreateHttpRequestFromJson(json), CancellationToken.None);
+
+        var response = Assert.IsType<JsonRpcResponseResult>(result);
+        var (statusCode, contentType, body) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(response);
+        Assert.Equal(StatusCodes.Status200OK, statusCode);
+        Assert.Equal("application/json", contentType);
+        Assert.Equal((int)A2AErrorCode.InvalidRequest, body.Error?.Code);
+        Assert.False(body.Id.HasValue);
+        Assert.Null(body.Result);
+        handler.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task ProcessRequestAsync_ValidCasingAndRepeatedNamesInDifferentObjects_Succeeds()
+    {
+        var json = """
+            {
+                "jsonrpc": "2.0", "id": "valid", "method": "SendMessage",
+                "params": {
+                    "Message": {
+                        "MessageId": "m", "Role": "ROLE_USER",
+                        "Parts": [{"text": "one"}, {"text": "two"}]
+                    },
+                    "metadata": {"one": {"key": 1}, "two": {"key": 2}}
+                }
+            }
+            """;
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(
+            CreateTestServer(), CreateHttpRequestFromJson(json), CancellationToken.None);
+
+        var response = Assert.IsType<JsonRpcResponseResult>(result);
+        var (_, _, body) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(response);
+        Assert.Null(body.Error);
+        Assert.NotNull(body.Result);
+        Assert.Equal("valid", body.Id.AsString());
+    }
+
+    [Theory]
     [InlineData("{invalid json", "completely malformed JSON")]
     [InlineData("not json at all", "plain text")]
     [InlineData("{\"jsonrpc\": \"2.0\", \"method\":", "truncated JSON")]
+    [InlineData("{\"method\":\"GetTask\",\"method\":\"GetTask\",", "duplicate followed by malformed JSON")]
     public async Task ProcessRequestAsync_GivenInvalidJson_ReturnsParseError(string body, string scenario)
     {
         _ = scenario; // used only for test display name
@@ -521,7 +688,7 @@ public class A2AJsonRpcProcessorTests
             {
                 Id = context.TaskId,
                 ContextId = updater.ContextId,
-                Status = new TaskStatus { State = TaskState.Submitted },
+                Status = new TaskStatus { State = TaskState.Completed },
                 History = [context.Message],
             };
             await eventQueue.EnqueueTaskAsync(task, cancellationToken);
@@ -907,5 +1074,14 @@ public class A2AJsonRpcProcessorTests
         context.Response.Body.Position = 0;
         var bodyContent = await JsonSerializer.DeserializeAsync<TBody>(context.Response.Body, A2AJsonUtilities.DefaultOptions);
         return (context.Response.StatusCode, context.Response.ContentType, bodyContent!);
+    }
+
+    private static async IAsyncEnumerable<StreamResponse> SingleStreamResponse()
+    {
+        await Task.Yield();
+        yield return new StreamResponse
+        {
+            Message = new Message { MessageId = "response", Role = Role.Agent, Parts = [] },
+        };
     }
 }

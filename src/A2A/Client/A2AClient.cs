@@ -112,10 +112,17 @@ public sealed class A2AClient : IA2AClient, IDisposable
     [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "All types are registered in source-generated JsonContext.")]
     private async Task<TResult> SendJsonRpcRequestAsync<TResult>(string method, object? @params, CancellationToken cancellationToken)
     {
-        var rpcResponse = await SendJsonRpcRequestCoreAsync(method, @params, cancellationToken).ConfigureAwait(false);
-
-        return rpcResponse.Result.Deserialize<TResult>(A2AJsonUtilities.DefaultOptions)
-            ?? throw new A2AException("Failed to deserialize JSON-RPC result.", A2AErrorCode.InternalError);
+        var (rpcResponse, activation) = await SendJsonRpcRequestCoreAsync(method, @params, cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return rpcResponse.Result.Deserialize<TResult>(A2AJsonUtilities.DefaultOptions)
+                ?? throw new A2AException("Failed to deserialize JSON-RPC result.", A2AErrorCode.InternalError);
+        }
+        catch (A2AException exception)
+        {
+            exception.ActivatedExtensions = activation;
+            throw;
+        }
     }
 
     /// <summary>Sends a JSON-RPC request for methods whose successful response carries no result, e.g. a null <c>result</c> member.</summary>
@@ -129,7 +136,7 @@ public sealed class A2AClient : IA2AClient, IDisposable
 
     [UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode", Justification = "All types are registered in source-generated JsonContext.")]
     [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "All types are registered in source-generated JsonContext.")]
-    private async Task<JsonRpcResponse> SendJsonRpcRequestCoreAsync(string method, object? @params, CancellationToken cancellationToken)
+    private async Task<(JsonRpcResponse Response, IReadOnlySet<string> Activation)> SendJsonRpcRequestCoreAsync(string method, object? @params, CancellationToken cancellationToken)
     {
         using var activity = A2ADiagnostics.Source.StartActivity($"A2AClient/{method}", ActivityKind.Client);
         var stopwatch = Stopwatch.StartNew();
@@ -146,6 +153,7 @@ public sealed class A2AClient : IA2AClient, IDisposable
         activity?.SetTag("url.full", _url);
         activity?.SetTag("rpc.jsonrpc.request_id", rpcRequest.Id.ToString());
 
+        IReadOnlySet<string> activation = System.Collections.Frozen.FrozenSet<string>.Empty;
         try
         {
             A2ADiagnostics.ClientRequestCount.Add(1);
@@ -154,6 +162,7 @@ public sealed class A2AClient : IA2AClient, IDisposable
             using var requestMessage = new HttpRequestMessage(HttpMethod.Post, _url) { Content = content };
             requestMessage.Headers.TryAddWithoutValidation("A2A-Version", "1.0");
             using var response = await _httpClient.SendAsync(requestMessage, cancellationToken).ConfigureAwait(false);
+            activation = A2AResponseActivation.Read(response);
             response.EnsureSuccessStatusCode();
 
             using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
@@ -165,10 +174,11 @@ public sealed class A2AClient : IA2AClient, IDisposable
                 throw new A2AException(error.Message, (A2AErrorCode)error.Code);
             }
 
-            return rpcResponse;
+            return (rpcResponse, activation);
         }
         catch (Exception ex)
         {
+            if (ex is A2AException a2aException) a2aException.ActivatedExtensions = activation;
             A2ADiagnostics.ClientErrorCount.Add(1);
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             throw;
@@ -201,6 +211,7 @@ public sealed class A2AClient : IA2AClient, IDisposable
 
         HttpResponseMessage? response = null;
         Stream? stream = null;
+        IReadOnlySet<string> activation = System.Collections.Frozen.FrozenSet<string>.Empty;
 
         try
         {
@@ -213,12 +224,29 @@ public sealed class A2AClient : IA2AClient, IDisposable
             requestMessage.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("text/event-stream"));
 
             response = await _httpClient.SendAsync(requestMessage, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+            activation = A2AResponseActivation.Read(response);
             response.EnsureSuccessStatusCode();
 
             stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+            if (string.Equals(response.Content.Headers.ContentType?.MediaType, "application/json", StringComparison.OrdinalIgnoreCase))
+            {
+                var rejection = await JsonSerializer.DeserializeAsync<JsonRpcResponse>(
+                    stream, A2AJsonUtilities.DefaultOptions, cancellationToken).ConfigureAwait(false);
+                throw rejection?.Error is { } error
+                    ? new A2AException(error.Message, (A2AErrorCode)error.Code)
+                    : new A2AException("Expected a streaming JSON-RPC response.", A2AErrorCode.InvalidAgentResponse);
+            }
+
+            // Anything else that is not an event stream has no `data:` lines, so the SSE parser would
+            // end the call with no events and no error.
+            if (!string.Equals(response.Content.Headers.ContentType?.MediaType, "text/event-stream", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new A2AException("Expected an event stream from the streaming call.", A2AErrorCode.InvalidAgentResponse);
+            }
         }
         catch (Exception ex)
         {
+            if (ex is A2AException a2aException) a2aException.ActivatedExtensions = activation;
             A2ADiagnostics.ClientErrorCount.Add(1);
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             response?.Dispose();
@@ -231,15 +259,15 @@ public sealed class A2AClient : IA2AClient, IDisposable
             await foreach (var sseItem in SseParser.Create(stream).EnumerateAsync(cancellationToken).ConfigureAwait(false))
             {
                 var rpcResponse = JsonSerializer.Deserialize<JsonRpcResponse>(sseItem.Data, A2AJsonUtilities.DefaultOptions)
-                    ?? throw new A2AException("Failed to deserialize streaming JSON-RPC response.", A2AErrorCode.InternalError);
+                    ?? throw new A2AException("Failed to deserialize streaming JSON-RPC response.", A2AErrorCode.InternalError) { ActivatedExtensions = activation };
 
                 if (rpcResponse.Error is { } error)
                 {
-                    throw new A2AException(error.Message, (A2AErrorCode)error.Code);
+                    throw new A2AException(error.Message, (A2AErrorCode)error.Code) { ActivatedExtensions = activation };
                 }
 
                 var result = rpcResponse.Result.Deserialize<TResult>(A2AJsonUtilities.DefaultOptions)
-                    ?? throw new A2AException("Failed to deserialize streaming JSON-RPC result.", A2AErrorCode.InternalError);
+                    ?? throw new A2AException("Failed to deserialize streaming JSON-RPC result.", A2AErrorCode.InternalError) { ActivatedExtensions = activation };
 
                 eventCount++;
                 yield return result;

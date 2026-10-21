@@ -109,7 +109,7 @@ public class A2AHttpProcessorTests
                 Role = Role.User,
                 Parts = [Part.FromText("hi")],
             },
-            Configuration = new SendMessageConfiguration { HistoryLength = 10 }
+            Configuration = new SendMessageConfiguration { HistoryLength = 10, ReturnImmediately = true }
         };
 
         // Act
@@ -118,6 +118,49 @@ public class A2AHttpProcessorTests
         // Assert
         Assert.NotNull(result);
         Assert.IsType<JsonRpcResponseResult>(result);
+    }
+
+    [Fact]
+    public async Task SendMessageRestAsync_ClearsTenantFieldsBeforeDispatch()
+    {
+        var requestHandler = new Mock<IA2ARequestHandler>(MockBehavior.Strict);
+        requestHandler
+            .Setup(handler => handler.SendMessageAsync(
+                It.Is<SendMessageRequest>(request =>
+                    request.Tenant == null &&
+                    request.Configuration!.TaskPushNotificationConfig!.Tenant == null),
+                It.IsAny<A2ARequestContext?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SendMessageResponse
+            {
+                Message = new Message { MessageId = "response", Role = Role.Agent, Parts = [] },
+            });
+        var request = CreateTenantBearingSendRequest();
+
+        var result = await A2AHttpProcessor.SendMessageRestAsync(
+            requestHandler.Object, NullLogger.Instance, request, CancellationToken.None);
+
+        Assert.IsType<A2AResponseResult>(result);
+        requestHandler.VerifyAll();
+    }
+
+    [Fact]
+    public void SendMessageStreamRest_ClearsTenantFieldsBeforeDispatch()
+    {
+        var requestHandler = new Mock<IA2ARequestHandler>(MockBehavior.Strict);
+        requestHandler
+            .Setup(handler => handler.SendStreamingMessageAsync(
+                It.Is<SendMessageRequest>(request =>
+                    request.Tenant == null &&
+                    request.Configuration!.TaskPushNotificationConfig!.Tenant == null),
+                It.IsAny<A2ARequestContext?>(), It.IsAny<CancellationToken>()))
+            .Returns(SingleStreamResponse());
+        var request = CreateTenantBearingSendRequest();
+
+        var result = A2AHttpProcessor.SendMessageStreamRest(
+            requestHandler.Object, NullLogger.Instance, request, CancellationToken.None);
+
+        Assert.IsType<A2AEventStreamResult>(result);
+        requestHandler.VerifyAll();
     }
 
     [Theory]
@@ -184,6 +227,80 @@ public class A2AHttpProcessorTests
         Assert.Equal(StatusCodes.Status500InternalServerError, ((IStatusCodeHttpResult)result).StatusCode);
     }
 
+    [Fact]
+    public async Task SendMessageRest_WithEmptyParts_ReturnsInvalidParams()
+    {
+        // Arrange — empty Message parts are accepted by [FromBody] model binding,
+        // so the REST processor must validate them like the JSON-RPC binding does.
+        var (requestHandler, _) = CreateServer();
+        var logger = NullLogger.Instance;
+        var sendRequest = new SendMessageRequest
+        {
+            Message = new Message { Role = Role.User, Parts = [] },
+        };
+
+        // Act
+        var result = await A2AHttpProcessor.SendMessageRestAsync(requestHandler, logger, sendRequest, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, ((IStatusCodeHttpResult)result).StatusCode);
+
+        // Execute and verify the error message is present
+        var httpContext = new DefaultHttpContext();
+        httpContext.Response.Body = new MemoryStream();
+        await result.ExecuteAsync(httpContext);
+        httpContext.Response.Body.Position = 0;
+        var body = await new StreamReader(httpContext.Response.Body).ReadToEndAsync();
+        Assert.Contains("Message parts cannot be empty", body);
+    }
+
+    [Fact]
+    public async Task SendMessageStreamRest_WithEmptyParts_ReturnsInvalidParams()
+    {
+        // Arrange
+        var (requestHandler, _) = CreateServer();
+        var logger = NullLogger.Instance;
+        var sendRequest = new SendMessageRequest
+        {
+            Message = new Message { Role = Role.User, Parts = [] },
+        };
+
+        // Act — validation happens synchronously before streaming starts
+        var result = A2AHttpProcessor.SendMessageStreamRest(requestHandler, logger, sendRequest, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, ((IStatusCodeHttpResult)result).StatusCode);
+    }
+
+    [Fact]
+    public async Task SendMessageRest_WithNullMessage_ReturnsInvalidParams()
+    {
+        var (requestHandler, _) = CreateServer();
+        var sendRequest = new SendMessageRequest { Message = null! };
+
+        var result = await A2AHttpProcessor.SendMessageRestAsync(
+            requestHandler, NullLogger.Instance, sendRequest, CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, ((IStatusCodeHttpResult)result).StatusCode);
+    }
+
+    [Fact]
+    public void SendMessageStreamRest_WithNullParts_ReturnsInvalidParams()
+    {
+        var (requestHandler, _) = CreateServer();
+        var sendRequest = new SendMessageRequest
+        {
+            Message = new Message { Role = Role.User, Parts = null! },
+        };
+
+        var result = A2AHttpProcessor.SendMessageStreamRest(
+            requestHandler, NullLogger.Instance, sendRequest, CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, ((IStatusCodeHttpResult)result).StatusCode);
+    }
+
     [Theory]
     [InlineData("999")]
     [InlineData("TASK_STATE_999")]
@@ -241,7 +358,7 @@ public class A2AHttpProcessorTests
         requestHandler
             .Setup(handler => handler.ListTasksAsync(
                 It.Is<ListTasksRequest>(request => request.Status == expectedState),
-                It.IsAny<CancellationToken>()))
+                It.IsAny<A2ARequestContext?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ListTasksResponse { Tasks = [], NextPageToken = "" });
 
         var result = await A2AHttpProcessor.ListTasksRestAsync(
@@ -258,5 +375,105 @@ public class A2AHttpProcessorTests
 
         Assert.IsType<A2AResponseResult>(result);
         requestHandler.VerifyAll();
+    }
+
+    private static SendMessageRequest CreateTenantBearingSendRequest() => new()
+    {
+        Tenant = "top-level-tenant",
+        Message = new Message { MessageId = "m-1", Role = Role.User, Parts = [Part.FromText("hi")] },
+        Configuration = new SendMessageConfiguration
+        {
+            TaskPushNotificationConfig = new TaskPushNotificationConfig
+            {
+                Url = "https://push.example",
+                Tenant = "embedded-tenant",
+            },
+        },
+    };
+
+    private static async IAsyncEnumerable<StreamResponse> SingleStreamResponse()
+    {
+        await Task.Yield();
+        yield return new StreamResponse
+        {
+            Message = new Message { MessageId = "response", Role = Role.Agent, Parts = [] },
+        };
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(101)]
+    public async Task ListTasks_WithInvalidPageSize_ReturnsInvalidParams(int pageSize)
+    {
+        var (requestHandler, _) = CreateServer();
+
+        var result = await A2AHttpProcessor.ListTasksRestAsync(
+            requestHandler,
+            NullLogger.Instance,
+            null,
+            null,
+            pageSize,
+            null,
+            null,
+            null,
+            null,
+            CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, ((IStatusCodeHttpResult)result).StatusCode);
+
+        var httpContext = new DefaultHttpContext();
+        httpContext.Response.Body = new MemoryStream();
+        await result.ExecuteAsync(httpContext);
+        httpContext.Response.Body.Position = 0;
+        var body = await new StreamReader(httpContext.Response.Body).ReadToEndAsync();
+        Assert.Contains($"Invalid pageSize: {pageSize}", body);
+    }
+
+    [Fact]
+    public async Task ListTasks_WithNegativeHistoryLength_ReturnsInvalidParams()
+    {
+        var (requestHandler, _) = CreateServer();
+
+        var result = await A2AHttpProcessor.ListTasksRestAsync(
+            requestHandler,
+            NullLogger.Instance,
+            null,
+            null,
+            null,
+            null,
+            -1,
+            null,
+            null,
+            CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, ((IStatusCodeHttpResult)result).StatusCode);
+
+        var httpContext = new DefaultHttpContext();
+        httpContext.Response.Body = new MemoryStream();
+        await result.ExecuteAsync(httpContext);
+        httpContext.Response.Body.Position = 0;
+        var body = await new StreamReader(httpContext.Response.Body).ReadToEndAsync();
+        Assert.Contains("Invalid historyLength: -1", body);
+    }
+
+    [Fact]
+    public async Task ListTasks_WithValidPageSize_ReturnsTasks()
+    {
+        var (requestHandler, _) = CreateServer();
+
+        var result = await A2AHttpProcessor.ListTasksRestAsync(
+            requestHandler,
+            NullLogger.Instance,
+            null,
+            null,
+            1,
+            null,
+            0,
+            null,
+            null,
+            CancellationToken.None);
+
+        Assert.IsType<A2AResponseResult>(result);
     }
 }

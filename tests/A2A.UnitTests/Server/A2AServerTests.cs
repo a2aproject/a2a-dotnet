@@ -52,7 +52,7 @@ public class A2AServerTests
         };
 
         // Act
-        var result = await server.SendMessageAsync(request);
+        var result = await server.SendMessageAsync(request, null);
 
         // Assert
         Assert.NotNull(result);
@@ -78,7 +78,7 @@ public class A2AServerTests
         };
 
         // Act
-        var result = await server.SendMessageAsync(request);
+        var result = await server.SendMessageAsync(request, null);
 
         // Assert — task status reflects final state after all events consumed
         Assert.NotNull(result);
@@ -106,7 +106,7 @@ public class A2AServerTests
         };
 
         // Act
-        await server.SendMessageAsync(request);
+        await server.SendMessageAsync(request, null);
 
         // Assert
         Assert.NotNull(capturedTaskId);
@@ -143,7 +143,7 @@ public class A2AServerTests
                 Parts = [Part.FromText("continue")],
                 Role = Role.User,
             },
-        });
+        }, null);
 
         Assert.NotNull(result.Task);
         Assert.Equal(TaskState.Completed, result.Task!.Status.State);
@@ -175,7 +175,7 @@ public class A2AServerTests
                 Parts = [Part.FromText("continue")],
                 Role = Role.User,
             },
-        }));
+        }, null));
 
         Assert.Equal(A2AErrorCode.InvalidAgentResponse, ex.ErrorCode);
     }
@@ -212,7 +212,7 @@ public class A2AServerTests
         };
 
         // Act
-        await server.SendMessageAsync(request);
+        await server.SendMessageAsync(request, null);
 
         // Assert — history should now have 3 messages: initial (m0), user follow-up (m1), agent reply (m2)
         var task = await store.GetTaskAsync("t1");
@@ -245,7 +245,7 @@ public class A2AServerTests
                         },
                     ],
                 },
-            }));
+            }, null));
 
         Assert.Equal(A2AErrorCode.ContentTypeNotSupported, exception.ErrorCode);
     }
@@ -278,7 +278,7 @@ public class A2AServerTests
                     Role = Role.User,
                     Parts = [new Part { Text = "hello", MediaType = "text/plain; charset=utf-8" }],
                 },
-            }));
+            }, null));
 
         Assert.Null(exception);
     }
@@ -305,7 +305,7 @@ public class A2AServerTests
                     Role = Role.User,
                     Parts = [Part.FromText("continue")],
                 },
-            }));
+            }, null));
 
         Assert.Equal(A2AErrorCode.InvalidParams, exception.ErrorCode);
     }
@@ -336,7 +336,7 @@ public class A2AServerTests
                 Parts = [Part.FromText("hello")],
             },
             Configuration = new SendMessageConfiguration { HistoryLength = 0 },
-        });
+        }, null);
 
         Assert.NotNull(result.Task);
         Assert.Empty(result.Task!.History ?? []);
@@ -357,7 +357,7 @@ public class A2AServerTests
                     Role = Role.User,
                     Parts = [Part.FromText("hello")],
                 },
-            }))
+            }, null))
             {
             }
         });
@@ -384,7 +384,7 @@ public class A2AServerTests
         };
 
         // Act & Assert
-        var ex = await Assert.ThrowsAsync<A2AException>(() => server.SendMessageAsync(request));
+        var ex = await Assert.ThrowsAsync<A2AException>(() => server.SendMessageAsync(request, null));
         Assert.Equal(A2AErrorCode.UnsupportedOperation, ex.ErrorCode);
     }
 
@@ -412,7 +412,7 @@ public class A2AServerTests
         };
 
         // Act
-        await server.SendMessageAsync(request);
+        await server.SendMessageAsync(request, null);
 
         // Assert
         Assert.NotNull(capturedContext);
@@ -443,7 +443,7 @@ public class A2AServerTests
         };
 
         // Act
-        var result = await server.CancelTaskAsync(new CancelTaskRequest { Id = "t1" });
+        var result = await server.CancelTaskAsync(new CancelTaskRequest { Id = "t1" }, null);
 
         // Assert
         Assert.True(cancelCalled);
@@ -476,7 +476,7 @@ public class A2AServerTests
         };
 
         // Act
-        await server.CancelTaskAsync(new CancelTaskRequest { Id = "t1", Metadata = metadata });
+        await server.CancelTaskAsync(new CancelTaskRequest { Id = "t1", Metadata = metadata }, null);
 
         // Assert
         Assert.NotNull(capturedMetadata);
@@ -498,7 +498,7 @@ public class A2AServerTests
 
         // Act & Assert
         var ex = await Assert.ThrowsAsync<A2AException>(() =>
-            server.CancelTaskAsync(new CancelTaskRequest { Id = "t1" }));
+            server.CancelTaskAsync(new CancelTaskRequest { Id = "t1" }, null));
         Assert.Equal(A2AErrorCode.TaskNotCancelable, ex.ErrorCode);
     }
 
@@ -515,7 +515,7 @@ public class A2AServerTests
         });
 
         // Act
-        var result = await server.GetTaskAsync(new GetTaskRequest { Id = "t1" });
+        var result = await server.GetTaskAsync(new GetTaskRequest { Id = "t1" }, null);
 
         // Assert
         Assert.NotNull(result);
@@ -531,7 +531,7 @@ public class A2AServerTests
 
         // Act & Assert
         var ex = await Assert.ThrowsAsync<A2AException>(() =>
-            server.GetTaskAsync(new GetTaskRequest { Id = "nonexistent" }));
+            server.GetTaskAsync(new GetTaskRequest { Id = "nonexistent" }, null));
         Assert.Equal(A2AErrorCode.TaskNotFound, ex.ErrorCode);
     }
 
@@ -553,7 +553,7 @@ public class A2AServerTests
         });
 
         // Act
-        var result = await server.GetTaskAsync(new GetTaskRequest { Id = "t1", HistoryLength = 2 });
+        var result = await server.GetTaskAsync(new GetTaskRequest { Id = "t1", HistoryLength = 2 }, null);
 
         // Assert
         Assert.NotNull(result.History);
@@ -571,7 +571,7 @@ public class A2AServerTests
         // Act & Assert
         var ex = await Assert.ThrowsAsync<A2AException>(async () =>
         {
-            await foreach (var _ in server.SubscribeToTaskAsync(new SubscribeToTaskRequest { Id = "notfound" }))
+            await foreach (var _ in server.SubscribeToTaskAsync(new SubscribeToTaskRequest { Id = "notfound" }, null))
             {
             }
         });
@@ -595,7 +595,7 @@ public class A2AServerTests
 
         // Act — first event from SubscribeToTaskAsync MUST be the Task object (spec §3.1.6)
         StreamResponse? firstEvent = null;
-        await foreach (var e in server.SubscribeToTaskAsync(new SubscribeToTaskRequest { Id = "t1" }, cts.Token))
+        await foreach (var e in server.SubscribeToTaskAsync(new SubscribeToTaskRequest { Id = "t1" }, null, cts.Token))
         {
             firstEvent = e;
             break; // Only need the first event
@@ -622,7 +622,7 @@ public class A2AServerTests
         // Act & Assert
         var ex = await Assert.ThrowsAsync<A2AException>(async () =>
         {
-            await foreach (var _ in server.SubscribeToTaskAsync(new SubscribeToTaskRequest { Id = "t1" }))
+            await foreach (var _ in server.SubscribeToTaskAsync(new SubscribeToTaskRequest { Id = "t1" }, null))
             {
             }
         });
@@ -638,7 +638,7 @@ public class A2AServerTests
         await store.SaveTaskAsync("t2", new AgentTask { Id = "t2", ContextId = "ctx-1", Status = new TaskStatus { State = TaskState.Completed } });
 
         // Act
-        var result = await server.ListTasksAsync(new ListTasksRequest { ContextId = "ctx-1" });
+        var result = await server.ListTasksAsync(new ListTasksRequest { ContextId = "ctx-1" }, null);
 
         // Assert
         Assert.NotNull(result.Tasks);
@@ -653,9 +653,9 @@ public class A2AServerTests
 
         // Act & Assert
         await Assert.ThrowsAsync<A2AException>(() =>
-            server.CreateTaskPushNotificationConfigAsync(new TaskPushNotificationConfig()));
+            server.CreateTaskPushNotificationConfigAsync(new TaskPushNotificationConfig(), null));
         await Assert.ThrowsAsync<A2AException>(() =>
-            server.GetTaskPushNotificationConfigAsync(new GetTaskPushNotificationConfigRequest()));
+            server.GetTaskPushNotificationConfigAsync(new GetTaskPushNotificationConfigRequest(), null));
     }
 
     [Fact]
@@ -666,7 +666,7 @@ public class A2AServerTests
 
         // Act & Assert
         var ex = await Assert.ThrowsAsync<A2AException>(() =>
-            server.GetExtendedAgentCardAsync(new GetExtendedAgentCardRequest()));
+            server.GetExtendedAgentCardAsync(new GetExtendedAgentCardRequest(), null));
         Assert.Equal(A2AErrorCode.UnsupportedOperation, ex.ErrorCode);
     }
 
@@ -678,7 +678,7 @@ public class A2AServerTests
 
         // Act & Assert
         var ex = await Assert.ThrowsAsync<A2AException>(() =>
-            server.GetExtendedAgentCardAsync(new GetExtendedAgentCardRequest()));
+            server.GetExtendedAgentCardAsync(new GetExtendedAgentCardRequest(), null));
         Assert.Equal(A2AErrorCode.UnsupportedOperation, ex.ErrorCode);
     }
 
@@ -690,7 +690,7 @@ public class A2AServerTests
 
         // Act & Assert
         var ex = await Assert.ThrowsAsync<A2AException>(() =>
-            server.GetExtendedAgentCardAsync(new GetExtendedAgentCardRequest()));
+            server.GetExtendedAgentCardAsync(new GetExtendedAgentCardRequest(), null));
         Assert.Equal(A2AErrorCode.ExtendedAgentCardNotConfigured, ex.ErrorCode);
     }
 
@@ -715,7 +715,7 @@ public class A2AServerTests
         // Start subscribing (first event = task snapshot, signals channel is registered)
         var subscribeTask = Task.Run(async () =>
         {
-            await foreach (var e in server.SubscribeToTaskAsync(new SubscribeToTaskRequest { Id = "t1" }, cts.Token))
+            await foreach (var e in server.SubscribeToTaskAsync(new SubscribeToTaskRequest { Id = "t1" }, null, cts.Token))
             {
                 events.Add(e);
                 if (events.Count == 1) snapshotReceived.TrySetResult();
@@ -730,7 +730,7 @@ public class A2AServerTests
         await server.SendMessageAsync(new SendMessageRequest
         {
             Message = new Message { Role = Role.User, MessageId = "m1", TaskId = "t1", Parts = [Part.FromText("go")] }
-        }, cts.Token);
+        }, null, cts.Token);
 
         await subscribeTask;
 
@@ -816,7 +816,7 @@ public class A2AServerTests
 
         var subscribeTask = Task.Run(async () =>
         {
-            await foreach (var e in server.SubscribeToTaskAsync(new SubscribeToTaskRequest { Id = "t1" }, cts.Token))
+            await foreach (var e in server.SubscribeToTaskAsync(new SubscribeToTaskRequest { Id = "t1" }, null, cts.Token))
             {
                 events.Add(e);
                 if (events.Count == 1) snapshotReceived.TrySetResult();
@@ -829,7 +829,7 @@ public class A2AServerTests
         await server.SendMessageAsync(new SendMessageRequest
         {
             Message = new Message { Role = Role.User, MessageId = "m1", TaskId = "t1", Parts = [Part.FromText("trigger")] }
-        }, cts.Token);
+        }, null, cts.Token);
 
         await subscribeTask; // Should complete without timeout
 
@@ -862,7 +862,7 @@ public class A2AServerTests
 
         // Act — should return well before the 5s delay
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        var result = await server.SendMessageAsync(request, cts.Token);
+        var result = await server.SendMessageAsync(request, null, cts.Token);
 
         // Assert — returned with non-terminal state
         Assert.NotNull(result);
@@ -907,7 +907,7 @@ public class A2AServerTests
         };
 
         // Act
-        var result = await server.SendMessageAsync(request);
+        var result = await server.SendMessageAsync(request, null);
 
         // Assert — Message responses are unaffected by returnImmediately
         Assert.NotNull(result);
@@ -946,7 +946,7 @@ public class A2AServerTests
         };
 
         // Act — returns quickly
-        var result = await server.SendMessageAsync(request);
+        var result = await server.SendMessageAsync(request, null);
 
         Assert.NotNull(result);
         Assert.NotNull(result.Task);
@@ -990,7 +990,7 @@ public class A2AServerTests
         };
 
         // Act
-        var result = await server.SendMessageAsync(request);
+        var result = await server.SendMessageAsync(request, null);
 
         // Assert — blocks until terminal state
         Assert.NotNull(result);
@@ -1042,7 +1042,7 @@ public class A2AServerTests
         };
 
         // Act — send with return-immediately, then cancel
-        var result = await server.SendMessageAsync(request);
+        var result = await server.SendMessageAsync(request, null);
         Assert.NotNull(result.Task);
         var taskId = result.Task!.Id;
 
@@ -1050,7 +1050,7 @@ public class A2AServerTests
         await handlerStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         // Cancel the task
-        var cancelResult = await server.CancelTaskAsync(new CancelTaskRequest { Id = taskId });
+        var cancelResult = await server.CancelTaskAsync(new CancelTaskRequest { Id = taskId }, null);
 
         // Wait for background handler to observe cancellation
         await handlerEnded.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -1067,9 +1067,10 @@ public class A2AServerTests
     [Fact]
     public async Task GivenReturnImmediately_WhenHandlerThrows_ThenTaskTransitionsToFailed()
     {
-        // Arrange — handler emits Submitted + Working then throws
+        // Arrange — handler emits Submitted + Working, then throws after shutdown cancellation
         var (server, store, handler) = CreateServer();
         var handlerStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cancellationObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         handler.OnExecute = async (ctx, eq, ct) =>
         {
@@ -1078,7 +1079,8 @@ public class A2AServerTests
             await updater.StartWorkAsync(cancellationToken: ct);
             handlerStarted.TrySetResult();
 
-            // Simulate unhandled failure in the handler
+            using var registration = ct.Register(cancellationObserved.SetResult);
+            await cancellationObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
             throw new InvalidOperationException("Simulated handler failure");
         };
 
@@ -1089,18 +1091,16 @@ public class A2AServerTests
         };
 
         // Act — send with return-immediately
-        var result = await server.SendMessageAsync(request);
+        var result = await server.SendMessageAsync(request, null);
         Assert.NotNull(result.Task);
         var taskId = result.Task!.Id;
 
-        // Wait for handler to have started (and thrown)
+        // Ensure disposal cancellation wins the race with the handler failure.
         await handlerStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        // DisposeAsync awaits all background drain tasks, guaranteeing the
-        // Failed transition has been applied before we read the store.
         await server.DisposeAsync();
+        await cancellationObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        // Assert — task should have transitioned to Failed, not remain as Working (zombie)
         var persisted = await store.GetTaskAsync(taskId);
         Assert.NotNull(persisted);
         Assert.Equal(TaskState.Failed, persisted!.Status.State);
@@ -1143,7 +1143,7 @@ public class A2AServerTests
         };
 
         // Act — send with return-immediately, then dispose the server
-        await server.SendMessageAsync(request);
+        await server.SendMessageAsync(request, null);
         await handlerStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await server.DisposeAsync();
@@ -1170,8 +1170,100 @@ public class A2AServerTests
         // Act & Assert — the handler's original exception should propagate,
         // not a generic "Agent handler did not produce any response events."
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => server.SendMessageAsync(request));
+            () => server.SendMessageAsync(request, null));
         Assert.Equal("External API unavailable", ex.Message);
+    }
+
+    [Fact]
+    public async Task TerminalInitialSnapshot_EndsStreamBeforeProducerExit_AndRetainsShutdownOwnership()
+    {
+        var tasks = new InMemoryTaskStore();
+        await tasks.SaveTaskAsync("task", new AgentTask
+        {
+            Id = "task",
+            ContextId = "context",
+            Status = new TaskStatus { State = TaskState.InputRequired },
+        });
+        var store = new GatedInitialTaskRead(tasks);
+        var handler = new TestAgentHandler();
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var canceled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationToken producerToken = default;
+        handler.OnExecute = async (_, _, cancellationToken) =>
+        {
+            producerToken = cancellationToken;
+            started.TrySetResult();
+            try
+            {
+                try
+                {
+                    await release.Task.WaitAsync(cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    canceled.TrySetResult();
+                    await release.Task.WaitAsync(CancellationToken.None);
+                }
+            }
+            finally
+            {
+                finished.TrySetResult();
+            }
+        };
+        await using var server = new A2AServer(handler, store, new ChannelEventNotifier(),
+            NullLogger<A2AServer>.Instance, new A2AServerOptions { AutoAppendHistory = false });
+        await using var stream = server.SendStreamingMessageAsync(new SendMessageRequest
+        {
+            Message = new Message { MessageId = "continue", TaskId = "task", Role = Role.User, Parts = [Part.FromText("continue")] },
+        }, null).GetAsyncEnumerator();
+        Task<bool>? first = null;
+        Task<bool>? next = null;
+        Task? disposal = null;
+        try
+        {
+            first = stream.MoveNextAsync().AsTask();
+            await store.Captured.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(TaskState.Canceled, (await server.CancelTaskAsync(new() { Id = "task" }, null)).Status.State);
+            store.Release.TrySetResult();
+            Assert.True(await first.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.Equal(TaskState.Canceled, stream.Current.Task!.Status.State);
+            await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            next = stream.MoveNextAsync().AsTask();
+            Assert.False(await next.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.False(release.Task.IsCompleted);
+            Assert.False(finished.Task.IsCompleted);
+            Assert.False(producerToken.IsCancellationRequested);
+
+            disposal = server.DisposeAsync().AsTask();
+            await canceled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.False(disposal.IsCompleted);
+            Assert.False(finished.Task.IsCompleted);
+            release.TrySetResult();
+            await disposal.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.True(finished.Task.IsCompletedSuccessfully);
+            Assert.True(producerToken.IsCancellationRequested);
+            Assert.Equal(TaskState.Canceled, (await tasks.GetTaskAsync("task"))!.Status.State);
+        }
+        finally
+        {
+            store.Release.TrySetResult();
+            release.TrySetResult();
+            if (first is not null)
+            {
+                await first.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            if (next is not null)
+            {
+                await next.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            if (disposal is not null)
+            {
+                await disposal.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+        }
     }
 
     [Fact]
@@ -1201,7 +1293,7 @@ public class A2AServerTests
 
         // Act — stream and disconnect after first event
         string? taskId = null;
-        await foreach (var response in server.SendStreamingMessageAsync(request))
+        await foreach (var response in server.SendStreamingMessageAsync(request, null))
         {
             if (response.Task is not null)
             {
@@ -1224,7 +1316,7 @@ public class A2AServerTests
         Assert.Equal(TaskState.Completed, persisted!.Status.State);
 
         // Verify final state via GetTaskAsync (SubscribeToTaskAsync throws for terminal tasks per spec)
-        var finalTask = await server.GetTaskAsync(new GetTaskRequest { Id = taskId! });
+        var finalTask = await server.GetTaskAsync(new GetTaskRequest { Id = taskId! }, null);
         Assert.Equal(TaskState.Completed, finalTask.Status.State);
     }
 
@@ -1257,7 +1349,7 @@ public class A2AServerTests
 
         // Act — read first event then disconnect
         string? taskId = null;
-        await foreach (var response in server.SendStreamingMessageAsync(request))
+        await foreach (var response in server.SendStreamingMessageAsync(request, null))
         {
             if (response.Task is not null)
             {
@@ -1308,7 +1400,7 @@ public class A2AServerTests
 
         // Act — stream and disconnect after first event
         string? taskId = null;
-        await foreach (var response in server.SendStreamingMessageAsync(request))
+        await foreach (var response in server.SendStreamingMessageAsync(request, null))
         {
             if (response.Task is not null)
             {
@@ -1328,7 +1420,7 @@ public class A2AServerTests
         var snapshotReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var subscribeTask = Task.Run(async () =>
         {
-            await foreach (var e in server.SubscribeToTaskAsync(new SubscribeToTaskRequest { Id = taskId! }, subscribeCts.Token))
+            await foreach (var e in server.SubscribeToTaskAsync(new SubscribeToTaskRequest { Id = taskId! }, null, subscribeCts.Token))
             {
                 events.Add(e);
                 if (events.Count == 1) snapshotReceived.TrySetResult();
@@ -1347,6 +1439,31 @@ public class A2AServerTests
         Assert.True(events.Count >= 2, $"Expected at least 2 events but got {events.Count}");
         Assert.NotNull(events[0].Task); // snapshot
         Assert.Contains(events, e => e.StatusUpdate?.Status.State == TaskState.Completed);
+    }
+
+    private sealed class GatedInitialTaskRead(ITaskStore inner) : ITaskStore
+    {
+        private int _reads;
+        internal TaskCompletionSource Captured { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task<AgentTask?> GetTaskAsync(string taskId, CancellationToken cancellationToken = default)
+        {
+            var snapshot = await inner.GetTaskAsync(taskId, cancellationToken);
+            if (Interlocked.Increment(ref _reads) == 1)
+            {
+                Captured.TrySetResult();
+                await Release.Task.WaitAsync(cancellationToken);
+            }
+            return snapshot;
+        }
+
+        public Task SaveTaskAsync(string taskId, AgentTask task, CancellationToken cancellationToken = default) =>
+            inner.SaveTaskAsync(taskId, task, cancellationToken);
+        public Task DeleteTaskAsync(string taskId, CancellationToken cancellationToken = default) =>
+            inner.DeleteTaskAsync(taskId, cancellationToken);
+        public Task<ListTasksResponse> ListTasksAsync(ListTasksRequest request, CancellationToken cancellationToken = default) =>
+            inner.ListTasksAsync(request, cancellationToken);
     }
 
     /// <summary>

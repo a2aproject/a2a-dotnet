@@ -20,7 +20,7 @@ internal static class A2AHttpProcessor
             {
                 Id = id,
                 HistoryLength = historyLength,
-            }, ct).ConfigureAwait(false);
+            }, null, ct).ConfigureAwait(false);
 
             return new JsonRpcResponseResult(JsonRpcResponse.CreateJsonRpcResponse(new JsonRpcId("http"), agentTask));
         }, id, cancellationToken: cancellationToken);
@@ -28,28 +28,30 @@ internal static class A2AHttpProcessor
     internal static Task<IResult> CancelTaskAsync(IA2ARequestHandler requestHandler, ILogger logger, string id, CancellationToken cancellationToken)
         => WithExceptionHandlingAsync(logger, "CancelTask", async ct =>
         {
-            var cancelledTask = await requestHandler.CancelTaskAsync(new CancelTaskRequest { Id = id }, ct).ConfigureAwait(false);
+            var cancelledTask = await requestHandler.CancelTaskAsync(new CancelTaskRequest { Id = id }, null, ct).ConfigureAwait(false);
             return new JsonRpcResponseResult(JsonRpcResponse.CreateJsonRpcResponse(new JsonRpcId("http"), cancelledTask));
         }, id, cancellationToken: cancellationToken);
 
     internal static Task<IResult> SendMessageAsync(IA2ARequestHandler requestHandler, ILogger logger, SendMessageRequest sendRequest, CancellationToken cancellationToken)
         => WithExceptionHandlingAsync(logger, "SendMessage", async ct =>
         {
-            var result = await requestHandler.SendMessageAsync(sendRequest, ct).ConfigureAwait(false);
+            A2AHttpRequestPolicy.NormalizeIncomingRequest(sendRequest, "HTTP+JSON", "SendMessage");
+            var result = await requestHandler.SendMessageAsync(sendRequest, null, ct).ConfigureAwait(false);
             return new JsonRpcResponseResult(JsonRpcResponse.CreateJsonRpcResponse(new JsonRpcId("http"), result));
         }, cancellationToken: cancellationToken);
 
     internal static IResult SendMessageStream(IA2ARequestHandler requestHandler, ILogger logger, SendMessageRequest sendRequest, CancellationToken cancellationToken)
         => WithExceptionHandling(logger, nameof(SendMessageStream), () =>
         {
-            var events = requestHandler.SendStreamingMessageAsync(sendRequest, cancellationToken);
+            A2AHttpRequestPolicy.NormalizeIncomingRequest(sendRequest, "HTTP+JSON", "SendStreamingMessage");
+            var events = requestHandler.SendStreamingMessageAsync(sendRequest, null, cancellationToken);
             return new JsonRpcStreamedResult(events, new JsonRpcId("http"));
         });
 
     internal static IResult SubscribeToTask(IA2ARequestHandler requestHandler, ILogger logger, string id, CancellationToken cancellationToken)
         => WithExceptionHandling(logger, nameof(SubscribeToTask), () =>
         {
-            var events = requestHandler.SubscribeToTaskAsync(new SubscribeToTaskRequest { Id = id }, cancellationToken);
+            var events = requestHandler.SubscribeToTaskAsync(new SubscribeToTaskRequest { Id = id }, null, cancellationToken);
             return new JsonRpcStreamedResult(events, new JsonRpcId("http"));
         }, id);
 
@@ -110,49 +112,75 @@ internal static class A2AHttpProcessor
 
     // REST handler: Get task by ID
     internal static Task<IResult> GetTaskRestAsync(
-        IA2ARequestHandler requestHandler, ILogger logger, string id, int? historyLength, CancellationToken cancellationToken)
+        IA2ARequestHandler requestHandler, ILogger logger, string id, int? historyLength, CancellationToken cancellationToken,
+        A2ARequestContext? requestContext = null)
         => WithExceptionHandlingAsync(logger, "REST.GetTask", async ct =>
         {
             var result = await requestHandler.GetTaskAsync(
-                new GetTaskRequest { Id = id, HistoryLength = historyLength }, ct).ConfigureAwait(false);
+                new GetTaskRequest { Id = id, HistoryLength = historyLength }, requestContext, ct).ConfigureAwait(false);
             return new A2AResponseResult(result);
         }, id, cancellationToken);
 
     // REST handler: Cancel task
     internal static Task<IResult> CancelTaskRestAsync(
-        IA2ARequestHandler requestHandler, ILogger logger, string id, CancellationToken cancellationToken)
+        IA2ARequestHandler requestHandler, ILogger logger, string id, CancellationToken cancellationToken,
+        A2ARequestContext? requestContext = null)
         => WithExceptionHandlingAsync(logger, "REST.CancelTask", async ct =>
         {
             var result = await requestHandler.CancelTaskAsync(
-                new CancelTaskRequest { Id = id }, ct).ConfigureAwait(false);
+                new CancelTaskRequest { Id = id }, requestContext, ct).ConfigureAwait(false);
             return new A2AResponseResult(result);
         }, id, cancellationToken);
 
     // REST handler: Send message
     internal static Task<IResult> SendMessageRestAsync(
-        IA2ARequestHandler requestHandler, ILogger logger, SendMessageRequest request, CancellationToken cancellationToken)
+        IA2ARequestHandler requestHandler, ILogger logger, SendMessageRequest request, CancellationToken cancellationToken,
+        A2ARequestContext? requestContext = null)
         => WithExceptionHandlingAsync(logger, "REST.SendMessage", async ct =>
         {
-            var result = await requestHandler.SendMessageAsync(request, ct).ConfigureAwait(false);
+            A2AHttpRequestPolicy.NormalizeIncomingRequest(request, "HTTP+JSON", "SendMessage");
+            ValidateSendMessageRequest(request);
+            var result = await requestHandler.SendMessageAsync(request, requestContext, ct).ConfigureAwait(false);
             return new A2AResponseResult(result);
         }, cancellationToken: cancellationToken);
 
     // REST handler: Send streaming message
     internal static IResult SendMessageStreamRest(
-        IA2ARequestHandler requestHandler, ILogger logger, SendMessageRequest request, CancellationToken cancellationToken)
+        IA2ARequestHandler requestHandler, ILogger logger, SendMessageRequest request, CancellationToken cancellationToken,
+        A2ARequestContext? requestContext = null)
         => WithExceptionHandling(logger, "REST.SendMessageStream", () =>
         {
-            var events = requestHandler.SendStreamingMessageAsync(request, cancellationToken);
+            A2AHttpRequestPolicy.NormalizeIncomingRequest(request, "HTTP+JSON", "SendStreamingMessage");
+            ValidateSendMessageRequest(request);
+            var events = requestHandler.SendStreamingMessageAsync(request, requestContext, cancellationToken);
             return new A2AEventStreamResult(events);
         });
 
+    /// <summary>
+    /// Validates a REST-bound <see cref="SendMessageRequest"/>, mirroring the JSON-RPC
+    /// binding validation in <see cref="A2AJsonRpcProcessor"/>. The REST endpoints
+    /// use <c>[FromBody]</c> model binding, which does not enforce a non-empty message parts
+    /// list on its own.
+    /// </summary>
+    /// <param name="request">The send message request to validate.</param>
+    /// <exception cref="A2AException">Thrown with <see cref="A2AErrorCode.InvalidParams"/> when the message parts list is empty.</exception>
+    private static void ValidateSendMessageRequest(SendMessageRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.Message is not { Parts.Count: > 0 })
+        {
+            throw new A2AException("Message parts cannot be empty", A2AErrorCode.InvalidParams);
+        }
+    }
+
     // REST handler: Subscribe to task
     internal static IResult SubscribeToTaskRest(
-        IA2ARequestHandler requestHandler, ILogger logger, string id, CancellationToken cancellationToken)
+        IA2ARequestHandler requestHandler, ILogger logger, string id, CancellationToken cancellationToken,
+        A2ARequestContext? requestContext = null)
         => WithExceptionHandling(logger, "REST.SubscribeToTask", () =>
         {
             var events = requestHandler.SubscribeToTaskAsync(
-                new SubscribeToTaskRequest { Id = id }, cancellationToken);
+                new SubscribeToTaskRequest { Id = id }, requestContext, cancellationToken);
             return new A2AEventStreamResult(events);
         }, id);
 
@@ -160,7 +188,7 @@ internal static class A2AHttpProcessor
     internal static Task<IResult> ListTasksRestAsync(
         IA2ARequestHandler requestHandler, ILogger logger, string? contextId, string? status, int? pageSize,
         string? pageToken, int? historyLength, DateTimeOffset? statusTimestampAfter,
-        bool? includeArtifacts, CancellationToken cancellationToken)
+        bool? includeArtifacts, CancellationToken cancellationToken, A2ARequestContext? requestContext = null)
         => WithExceptionHandlingAsync(logger, "REST.ListTasks", async ct =>
         {
             var request = new ListTasksRequest
@@ -183,7 +211,7 @@ internal static class A2AHttpProcessor
             request.StatusTimestampAfter = statusTimestampAfter;
             request.IncludeArtifacts = includeArtifacts;
 
-            var result = await requestHandler.ListTasksAsync(request, ct).ConfigureAwait(false);
+            var result = await requestHandler.ListTasksAsync(request, requestContext, ct).ConfigureAwait(false);
             return new A2AResponseResult(result);
         }, cancellationToken: cancellationToken);
 
@@ -208,31 +236,34 @@ internal static class A2AHttpProcessor
 
     // REST handler: Get extended agent card
     internal static Task<IResult> GetExtendedAgentCardRestAsync(
-        IA2ARequestHandler requestHandler, ILogger logger, CancellationToken cancellationToken)
+        IA2ARequestHandler requestHandler, ILogger logger, CancellationToken cancellationToken,
+        A2ACustomOperationRegistry? registry = null, A2ARequestContext? requestContext = null)
         => WithExceptionHandlingAsync(logger, "REST.GetExtendedAgentCard", async ct =>
         {
             var result = await requestHandler.GetExtendedAgentCardAsync(
-                new GetExtendedAgentCardRequest(), ct).ConfigureAwait(false);
+                new GetExtendedAgentCardRequest(), requestContext, ct).ConfigureAwait(false);
+            if (registry is not null) result = registry.PrepareAgentCard(result);
             return new A2AResponseResult(result);
         }, cancellationToken: cancellationToken);
 
     // REST handler: Create push notification config
     internal static Task<IResult> CreatePushNotificationConfigRestAsync(
-        IA2ARequestHandler requestHandler, ILogger logger, string taskId, TaskPushNotificationConfig config, CancellationToken cancellationToken)
+        IA2ARequestHandler requestHandler, ILogger logger, string taskId, TaskPushNotificationConfig config, CancellationToken cancellationToken,
+        A2ARequestContext? requestContext = null)
         => WithExceptionHandlingAsync(logger, "REST.CreatePushNotificationConfig", async ct =>
         {
             // Route provides the authoritative taskId; override whatever the body sent
             config.TaskId = taskId;
-            // This route has no tenant segment and does not support tenant routing.
-            config.Tenant = null;
-            var result = await requestHandler.CreateTaskPushNotificationConfigAsync(config, ct).ConfigureAwait(false);
+            A2AHttpRequestPolicy.NormalizeIncomingRequest(
+                config, "HTTP+JSON", "CreateTaskPushNotificationConfig");
+            var result = await requestHandler.CreateTaskPushNotificationConfigAsync(config, requestContext, ct).ConfigureAwait(false);
             return new A2AResponseResult(result);
         }, taskId, cancellationToken);
 
     // REST handler: List push notification configs for a task
     internal static Task<IResult> ListPushNotificationConfigRestAsync(
         IA2ARequestHandler requestHandler, ILogger logger, string taskId, int? pageSize, string? pageToken,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, A2ARequestContext? requestContext = null)
         => WithExceptionHandlingAsync(logger, "REST.ListPushNotificationConfig", async ct =>
         {
             var request = new ListTaskPushNotificationConfigsRequest
@@ -241,28 +272,30 @@ internal static class A2AHttpProcessor
                 PageSize = pageSize,
                 PageToken = pageToken,
             };
-            var result = await requestHandler.ListTaskPushNotificationConfigsAsync(request, ct)
+            var result = await requestHandler.ListTaskPushNotificationConfigsAsync(request, requestContext, ct)
                 .ConfigureAwait(false);
             return new A2AResponseResult(result);
         }, taskId, cancellationToken);
 
     // REST handler: Get push notification config
     internal static Task<IResult> GetPushNotificationConfigRestAsync(
-        IA2ARequestHandler requestHandler, ILogger logger, string taskId, string configId, CancellationToken cancellationToken)
+        IA2ARequestHandler requestHandler, ILogger logger, string taskId, string configId, CancellationToken cancellationToken,
+        A2ARequestContext? requestContext = null)
         => WithExceptionHandlingAsync(logger, "REST.GetPushNotificationConfig", async ct =>
         {
             var request = new GetTaskPushNotificationConfigRequest { TaskId = taskId, Id = configId };
-            var result = await requestHandler.GetTaskPushNotificationConfigAsync(request, ct).ConfigureAwait(false);
+            var result = await requestHandler.GetTaskPushNotificationConfigAsync(request, requestContext, ct).ConfigureAwait(false);
             return new A2AResponseResult(result);
         }, taskId, cancellationToken);
 
     // REST handler: Delete push notification config
     internal static Task<IResult> DeletePushNotificationConfigRestAsync(
-        IA2ARequestHandler requestHandler, ILogger logger, string taskId, string configId, CancellationToken cancellationToken)
+        IA2ARequestHandler requestHandler, ILogger logger, string taskId, string configId, CancellationToken cancellationToken,
+        A2ARequestContext? requestContext = null)
         => WithExceptionHandlingAsync(logger, "REST.DeletePushNotificationConfig", async ct =>
         {
             var request = new DeleteTaskPushNotificationConfigRequest { TaskId = taskId, Id = configId };
-            await requestHandler.DeleteTaskPushNotificationConfigAsync(request, ct).ConfigureAwait(false);
+            await requestHandler.DeleteTaskPushNotificationConfigAsync(request, requestContext, ct).ConfigureAwait(false);
             return Results.NoContent();
         }, taskId, cancellationToken);
 }
@@ -324,10 +357,10 @@ internal sealed class A2AEventStreamResult : IResult
 
                 do
                 {
-                    #pragma warning disable VSTHRD103 // Serialize to string is not blocking I/O
+#pragma warning disable VSTHRD103 // Serialize to string is not blocking I/O
                     var json = JsonSerializer.Serialize(enumerator.Current,
                         A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(StreamResponse)));
-                    #pragma warning restore VSTHRD103
+#pragma warning restore VSTHRD103
                     await httpContext.Response.BodyWriter.WriteAsync(
                         Encoding.UTF8.GetBytes($"data: {json}\n\n"), httpContext.RequestAborted);
                     await httpContext.Response.BodyWriter.FlushAsync(httpContext.RequestAborted);
@@ -398,8 +431,9 @@ internal sealed class A2AEventStreamResult : IResult
 
         try
         {
+            var errorJson = BuildErrorJson(exception);
             await httpContext.Response.BodyWriter.WriteAsync(
-                Encoding.UTF8.GetBytes("data: {\"error\":\"An internal error occurred during streaming.\"}\n\n"),
+                Encoding.UTF8.GetBytes($"data: {errorJson}\n\n"),
                 httpContext.RequestAborted);
             await httpContext.Response.BodyWriter.FlushAsync(httpContext.RequestAborted);
         }
@@ -407,5 +441,53 @@ internal sealed class A2AEventStreamResult : IResult
         {
             // Response body no longer writable
         }
+    }
+
+    /// <summary>
+    /// Builds a structured SSE error event payload: <c>{"error":{"code":..,"message":..,"data":..}}</c>.
+    /// Mirrors the JSON-RPC error object (<see cref="JsonRpcError"/>) so REST and JSON-RPC
+    /// transports return consistent errors.
+    /// </summary>
+    /// <param name="exception">The exception to render as an SSE error event.</param>
+    /// <returns>The JSON payload for the SSE error event.</returns>
+    private static string BuildErrorJson(Exception exception)
+    {
+        var errorCode = exception is A2AException a2aException
+            ? a2aException.ErrorCode
+            : A2AErrorCode.InternalError;
+        var message = exception is A2AException a2aEx
+            ? a2aEx.Message
+            : "An internal error occurred during streaming.";
+
+        using var buffer = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(buffer))
+        {
+            writer.WriteStartObject();
+            writer.WritePropertyName("error");
+            writer.WriteStartObject();
+            writer.WriteNumber("code", (int)errorCode);
+            writer.WriteString("message", message);
+
+            if (A2AErrorCodeMapping.IsA2ASpecificError(errorCode))
+            {
+                var reason = A2AErrorCodeMapping.GetReasonString(errorCode);
+                if (reason is not null)
+                {
+                    writer.WritePropertyName("data");
+                    writer.WriteStartArray();
+                    writer.WriteStartObject();
+                    writer.WriteString("@type", "type.googleapis.com/google.rpc.ErrorInfo");
+                    writer.WriteString("reason", reason);
+                    writer.WriteString("domain", "a2a-protocol.org");
+                    writer.WriteEndObject();
+                    writer.WriteEndArray();
+                }
+            }
+
+            writer.WriteEndObject();
+            writer.WriteEndObject();
+        }
+
+        return Encoding.UTF8.GetString(buffer.ToArray());
     }
 }
