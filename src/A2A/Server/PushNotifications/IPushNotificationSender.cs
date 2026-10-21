@@ -5,6 +5,9 @@ namespace A2A;
 /// Implementations must recheck registration versions before attempts and honor generation-scoped deletion.
 /// A successful enqueue is acceptance for delivery, not remote acknowledgement. Delivery does not
 /// own configuration retention. Admission failures must be surfaced rather than counted as accepted work.
+/// Durable implementations must persist work before successful enqueue completion.
+/// This does not make task persistence and notification admission atomic.
+/// See <see href="https://github.com/a2aproject/a2a-dotnet/blob/main/docs/durable-push-notifications.md">durable sender implementation guidance</see>.
 /// </remarks>
 public interface IPushNotificationSender
 {

@@ -179,6 +179,12 @@ explicit deletion can prevent receipt. There is no guaranteed remote receipt,
 restart durability, exactly-once processing, or cross-process ordering. Receivers
 must be idempotent. Custom dependencies must honor cancellation.
 
+`IPushNotificationSender` is the replacement point for durable acceptance,
+restart recovery, persistent retries, and dead-letter handling. See
+[Implementing a durable push notification sender](durable-push-notifications.md)
+for its contract, registration/lifecycle integration, security requirements,
+and the separate transactional-outbox requirement.
+
 ## Destination and credential boundaries
 
 The URL policy requires an absolute HTTPS URL without userinfo/fragment and

@@ -136,6 +136,12 @@ configuration. Retention is an explicit store/application policy.
 The sender logs failures without changing task state; bounded, process-local
 delivery is not a durable or exactly-once guarantee.
 
+For durable delivery replacements, see
+[Implementing a durable push notification sender](durable-push-notifications.md).
+Persisted delivery work and dead letters need protection for payloads and
+credentials, authorized replay, and generation checks after restart. A durable
+sender alone does not make task persistence and notification admission atomic.
+
 See the [push notification guide](push-notifications.md) and
 [receiver sample](../samples/PushNotificationReceiver/README.md). The sample's
 exact-loopback policy is only for its owned local listener, not production.
