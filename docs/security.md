@@ -131,10 +131,12 @@ and implicit proxies and factory URL logging are disabled.
 Create returns accepted secrets; get/list redact credentials and tokens without
 changing stored delivery values. Deletion prevents later attempts but cannot
 recall already-transmitted bytes. Registrations carry a generation-scoped
-invalidation signal; terminal delivery/failure does not delete client
-configuration. Retention is an explicit store/application policy.
-The sender logs failures without changing task state; bounded, process-local
-delivery is not a durable or exactly-once guarantee.
+invalidation signal. The built-in HTTP sender deletes a terminal registration by
+default after delivery succeeds or its retry/revalidation policy ends; hosts can
+opt out with `AutoDeleteOnTerminalState = false`. Non-terminal states remain
+registered, and custom senders define their own retention behavior. This cleanup
+does not provide durable or exactly-once delivery, archival, or compliance
+retention. The sender logs failures without changing task state.
 
 See the [push notification guide](push-notifications.md) and
 [receiver sample](../samples/PushNotificationReceiver/README.md). The sample's

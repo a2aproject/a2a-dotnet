@@ -38,7 +38,7 @@ destination policy, and sender. Dispose directly owned servers/senders.
 | Wire payload | One `StreamResponse` payload and configured authentication; 2xx acknowledges receipt | Source-generated A2A JSON, no JSON-RPC envelope |
 | Attempts | At least one attempt for configured notifications; finite retry exhaustion is allowed | Bounded admission with backpressure, three attempts by default |
 | Response kind | An agent may return a `Task` or a direct `Message` | Preserve the handler's choice; no automatic task synthesis |
-| Config lifetime | Persist until task completion or explicit deletion; delete is idempotent | Retain after completion/failure until explicitly deleted or removed by application retention |
+| Config lifetime | Delete is idempotent; no automatic terminal cleanup timing is specified | The built-in HTTP sender deletes after terminal delivery handling by default; hosts can opt out |
 | Pagination | Consistent shared semantics; proto3 zero has no distinct presence | Zero/omitted defaults to 50, cap 100; negative is invalid |
 | Security | Configured authentication and host authorization; HTTPS/SSRF protection are recommended | Fail-closed HTTPS/public-address policy and connection enforcement |
 | Read secrets | Protect credentials | Return accepted create values; redact token/credentials on get/list |
@@ -83,8 +83,10 @@ var created = await client.CreateTaskPushNotificationConfigAsync(
 - The development store orders IDs and uses authenticated, task-bound cursors.
   A mutation invalidates existing cursors; restart pagination on `InvalidParams`.
 - A registration created after task completion receives the current terminal
-  `Task` snapshot. It remains readable until explicit removal. This is an SDK
-  policy, not a protocol-required automatic cleanup rule.
+  `Task` snapshot. The built-in HTTP sender deletes it by default after delivery
+  succeeds, retries are exhausted, or destination revalidation fails; set
+  `AutoDeleteOnTerminalState = false` to retain it. Custom senders define their
+  own retention policy. Cleanup is conditional on the registration generation.
 - Delete invalidates its registration generation before returning. Queued work,
   retries, and cancellable in-flight requests observe the deletion signal.
   Already-transmitted bytes and remote processing cannot be recalled.
@@ -147,12 +149,21 @@ shared transaction/outbox, not a delivery-guarantee claim by this SDK.
 | Full queue | Wait outside task locks |
 | Graceful drain before shutdown cancellation | 5 seconds |
 | Optional compatibility header | `X-A2A-Notification-Token` |
+| Automatic terminal cleanup | Enabled; set `AutoDeleteOnTerminalState = false` to retain configs |
 
-Override `PushNotificationDeliveryOptions` before `AddA2AAgent`. Explicit
-`Reject` is an **admission error**, not accepted delivery or permission to delete
-the config. Applications choosing it must handle partial persistence/error
-semantics. Network failures, timeouts, 408, 429, and 5xx may retry; other 4xx and
-redirects do not. HTTP failure never rewrites the agent's task state.
+Override `PushNotificationDeliveryOptions` before `AddA2AAgent`. For example,
+register `new PushNotificationDeliveryOptions { AutoDeleteOnTerminalState = false }`
+first to keep terminal registrations. The registration for a terminal `Task`
+snapshot or status update is cleaned up once delivery succeeds or the policy
+ends without success (non-retryable response, exhausted retries, or destination
+revalidation failure). Cleanup does not run for admission rejection,
+inactive/replaced registrations, shutdown-canceled
+work, or non-terminal states (`InputRequired` and `AuthRequired` remain active).
+Cleanup failure is logged without retrying the webhook. Explicit `Reject` is an
+**admission error**, not accepted delivery or permission to delete the config.
+Applications choosing it must handle partial persistence/error semantics.
+Network failures, timeouts, 408, 429, and 5xx may retry; other 4xx and redirects
+do not. HTTP failure never rewrites the agent's task state.
 If event publication fails, its owner closes the abandoned agent queue, cancels
 and joins the producer, and reports the error before releasing its lifetime.
 An admission failure alone does not transition the committed task to Failed.
