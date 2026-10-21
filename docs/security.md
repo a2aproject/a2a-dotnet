@@ -140,6 +140,13 @@ See the [push notification guide](push-notifications.md) and
 [receiver sample](../samples/PushNotificationReceiver/README.md). The sample's
 exact-loopback policy is only for its owned local listener, not production.
 
+For custom durable stores, follow
+[Implementing a persistent push notification store](push-notifications.md#implementing-a-persistent-push-notification-store).
+`IPushNotificationStore` holds secret-bearing configurations independently of
+`ITaskStore`. Its implementation must protect credentials, preserve ownership
+and generation-scoped deletion, and define retention and recovery policies.
+Persisting registrations does not refresh credentials or make delivery durable.
+
 ### 6. File Handling
 
 The SDK treats `FilePart` payloads (both `bytes` and `uri` variants) as opaque data. It does not interpret, parse, decompress, scan, or validate file content.
