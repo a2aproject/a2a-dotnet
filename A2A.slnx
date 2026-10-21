@@ -15,7 +15,11 @@
     <Project Path="samples/AgentServer/AgentServer.csproj" />
     <Project Path="samples/ExtensionNegotiation/ExtensionNegotiation.csproj" />
     <Project Path="samples/PushNotificationReceiver/PushNotificationReceiver.csproj" />
-    <Project Path="samples/SemanticKernelAgent/SemanticKernelAgent.csproj" />
+  </Folder>
+  <Folder Name="/samples/MAF/">
+    <File Path="samples/MAF/README.md" />
+    <Project Path="samples/MAF/A2AClient/A2AClient.csproj" />
+    <Project Path="samples/MAF/A2AServer/A2AServer.csproj" />
   </Folder>
   <Folder Name="/src/">
     <File Path="src/Directory.Build.props" />

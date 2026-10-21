@@ -284,12 +284,13 @@ and verify request-scoped activation, availability changes and SDK error metadat
 The self-contained loopback demo requires no model credentials. See the
 [extension negotiation guide](docs/extensions.md) for API examples and Agent Card consistency.
 
-### Semantic Kernel Integration
-**[`samples/SemanticKernelAgent/`](samples/SemanticKernelAgent/README.md)**
+### Microsoft Agent Framework Integration
+**[`samples/MAF/`](samples/MAF/README.md)**
 
-Advanced sample showing integration with Microsoft Semantic Kernel:
-- **Travel Planner Agent**: AI-powered travel planning agent
-- **Semantic Kernel Integration**: Demonstrates how to wrap Semantic Kernel functionality in A2A protocol
+End-to-end sample showing interoperability with Microsoft Agent Framework:
+- **Travel Planner Agent**: Uses local tour availability and current time-zone tools
+- **A2A Client and Server**: Hosts and consumes the agent through the Agent Framework `AIAgent` abstraction
+- **Protocol Bindings**: Supports both JSON-RPC and HTTP+JSON
 
 ### Command Line Interface
 **[`samples/A2ACli/`](samples/A2ACli/)**
