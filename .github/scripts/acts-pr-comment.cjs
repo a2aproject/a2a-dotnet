@@ -64,7 +64,7 @@ function buildComment(reports, run) {
     '',
     `Commit: \`${run.head_sha.slice(0, 12)}\` | [ACTS run and full reports](${url})`,
     '',
-    'SHOULD/MAY findings are informational. The MUST-only conformance gate is unchanged.',
+    '**Non-blocking advisory:** This comment is informational only and does not block merging this PR. Advisory failures may or may not be related to changes in this PR; they do not, on their own, establish a regression introduced by this PR. The MUST-only conformance gate is unchanged.',
     '',
   ];
   if (failures.length === 0) {

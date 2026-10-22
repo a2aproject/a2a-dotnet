@@ -61,6 +61,19 @@ test('renders SHOULD failures and MAY errors, without listing MUST failures or s
   assert.match(result.body, /MUST.*unchanged/);
 });
 
+for (const result of ['fail', 'pass']) {
+  test(`includes the non-blocking advisory disclaimer when advisory tests ${result}`, () => {
+    const input = reports();
+    input[0] = report('jsonrpc', [{ id: 'ADVISORY', level: 'should', result }]);
+    const { body } = buildComment(input, run);
+    assert.match(body, /\*\*Non-blocking advisory:\*\*/);
+    assert.match(body, /informational only and does not block merging this PR/);
+    assert.match(body, /Advisory failures may or may not be related to changes in this PR/);
+    assert.match(body, /do not, on their own, establish a regression introduced by this PR/);
+    assert.match(body, /The MUST-only conformance gate is unchanged\./);
+  });
+}
+
 test('escapes untrusted report text so it cannot add rows, mentions, or HTML', () => {
   const input = reports();
   input[0] = report('jsonrpc', [{
