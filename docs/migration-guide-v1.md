@@ -517,7 +517,10 @@ bounded process-local HTTP sender. Enable them with
 push operations and inline configs.
 
 - Use HTTPS/public destinations; loopback/private destinations are rejected by
-  default. Configure host allowlists and production egress controls.
+  default. For trusted local development, explicitly opt in with
+  `PushNotificationUrlOptions.AllowLoopback`; see
+  [local development callbacks](push-notifications.md#local-development-callbacks).
+  Configure host allowlists and production egress controls.
 - Create is not update. IDs are generated when absent; duplicate supplied IDs
   return `InvalidParams`. Get/list redact credentials and tokens.
 - Inline config activates only for a real task. A message-only handler remains
