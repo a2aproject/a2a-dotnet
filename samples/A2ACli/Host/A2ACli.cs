@@ -18,6 +18,7 @@ public static class A2ACli
             s_agentOption,
             s_sessionOption,
             s_historyOption,
+            s_returnImmediatelyOption,
             s_usePushNotificationsOption,
             s_pushNotificationReceiverOption
         };
@@ -37,10 +38,11 @@ public static class A2ACli
         string agent = parseResult.GetValue(s_agentOption)!;
         string session = parseResult.GetValue(s_sessionOption)!;
         bool history = parseResult.GetValue(s_historyOption);
+        bool returnImmediately = parseResult.GetValue(s_returnImmediatelyOption);
         bool usePushNotifications = parseResult.GetValue(s_usePushNotificationsOption);
         string pushNotificationReceiver = parseResult.GetValue(s_pushNotificationReceiverOption)!;
 
-        return RunCliAsync(agent, session, history, usePushNotifications, pushNotificationReceiver, cancellationToken);
+        return RunCliAsync(agent, session, history, returnImmediately, usePushNotifications, pushNotificationReceiver, cancellationToken);
     }
 
     #region private
@@ -57,6 +59,10 @@ public static class A2ACli
     private static readonly Option<bool> s_historyOption = new("--history")
     {
         Description = "Show task history"
+    };
+    private static readonly Option<bool> s_returnImmediatelyOption = new("--return-immediately")
+    {
+        Description = "Return an open task without waiting for completion; use push notifications for later updates"
     };
     private static readonly Option<bool> s_usePushNotificationsOption = new("--use-push-notifications")
     {
@@ -79,6 +85,7 @@ public static class A2ACli
         string agentUrl,
         string session,
         bool history,
+        bool returnImmediately,
         bool usePushNotifications,
         string pushNotificationReceiver,
         CancellationToken cancellationToken)
@@ -129,6 +136,7 @@ public static class A2ACli
                 continueLoop = await CompleteTaskAsync(
                     client,
                     streaming,
+                    returnImmediately,
                     notificationReceiver?.NotificationUri,
                     taskId,
                     sessionId,
@@ -163,6 +171,7 @@ public static class A2ACli
     private static async Task<bool> CompleteTaskAsync(
         A2AClient client,
         bool streaming,
+        bool returnImmediately,
         Uri? notificationReceiverUri,
         string taskId,
         string sessionId,
@@ -216,7 +225,8 @@ public static class A2ACli
         {
             Configuration = new()
             {
-                AcceptedOutputModes = ["text"]
+                AcceptedOutputModes = ["text"],
+                ReturnImmediately = returnImmediately
             },
             Message = message
         };
@@ -266,6 +276,7 @@ public static class A2ACli
             return await CompleteTaskAsync(
                 client,
                 streaming,
+                returnImmediately,
                 notificationReceiverUri,
                 taskId,
                 sessionId,

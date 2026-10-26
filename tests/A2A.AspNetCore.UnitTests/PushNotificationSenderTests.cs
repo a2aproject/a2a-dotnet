@@ -18,6 +18,40 @@ public sealed class PushNotificationSenderTests : IDisposable
 
     public void Dispose() => _transport.Dispose();
 
+    [Fact]
+    public async Task DeletedRegistration_IsNotReportedAsAcceptedAdmission()
+    {
+        var registration = await _store.SaveAsync(Config());
+        await _store.DeleteAsync("task", "config");
+        await using var sender = Sender();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => sender.EnqueueAsync(registration, Event()));
+        Assert.Empty(_transport.Requests);
+        Assert.DoesNotContain(_logger.Messages, entry => entry.Contains("accepted", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task DeletionWhileWaitingForQueueCapacity_FailsAdmission()
+    {
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _transport.Respond = async (_, cancellationToken) =>
+        {
+            entered.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        };
+        var registration = await _store.SaveAsync(Config());
+        await using var sender = Sender(new() { QueueCapacity = 1 });
+        await sender.EnqueueAsync(registration, Event());
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await sender.EnqueueAsync(registration, Event());
+        var pending = sender.EnqueueAsync(registration, Event());
+        Assert.False(pending.IsCompleted);
+        await _store.DeleteAsync("task", "config");
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending.WaitAsync(TimeSpan.FromSeconds(5)));
+        await sender.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Single(_transport.Requests);
+    }
+
     [Theory]
     [InlineData(200, 1)]
     [InlineData(204, 1)]

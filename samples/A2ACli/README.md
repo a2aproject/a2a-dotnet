@@ -20,3 +20,17 @@ message's `TaskPushNotificationConfig`, and prints each received
 The sample receiver is unauthenticated and only accepts loopback URLs. It is
 intended for local development; production webhook receivers should validate
 the configured token and authenticate the sending agent.
+
+## Nonblocking tasks
+
+Add `--return-immediately` to set
+`SendMessageConfiguration.ReturnImmediately` to `true`. This lets the server
+return a task that is still Working instead of waiting for a terminal or
+interrupted state. The default remains blocking, even when push notifications
+are enabled. Combine this option with `--use-push-notifications` to see later
+updates while the CLI waits for your next input.
+
+See the [proactive AgentServer walkthrough](../AgentServer/README.md#proactive-task-continuation-with-a2acli)
+for a complete example: create a Working task, call a separate HTTP endpoint
+with its task ID and a message, and watch that message arrive through push
+notifications.
