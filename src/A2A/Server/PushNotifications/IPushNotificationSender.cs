@@ -5,6 +5,8 @@ namespace A2A;
 /// Implementations must recheck registration versions before attempts and honor generation-scoped deletion.
 /// A successful enqueue is acceptance for delivery, not remote acknowledgement. Delivery does not
 /// own configuration retention. Admission failures must be surfaced rather than counted as accepted work.
+/// If a registration is removed before admission, throw <see cref="OperationCanceledException"/>
+/// using its removal token instead of completing successfully. Deletion after acceptance may suppress delivery.
 /// </remarks>
 public interface IPushNotificationSender
 {
