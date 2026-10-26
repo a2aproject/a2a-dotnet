@@ -71,6 +71,48 @@ public sealed class PushNotificationConnectionTests
         Assert.Empty(_dialed);
     }
 
+    [Fact]
+    public async Task LoopbackOptIn_ConnectsOnlyToTheValidatedLoopbackAddress()
+    {
+        int resolutions = 0;
+        var uri = new Uri("http://localhost:5000/notify");
+        var validator = new DefaultPushNotificationUrlValidator(
+            new PushNotificationUrlOptions { AllowLoopback = true }, (_, _) =>
+            {
+                resolutions++;
+                return Task.FromResult(new[] { IPAddress.Loopback });
+            });
+        var connector = new PushNotificationHttpConnector(validator, ConnectAsync);
+
+        using var connection = await connector.ConnectAsync(uri, new DnsEndPoint(uri.Host, 5000), CancellationToken.None);
+
+        var endpoint = Assert.Single(_dialed);
+        Assert.Equal(IPAddress.Loopback, endpoint.Address);
+        Assert.Equal(5000, endpoint.Port);
+        Assert.Equal(1, resolutions);
+    }
+
+    [Theory]
+    [InlineData("93.184.216.34")]
+    [InlineData("192.168.0.1")]
+    [InlineData("169.254.169.254")]
+    public async Task LoopbackDnsChangesAfterPreflight_ConnectorRejectsNonLoopbackAnswers(string address)
+    {
+        int resolutions = 0;
+        var uri = new Uri("http://localhost:5000/notify");
+        var validator = new DefaultPushNotificationUrlValidator(
+            new PushNotificationUrlOptions { AllowLoopback = true }, (_, _) =>
+                Task.FromResult(++resolutions == 1 ? new[] { IPAddress.Loopback } : [IPAddress.Parse(address)]));
+        await validator.ValidateAsync(uri.AbsoluteUri);
+        var connector = new PushNotificationHttpConnector(validator, ConnectAsync);
+
+        await Assert.ThrowsAsync<A2AException>(() =>
+            connector.ConnectAsync(uri, new DnsEndPoint(uri.Host, 5000), CancellationToken.None).AsTask());
+
+        Assert.Equal(2, resolutions);
+        Assert.Empty(_dialed);
+    }
+
     private ValueTask<Stream> ConnectAsync(IPEndPoint endpoint, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

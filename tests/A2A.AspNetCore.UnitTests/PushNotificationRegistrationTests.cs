@@ -49,6 +49,29 @@ public sealed class PushNotificationRegistrationTests
         Assert.Equal(1, sender.Stops);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LoopbackOptIn_IsAppliedToTheRegisteredDefaultValidator(bool allowLoopback)
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(new PushNotificationUrlOptions { AllowLoopback = allowLoopback });
+        services.AddA2AAgent<Agent>(_card);
+        await using var provider = services.BuildServiceProvider();
+        var validator = provider.GetRequiredService<IPushNotificationUrlValidator>();
+
+        if (allowLoopback)
+        {
+            var addresses = await validator.ValidateAsync("http://127.0.0.1:5000/notify");
+            Assert.Equal(IPAddress.Loopback, Assert.Single(addresses));
+        }
+        else
+        {
+            await Assert.ThrowsAsync<A2AException>(() => validator.ValidateAsync("http://127.0.0.1:5000/notify"));
+        }
+    }
+
     public sealed class Agent : IAgentHandler
     {
         public Task ExecuteAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken) => Task.CompletedTask;

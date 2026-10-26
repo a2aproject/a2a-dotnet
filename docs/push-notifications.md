@@ -31,6 +31,36 @@ The original five-argument `A2AServer` constructor remains available without
 push. Direct construction with push uses the overload accepting a card, store,
 destination policy, and sender. Dispose directly owned servers/senders.
 
+### Local development callbacks
+
+`PushNotificationUrlOptions.AllowLoopback` defaults to `false`. Explicitly enable
+it to receive callbacks at URLs such as `http://localhost:5000/notify` without a
+public tunnel. To opt in only during development, replace the options registration
+above with:
+
+```csharp
+builder.Services.AddSingleton(new PushNotificationUrlOptions
+{
+    AllowedHosts = ["callbacks.example.com", "localhost", "127.0.0.1", "::1"],
+    AllowLoopback = builder.Environment.IsDevelopment(),
+});
+```
+
+Register these options before `AddA2AAgent`. The SDK does not inspect the hosting
+environment or automatically relax its policy in Development.
+
+The exception permits HTTP or HTTPS only for `localhost` and loopback IP literals
+(IPv4, IPv6, and IPv4-mapped IPv6). Every DNS answer for `localhost` must be
+loopback. Other hostnames that resolve to loopback, LAN/private addresses,
+link-local/metadata addresses, and public HTTP destinations remain blocked.
+Host allowlists and connection-time address validation still apply; HTTPS still
+requires a valid certificate.
+
+Only enable this for trusted local development callers: registrations can target
+other services on the server's loopback interface, and HTTP sends configured
+credentials without TLS. The callback must be reachable from the server's network
+namespace; `localhost` inside a container refers to that container, not its host.
+
 ## Protocol requirements and SDK choices
 
 | Area | Requirement | SDK policy |
@@ -40,7 +70,7 @@ destination policy, and sender. Dispose directly owned servers/senders.
 | Response kind | An agent may return a `Task` or a direct `Message` | Preserve the handler's choice; no automatic task synthesis |
 | Config lifetime | Persist until task completion or explicit deletion; delete is idempotent | Retain after completion/failure until explicitly deleted or removed by application retention |
 | Pagination | Consistent shared semantics; proto3 zero has no distinct presence | Zero/omitted defaults to 50, cap 100; negative is invalid |
-| Security | Configured authentication and host authorization; HTTPS/SSRF protection are recommended | Fail-closed HTTPS/public-address policy and connection enforcement |
+| Security | Configured authentication and host authorization; HTTPS/SSRF protection are recommended | Fail-closed HTTPS/public-address policy by default, explicit loopback opt-in, and connection enforcement |
 | Read secrets | Protect credentials | Return accepted create values; redact token/credentials on get/list |
 
 The sender uses `application/a2a+json`, following the
@@ -113,6 +143,132 @@ begin with the current task snapshot. Response history limits are applied
 without trimming stored history or independently configured webhook payloads.
 
 ## Persistence, admission, and ordering
+
+### Proactive continuation
+
+The hosting process can resume an existing task without an inbound A2A request:
+
+```csharp
+var result = await server.ContinueTaskAsync(
+    taskId,
+    async (context, cancellationToken) =>
+    {
+        await context.EventQueue.EnqueueMessageAsync(new Message
+        {
+            MessageId = Guid.NewGuid().ToString("N"),
+            Role = Role.Agent,
+            TaskId = context.TaskId,
+            ContextId = context.ContextId,
+            Parts = [Part.FromText("The long-running job has completed.")],
+        }, cancellationToken);
+
+        await new TaskUpdater(context.EventQueue, context.TaskId, context.ContextId)
+            .CompleteAsync(cancellationToken: cancellationToken);
+    },
+    cancellationToken);
+```
+
+This is a **hosting API**, not a protocol operation. The host must authorize the
+external trigger and resolve it to an allowed task before calling the server.
+Use the same configured server instance and task/push services as inbound requests.
+No synthetic client request, user message, history entry, or HTTP loopback is needed.
+
+Before constructing `TaskContinuationContext` or invoking the producer, the server
+loads the authoritative task and checks that it is non-terminal and has at least
+one active registration for that exact task ID. "Active" means present and not
+deleted; expiry and enablement policies belong to the configured store. A missing
+task, terminal task, or missing registration fails without running the producer.
+Push must be enabled on the server's agent card; disabled or unconfigured push
+cannot supply an active delivery route.
+
+The producer receives an independent task snapshot, `AgentEventQueue`, and
+`RequestContext`. `RequestContext.Task`, `TaskId`, and `ContextId` identify the
+existing task. `IncomingMessage` and `UserText` are null. The existing non-null
+`Message` accessor throws `InvalidOperationException` when there is no inbound
+message; proactive-aware integrations must use `IncomingMessage`. Configuration,
+request metadata, and extension activation are null: no client request exists,
+and these request-local settings are not reconstructed from task history.
+Task metadata, artifacts, history, and status remain available on the task snapshot.
+Mutating the snapshot alone does not save updates; emit events through the queue.
+
+All four event payloads (`Task`, `Message`, status update, artifact update) are
+supported. Each event must contain exactly one payload with the continuation's
+task ID and context ID. Full `Task` events retain their normal replacement
+semantics; include any history, artifacts, and metadata that must be preserved.
+Events use the same projection, persistence, subscriber notification, and
+ordered push-admission path as inbound execution, including multi-registration
+fan-out. `TaskUpdater` terminal/interruption helpers close the event queue;
+emit other updates before calling them.
+
+The terminal states are Completed, Canceled, Failed, and Rejected. Neither inbound
+nor proactive execution can start a new turn on a terminal task. During an already
+running turn, the first persisted terminal state wins, for both status updates
+and full-task events. A conflicting later state is not persisted or published.
+Proactive execution reports `NonContinuableTask` rather than silently dropping
+such an event. Messages, artifacts, and updates retaining the same terminal state
+may still be processed by that running turn. This is not a complete transition
+graph. Terminal notification closes existing subscriber streams as usual.
+
+`TaskContinuationResult` reports the final persisted task, `PersistedEventCount`,
+and `AcceptedPushNotificationCount`. The latter counts **event/registration
+pairs**, not events or HTTP acknowledgments. A successful producer must persist
+at least one event, and each persisted event must be accepted for at least one
+registration. Successful completion waits for production and publication to end,
+but **does not wait for webhook receipt**.
+
+`TaskContinuationException.FailureKind` distinguishes missing task, missing
+registration, terminal state, producer, task-store, push-store, projection,
+invalid event identity/payload, cancellation, admission, and no-event failures.
+`InnerException` preserves the underlying failure where one exists. `Progress`
+contains the last successfully persisted state and counts (or is null when the
+initial task could not be loaded). Persistence and earlier subscriber publication
+are **not rolled back**. Cancellation is also reported through this exception
+with `FailureKind.Cancellation` and an underlying `OperationCanceledException`,
+so committed progress is not lost. Invalid API arguments use argument exceptions;
+starting after server shutdown uses `ObjectDisposedException`.
+
+Registration availability is checked again during publication. Deletion before
+admission is not counted as acceptance, even when an earlier event already
+persisted or another registration accepted that event. Recreating an ID never
+redirects the old generation's event to the replacement. Deletion after acceptance
+may suppress subsequent delivery attempts; previously accepted counts do not
+promise remote delivery. Custom senders must throw `OperationCanceledException`
+with the registration's removal token when deletion prevents admission, rather
+than returning success.
+
+### Execution coordination
+
+Inbound message execution, cancellation handlers, and proactive continuations
+sharing a `ChannelEventNotifier` serialize **whole executions per task**, including
+production, persistence, and push admission. They do not interleave task events.
+The server reloads existing tasks after acquiring this execution gate, so queued
+producers see the previous execution's committed state. Different task IDs remain
+concurrent. The execution gate is separate from the short-lived persistence lock
+and is never held in place of that lock while consuming the bounded event queue.
+
+Streaming disconnect and `ReturnImmediately` do not release the execution gate
+while their producer/publication work is still running. Slow producers or push
+backpressure therefore delay later executions for the same task. Cancel requests
+signal tracked detached/proactive producers, then wait for their publication and
+cleanup before running the cancel handler. Explicit task cancellation can interrupt
+pending detached admission; graceful shutdown still drains inbound cleanup events
+unless its deadline expires. Synchronous inbound executions finish
+before a queued cancel handler runs. If the earlier execution reached a terminal
+state, the queued cancel is rejected as not cancelable. Producers must not await
+nested same-task executions, which would wait on their own gate.
+
+Proactive execution participates in normal server execution tracking and shutdown.
+Cancellation closes blocked queue writers, cancels production/admission, and joins
+the producer before reporting progress. Producers and custom services must honor
+cancellation; a producer that ignores cancellation can delay completion/disposal.
+
+Coordination is **process-local and notifier-scoped**, not cross-process.
+Multiple servers must share the notifier and authorized stores to share these
+gates. Independent notifiers or server processes are not coordinated.
+`ITaskStore` has no compare-and-swap/version contract: distributed serialization,
+transactional outboxes, and restart durability require host-provided integration.
+
+### Event persistence boundary
 
 The shared task lock remains valid while any holder or waiter exists; removing
 the last SSE subscriber does not create a second mutual-exclusion domain.
@@ -187,11 +343,13 @@ and the separate transactional-outbox requirement.
 
 ## Destination and credential boundaries
 
-The URL policy requires an absolute HTTPS URL without userinfo/fragment and
+By default, the URL policy requires an absolute HTTPS URL without userinfo/fragment and
 only approved public DNS answers. Private, loopback, unspecified, link-local,
 multicast, reserved/documentation and tunnel ranges are excluded. Exact hosts
 and explicit `*.example.com` subdomains are supported; empty/`*` lists disable
 only host filtering, not address checks. Use ASCII/punycode host entries.
+The [local development opt-in](#local-development-callbacks) permits HTTP/HTTPS
+loopback callbacks only; it does not disable the other destination checks.
 
 `IPushNotificationUrlValidator.ValidateAsync` returns approved addresses. The
 default connector runs the selected policy at connection establishment and
