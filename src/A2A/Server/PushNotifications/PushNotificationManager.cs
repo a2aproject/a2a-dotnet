@@ -88,7 +88,7 @@ internal sealed class PushNotificationManager(
                 initial = CreateBatch(prepared.TaskId!, [saved], new StreamResponse { Task = task });
             }
         }
-        await EnqueueAsync(initial, CancellationToken.None).ConfigureAwait(false);
+        await EnqueueAsync(initial, null, CancellationToken.None).ConfigureAwait(false);
         return saved.Configuration;
     }
 
@@ -182,12 +182,14 @@ internal sealed class PushNotificationManager(
         return batch;
     }
 
-    internal async Task EnqueueAsync(PushNotificationBatch? batch, CancellationToken cancellationToken)
+    internal async Task<int> EnqueueAsync(PushNotificationBatch? batch, TaskContinuationProgress? progress,
+        CancellationToken cancellationToken)
     {
         if (batch is null)
         {
-            return;
+            return 0;
         }
+        int accepted = 0;
         try
         {
             CancellationTokenSource admission;
@@ -204,8 +206,34 @@ internal sealed class PushNotificationManager(
             await batch.Previous.WaitAsync(admission.Token).ConfigureAwait(false);
             foreach (var config in batch.Configs)
             {
+                var value = config.Configuration;
+                PushNotificationConfigSnapshot? current;
                 try
                 {
+                    current = await store.GetAsync(value.TaskId!, value.Id!, admission.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (admission.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception exception)
+                {
+                    _diagnostics.Record("admission_failed", value.TaskId, value.Id, exception.GetType().Name);
+                    if (progress is not null)
+                    {
+                        throw progress.Error(TaskContinuationFailureKind.PushNotificationStore,
+                            "Push registration lookup failed after task persistence.", exception);
+                    }
+                    throw new PushNotificationAdmissionException(exception);
+                }
+                try
+                {
+                    if (config.RemovalToken.IsCancellationRequested ||
+                        current is null || current.Version != config.Version)
+                    {
+                        _diagnostics.Record("skipped", value.TaskId, value.Id);
+                        continue;
+                    }
                     var response = JsonSerializer.Deserialize(batch.Payload, _streamTypeInfo)!;
                     Task enqueue;
                     lock (_admissionGate)
@@ -214,15 +242,28 @@ internal sealed class PushNotificationManager(
                         enqueue = sender.EnqueueAsync(config, response, admission.Token);
                     }
                     await enqueue.ConfigureAwait(false);
+                    accepted++;
+                    if (progress is not null)
+                    {
+                        progress.AcceptedPushNotificationCount++;
+                    }
+                }
+                catch (OperationCanceledException) when (config.RemovalToken.IsCancellationRequested && !admission.IsCancellationRequested)
+                {
+                    _diagnostics.Record("skipped", value.TaskId, value.Id);
+                }
+                catch (OperationCanceledException) when (admission.IsCancellationRequested)
+                {
+                    throw;
                 }
                 catch (Exception exception)
                 {
                     // Admission failure is not a successful accepted notification.
-                    var value = config.Configuration;
                     _diagnostics.Record("admission_failed", value.TaskId, value.Id, exception.GetType().Name);
-                    throw new PushNotificationAdmissionException();
+                    throw new PushNotificationAdmissionException(exception);
                 }
             }
+            return accepted;
         }
         finally
         {

@@ -96,11 +96,13 @@ public sealed class HttpPushNotificationSender : IPushNotificationSender, IHoste
                 }
                 await _queue.Writer.WriteAsync(delivery, admission.Token).ConfigureAwait(false);
             }
+            registration.RemovalToken.ThrowIfCancellationRequested();
             _diagnostics.Record("accepted", config.TaskId, config.Id);
         }
         catch (OperationCanceledException) when (registration.RemovalToken.IsCancellationRequested)
         {
             _diagnostics.Record("skipped", config.TaskId, config.Id);
+            throw;
         }
         catch (Exception exception)
         {

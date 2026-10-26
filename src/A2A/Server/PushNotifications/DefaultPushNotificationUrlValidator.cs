@@ -3,10 +3,11 @@ using System.Net.Sockets;
 
 namespace A2A;
 
-/// <summary>Resolves HTTPS destinations to approved public addresses for use by the outbound connector.</summary>
+/// <summary>Resolves push destinations to approved public or explicitly enabled loopback addresses.</summary>
 public sealed class DefaultPushNotificationUrlValidator : IPushNotificationUrlValidator
 {
     private readonly string[] _allowedHosts;
+    private readonly bool _allowLoopback;
     private readonly Func<string, CancellationToken, Task<IPAddress[]>> _resolve;
     private readonly (byte[] Network, int Bits)[] _blockedV4 =
     [
@@ -29,6 +30,7 @@ public sealed class DefaultPushNotificationUrlValidator : IPushNotificationUrlVa
     {
         ArgumentNullException.ThrowIfNull(resolve);
         _resolve = resolve;
+        _allowLoopback = options?.AllowLoopback == true;
         _allowedHosts = (options?.AllowedHosts ?? []).Select(host => host.TrimEnd('.').ToLowerInvariant()).ToArray();
         foreach (var entry in _allowedHosts)
         {
@@ -46,7 +48,7 @@ public sealed class DefaultPushNotificationUrlValidator : IPushNotificationUrlVa
     {
         cancellationToken.ThrowIfCancellationRequested();
         bool validShape = Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
-            uri.Scheme == Uri.UriSchemeHttps &&
+            (uri.Scheme == Uri.UriSchemeHttps || (_allowLoopback && uri.Scheme == Uri.UriSchemeHttp)) &&
             uri.UserInfo.Length == 0 &&
             uri.Fragment.Length == 0 &&
             uri.Port > 0;
@@ -55,6 +57,13 @@ public sealed class DefaultPushNotificationUrlValidator : IPushNotificationUrlVa
             throw new A2AException("Push destination must be an absolute HTTPS URL without userinfo or fragment.", A2AErrorCode.InvalidParams);
         }
         var host = uri!.IdnHost.TrimEnd('.');
+        bool loopbackDestination = _allowLoopback &&
+            (host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+             (IPAddress.TryParse(host, out var loopbackLiteral) && IPAddress.IsLoopback(loopbackLiteral)));
+        if (uri.Scheme == Uri.UriSchemeHttp && !loopbackDestination)
+        {
+            throw new A2AException("HTTP push destinations must use an explicitly enabled loopback address.", A2AErrorCode.InvalidParams);
+        }
         bool allowed = _allowedHosts.Length == 0 ||
             _allowedHosts.Any(entry => entry == "*" ||
                 host.Equals(entry, StringComparison.OrdinalIgnoreCase) ||
@@ -83,9 +92,11 @@ public sealed class DefaultPushNotificationUrlValidator : IPushNotificationUrlVa
         }
 
         if (addresses.Length == 0 ||
-            addresses.Any(address => !IsPublic(address)))
+            addresses.Any(address => loopbackDestination ? !IPAddress.IsLoopback(address) : !IsPublic(address)))
         {
-            throw new A2AException("Push destination must resolve only to public addresses.", A2AErrorCode.InvalidParams);
+            throw new A2AException(loopbackDestination
+                ? "Push destination must resolve only to loopback addresses."
+                : "Push destination must resolve only to public addresses.", A2AErrorCode.InvalidParams);
         }
         return addresses;
     }
