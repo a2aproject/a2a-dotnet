@@ -1175,7 +1175,7 @@ public class A2AServerTests
     }
 
     [Fact]
-    public async Task TerminalInitialSnapshot_EndsStreamBeforeProducerExit_AndRetainsShutdownOwnership()
+    public async Task TerminalStateReachedBeforeExecution_RejectsStaleStreamingRequestBeforeProducer()
     {
         var tasks = new InMemoryTaskStore();
         await tasks.SaveTaskAsync("task", new AgentTask
@@ -1186,31 +1186,11 @@ public class A2AServerTests
         });
         var store = new GatedInitialTaskRead(tasks);
         var handler = new TestAgentHandler();
-        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var canceled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var finished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        CancellationToken producerToken = default;
-        handler.OnExecute = async (_, _, cancellationToken) =>
+        bool started = false;
+        handler.OnExecute = (_, _, _) =>
         {
-            producerToken = cancellationToken;
-            started.TrySetResult();
-            try
-            {
-                try
-                {
-                    await release.Task.WaitAsync(cancellationToken);
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                {
-                    canceled.TrySetResult();
-                    await release.Task.WaitAsync(CancellationToken.None);
-                }
-            }
-            finally
-            {
-                finished.TrySetResult();
-            }
+            started = true;
+            return Task.CompletedTask;
         };
         await using var server = new A2AServer(handler, store, new ChannelEventNotifier(),
             NullLogger<A2AServer>.Instance, new A2AServerOptions { AutoAppendHistory = false });
@@ -1218,52 +1198,20 @@ public class A2AServerTests
         {
             Message = new Message { MessageId = "continue", TaskId = "task", Role = Role.User, Parts = [Part.FromText("continue")] },
         }, null).GetAsyncEnumerator();
-        Task<bool>? first = null;
-        Task<bool>? next = null;
-        Task? disposal = null;
+        var first = stream.MoveNextAsync().AsTask();
         try
         {
-            first = stream.MoveNextAsync().AsTask();
             await store.Captured.Task.WaitAsync(TimeSpan.FromSeconds(5));
             Assert.Equal(TaskState.Canceled, (await server.CancelTaskAsync(new() { Id = "task" }, null)).Status.State);
-            store.Release.TrySetResult();
-            Assert.True(await first.WaitAsync(TimeSpan.FromSeconds(5)));
-            Assert.Equal(TaskState.Canceled, stream.Current.Task!.Status.State);
-            await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-
-            next = stream.MoveNextAsync().AsTask();
-            Assert.False(await next.WaitAsync(TimeSpan.FromSeconds(5)));
-            Assert.False(release.Task.IsCompleted);
-            Assert.False(finished.Task.IsCompleted);
-            Assert.False(producerToken.IsCancellationRequested);
-
-            disposal = server.DisposeAsync().AsTask();
-            await canceled.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            Assert.False(disposal.IsCompleted);
-            Assert.False(finished.Task.IsCompleted);
-            release.TrySetResult();
-            await disposal.WaitAsync(TimeSpan.FromSeconds(5));
-            Assert.True(finished.Task.IsCompletedSuccessfully);
-            Assert.True(producerToken.IsCancellationRequested);
-            Assert.Equal(TaskState.Canceled, (await tasks.GetTaskAsync("task"))!.Status.State);
         }
         finally
         {
             store.Release.TrySetResult();
-            release.TrySetResult();
-            if (first is not null)
-            {
-                await first.WaitAsync(TimeSpan.FromSeconds(5));
-            }
-            if (next is not null)
-            {
-                await next.WaitAsync(TimeSpan.FromSeconds(5));
-            }
-            if (disposal is not null)
-            {
-                await disposal.WaitAsync(TimeSpan.FromSeconds(5));
-            }
         }
+        var error = await Assert.ThrowsAsync<A2AException>(() => first.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.Equal(A2AErrorCode.UnsupportedOperation, error.ErrorCode);
+        Assert.False(started);
+        Assert.Equal(TaskState.Canceled, (await tasks.GetTaskAsync("task"))!.Status.State);
     }
 
     [Fact]

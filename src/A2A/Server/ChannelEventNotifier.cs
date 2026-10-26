@@ -11,6 +11,7 @@ public sealed class ChannelEventNotifier
 {
     private readonly ConcurrentDictionary<string, SubscriberSet> _subscribers = new();
     private readonly ConcurrentDictionary<string, TaskLockState> _taskLocks = new();
+    private readonly ConcurrentDictionary<string, TaskLockState> _executionLocks = new();
 
     /// <summary>
     /// Push an event to all registered subscriber channels for the given task.
@@ -86,12 +87,19 @@ public sealed class ChannelEventNotifier
     /// </summary>
     /// <param name="taskId">The task to acquire the lock for.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task<IDisposable> AcquireTaskLockAsync(
-        string taskId, CancellationToken cancellationToken = default)
+    public Task<IDisposable> AcquireTaskLockAsync(
+        string taskId, CancellationToken cancellationToken = default) =>
+        AcquireLockAsync(_taskLocks, taskId, cancellationToken);
+
+    internal Task<IDisposable> AcquireTaskExecutionLockAsync(string taskId, CancellationToken cancellationToken) =>
+        AcquireLockAsync(_executionLocks, taskId, cancellationToken);
+
+    private static async Task<IDisposable> AcquireLockAsync(
+        ConcurrentDictionary<string, TaskLockState> locks, string taskId, CancellationToken cancellationToken)
     {
         while (true)
         {
-            var state = _taskLocks.GetOrAdd(taskId, _ => new TaskLockState());
+            var state = locks.GetOrAdd(taskId, _ => new TaskLockState());
             lock (state)
             {
                 if (state.Retired)
@@ -103,17 +111,17 @@ public sealed class ChannelEventNotifier
             try
             {
                 await state.Semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-                return new TaskLockRelease(this, taskId, state);
+                return new TaskLockRelease(locks, taskId, state);
             }
             catch
             {
-                ReleaseTaskLockReference(taskId, state);
+                ReleaseTaskLockReference(locks, taskId, state);
                 throw;
             }
         }
     }
 
-    private void ReleaseTaskLockReference(string taskId, TaskLockState state)
+    private static void ReleaseTaskLockReference(ConcurrentDictionary<string, TaskLockState> locks, string taskId, TaskLockState state)
     {
         lock (state)
         {
@@ -121,7 +129,7 @@ public sealed class ChannelEventNotifier
             if (state.References == 0)
             {
                 state.Retired = true;
-                _taskLocks.TryRemove(taskId, out _);
+                locks.TryRemove(taskId, out _);
                 state.Semaphore.Dispose();
             }
         }
@@ -133,7 +141,7 @@ public sealed class ChannelEventNotifier
         return state?.IsTerminal() == true;
     }
 
-    private sealed class TaskLockRelease(ChannelEventNotifier owner, string taskId, TaskLockState state) : IDisposable
+    private sealed class TaskLockRelease(ConcurrentDictionary<string, TaskLockState> locks, string taskId, TaskLockState state) : IDisposable
     {
         private int _disposed;
         public void Dispose()
@@ -141,7 +149,7 @@ public sealed class ChannelEventNotifier
             if (Interlocked.Exchange(ref _disposed, 1) == 0)
             {
                 state.Semaphore.Release();
-                owner.ReleaseTaskLockReference(taskId, state);
+                ReleaseTaskLockReference(locks, taskId, state);
             }
         }
     }
