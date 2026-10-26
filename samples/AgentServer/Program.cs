@@ -56,6 +56,12 @@ switch (agentType.ToLowerInvariant())
         builder.Services.AddA2AAgent<StreamingArtifactAgent>(StreamingArtifactAgent.GetAgentCard($"{baseUrl}/streamingartifact"));
         break;
 
+    case "proactive":
+        var callback = GetArgValue(args, "--push-callback", "--push-callback") ?? "http://127.0.0.1:5000/notify";
+        builder.Services.AddSingleton<IPushNotificationUrlValidator>(new LocalPushNotificationUrlValidator(callback));
+        builder.Services.AddA2AAgent<ProactiveAgent>(ProactiveAgent.GetAgentCard($"{baseUrl}/proactive"));
+        break;
+
     default:
         Console.WriteLine($"Unknown agent type: {agentType}");
         Environment.Exit(1);
@@ -94,10 +100,16 @@ var path = agentType.ToLowerInvariant() switch
     "researcher" => "/researcher",
     "speccompliance" => "/speccompliance",
     "streamingartifact" => "/streamingartifact",
+    "proactive" => "/proactive",
     _ => "/agent",
 };
 
 app.MapA2A(path);
+
+if (agentType.Equals("proactive", StringComparison.OrdinalIgnoreCase))
+{
+    ProactiveAgent.MapContinuationEndpoint(app);
+}
 
 // Map well-known agent card at root for spec-compliant discovery (Section 8.2)
 var card = app.Services.GetRequiredService<AgentCard>();

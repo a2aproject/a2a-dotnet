@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Diagnostics.CodeAnalysis;
 
 namespace A2A;
 
@@ -8,7 +9,28 @@ namespace A2A;
 /// </summary>
 public sealed class RequestContext
 {
+    private Message? _message;
+
+    /// <summary>Creates a context for an inbound request.</summary>
+    public RequestContext()
+    {
+    }
+
+    [SetsRequiredMembers]
+#pragma warning disable CS8618 // Proactive contexts intentionally have no message; Message throws rather than returning null.
+    internal RequestContext(string taskId, AgentTask task, TaskContinuationProgress progress)
+    {
+        Task = task;
+        TaskId = taskId;
+        ContextId = task.ContextId;
+        ClientProvidedContextId = true;
+        StreamingResponse = false;
+        ContinuationProgress = progress;
+    }
+#pragma warning restore CS8618
+
     internal PushNotificationRequestState? PushNotifications { get; set; }
+    internal TaskContinuationProgress? ContinuationProgress { get; init; }
 
     /// <summary>
     /// Gets the immutable activation negotiated for the request that initiated this execution.
@@ -17,8 +39,16 @@ public sealed class RequestContext
     /// </summary>
     public A2ARequestContext? ExtensionActivation { get; init; }
 
-    /// <summary>The incoming client message.</summary>
-    public required Message Message { get; init; }
+    /// <summary>The incoming client message. Throws when this is a proactive continuation.</summary>
+    /// <remarks>Use <see cref="IncomingMessage"/> in code that also handles proactive execution.</remarks>
+    public required Message Message
+    {
+        get => _message ?? throw new InvalidOperationException("A proactive task continuation has no incoming message. Use IncomingMessage to test for its presence.");
+        init => _message = value;
+    }
+
+    /// <summary>The incoming client message, or null for proactive task continuation.</summary>
+    public Message? IncomingMessage => _message;
 
     /// <summary>Existing task if continuing, null for new conversations.</summary>
     public AgentTask? Task { get; init; }
@@ -46,7 +76,7 @@ public sealed class RequestContext
     public Dictionary<string, JsonElement>? Metadata { get; init; }
 
     /// <summary>First text content from message parts, or null.</summary>
-    public string? UserText => Message.Parts.FirstOrDefault(p => p.Text is not null)?.Text;
+    public string? UserText => IncomingMessage?.Parts.FirstOrDefault(p => p.Text is not null)?.Text;
 
     /// <summary>Whether this continues an existing task.</summary>
     public bool IsContinuation => Task is not null;
