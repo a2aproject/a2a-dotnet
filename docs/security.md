@@ -98,13 +98,22 @@ Streaming (Server-Sent Events via `message/stream` and `tasks/resubscribe`) uses
 
 When the registered card enables push notifications, the easy-path server stores
 task-scoped configurations and delivers v1 `StreamResponse` events. The default
-validator requires HTTPS, rejects userinfo/fragments and non-public addresses,
+validator requires HTTPS by default, rejects userinfo/fragments and non-public addresses,
 checks every DNS answer, and supports exact/wildcard host allowlists. Empty or
 `*` host lists do not bypass address checks. The selected policy returns approved
 IP addresses; the connector validates at connection establishment and dials those
 addresses without an unchecked second resolution, preserving normal TLS/SNI.
 Destinations are also revalidated before each attempt. The default HTTP client does not follow redirects or retain cookies,
 and implicit proxies and factory URL logging are disabled.
+
+`PushNotificationUrlOptions.AllowLoopback` is a default-off exception for trusted
+local development. It permits HTTP/HTTPS only for `localhost` or loopback IP
+literals, requires every resolved address to be loopback, and preserves host
+allowlists and connection-time validation. Other private destinations remain
+blocked. This exposes services on the server's loopback interface to registration
+callers, and HTTP transmits configured credentials without TLS. Do not enable it
+for untrusted callers. The SDK does not enable it automatically in Development;
+see [local development callbacks](push-notifications.md#local-development-callbacks).
 
 **Required application controls (agent side — sending notifications):**
 - Use destination allowlists and egress firewalling as defense in depth. Custom
@@ -135,6 +144,12 @@ invalidation signal; terminal delivery/failure does not delete client
 configuration. Retention is an explicit store/application policy.
 The sender logs failures without changing task state; bounded, process-local
 delivery is not a durable or exactly-once guarantee.
+
+For durable delivery replacements, see
+[Implementing a durable push notification sender](durable-push-notifications.md).
+Persisted delivery work and dead letters need protection for payloads and
+credentials, authorized replay, and generation checks after restart. A durable
+sender alone does not make task persistence and notification admission atomic.
 
 See the [push notification guide](push-notifications.md) and
 [receiver sample](../samples/PushNotificationReceiver/README.md). The sample's

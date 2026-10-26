@@ -293,7 +293,7 @@ public sealed class PushNotificationServerTests
     }
 
     [Fact]
-    public async Task ConcurrentCancel_KeepsEnqueueOrderWithoutHoldingTaskLock()
+    public async Task ConcurrentCancel_WaitsForPriorExecutionAndKeepsEnqueueOrderWithoutHoldingTaskLock()
     {
         await SeedAsync();
         await using var server = Server();
@@ -309,8 +309,12 @@ public sealed class PushNotificationServerTests
                 await resume.Task.WaitAsync(cancellationToken);
             }
         };
-        _handler.Execute = (context, queue, cancellationToken) =>
-            new TaskUpdater(queue, context.TaskId, context.ContextId).CompleteAsync(cancellationToken: cancellationToken).AsTask();
+        _handler.Execute = (context, queue, cancellationToken) => queue.EnqueueStatusUpdateAsync(new()
+        {
+            TaskId = context.TaskId,
+            ContextId = context.ContextId,
+            Status = new() { State = TaskState.InputRequired },
+        }, cancellationToken).AsTask();
         var request = Request(inline: false);
         request.Message.TaskId = "task";
         var sending = server.SendMessageAsync(request, null);
@@ -319,16 +323,20 @@ public sealed class PushNotificationServerTests
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
             var canceling = server.CancelTaskAsync(new() { Id = "task" }, null);
             Assert.NotNull((await channel.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5))).Message);
-            var canceledEvent = await channel.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
-            Assert.Equal(TaskState.Canceled, canceledEvent.StatusUpdate!.Status.State);
-            Assert.Equal(TaskState.Canceled, (await _tasks.GetTaskAsync("task"))!.Status.State);
+            Assert.False(channel.Reader.TryRead(out _));
             Assert.False(canceling.IsCompleted);
+            using (await _notifier.AcquireTaskLockAsync("task"))
+            {
+                Assert.Equal(TaskState.Submitted, (await _tasks.GetTaskAsync("task"))!.Status.State);
+            }
             resume.TrySetResult();
-            await canceling;
-            Assert.Equal(TaskState.Canceled, (await sending).Task!.Status.State);
-            Assert.Equal(2, _sender.Events.Count);
+            await canceling.WaitAsync(TimeSpan.FromSeconds(5));
+            await sending.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(TaskState.Canceled, (await _tasks.GetTaskAsync("task"))!.Status.State);
+            Assert.Equal(3, _sender.Events.Count);
             Assert.NotNull(_sender.Events[0].Response.Message);
-            Assert.Equal(TaskState.Canceled, _sender.Events[1].Response.StatusUpdate!.Status.State);
+            Assert.Equal(TaskState.InputRequired, _sender.Events[1].Response.StatusUpdate!.Status.State);
+            Assert.Equal(TaskState.Canceled, _sender.Events[2].Response.StatusUpdate!.Status.State);
         }
         finally
         {
