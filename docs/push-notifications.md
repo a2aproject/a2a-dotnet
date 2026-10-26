@@ -381,6 +381,152 @@ The SDK does not add a tenant system, database, durable broker, encrypted
 storage, OAuth refresh, quotas, or retention service. Advanced atomic/durable
 deployments can compose their own request handler and outbox.
 
+## Implementing a persistent push notification store
+
+The SDK supplies only `InMemoryPushNotificationStore`. A custom
+`IPushNotificationStore` is a **secret-bearing store**, not just a database of
+webhook addresses. Persisting registrations does not make the stock sender's
+queue durable, refresh credentials, or recover failed notifications.
+
+The following guidance applies to v1 `IPushNotificationStore` implementations.
+Task state is stored separately through `ITaskStore`; replacing that store does
+not persist push registrations. The legacy v0.3 task-store contract is different.
+
+### Protect credentials and stored configurations
+
+Treat `TaskPushNotificationConfig.Token` and `Authentication.Credentials` as
+secrets. The store receives unredacted values, and
+`PushNotificationConfigSnapshot` serializes them as ordinary JSON bytes in
+memory; it does not encrypt them. Its `Configuration` property returns a fresh,
+secret-bearing copy.
+
+- Encrypt credentials at rest and use authenticated, encrypted connections to
+  the backing store. Include backups, replicas, exports, and temporary files in
+  the protection and access-control policy.
+- Manage encryption keys separately from stored records, using a managed key
+  service or equivalent controls. Restrict decrypt permission to the delivery
+  service and necessary administrative operations; plan key rotation and
+  recovery. Database encryption alone does not prevent an authorized database
+  reader from seeing plaintext columns.
+- If using application-level encryption, bind ciphertext to the tenant, task,
+  configuration ID, and registration generation, for example with authenticated
+  associated data. Do not allow encrypted credentials to be transplanted into
+  another registration.
+- A store can keep a reference to a separately protected secret instead of its
+  value, but must resolve it before returning a usable configuration snapshot.
+  Pin the secret version to the registration generation: resolving "latest"
+  must not silently change credentials in an existing generation.
+- Use least-privilege service identities and restrict administrative access.
+  Prefer short-lived, audience-restricted, single-purpose webhook credentials.
+  Do not reuse a user's general A2A access token as a callback credential.
+
+Protect callback URLs and ownership metadata as sensitive configuration too.
+Do not embed credentials in URL paths or query strings. Cancellation of a
+snapshot's `RemovalToken` does not erase its data or copies already in memory;
+protect process dumps and diagnostic captures accordingly.
+
+The [A2A push security guidance](https://a2a-protocol.org/latest/specification/#132-push-notification-security)
+recommends secure credential storage, periodic token rotation, and unique,
+single-purpose tokens for each configuration. These controls do not prescribe
+a particular database, encryption provider, or token issuer.
+
+### Enforce ownership and limit exposure
+
+Derive the authorized tenant/principal scope from trusted host context, not
+caller-supplied `Tenant`, task IDs, or configuration IDs. Persist ownership
+metadata and enforce that scope on every read, list, create, delete, and delivery
+lookup. Keep task and push stores in the same authorized scope. Background
+delivery must resolve the correct scope without retaining an inbound
+`HttpContext`; it must not search across tenants for a matching task ID.
+
+Use parameterized queries and appropriate uniqueness constraints, including
+the tenant scope when sharing a database. Apply per-tenant quotas and bounded
+record sizes to prevent unbounded registration or secret storage. Scope opaque
+pagination cursors to the authorized task/tenant and validate them; cursors are
+not authorization credentials.
+
+Never log serialized configurations, credentials, tokens, connection strings,
+or secret-store responses. Review database command logging, tracing, exception
+messages, audit exports, and HTTP request/response body capture. Audit access
+and configuration changes using non-secret identifiers rather than secret
+values or complete callback URLs.
+
+The stock server redacts token/credential fields on public get/list responses,
+but create returns accepted secrets. Internal store reads remain secret-bearing
+because the sender needs those values. Return independent configurations so
+public-response redaction cannot mutate stored delivery credentials.
+
+### Preserve atomicity and registration generations
+
+Implement the interface contract across all participating processes, not just
+under a local lock:
+
+- `SaveAsync` atomically creates a registration and rejects duplicate IDs; it
+  is not an upsert. Give every recreated ID a new non-empty, opaque `Version`
+  and a generation-scoped `RemovalToken`.
+- `GetAsync` returns an independent snapshot or null for an absent registration.
+  `GetAllAsync` returns an independent, atomic snapshot of active registrations
+  for the task. Keep each generation's URL and credentials immutable.
+- `DeleteAsync` is idempotent. A supplied version removes only that generation;
+  stale cleanup must not delete a replacement registration. Signal that
+  generation's snapshots before returning.
+- Coordinate cache invalidation and removal signals across every process that
+  can hold snapshots or send notifications. A database row deletion alone
+  cannot cancel another process's local `CancellationToken`. Define behavior
+  under network partitions; eventual cache expiry alone does not satisfy the
+  deletion contract.
+- Honor cancellation and surface storage, decryption, and invalidation failures
+  explicitly, with secret-safe errors. Do not translate an unavailable store
+  into an empty list, a missing record, or successful deletion.
+
+The stock sender checks the current generation before attempts and observes
+removal during delivery. Preserve those semantics in any custom sender.
+Deletion cannot recall transmitted bytes or undo remote processing.
+
+### Define retention, rotation, and recovery policies
+
+Document retention for active and terminal tasks, abandoned registrations,
+backups, and secret versions. Preserve configurations for the protocol-required
+lifetime; do not silently evict active registrations to enforce a cache TTL.
+Coordinate registration deletion and invalidation with task removal so task
+cleanup does not leave credentials orphaned. If protocol lookup is no longer
+possible after task deletion, provide an authorized administrative cleanup path.
+
+Deleting a registration does not revoke the credential at its issuer or erase
+backup copies. Define issuer revocation separately, account for retention
+requirements, and ensure restoring a backup cannot reactivate deleted
+registrations or revoked credentials.
+
+The stock SDK does not acquire or refresh credentials. Create is not update:
+rotation requires a new registration and deletion of the old one, or deletion
+and recreation of the same ID. Creating first can overlap deliveries; deleting
+first can leave a gap. Old queued work never adopts the replacement's
+credentials or URL.
+
+HTTP 401/403 permanently fail that delivery in the stock sender. Replacing
+credentials does not replay it, and subsequent events can fail independently
+while an invalid registration remains present. Monitor delivery failures
+without recording secrets and arrange renewal before expiry. `GetTask` can
+reconcile current task state and available artifacts/history, but is not an
+event replay API.
+
+Durable registrations are not a durable outbox. If loss is unacceptable, design
+transactional task-state/outbox integration, bounded retries and retention,
+authorized replay, and receiver deduplication separately. Any persisted outbox
+also needs protection for payloads and credential-bearing snapshots. Replay
+must not silently redirect an old generation's events to a new destination.
+
+### Verify a custom implementation
+
+Before production use, exercise tenant isolation (including background delivery
+and pagination), secret-safe logs/errors, encryption/key rotation, and denied
+decrypt access. Test concurrent duplicate creation, snapshot independence,
+version-conditional deletion, recreation, and cross-process invalidation during
+queued work, retries, and in-flight requests. Include backing-store outages,
+network partitions, restart/backup restoration, credential expiry, and task
+retention cleanup. Verify that failures are visible and that no test depends on
+plaintext credentials appearing in diagnostics.
+
 ## Version scope
 
 This implementation supplies **v1** push. Official v0.3 does define set/update,
