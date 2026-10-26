@@ -16,9 +16,9 @@
         <PackageVersion Include="Grpc.Tools" Version="2.84.0" />
         <!-- Product dependencies shared -->
         <PackageVersion Include="Google.Protobuf" Version="3.36.2" />
-        <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
-        <PackageVersion Include="System.Linq.AsyncEnumerable" Version="10.0.12" />
-        <PackageVersion Include="System.Net.ServerSentEvents" Version="10.0.12" />
+        <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.13" />
+        <PackageVersion Include="System.Linq.AsyncEnumerable" Version="10.0.13" />
+        <PackageVersion Include="System.Net.ServerSentEvents" Version="10.0.13" />
         <!-- Testing / samples dependencies -->
         <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.5" />
         <PackageVersion Include="JsonSchema.Net" Version="9.4.1" />
