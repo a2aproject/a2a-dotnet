@@ -8,7 +8,7 @@
         <PackageVersion Include="Microsoft.Extensions.Caching.Abstractions" Version="9.0.9" />
         <PackageVersion Include="Microsoft.VisualStudio.Threading.Analyzers" Version="18.7.23" />
         <PackageVersion Include="Microsoft.Extensions.ExtraAnalyzers" Version="8.0.0-rc.2.23510.2" />
-        <PackageVersion Include="System.Text.Json" Version="10.0.12" />
+        <PackageVersion Include="System.Text.Json" Version="10.0.13" />
         <!-- gRPC binding dependencies -->
         <PackageVersion Include="Google.Api.CommonProtos" Version="2.17.0" />
         <PackageVersion Include="Grpc.Net.Client" Version="2.84.0" />
@@ -22,7 +22,7 @@
         <!-- Testing / samples dependencies -->
         <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.5" />
         <PackageVersion Include="JsonSchema.Net" Version="9.4.1" />
-        <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.10.1" />
+        <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.11.0" />
         <PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.9" />
         <PackageVersion Include="Microsoft.SemanticKernel.Agents.Core" Version="1.81.0" />
         <PackageVersion Include="Microsoft.SemanticKernel.Agents.OpenAI" Version="1.59.0-preview" />
