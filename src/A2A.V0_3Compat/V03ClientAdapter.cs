@@ -22,23 +22,33 @@ internal sealed class V03ClientAdapter : A2A.IA2AClient, IDisposable
         A2A.SendMessageRequest request,
         CancellationToken cancellationToken = default)
     {
-        var v03Params = V03TypeConverter.ToV03(request);
-        var v03Response = await _v03Client.SendMessageAsync(v03Params, cancellationToken).ConfigureAwait(false);
-        return V03TypeConverter.ToV1Response(v03Response);
+        try
+        {
+            var v03Params = V03TypeConverter.ToV03(request);
+            var v03Response = await _v03Client.SendMessageAsync(v03Params, cancellationToken).ConfigureAwait(false);
+            return V03TypeConverter.ToV1Response(v03Response);
+        }
+        catch (V03.A2AException ex)
+        {
+            throw TranslateException(ex);
+        }
     }
 
     /// <inheritdoc />
-    public async IAsyncEnumerable<A2A.StreamResponse> SendStreamingMessageAsync(
+    public IAsyncEnumerable<A2A.StreamResponse> SendStreamingMessageAsync(
         A2A.SendMessageRequest request,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default)
     {
-        var v03Params = V03TypeConverter.ToV03(request);
-        await foreach (var sseItem in _v03Client.SendMessageStreamingAsync(v03Params, cancellationToken).ConfigureAwait(false))
+        try
         {
-            if (sseItem.Data is { } evt)
-            {
-                yield return V03TypeConverter.ToV1StreamResponse(evt);
-            }
+            var v03Params = V03TypeConverter.ToV03(request);
+            return TranslateStreamExceptionsAsync(
+                _v03Client.SendMessageStreamingAsync(v03Params, cancellationToken),
+                cancellationToken);
+        }
+        catch (V03.A2AException ex)
+        {
+            throw TranslateException(ex);
         }
     }
 
@@ -47,10 +57,17 @@ internal sealed class V03ClientAdapter : A2A.IA2AClient, IDisposable
         A2A.GetTaskRequest request,
         CancellationToken cancellationToken = default)
     {
-        // request.HistoryLength is not forwarded — v0.3's GetTaskAsync only accepts (taskId, CancellationToken).
-        // HistoryLength is a v1.0-only feature; the full history is always returned when talking to a v0.3 server.
-        var v03Task = await _v03Client.GetTaskAsync(request.Id, cancellationToken).ConfigureAwait(false);
-        return V03TypeConverter.ToV1Task(v03Task);
+        try
+        {
+            // request.HistoryLength is not forwarded — v0.3's GetTaskAsync only accepts (taskId, CancellationToken).
+            // HistoryLength is a v1.0-only feature; the full history is always returned when talking to a v0.3 server.
+            var v03Task = await _v03Client.GetTaskAsync(request.Id, cancellationToken).ConfigureAwait(false);
+            return V03TypeConverter.ToV1Task(v03Task);
+        }
+        catch (V03.A2AException ex)
+        {
+            throw TranslateException(ex);
+        }
     }
 
     /// <inheritdoc />
@@ -64,26 +81,36 @@ internal sealed class V03ClientAdapter : A2A.IA2AClient, IDisposable
         A2A.CancelTaskRequest request,
         CancellationToken cancellationToken = default)
     {
-        var v03Params = new V03.TaskIdParams
+        try
         {
-            Id = request.Id,
-            Metadata = request.Metadata,
-        };
-        var v03Task = await _v03Client.CancelTaskAsync(v03Params, cancellationToken).ConfigureAwait(false);
-        return V03TypeConverter.ToV1Task(v03Task);
+            var v03Params = new V03.TaskIdParams
+            {
+                Id = request.Id,
+                Metadata = request.Metadata,
+            };
+            var v03Task = await _v03Client.CancelTaskAsync(v03Params, cancellationToken).ConfigureAwait(false);
+            return V03TypeConverter.ToV1Task(v03Task);
+        }
+        catch (V03.A2AException ex)
+        {
+            throw TranslateException(ex);
+        }
     }
 
     /// <inheritdoc />
-    public async IAsyncEnumerable<A2A.StreamResponse> SubscribeToTaskAsync(
+    public IAsyncEnumerable<A2A.StreamResponse> SubscribeToTaskAsync(
         A2A.SubscribeToTaskRequest request,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default)
     {
-        await foreach (var sseItem in _v03Client.SubscribeToTaskAsync(request.Id, cancellationToken).ConfigureAwait(false))
+        try
         {
-            if (sseItem.Data is { } evt)
-            {
-                yield return V03TypeConverter.ToV1StreamResponse(evt);
-            }
+            return TranslateStreamExceptionsAsync(
+                _v03Client.SubscribeToTaskAsync(request.Id, cancellationToken),
+                cancellationToken);
+        }
+        catch (V03.A2AException ex)
+        {
+            throw TranslateException(ex);
         }
     }
 
@@ -92,13 +119,20 @@ internal sealed class V03ClientAdapter : A2A.IA2AClient, IDisposable
         A2A.TaskPushNotificationConfig config,
         CancellationToken cancellationToken = default)
     {
-        var v03Config = new V03.TaskPushNotificationConfig
+        try
         {
-            TaskId = config.TaskId ?? string.Empty,
-            PushNotificationConfig = V03TypeConverter.ToV03PushNotificationConfigFromTask(config),
-        };
-        var v03Result = await _v03Client.SetPushNotificationAsync(v03Config, cancellationToken).ConfigureAwait(false);
-        return V03TypeConverter.ToV1TaskPushNotificationConfig(v03Result);
+            var v03Config = new V03.TaskPushNotificationConfig
+            {
+                TaskId = config.TaskId ?? string.Empty,
+                PushNotificationConfig = V03TypeConverter.ToV03PushNotificationConfigFromTask(config),
+            };
+            var v03Result = await _v03Client.SetPushNotificationAsync(v03Config, cancellationToken).ConfigureAwait(false);
+            return V03TypeConverter.ToV1TaskPushNotificationConfig(v03Result);
+        }
+        catch (V03.A2AException ex)
+        {
+            throw TranslateException(ex);
+        }
     }
 
     /// <inheritdoc />
@@ -106,13 +140,20 @@ internal sealed class V03ClientAdapter : A2A.IA2AClient, IDisposable
         A2A.GetTaskPushNotificationConfigRequest request,
         CancellationToken cancellationToken = default)
     {
-        var v03Params = new V03.GetTaskPushNotificationConfigParams
+        try
         {
-            Id = request.TaskId,
-            PushNotificationConfigId = request.Id,
-        };
-        var v03Result = await _v03Client.GetPushNotificationAsync(v03Params, cancellationToken).ConfigureAwait(false);
-        return V03TypeConverter.ToV1TaskPushNotificationConfig(v03Result);
+            var v03Params = new V03.GetTaskPushNotificationConfigParams
+            {
+                Id = request.TaskId,
+                PushNotificationConfigId = request.Id,
+            };
+            var v03Result = await _v03Client.GetPushNotificationAsync(v03Params, cancellationToken).ConfigureAwait(false);
+            return V03TypeConverter.ToV1TaskPushNotificationConfig(v03Result);
+        }
+        catch (V03.A2AException ex)
+        {
+            throw TranslateException(ex);
+        }
     }
 
     /// <inheritdoc />
@@ -132,6 +173,39 @@ internal sealed class V03ClientAdapter : A2A.IA2AClient, IDisposable
         A2A.GetExtendedAgentCardRequest request,
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("v0.3 does not support extended agent cards.");
+
+    private static async IAsyncEnumerable<A2A.StreamResponse> TranslateStreamExceptionsAsync(
+        IAsyncEnumerable<System.Net.ServerSentEvents.SseItem<V03.A2AEvent>> source,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await using var enumerator = source.GetAsyncEnumerator(cancellationToken);
+        while (true)
+        {
+            bool hasNext;
+            try
+            {
+                hasNext = await enumerator.MoveNextAsync().ConfigureAwait(false);
+            }
+            catch (V03.A2AException ex)
+            {
+                throw TranslateException(ex);
+            }
+
+            if (!hasNext)
+            {
+                yield break;
+            }
+
+            var sseItem = enumerator.Current;
+            if (sseItem.Data is { } evt)
+            {
+                yield return V03TypeConverter.ToV1StreamResponse(evt);
+            }
+        }
+    }
+
+    private static A2A.A2AException TranslateException(V03.A2AException exception) =>
+        new(exception.Message, exception, (A2A.A2AErrorCode)(int)exception.ErrorCode);
 
     /// <inheritdoc />
     public void Dispose()
