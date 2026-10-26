@@ -234,9 +234,9 @@ public partial class A2AServer : IA2ARequestHandler, IAsyncDisposable
         ServerExecution[] running;
         lock (_executionGate)
         {
-            running = _executions.Where(item => item.DetachedLifetime && item.Context.TaskId == request.Id).ToArray();
+            running = _executions.Where(item => (item.DetachedLifetime || item.IsProactive) && item.TaskId == request.Id).ToArray();
         }
-        await Task.WhenAll(running.Select(item => item.CancelAsync(cancellationToken))).ConfigureAwait(false);
+        await Task.WhenAll(running.Select(item => item.CancelAsync(cancelAdmission: true, cancellationToken))).ConfigureAwait(false);
 
         var context = new RequestContext
         {
@@ -363,7 +363,9 @@ public partial class A2AServer : IA2ARequestHandler, IAsyncDisposable
     /// </summary>
     /// <param name="context">The request context identifying the task to transition.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    private async Task TryTransitionToFailedAsync(RequestContext context, CancellationToken cancellationToken = default)
+    /// <param name="admissionCancellationToken">Cancels pending push admission without interrupting persistence.</param>
+    private async Task TryTransitionToFailedAsync(RequestContext context, CancellationToken cancellationToken,
+        CancellationToken admissionCancellationToken)
     {
         try
         {
@@ -382,7 +384,7 @@ public partial class A2AServer : IA2ARequestHandler, IAsyncDisposable
                             Timestamp = DateTimeOffset.UtcNow,
                         },
                     },
-                }, context, cancellationToken).ConfigureAwait(false);
+                }, context, cancellationToken, admissionCancellationToken).ConfigureAwait(false);
             }
         }
         catch (Exception innerEx)
@@ -493,27 +495,48 @@ public partial class A2AServer : IA2ARequestHandler, IAsyncDisposable
         }
     }
 
-    private async Task ApplyEventAsync(
-        StreamResponse response, RequestContext context, CancellationToken cancellationToken)
+    private async Task<bool> ApplyEventAsync(
+        StreamResponse response, RequestContext context, CancellationToken cancellationToken,
+        CancellationToken admissionCancellationToken = default)
     {
+        var progress = context.ContinuationProgress;
+        if (progress is not null)
+        {
+            ValidateContinuationEvent(response, context);
+            progress.FailureKind = TaskContinuationFailureKind.TaskStore;
+        }
         PushNotificationBatch? pushBatch = null;
         using (await _notifier.AcquireTaskLockAsync(context.TaskId, cancellationToken).ConfigureAwait(false))
         {
             var currentTask = await _taskStore.GetTaskAsync(context.TaskId, cancellationToken)
                 .ConfigureAwait(false);
 
+            if (progress is not null)
+            {
+                if (currentTask is null)
+                {
+                    throw progress.Error(TaskContinuationFailureKind.TaskNotFound, "The continuation task no longer exists.");
+                }
+                progress.FailureKind = TaskContinuationFailureKind.Projection;
+            }
             // First persisted terminal state wins (issue #401). Callers such as
             // CancelTaskAsync and TryTransitionToFailedAsync check IsTerminal before
             // taking the lock, but a concurrent writer can persist a terminal state in
             // that window. This re-check under the lock is the atomic enforcement that
             // stops any forced terminal writer from overwriting an already-terminal
             // state with a different one, for every writer that funnels through here.
+            var proposedState = response.StatusUpdate?.Status.State ?? response.Task?.Status.State;
             if (currentTask is not null
                 && currentTask.Status.State.IsTerminal()
-                && response.StatusUpdate is { } racingStatus
-                && racingStatus.Status.State != currentTask.Status.State)
+                && proposedState is { } state
+                && state != currentTask.Status.State)
             {
-                return;
+                if (progress is not null)
+                {
+                    throw progress.Error(TaskContinuationFailureKind.NonContinuableTask,
+                        "The continuation cannot change an already-terminal task state.");
+                }
+                return false;
             }
 
             var updatedTask = TaskProjection.Apply(currentTask, response);
@@ -522,7 +545,7 @@ public partial class A2AServer : IA2ARequestHandler, IAsyncDisposable
             if (updatedTask is null)
             {
                 _notifier.Notify(context.TaskId, response);
-                return;
+                return true;
             }
 
             if (currentTask is null)
@@ -534,11 +557,25 @@ public partial class A2AServer : IA2ARequestHandler, IAsyncDisposable
             if (_pushNotifications is not null &&
                 currentTask is not null)
             {
+                if (progress is not null)
+                {
+                    progress.FailureKind = TaskContinuationFailureKind.PushNotificationStore;
+                }
                 configurations = await _pushNotifications.ReadConfigurationsAsync(context.TaskId, cancellationToken).ConfigureAwait(false);
+            }
+            if (progress is not null)
+            {
+                progress.FailureKind = TaskContinuationFailureKind.TaskStore;
             }
             await _taskStore.SaveTaskAsync(context.TaskId, updatedTask, cancellationToken)
                 .ConfigureAwait(false);
 
+            if (progress is not null)
+            {
+                progress.PersistedEventCount++;
+                progress.Task = updatedTask;
+                progress.FailureKind = TaskContinuationFailureKind.Projection;
+            }
             if (_pushNotifications is not null)
             {
                 pushBatch = await _pushNotifications.SnapshotAsync(context, response, configurations, cancellationToken).ConfigureAwait(false);
@@ -547,8 +584,19 @@ public partial class A2AServer : IA2ARequestHandler, IAsyncDisposable
         }
         if (_pushNotifications is not null)
         {
-            await _pushNotifications.EnqueueAsync(pushBatch, CancellationToken.None).ConfigureAwait(false);
+            if (progress is not null)
+            {
+                progress.FailureKind = TaskContinuationFailureKind.PushAdmission;
+            }
+            int accepted = await _pushNotifications.EnqueueAsync(pushBatch,
+                progress, admissionCancellationToken).ConfigureAwait(false);
+            if (progress is not null && accepted == 0)
+            {
+                throw progress.Error(TaskContinuationFailureKind.PushAdmission,
+                    "The event was persisted, but no active push registration accepted it.");
+            }
         }
+        return true;
     }
 
     /// <summary>
