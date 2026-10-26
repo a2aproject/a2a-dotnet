@@ -6,7 +6,7 @@
     <ItemGroup>
         <!-- Product dependencies netstandard -->
         <PackageVersion Include="Microsoft.Extensions.Caching.Abstractions" Version="9.0.9" />
-        <PackageVersion Include="Microsoft.VisualStudio.Threading.Analyzers" Version="18.7.23" />
+        <PackageVersion Include="Microsoft.VisualStudio.Threading.Analyzers" Version="18.12.1" />
         <PackageVersion Include="Microsoft.Extensions.ExtraAnalyzers" Version="8.0.0-rc.2.23510.2" />
         <PackageVersion Include="System.Text.Json" Version="10.0.13" />
         <!-- gRPC binding dependencies -->
@@ -39,7 +39,7 @@
         <PackageVersion Include="System.CommandLine" Version="2.0.13" />
         <!-- Build / infrastructure dependencies -->
         <PackageVersion Include="coverlet.collector" Version="10.1.0" />
-        <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
+        <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
         <PackageVersion Include="System.Threading.Channels" Version="10.0.3" />
         <PackageVersion Include="xunit" Version="2.9.3" />
         <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
