@@ -98,7 +98,7 @@ public sealed class HttpPushNotificationSender : IPushNotificationSender, IHoste
                 }
                 await _queue.Writer.WriteAsync(delivery, admission.Token).ConfigureAwait(false);
             }
-            registration.RemovalToken.ThrowIfCancellationRequested();
+            // A successful write is admission; terminal cleanup may already have removed the registration.
             _diagnostics.Record("accepted", config.TaskId, config.Id);
         }
         catch (OperationCanceledException) when (registration.RemovalToken.IsCancellationRequested)
