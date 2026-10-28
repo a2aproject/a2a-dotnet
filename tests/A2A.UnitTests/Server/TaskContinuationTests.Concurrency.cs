@@ -11,12 +11,16 @@ public sealed partial class TaskContinuationTests
     {
         await SeedAsync();
         await _registrations.SaveAsync(Config());
-        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var initialTaskAdmitted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var failedAdmission = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var producerStopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _sender.OnEnqueue = async (_, response, cancellationToken) =>
         {
+            if (response.Task is not null)
+            {
+                initialTaskAdmitted.TrySetResult();
+            }
             if (response.StatusUpdate?.Status.State == TaskState.Failed)
             {
                 failedAdmission.TrySetResult();
@@ -30,7 +34,6 @@ public sealed partial class TaskContinuationTests
                 try
                 {
                     await queue.EnqueueTaskAsync((await _tasks.GetTaskAsync("task", cancellationToken))!, cancellationToken);
-                    entered.TrySetResult();
                     await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -60,7 +63,8 @@ public sealed partial class TaskContinuationTests
             {
                 Assert.NotNull((await server.SendMessageAsync(request, null).WaitAsync(TimeSpan.FromSeconds(5))).Task);
             }
-            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            // Streaming can yield its task snapshot before the queued task reaches push admission.
+            await initialTaskAdmitted.Task.WaitAsync(TimeSpan.FromSeconds(5));
             if (shutdown)
             {
                 var stopping = server.StopAsync(CancellationToken.None);
