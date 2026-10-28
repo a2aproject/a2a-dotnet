@@ -30,6 +30,8 @@ public sealed class PushNotificationDeliveryOptions
     public TimeSpan ShutdownDrainTimeout { get; set; } = TimeSpan.FromSeconds(5);
     /// <summary>Compatibility token header. Null or empty disables it.</summary>
     public string? LegacyTokenHeaderName { get; set; } = "X-A2A-Notification-Token";
+    /// <summary>Delete terminal-task registrations after delivery succeeds or reaches a final failure, default true.</summary>
+    public bool AutoDeleteOnTerminalState { get; set; } = true;
 
     internal PushNotificationDeliveryOptions Snapshot()
     {
@@ -72,6 +74,7 @@ public sealed class PushNotificationDeliveryOptions
             QueueFullBehavior = QueueFullBehavior,
             ShutdownDrainTimeout = ShutdownDrainTimeout,
             LegacyTokenHeaderName = LegacyTokenHeaderName,
+            AutoDeleteOnTerminalState = AutoDeleteOnTerminalState,
         };
     }
 }

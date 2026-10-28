@@ -3,8 +3,9 @@ namespace A2A;
 /// <summary>Accepts immutable, process-local or durable delivery work independently of agent execution.</summary>
 /// <remarks>
 /// Implementations must recheck registration versions before attempts and honor generation-scoped deletion.
-/// A successful enqueue is acceptance for delivery, not remote acknowledgement. Delivery does not
-/// own configuration retention. Admission failures must be surfaced rather than counted as accepted work.
+/// A successful enqueue is acceptance for delivery, not remote acknowledgement. Retention is sender policy:
+/// the built-in HTTP sender removes terminal registrations after final delivery handling by default, while other
+/// implementations may retain them. Admission failures must be surfaced rather than counted as accepted work.
 /// If a registration is removed before admission, throw <see cref="System.OperationCanceledException"/>
 /// using its removal token instead of completing successfully. Deletion after acceptance may suppress delivery.
 /// Durable implementations must persist work before successful enqueue completion.

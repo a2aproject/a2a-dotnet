@@ -34,7 +34,7 @@ public sealed class PushNotificationIntegrationTests(Xunit.Abstractions.ITestOut
     [InlineData("rpc")]
     [InlineData("rest")]
     [InlineData("grpc")]
-    public async Task RealCrud_LifecycleDeliveryRetentionAndExplicitDeletion(string binding)
+    public async Task RealCrud_LifecycleTerminalCleanupAndExplicitDeletion(string binding)
     {
         await using var host = CreateHost(binding);
         await host.StartAsync();
@@ -96,7 +96,7 @@ public sealed class PushNotificationIntegrationTests(Xunit.Abstractions.ITestOut
             Assert.Equal(2, _received.Count(item => (item.StatusUpdate?.Status.State).GetValueOrDefault() == TaskState.Completed));
             Assert.Equal(2, _received.Count(item => item.ArtifactUpdate is not null));
             Assert.Equal(TaskState.Completed, (await client.GetTaskAsync(new() { Id = task.Id })).Status.State);
-            Assert.Equal(2, (await client.ListTaskPushNotificationConfigsAsync(new() { TaskId = task.Id })).Configs!.Count);
+            Assert.Empty((await client.ListTaskPushNotificationConfigsAsync(new() { TaskId = task.Id })).Configs!);
             await client.DeleteTaskPushNotificationConfigAsync(new() { TaskId = task.Id, Id = "one" });
             await client.DeleteTaskPushNotificationConfigAsync(new() { TaskId = task.Id, Id = "two" });
             Assert.Empty((await client.ListTaskPushNotificationConfigsAsync(new() { TaskId = task.Id })).Configs!);
@@ -302,7 +302,7 @@ public sealed class PushNotificationIntegrationTests(Xunit.Abstractions.ITestOut
             await DrainAsync(host);
             Assert.Equal(3, _received.Count);
             Assert.Equal(TaskState.Completed, Assert.Single(_received, item => item.StatusUpdate is not null).StatusUpdate!.Status.State);
-            Assert.Single(await host.Services.GetRequiredService<IPushNotificationStore>().GetAllAsync(task.Id));
+            Assert.Empty(await host.Services.GetRequiredService<IPushNotificationStore>().GetAllAsync(task.Id));
         }
         finally
         {
@@ -395,7 +395,7 @@ public sealed class PushNotificationIntegrationTests(Xunit.Abstractions.ITestOut
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task FailedOrRedirectedWebhook_DoesNotChangeTaskOrDeleteRegistration(bool redirect)
+    public async Task FailedOrRedirectedWebhook_DoesNotChangeTaskAndCleansTerminalRegistration(bool redirect)
     {
         await using var host = CreateHost("rpc");
         await host.StartAsync();
@@ -420,11 +420,11 @@ public sealed class PushNotificationIntegrationTests(Xunit.Abstractions.ITestOut
         Assert.Equal(redirect ? 3 : 6, attempts); // three persisted events, one/two attempts each
         Assert.Empty(_received); // redirects were never followed
         Assert.Equal(TaskState.Completed, (await client.GetTaskAsync(new() { Id = task.Id })).Status.State);
-        Assert.Single(await host.Services.GetRequiredService<IPushNotificationStore>().GetAllAsync(task.Id));
+        Assert.Empty(await host.Services.GetRequiredService<IPushNotificationStore>().GetAllAsync(task.Id));
     }
 
     [Fact]
-    public async Task Cancel_EmitsTerminalNotificationAndRetainsRegistration()
+    public async Task Cancel_EmitsTerminalNotificationAndAutomaticallyDeletesRegistration()
     {
         await using var host = CreateHost("rpc");
         await host.StartAsync();
@@ -439,7 +439,7 @@ public sealed class PushNotificationIntegrationTests(Xunit.Abstractions.ITestOut
         Assert.Equal(TaskState.Canceled, (await client.CancelTaskAsync(new() { Id = task.Id })).Status.State);
         await DrainAsync(host);
         Assert.Equal(TaskState.Canceled, Assert.Single(_received).StatusUpdate!.Status.State);
-        Assert.Single(await host.Services.GetRequiredService<IPushNotificationStore>().GetAllAsync(task.Id));
+        Assert.Empty(await host.Services.GetRequiredService<IPushNotificationStore>().GetAllAsync(task.Id));
     }
 
     [Theory]
@@ -589,7 +589,7 @@ public sealed class PushNotificationIntegrationTests(Xunit.Abstractions.ITestOut
             await delivered.Task.WaitAsync(TimeSpan.FromSeconds(5));
             await DrainAsync(host);
             Assert.Equal(TaskState.Completed, (await host.Services.GetRequiredService<ITaskStore>().GetTaskAsync(task.Id))!.Status.State);
-            Assert.Single(await host.Services.GetRequiredService<IPushNotificationStore>().GetAllAsync(task.Id));
+            Assert.Empty(await host.Services.GetRequiredService<IPushNotificationStore>().GetAllAsync(task.Id));
         }
         finally
         {
@@ -636,7 +636,7 @@ public sealed class PushNotificationIntegrationTests(Xunit.Abstractions.ITestOut
             await DrainAsync(host);
             Assert.Equal(4, _received.Count);
             Assert.Equal(TaskState.Completed, (await client.GetTaskAsync(new() { Id = result.Task.Id })).Status.State);
-            Assert.Single(await host.Services.GetRequiredService<IPushNotificationStore>().GetAllAsync(result.Task.Id));
+            Assert.Empty(await host.Services.GetRequiredService<IPushNotificationStore>().GetAllAsync(result.Task.Id));
         }
         finally
         {
