@@ -151,9 +151,11 @@ unchecked work.
 
 Removed generations must not be delivered or resurrected by replay. Deletion
 can suppress future work and cancel requests, but cannot recall transmitted
-bytes or undo receiver processing. Delivery success/failure does not authorize
-the sender to delete client configuration; retention belongs to the store and
-host application.
+bytes or undo receiver processing. The built-in HTTP sender deletes terminal
+registrations after final delivery handling by default. Replacement senders must
+define and document their own retention policy; `AutoDeleteOnTerminalState` does
+not apply to them. If performing terminal cleanup, preserve pending delivery and
+retries, and delete only the delivered registration generation.
 
 Durable work and dead letters can contain credentials as well as sensitive task
 payloads. Encrypt and restrict access to records, broker messages, backups, and

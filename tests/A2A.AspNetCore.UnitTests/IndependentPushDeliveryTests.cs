@@ -49,13 +49,13 @@ public sealed class IndependentPushDeliveryTests : IDisposable
     }
 
     [Fact]
-    public async Task CompletedDelivery_DoesNotImplicitlyDeleteTheClientsConfiguration()
+    public async Task CompletedDelivery_AutomaticallyDeletesTheTerminalConfiguration()
     {
         var registration = await RegistrationAsync("task");
         await using var sender = CreateSender(_store);
         await sender.EnqueueAsync(registration, Event("task", terminal: true));
         await sender.StopAsync(CancellationToken.None);
-        Assert.NotNull(await _store.GetAsync("task", "config"));
+        Assert.Null(await _store.GetAsync("task", "config"));
     }
 
     [Fact]

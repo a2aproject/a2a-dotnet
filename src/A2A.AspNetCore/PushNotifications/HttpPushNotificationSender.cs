@@ -81,7 +81,9 @@ public sealed class HttpPushNotificationSender : IPushNotificationSender, IHoste
             throw new ArgumentException("Push payload must contain exactly one event for the registered task.", nameof(response));
         }
         var payload = JsonSerializer.SerializeToUtf8Bytes(response, _typeInfo);
-        var delivery = new Delivery(registration, config, payload);
+        bool isTerminal = response.Task?.Status.State.IsTerminal() == true ||
+            response.StatusUpdate?.Status.State.IsTerminal() == true;
+        var delivery = new Delivery(registration, config, payload, isTerminal);
         using var admission = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, registration.RemovalToken);
         try
         {
@@ -193,8 +195,12 @@ public sealed class HttpPushNotificationSender : IPushNotificationSender, IHoste
     private async Task DeliverAsync(Delivery delivery, CancellationToken cancellationToken)
     {
         var config = delivery.Config;
+        // Cleanup uses only the worker token because deletion itself cancels the registration token.
+        var cleanupCancellationToken = cancellationToken;
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, delivery.Registration.RemovalToken);
         cancellationToken = lifetime.Token;
+        bool deliveryStarted = false;
+        bool cleanupEligible = false;
         try
         {
             using var client = _clients.CreateClient(HttpClientName);
@@ -205,7 +211,26 @@ public sealed class HttpPushNotificationSender : IPushNotificationSender, IHoste
                     _diagnostics.Record("skipped", config.TaskId, config.Id, attempt: attempt);
                     return;
                 }
-                await _validator.ValidateAsync(config.Url, cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    await _validator.ValidateAsync(config.Url, cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (delivery.Registration.RemovalToken.IsCancellationRequested)
+                {
+                    _diagnostics.Record("skipped", config.TaskId, config.Id, attempt: attempt);
+                    return;
+                }
+                catch (OperationCanceledException) when (_stop.IsCancellationRequested)
+                {
+                    _diagnostics.Record("failed", config.TaskId, config.Id, "shutdown", attempt);
+                    return;
+                }
+                catch (Exception exception)
+                {
+                    _diagnostics.Record("failed", config.TaskId, config.Id, exception.GetType().Name, attempt);
+                    cleanupEligible = delivery.IsTerminal;
+                    return;
+                }
                 // Deletion while DNS validation was pending must also suppress this attempt.
                 if (!await IsActiveAsync(delivery, cancellationToken).ConfigureAwait(false))
                 {
@@ -213,6 +238,7 @@ public sealed class HttpPushNotificationSender : IPushNotificationSender, IHoste
                     return;
                 }
                 cancellationToken.ThrowIfCancellationRequested();
+                deliveryStarted = true;
                 bool retry;
                 int status = 0;
                 string? failure;
@@ -227,6 +253,7 @@ public sealed class HttpPushNotificationSender : IPushNotificationSender, IHoste
                     if (response.IsSuccessStatusCode)
                     {
                         _diagnostics.Record("succeeded", config.TaskId, config.Id, attempt: attempt, statusCode: status);
+                        cleanupEligible = delivery.IsTerminal;
                         return;
                     }
                     retry = status is 408 or 429 || (status >= 500 && status <= 599);
@@ -247,10 +274,10 @@ public sealed class HttpPushNotificationSender : IPushNotificationSender, IHoste
                     retry = true;
                     failure = "network";
                 }
-                if (!retry ||
-                    attempt == _options.MaximumAttempts)
+                if (!retry || attempt == _options.MaximumAttempts)
                 {
                     _diagnostics.Record("failed", config.TaskId, config.Id, failure, attempt, status);
+                    cleanupEligible = delivery.IsTerminal;
                     return;
                 }
                 double delay = _options.InitialRetryDelay == TimeSpan.Zero ? 0 : Math.Min(_options.MaximumRetryDelay.TotalMilliseconds,
@@ -263,10 +290,46 @@ public sealed class HttpPushNotificationSender : IPushNotificationSender, IHoste
         {
             _diagnostics.Record("skipped", config.TaskId, config.Id);
         }
+        catch (OperationCanceledException) when (_stop.IsCancellationRequested)
+        {
+            _diagnostics.Record("failed", config.TaskId, config.Id, "shutdown");
+        }
         catch (Exception exception)
         {
-            _diagnostics.Record("failed", config.TaskId, config.Id,
-                _stop.IsCancellationRequested ? "shutdown" : exception.GetType().Name);
+            _diagnostics.Record("failed", config.TaskId, config.Id, exception.GetType().Name);
+            cleanupEligible = deliveryStarted && delivery.IsTerminal;
+        }
+        finally
+        {
+            if (cleanupEligible && _options.AutoDeleteOnTerminalState)
+            {
+                await DeleteTerminalRegistrationAsync(delivery, cleanupCancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private async Task DeleteTerminalRegistrationAsync(Delivery delivery, CancellationToken cancellationToken)
+    {
+        var config = delivery.Config;
+        if (cancellationToken.IsCancellationRequested)
+        {
+            _diagnostics.Record("cleanup_cancelled", config.TaskId, config.Id,
+                _stop.IsCancellationRequested ? "shutdown" : "removed");
+            return;
+        }
+        try
+        {
+            await _store.DeleteAsync(config.TaskId!, config.Id!, delivery.Registration.Version, cancellationToken).ConfigureAwait(false);
+            _diagnostics.Record("cleanup_completed", config.TaskId, config.Id);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _diagnostics.Record("cleanup_cancelled", config.TaskId, config.Id,
+                _stop.IsCancellationRequested ? "shutdown" : "removed");
+        }
+        catch (Exception exception)
+        {
+            _diagnostics.Record("cleanup_failed", config.TaskId, config.Id, exception.GetType().Name);
         }
     }
 
@@ -297,5 +360,9 @@ public sealed class HttpPushNotificationSender : IPushNotificationSender, IHoste
             !delivery.Registration.RemovalToken.IsCancellationRequested;
     }
 
-    private sealed record Delivery(PushNotificationConfigSnapshot Registration, TaskPushNotificationConfig Config, byte[] Payload);
+    private sealed record Delivery(
+        PushNotificationConfigSnapshot Registration,
+        TaskPushNotificationConfig Config,
+        byte[] Payload,
+        bool IsTerminal);
 }
