@@ -22,7 +22,7 @@ a later run cannot exec a stale build.
 ### 1. Set Environment Variable
 
 ```bash
-export A2A_ITK_REVISION=b57c5332aa883b27c1e5c915fe61cac76d2a1de9
+export A2A_ITK_REVISION=d53108aaf378a38eaff64ea39029a3d795591827
 ```
 
 CI pins this revision so interoperability and conformance changes arrive through
@@ -59,10 +59,10 @@ export ITK_NIGHTLY_RUN=TRUE
 
 Combinations this SDK cannot serve are recorded in `a2a-itk/known_failures.yaml` and
 skipped with the reason logged, rather than being left out of the scenario set. The
-currently pinned revision still excludes .NET gRPC traversal until the corresponding
-`a2a-itk` matrix and known-failure update lands. It also excludes push notifications
-(`PushNotificationNotSupported` everywhere) and non-JSON-RPC calls to v0.3 peers
-(`A2A.V0_3Compat` is JSON-RPC only).
+currently pinned revision includes .NET gRPC traversal and push-notification scenarios.
+Push notifications exclude v0.3 peers for the .NET SUT; v0.3 `send_message` and
+`resubscribe` coverage remains enabled over JSON-RPC.
+Non-JSON-RPC calls to v0.3 peers remain excluded (`A2A.V0_3Compat` is JSON-RPC only).
 
 ### v0.3 peers
 
