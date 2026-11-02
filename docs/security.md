@@ -140,10 +140,12 @@ see [local development callbacks](push-notifications.md#local-development-callba
 Create returns accepted secrets; get/list redact credentials and tokens without
 changing stored delivery values. Deletion prevents later attempts but cannot
 recall already-transmitted bytes. Registrations carry a generation-scoped
-invalidation signal; terminal delivery/failure does not delete client
-configuration. Retention is an explicit store/application policy.
-The sender logs failures without changing task state; bounded, process-local
-delivery is not a durable or exactly-once guarantee.
+invalidation signal. The built-in HTTP sender deletes a terminal registration by
+default after delivery succeeds or its retry/revalidation policy ends; hosts can
+opt out with `AutoDeleteOnTerminalState = false`. Non-terminal states remain
+registered, and custom senders define their own retention behavior. This cleanup
+does not provide durable or exactly-once delivery, archival, or compliance
+retention. The sender logs failures without changing task state.
 
 For durable delivery replacements, see
 [Implementing a durable push notification sender](durable-push-notifications.md).

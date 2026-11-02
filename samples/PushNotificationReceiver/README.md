@@ -24,13 +24,13 @@ The demo:
 5. Continues the SDK task to produce an artifact and completed status.
 6. Receives the history-message, artifact, and terminal events through the
    **default `HttpPushNotificationSender`**, not a manually forwarded stream.
-7. Drains the sender, verifies the config is retained, explicitly deletes it,
-   checks that deletion succeeded, and stops both hosts.
+7. Drains the sender, verifies the terminal config was automatically deleted,
+   and stops both hosts.
 
 Success prints:
 
 ```text
-SDK push demo passed: 3 webhook events, task Completed, configuration explicitly deleted.
+SDK push demo passed: 3 webhook events, task Completed, terminal configuration automatically deleted.
 ```
 
 Credentials are generated in memory and never printed. `LocalReceiverUrlValidator`
@@ -84,9 +84,10 @@ Receiver tests cover payloads, auth, task IDs, limits, duplicate receipt, and
 binding isolation. Integration tests run real loopback JSON-RPC, HTTP+JSON, gRPC,
 against `A2AServer`, its real store, and default HTTP
 sender. They cover CRUD/redaction, multiple configs, deletion, inline config,
-preserved direct messages, cancellation/disconnection, redirect/failure isolation,
-and config retention. They also check that the stock v1 server does not advertise
-or accept incomplete v0.3 push support. There is no test-side stream-to-webhook bridge.
+preserved direct messages, cancellation/disconnection, terminal cleanup after
+success/failure, and retention of unfinished registrations. They also check that
+the stock v1 server does not advertise or accept incomplete v0.3 push support.
+There is no test-side stream-to-webhook bridge.
 
 The sample is not a production deployment: it has no public TLS endpoint,
 tenant authorization, encrypted durable storage, replay protection, or
