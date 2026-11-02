@@ -25,6 +25,7 @@ public sealed class A2AHttpCustomOperationBuilder
     [
         new(HttpMethods.Get, "/tasks/{id}"),
         new(HttpMethods.Post, "/tasks/{id}:cancel"),
+        new(HttpMethods.Get, "/tasks/{id}:subscribe"),
         new(HttpMethods.Post, "/tasks/{id}:subscribe"),
         new(HttpMethods.Get, "/tasks"),
         new(HttpMethods.Post, "/message:send"),
