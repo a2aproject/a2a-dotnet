@@ -252,6 +252,9 @@ public sealed class A2AHttpCustomOperationTests
     [Theory]
     [InlineData("post", "/MESSAGE:SEND")]
     [InlineData("get", "/tasks/{taskId}")]
+    [InlineData("GET", "/tasks/{id}:subscribe")]
+    [InlineData("get", "/TASKS/{taskId}:SUBSCRIBE")]
+    [InlineData("POST", "/tasks/{id}:subscribe")]
     public void Map_RejectsEquivalentStandardRouteShadowing(string method, string route)
     {
         var builder = new A2ACustomOperationRegistryBuilder();
