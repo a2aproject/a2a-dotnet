@@ -23,14 +23,36 @@ public sealed class IndependentPushDeliveryTests : IDisposable
         };
         var busy = await RegistrationAsync("busy");
         var other = await RegistrationAsync("other");
+        using var cleaned = new ManualResetEventSlim();
+        using var cleanupRegistration = other.RemovalToken.Register(cleaned.Set);
+        bool cleanupObservedBeforeAdmissionResumed = false;
+        int admissionResumed = 0;
+        var admissionContext = new AsyncLocal<bool>(change =>
+        {
+            if (change.ThreadContextChanged && change.CurrentValue &&
+                Interlocked.Exchange(ref admissionResumed, 1) == 0)
+            {
+                // Force terminal cleanup to finish before the blocked enqueue continuation resumes.
+                cleanupObservedBeforeAdmissionResumed = cleaned.Wait(TimeSpan.FromSeconds(5));
+            }
+        });
         await using var sender = CreateSender(_store, new() { QueueCapacity = 1 });
         await sender.EnqueueAsync(busy, Event("busy"));
         await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await sender.EnqueueAsync(busy, Event("busy"));
-        var terminal = sender.EnqueueAsync(other, Event("other", terminal: true));
+        Task terminal;
+        admissionContext.Value = true;
         try
         {
-            Assert.False(terminal.IsFaulted, "Queue pressure must not discard a different task's only configured notification.");
+            terminal = sender.EnqueueAsync(other, Event("other", terminal: true));
+        }
+        finally
+        {
+            admissionContext.Value = false;
+        }
+        try
+        {
+            Assert.False(terminal.IsCompleted, "Queue pressure must wait for capacity without discarding the notification.");
         }
         finally
         {
@@ -45,17 +67,18 @@ public sealed class IndependentPushDeliveryTests : IDisposable
             }
             await sender.StopAsync(CancellationToken.None);
         }
+        Assert.True(cleanupObservedBeforeAdmissionResumed);
         Assert.Contains(_transport.Destinations, uri => uri.AbsolutePath == "/other");
     }
 
     [Fact]
-    public async Task CompletedDelivery_DoesNotImplicitlyDeleteTheClientsConfiguration()
+    public async Task CompletedDelivery_AutomaticallyDeletesTheTerminalConfiguration()
     {
         var registration = await RegistrationAsync("task");
         await using var sender = CreateSender(_store);
         await sender.EnqueueAsync(registration, Event("task", terminal: true));
         await sender.StopAsync(CancellationToken.None);
-        Assert.NotNull(await _store.GetAsync("task", "config"));
+        Assert.Null(await _store.GetAsync("task", "config"));
     }
 
     [Fact]

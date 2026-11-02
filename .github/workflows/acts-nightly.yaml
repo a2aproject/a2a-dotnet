@@ -31,7 +31,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: a2aproject/a2a-itk
-          ref: 82458ceac60208cc46ccbe52b68dbb8e1ca2614a # main, 2026-10-08
+          ref: d53108aaf378a38eaff64ea39029a3d795591827 # main, 2026-10-26
           path: itk/a2a-itk
 
       - name: Set up Docker Buildx
@@ -61,7 +61,7 @@ jobs:
         run: bash run_itk.sh
         working-directory: itk
         env:
-          A2A_ITK_REVISION: 82458ceac60208cc46ccbe52b68dbb8e1ca2614a
+          A2A_ITK_REVISION: d53108aaf378a38eaff64ea39029a3d795591827
           ITK_ACTS_RUN: "1"
           ITK_ACTS_TRANSPORTS: jsonrpc,rest,grpc
           # Does not gate on conformance, unlike the PR tier: a `must` failure

@@ -140,10 +140,12 @@ see [local development callbacks](push-notifications.md#local-development-callba
 Create returns accepted secrets; get/list redact credentials and tokens without
 changing stored delivery values. Deletion prevents later attempts but cannot
 recall already-transmitted bytes. Registrations carry a generation-scoped
-invalidation signal; terminal delivery/failure does not delete client
-configuration. Retention is an explicit store/application policy.
-The sender logs failures without changing task state; bounded, process-local
-delivery is not a durable or exactly-once guarantee.
+invalidation signal. The built-in HTTP sender deletes a terminal registration by
+default after delivery succeeds or its retry/revalidation policy ends; hosts can
+opt out with `AutoDeleteOnTerminalState = false`. Non-terminal states remain
+registered, and custom senders define their own retention behavior. This cleanup
+does not provide durable or exactly-once delivery, archival, or compliance
+retention. The sender logs failures without changing task state.
 
 For durable delivery replacements, see
 [Implementing a durable push notification sender](durable-push-notifications.md).
@@ -154,6 +156,13 @@ sender alone does not make task persistence and notification admission atomic.
 See the [push notification guide](push-notifications.md) and
 [receiver sample](../samples/PushNotificationReceiver/README.md). The sample's
 exact-loopback policy is only for its owned local listener, not production.
+
+For custom durable stores, follow
+[Implementing a persistent push notification store](push-notifications.md#implementing-a-persistent-push-notification-store).
+`IPushNotificationStore` holds secret-bearing configurations independently of
+`ITaskStore`. Its implementation must protect credentials, preserve ownership
+and generation-scoped deletion, and define retention and recovery policies.
+Persisting registrations does not refresh credentials or make delivery durable.
 
 ### 6. File Handling
 
