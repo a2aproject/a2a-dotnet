@@ -121,6 +121,22 @@ public class A2AEndpointRouteBuilderExtensionsTests
         Assert.False(result.Context.Metadata["details"].GetProperty("retry").GetBoolean());
     }
 
+    [Theory]
+    [InlineData("""{"Metadata":{"reason":"user"}}""")]
+    [InlineData("""{"mEtAdAtA":{"reason":"user"},"TeNaNt":"body-tenant"}""")]
+    [InlineData("""{"metadata":{"reason":"earlier"},"Metadata":{"reason":"user"}}""")]
+    public async Task MapHttpA2A_CancelTask_MatchesBodyPropertiesCaseInsensitively(string body)
+    {
+        var result = await ExecuteCancelTaskEndpointAsync(body);
+
+        Assert.Equal(StatusCodes.Status200OK, result.StatusCode);
+        Assert.NotNull(result.Request);
+        Assert.Null(result.Request.Tenant);
+        Assert.NotNull(result.Context);
+        Assert.NotNull(result.Context.Metadata);
+        Assert.Equal("user", result.Context.Metadata["reason"].GetString());
+    }
+
     [Fact]
     public async Task MapHttpA2A_CancelTask_UsesRouteIdAndClearsBodyTenant()
     {
@@ -160,6 +176,8 @@ public class A2AEndpointRouteBuilderExtensionsTests
     [InlineData("{\"metadata\":42}")]
     [InlineData("{\"metadata\":[]}")]
     [InlineData("{\"tenant\":42}")]
+    [InlineData("{\"Metadata\":42}")]
+    [InlineData("{\"TENANT\":42}")]
     public async Task MapHttpA2A_CancelTask_InvalidBodyDoesNotCancelTask(string body)
     {
         var result = await ExecuteCancelTaskEndpointAsync(body);

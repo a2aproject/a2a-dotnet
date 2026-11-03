@@ -142,15 +142,19 @@ internal static class A2AHttpProcessor
                         throw new JsonException("The cancellation request body must be a JSON object.");
                     }
 
-                    if (document.RootElement.TryGetProperty("metadata", out var metadata))
+                    foreach (var property in document.RootElement.EnumerateObject())
                     {
-                        request.Metadata = (Dictionary<string, JsonElement>?)metadata.Deserialize(
-                            A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(Dictionary<string, JsonElement>)));
-                    }
-                    if (document.RootElement.TryGetProperty("tenant", out var tenant))
-                    {
-                        request.Tenant = (string?)tenant.Deserialize(
-                            A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(string)));
+                        var propertyName = property.Name;
+                        if (propertyName.Equals("metadata", StringComparison.OrdinalIgnoreCase))
+                        {
+                            request.Metadata = (Dictionary<string, JsonElement>?)property.Value.Deserialize(
+                                A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(Dictionary<string, JsonElement>)));
+                        }
+                        else if (propertyName.Equals("tenant", StringComparison.OrdinalIgnoreCase))
+                        {
+                            request.Tenant = (string?)property.Value.Deserialize(
+                                A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(string)));
+                        }
                     }
                 }
                 catch (JsonException ex)
