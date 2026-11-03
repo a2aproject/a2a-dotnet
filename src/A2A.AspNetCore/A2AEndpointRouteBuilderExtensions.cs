@@ -242,7 +242,7 @@ public static class A2ARouteBuilderExtensions
             => A2AHttpProcessor.GetTaskRestAsync(requestHandler, logger, id, historyLength, ct, RequestContextFor(context)));
 
         routeGroup.MapPost("/tasks/{id}:cancel", (HttpContext context, string id, CancellationToken ct)
-            => A2AHttpProcessor.CancelTaskRestAsync(requestHandler, logger, id, ct, RequestContextFor(context)));
+            => A2AHttpProcessor.CancelTaskRestAsync(requestHandler, logger, id, context.Request, ct, RequestContextFor(context)));
 
         routeGroup.MapPost("/tasks/{id}:subscribe", (HttpContext context, string id, CancellationToken ct)
             => A2AHttpProcessor.SubscribeToTaskRest(requestHandler, logger, id, ct, RequestContextFor(context)));
