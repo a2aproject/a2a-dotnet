@@ -8,7 +8,7 @@
         <PackageVersion Include="Microsoft.Extensions.Caching.Abstractions" Version="9.0.9" />
         <PackageVersion Include="Microsoft.VisualStudio.Threading.Analyzers" Version="18.12.1" />
         <PackageVersion Include="Microsoft.Extensions.ExtraAnalyzers" Version="8.0.0-rc.2.23510.2" />
-        <PackageVersion Include="System.Text.Json" Version="10.0.13" />
+        <PackageVersion Include="System.Text.Json" Version="10.0.14" />
         <!-- gRPC binding dependencies -->
         <PackageVersion Include="Google.Api.CommonProtos" Version="2.17.0" />
         <PackageVersion Include="Grpc.Net.Client" Version="2.85.0" />
@@ -17,8 +17,8 @@
         <!-- Product dependencies shared -->
         <PackageVersion Include="Google.Protobuf" Version="3.36.2" />
         <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.14" />
-        <PackageVersion Include="System.Linq.AsyncEnumerable" Version="10.0.13" />
-        <PackageVersion Include="System.Net.ServerSentEvents" Version="10.0.13" />
+        <PackageVersion Include="System.Linq.AsyncEnumerable" Version="10.0.14" />
+        <PackageVersion Include="System.Net.ServerSentEvents" Version="10.0.14" />
         <!-- Testing / samples dependencies -->
         <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.5" />
         <PackageVersion Include="JsonSchema.Net" Version="9.6.0" />
@@ -35,7 +35,7 @@
         <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.20.1" />
         <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.20.1" />
         <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.12.0" />
-        <PackageVersion Include="Polly" Version="8.8.0" />
+        <PackageVersion Include="Polly" Version="8.9.0" />
         <PackageVersion Include="System.CommandLine" Version="2.0.14" />
         <!-- Build / infrastructure dependencies -->
         <PackageVersion Include="coverlet.collector" Version="10.1.0" />
