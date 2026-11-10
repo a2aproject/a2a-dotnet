@@ -22,7 +22,7 @@ a later run cannot exec a stale build.
 ### 1. Set Environment Variable
 
 ```bash
-export A2A_ITK_REVISION=d53108aaf378a38eaff64ea39029a3d795591827
+export A2A_ITK_REVISION=a39f6eb05c58aa41d4f46a758e73c2df1c3be49c
 ```
 
 CI pins this revision so interoperability and conformance changes arrive through
