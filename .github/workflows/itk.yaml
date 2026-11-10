@@ -25,7 +25,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: a2aproject/a2a-itk
-          ref: d53108aaf378a38eaff64ea39029a3d795591827 # main, 2026-10-26
+          ref: a39f6eb05c58aa41d4f46a758e73c2df1c3be49c # main, 2026-11-10
           path: itk/a2a-itk
 
       - name: Set up Docker Buildx
@@ -55,5 +55,5 @@ jobs:
         run: bash run_itk.sh
         working-directory: itk
         env:
-          A2A_ITK_REVISION: d53108aaf378a38eaff64ea39029a3d795591827
+          A2A_ITK_REVISION: a39f6eb05c58aa41d4f46a758e73c2df1c3be49c
           ITK_SKIP_BUILD: "1"
