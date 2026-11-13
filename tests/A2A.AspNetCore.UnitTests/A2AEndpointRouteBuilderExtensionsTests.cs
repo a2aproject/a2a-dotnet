@@ -104,6 +104,79 @@ public class A2AEndpointRouteBuilderExtensionsTests
         requestHandler.VerifyAll();
     }
 
+    [Theory]
+    [InlineData("GET", "")]
+    [InlineData("POST", "")]
+    [InlineData("GET", "/agent")]
+    [InlineData("POST", "/agent")]
+    public async Task MapHttpA2A_SubscribeToTask_GetAndPostReturnEventStream(string method, string path)
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.ConfigureHttpJsonOptions(options =>
+            options.SerializerOptions.TypeInfoResolver = A2AJsonUtilities.DefaultOptions.TypeInfoResolver);
+        await using var app = builder.Build();
+        var requestHandler = new Mock<IA2ARequestHandler>(MockBehavior.Strict);
+        requestHandler.Setup(handler => handler.SubscribeToTaskAsync(
+                It.Is<SubscribeToTaskRequest>(request => request.Id == "task-1"),
+                It.IsAny<A2ARequestContext?>(), It.IsAny<CancellationToken>()))
+            .Returns(SubscriptionEvents());
+        app.MapHttpA2A(requestHandler.Object, path);
+
+        var endpoint = Assert.Single(((IEndpointRouteBuilder)app).DataSources
+            .SelectMany(source => source.Endpoints)
+            .OfType<RouteEndpoint>(),
+            candidate => candidate.RoutePattern.RawText == $"{path}/tasks/{{id}}:subscribe" &&
+                candidate.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Contains(method));
+        using var responseBody = new MemoryStream();
+        using var scope = app.Services.CreateScope();
+        var context = new DefaultHttpContext { RequestServices = scope.ServiceProvider };
+        context.Request.Method = method;
+        context.Request.Path = $"{path}/tasks/task-1:subscribe";
+        context.Request.RouteValues["id"] = "task-1";
+        context.Request.Headers.Accept = "text/event-stream";
+        context.Request.Headers["A2A-Version"] = "1.0";
+        context.Response.Body = responseBody;
+
+        await endpoint.RequestDelegate!(context);
+
+        Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
+        Assert.Equal("text/event-stream", context.Response.ContentType);
+        responseBody.Position = 0;
+        using var reader = new StreamReader(responseBody);
+        var events = (await reader.ReadToEndAsync()).Split("\n\n", StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(2, events.Length);
+        Assert.All(events, streamEvent => Assert.StartsWith("data: ", streamEvent));
+        using var taskEvent = JsonDocument.Parse(events[0]["data: ".Length..]);
+        Assert.Equal("task-1", taskEvent.RootElement.GetProperty("task").GetProperty("id").GetString());
+        using var finalEvent = JsonDocument.Parse(events[1]["data: ".Length..]);
+        Assert.Equal("task-1", finalEvent.RootElement.GetProperty("statusUpdate").GetProperty("taskId").GetString());
+        Assert.Equal("TASK_STATE_COMPLETED",
+            finalEvent.RootElement.GetProperty("statusUpdate").GetProperty("status").GetProperty("state").GetString());
+
+        static async IAsyncEnumerable<StreamResponse> SubscriptionEvents()
+        {
+            await Task.Yield();
+            yield return new StreamResponse
+            {
+                Task = new AgentTask
+                {
+                    Id = "task-1",
+                    ContextId = "ctx-1",
+                    Status = new TaskStatus { State = TaskState.Working },
+                },
+            };
+            yield return new StreamResponse
+            {
+                StatusUpdate = new TaskStatusUpdateEvent
+                {
+                    TaskId = "task-1",
+                    ContextId = "ctx-1",
+                    Status = new TaskStatus { State = TaskState.Completed },
+                },
+            };
+        }
+    }
+
     [Fact]
     public void MapA2A_RegistersEndpoint_WithCorrectPath()
     {
