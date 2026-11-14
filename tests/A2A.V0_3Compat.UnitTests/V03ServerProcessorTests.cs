@@ -14,6 +14,29 @@ namespace A2A.V0_3Compat.UnitTests;
 /// </summary>
 public class V03ServerProcessorTests
 {
+    [Theory]
+    [InlineData("agent", true)]
+    [InlineData("user", false)]
+    public async Task ProcessRequestAsync_V03ClientRole_ValidatesAfterTranslation(string role, bool rejected)
+    {
+        await using var handler = CreateRequestHandler();
+        var json = """{"jsonrpc":"2.0","method":"message/send","id":1,"params":{"message":{"kind":"agentMessage","messageId":"m1","role":"$ROLE","parts":[{"kind":"text","text":"hi"}]}}}""";
+        var request = CreateHttpRequest(json.Replace("$ROLE", role, StringComparison.Ordinal), version: "0.3");
+
+        var result = await V03ServerProcessor.ProcessRequestAsync(handler, request, CancellationToken.None);
+
+        using var body = await ExecuteAndParseJson(result);
+        if (rejected)
+        {
+            Assert.Equal(-32602, body.RootElement.GetProperty("error").GetProperty("code").GetInt32());
+        }
+        else
+        {
+            Assert.True(body.RootElement.TryGetProperty("result", out _));
+            Assert.False(body.RootElement.TryGetProperty("error", out _));
+        }
+    }
+
     // ── Version negotiation ──────────────────────────────────────────────────
 
     [Fact]

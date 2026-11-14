@@ -49,7 +49,7 @@ public sealed partial class TaskContinuationTests
         await using var server = Server(handler);
         var request = new SendMessageRequest
         {
-            Message = Message("inbound"),
+            Message = UserMessage("inbound"),
             Configuration = new() { ReturnImmediately = true },
         };
         try
@@ -127,7 +127,7 @@ public sealed partial class TaskContinuationTests
             },
         };
         await using var server = Server(handler);
-        await using var stream = server.SendStreamingMessageAsync(new() { Message = Message("inbound") }, null).GetAsyncEnumerator();
+        await using var stream = server.SendStreamingMessageAsync(new() { Message = UserMessage("inbound") }, null).GetAsyncEnumerator();
         try
         {
             Assert.True(await stream.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5)));
@@ -178,7 +178,7 @@ public sealed partial class TaskContinuationTests
         await using var server = Server(handler);
         var request = new SendMessageRequest
         {
-            Message = Message("inbound"),
+            Message = UserMessage("inbound"),
             Configuration = new() { ReturnImmediately = true },
         };
         await using var stream = server.SendStreamingMessageAsync(request, null).GetAsyncEnumerator();
@@ -261,7 +261,7 @@ public sealed partial class TaskContinuationTests
         await using var server = Server(handler);
         var request = new SendMessageRequest
         {
-            Message = Message("inbound"),
+            Message = UserMessage("inbound"),
             Configuration = new() { ReturnImmediately = true },
         };
         try
@@ -334,7 +334,7 @@ public sealed partial class TaskContinuationTests
         };
         await using var server = Server(handler);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        var request = new SendMessageRequest { Message = Message("inbound") };
+        var request = new SendMessageRequest { Message = UserMessage("inbound") };
         bool proactiveEntered = false;
         Task<TaskContinuationResult> ContinueAsync() => server.ContinueTaskAsync("task", async (context, cancellationToken) =>
         {
@@ -452,7 +452,7 @@ public sealed partial class TaskContinuationTests
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var request = new SendMessageRequest
         {
-            Message = Message("inbound"),
+            Message = UserMessage("inbound"),
             Configuration = new() { ReturnImmediately = true },
         };
         Task<TaskContinuationResult>? continuation = null;
