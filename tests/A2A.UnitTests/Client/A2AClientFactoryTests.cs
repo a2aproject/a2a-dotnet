@@ -434,6 +434,28 @@ public class A2AClientFactoryTests
     }
 
     [Fact]
+    public void Create_UnregisteredPreferredBinding_FallsBackToRegisteredInterface()
+    {
+        var card = new AgentCard
+        {
+            Name = "test", Description = "d", Version = "1.0",
+            SupportedInterfaces =
+            [
+                new() { ProtocolBinding = "NOT-REGISTERED-FALLBACK-TEST", Url = "agent.example.com:50051", ProtocolVersion = "1.0" },
+                new() { ProtocolBinding = ProtocolBindingNames.JsonRpc, Url = "http://agent/jsonrpc", ProtocolVersion = "1.0" },
+            ],
+        };
+        var options = new A2AClientOptions
+        {
+            PreferredBindings = ["NOT-REGISTERED-FALLBACK-TEST", ProtocolBindingNames.JsonRpc],
+        };
+
+        var client = A2AClientFactory.Create(card, options: options);
+
+        Assert.IsType<A2AClient>(client);
+    }
+
+    [Fact]
     public void Create_UnregisteredBinding_ThrowsWithRegistrationGuidance()
     {
         var card = CreateCard("SOMEUNKNOWN", "http://agent/unknown");
