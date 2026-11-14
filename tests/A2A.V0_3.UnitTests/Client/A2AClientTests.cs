@@ -640,7 +640,16 @@ public class A2AClientTests
                 isSse ? "text/event-stream" : "application/json")
         };
 
-        var handler = new MockHttpMessageHandler(response, onRequest);
+        var handler = new MockHttpMessageHandler(response, req =>
+        {
+            onRequest?.Invoke(req);
+            using var requestDocument = JsonDocument.Parse(req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+            var requestId = requestDocument.RootElement.GetProperty("id").GetString();
+            jsonResponse.Id = requestId;
+            var payload = JsonSerializer.Serialize(jsonResponse);
+            response.Content.Dispose();
+            response.Content = new StringContent(isSse ? $"event: message\ndata: {payload}\n\n" : payload, Encoding.UTF8, isSse ? "text/event-stream" : "application/json");
+        });
 
         var httpClient = new HttpClient(handler);
 

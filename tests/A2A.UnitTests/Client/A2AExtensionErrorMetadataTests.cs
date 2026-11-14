@@ -190,7 +190,21 @@ public sealed class A2AExtensionErrorMetadataTests
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult(respond(request));
+            var response = respond(request);
+            if (response.Content is StringContent && request.Content is not null && response.Content.ReadAsStringAsync(cancellationToken).GetAwaiter().GetResult().Contains("\"jsonrpc\"", StringComparison.Ordinal))
+            {
+                using var requestDocument = JsonDocument.Parse(request.Content!.ReadAsStringAsync(cancellationToken).GetAwaiter().GetResult());
+                var id = requestDocument.RootElement.GetProperty("id").GetString();
+                var body = response.Content.ReadAsStringAsync(cancellationToken).GetAwaiter().GetResult();
+                var updated = body.Replace("\"id\":\"1\"", $"\"id\":{JsonSerializer.Serialize(id)}", StringComparison.Ordinal);
+                if (updated != body)
+                {
+                    var media = response.Content.Headers.ContentType!.MediaType!;
+                    response.Content.Dispose();
+                    response.Content = new StringContent(updated, Encoding.UTF8, media);
+                }
+            }
+            return Task.FromResult(response);
         }
     }
 
