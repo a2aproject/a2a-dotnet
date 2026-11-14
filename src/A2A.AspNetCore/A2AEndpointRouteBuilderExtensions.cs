@@ -250,17 +250,26 @@ public static class A2ARouteBuilderExtensions
         routeGroup.MapGet("/tasks/{id}:subscribe", (HttpContext context, string id, [FromQuery] int? historyLength, CancellationToken ct) =>
         {
             // Routing decodes %3A before matching; an encoded colon is part of the task ID.
-            var rawTarget = context.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpRequestFeature>()?.RawTarget
-                ?? context.Request.Path.Value ?? "";
+            var rawTarget = context.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpRequestFeature>()?.RawTarget;
+            if (string.IsNullOrEmpty(rawTarget))
+            {
+                return Task.FromResult<IResult>(Results.BadRequest());
+            }
             var queryIndex = rawTarget.IndexOf('?');
             var rawPath = queryIndex < 0 ? rawTarget : rawTarget[..queryIndex];
             var lastSegment = rawPath[(rawPath.LastIndexOf('/') + 1)..];
             var separator = lastSegment.LastIndexOf(':');
             var isSubscription = separator >= 0 &&
                 Uri.UnescapeDataString(lastSegment[(separator + 1)..]) == "subscribe";
+            var effectivePath = context.Request.Path.Value ?? "";
+            var effectiveSeparator = effectivePath.LastIndexOf(':');
+            if (effectiveSeparator < 0)
+            {
+                return Task.FromResult<IResult>(Results.BadRequest());
+            }
             return isSubscription
                 ? Task.FromResult(A2AHttpProcessor.SubscribeToTaskRest(requestHandler, logger, id, ct, RequestContextFor(context)))
-                : A2AHttpProcessor.GetTaskRestAsync(requestHandler, logger, id + ":subscribe", historyLength, ct, RequestContextFor(context));
+                : A2AHttpProcessor.GetTaskRestAsync(requestHandler, logger, id + effectivePath[effectiveSeparator..], historyLength, ct, RequestContextFor(context));
         });
 
         routeGroup.MapGet("/tasks", (HttpContext context, [FromQuery] string? contextId, [FromQuery] string? status,

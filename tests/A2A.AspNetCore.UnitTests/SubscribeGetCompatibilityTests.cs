@@ -8,9 +8,33 @@ namespace A2A.AspNetCore.Tests;
 
 public class SubscribeGetCompatibilityTests
 {
+    [Fact]
+    public async Task GetSubscribe_WithoutRawTarget_ReturnsBadRequestWithoutDispatch()
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.ConfigureHttpJsonOptions(options =>
+            options.SerializerOptions.TypeInfoResolver = A2AJsonUtilities.DefaultOptions.TypeInfoResolver);
+        await using var app = builder.Build();
+        var handler = new Mock<IA2ARequestHandler>(MockBehavior.Strict);
+        app.Use(async (context, next) =>
+        {
+            context.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpRequestFeature>()!.RawTarget = "";
+            await next(context);
+        });
+        app.MapHttpA2A(handler.Object);
+        app.Urls.Add("http://127.0.0.1:0");
+        await app.StartAsync();
+        var address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
+        using var client = new HttpClient();
+        using var response = await client.GetAsync($"{address}/tasks/task-1%3Asubscribe");
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
+        handler.VerifyNoOtherCalls();
+    }
+
     [Theory]
     [InlineData("task-1%3Asubscribe", "task-1:subscribe")]
     [InlineData("task-1:other%3Asubscribe", "task-1:other:subscribe")]
+    [InlineData("task-1%3ASubscribe", "task-1:Subscribe")]
     public async Task GetTask_EncodedColonInId_DoesNotSubscribe(string pathId, string expectedId)
     {
         var builder = WebApplication.CreateBuilder();
