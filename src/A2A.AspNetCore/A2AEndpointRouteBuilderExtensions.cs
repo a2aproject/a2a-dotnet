@@ -247,6 +247,22 @@ public static class A2ARouteBuilderExtensions
         routeGroup.MapPost("/tasks/{id}:subscribe", (HttpContext context, string id, CancellationToken ct)
             => A2AHttpProcessor.SubscribeToTaskRest(requestHandler, logger, id, ct, RequestContextFor(context)));
 
+        routeGroup.MapGet("/tasks/{id}:subscribe", (HttpContext context, string id, [FromQuery] int? historyLength, CancellationToken ct) =>
+        {
+            // Routing decodes %3A before matching; an encoded colon is part of the task ID.
+            var rawTarget = context.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpRequestFeature>()?.RawTarget
+                ?? context.Request.Path.Value ?? "";
+            var queryIndex = rawTarget.IndexOf('?');
+            var rawPath = queryIndex < 0 ? rawTarget : rawTarget[..queryIndex];
+            var lastSegment = rawPath[(rawPath.LastIndexOf('/') + 1)..];
+            var separator = lastSegment.LastIndexOf(':');
+            var isSubscription = separator >= 0 &&
+                Uri.UnescapeDataString(lastSegment[(separator + 1)..]) == "subscribe";
+            return isSubscription
+                ? Task.FromResult(A2AHttpProcessor.SubscribeToTaskRest(requestHandler, logger, id, ct, RequestContextFor(context)))
+                : A2AHttpProcessor.GetTaskRestAsync(requestHandler, logger, id + ":subscribe", historyLength, ct, RequestContextFor(context));
+        });
+
         routeGroup.MapGet("/tasks", (HttpContext context, [FromQuery] string? contextId, [FromQuery] string? status,
             [FromQuery] int? pageSize, [FromQuery] string? pageToken, [FromQuery] int? historyLength,
             [FromQuery] DateTimeOffset? statusTimestampAfter, [FromQuery] bool? includeArtifacts,
