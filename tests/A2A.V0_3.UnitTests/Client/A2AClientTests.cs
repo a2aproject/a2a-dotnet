@@ -7,6 +7,34 @@ namespace A2A.V0_3.UnitTests.Client;
 
 public class A2AClientTests
 {
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public async Task GetTaskAsync_RejectsMissingTaskId(string? id)
+    {
+        var client = CreateA2AClient(new AgentTask());
+        var exception = await Assert.ThrowsAsync<ArgumentNullException>(async () => await client.GetTaskAsync(id!));
+        Assert.Equal("taskId", exception.ParamName);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public async Task GetTaskWithParamsAsync_RejectsMissingTaskId(string? id)
+    {
+        var client = CreateA2AClient(new AgentTask());
+        var exception = await Assert.ThrowsAsync<ArgumentNullException>(async () => await client.GetTaskWithParamsAsync(new TaskQueryParams { Id = id! }));
+        Assert.Equal("taskQueryParams", exception.ParamName);
+    }
+
+    [Fact]
+    public async Task GetTaskWithParamsAsync_RejectsNullParams()
+    {
+        var client = CreateA2AClient(new AgentTask());
+        var exception = await Assert.ThrowsAsync<ArgumentNullException>(async () => await client.GetTaskWithParamsAsync(null!));
+        Assert.Equal("taskQueryParams", exception.ParamName);
+    }
+
     [Fact]
     public async Task SendMessageAsync_MapsRequestParamsCorrectly()
     {
@@ -132,6 +160,29 @@ public class A2AClientTests
         var parameters = requestJson.RootElement.GetProperty("params").Deserialize<TaskIdParams>();
         Assert.NotNull(parameters);
         Assert.Equal(taskId, parameters.Id);
+    }
+
+    [Fact]
+    public async Task GetTaskWithParamsAsync_ForwardsHistoryLengthAndMetadata()
+    {
+        HttpRequestMessage? capturedRequest = null;
+        var sut = CreateA2AClient(new AgentTask { Id = "task-1", ContextId = "context-1" }, req => capturedRequest = req);
+        var parameters = new TaskQueryParams
+        {
+            Id = "task-1",
+            HistoryLength = 0,
+            Metadata = new Dictionary<string, JsonElement> { ["trace"] = JsonSerializer.SerializeToElement("sample") },
+        };
+
+        await sut.GetTaskWithParamsAsync(parameters);
+
+        Assert.NotNull(capturedRequest);
+        using var document = JsonDocument.Parse(await capturedRequest.Content!.ReadAsStringAsync());
+        Assert.Equal("tasks/get", document.RootElement.GetProperty("method").GetString());
+        var sent = document.RootElement.GetProperty("params");
+        Assert.Equal("task-1", sent.GetProperty("id").GetString());
+        Assert.Equal(0, sent.GetProperty("historyLength").GetInt32());
+        Assert.Equal("sample", sent.GetProperty("metadata").GetProperty("trace").GetString());
     }
 
     [Fact]
