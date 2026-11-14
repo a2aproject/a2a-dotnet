@@ -301,7 +301,7 @@ public sealed partial class TaskContinuationTests
         };
         await using var server = Server(handler);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await using var stream = server.SendStreamingMessageAsync(new() { Message = Message("inbound") }, null, timeout.Token)
+        await using var stream = server.SendStreamingMessageAsync(new() { Message = UserMessage("inbound") }, null, timeout.Token)
             .GetAsyncEnumerator(timeout.Token);
         try
         {
@@ -337,6 +337,13 @@ public sealed partial class TaskContinuationTests
 
     private static Message Message(string id, string taskId = "task", string contextId = "context") =>
         new() { MessageId = id, TaskId = taskId, ContextId = contextId, Role = Role.Agent, Parts = [Part.FromText(id)] };
+
+    private static Message UserMessage(string id)
+    {
+        var message = Message(id);
+        message.Role = Role.User;
+        return message;
+    }
 
     private static TaskPushNotificationConfig Config(string id = "config") =>
         new() { Id = id, TaskId = "task", Url = "https://callbacks.example.com/events" };

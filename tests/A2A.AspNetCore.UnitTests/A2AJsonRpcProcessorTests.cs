@@ -13,6 +13,52 @@ namespace A2A.AspNetCore.Tests;
 public class A2AJsonRpcProcessorTests
 {
     [Theory]
+    [InlineData(Role.Agent)]
+    [InlineData(Role.Unspecified)]
+    public async Task SendMessage_WithInvalidClientRole_ReturnsInvalidParams(Role role)
+    {
+        var (server, _) = CreateTestServerWithStore();
+        await using var serverLifetime = Assert.IsType<A2AServer>(server);
+        var request = new JsonRpcRequest
+        {
+            Id = "role-probe",
+            Method = A2AMethods.SendMessage,
+            Params = ToJsonElement(new SendMessageRequest
+            {
+                Message = new Message { MessageId = "role-probe", Role = role, Parts = [Part.FromText("hello")] },
+            }),
+        };
+
+        var result = await A2AJsonRpcProcessor.ProcessRequestAsync(server, CreateHttpRequest(request), CancellationToken.None);
+        var response = Assert.IsType<JsonRpcResponseResult>(result);
+        var (_, _, body) = await GetJsonRpcResponseHttpDetails<JsonRpcResponse>(response);
+        Assert.Null(body.Result);
+        Assert.Equal((int)A2AErrorCode.InvalidParams, body.Error?.Code);
+    }
+
+    [Fact]
+    public async Task SendStreamingMessage_WithInvalidClientRole_ReturnsInvalidParamsBeforeStream()
+    {
+        var (server, _) = CreateTestServerWithStore();
+        await using var serverLifetime = Assert.IsType<A2AServer>(server);
+        var parameters = ToJsonElement(new SendMessageRequest
+        {
+            Message = new Message { MessageId = "role-probe", Role = Role.Agent, Parts = [Part.FromText("hello")] },
+        });
+        var result = A2AJsonRpcProcessor.StreamResponse(server, "role-id", A2AMethods.SendStreamingMessage, parameters, CancellationToken.None);
+        var httpContext = new DefaultHttpContext();
+        httpContext.Response.Body = new MemoryStream();
+
+        await result.ExecuteAsync(httpContext);
+
+        httpContext.Response.Body.Position = 0;
+        var response = await JsonSerializer.DeserializeAsync<JsonRpcResponse>(httpContext.Response.Body, A2AJsonUtilities.DefaultOptions);
+        Assert.Equal(StatusCodes.Status200OK, httpContext.Response.StatusCode);
+        Assert.Equal("application/json", httpContext.Response.ContentType);
+        Assert.Equal((int)A2AErrorCode.InvalidParams, response?.Error?.Code);
+    }
+
+    [Theory]
     [InlineData("\"test-id\"", true)]   // String ID - valid
     [InlineData(42, true)]              // Number ID - valid: Uncomment when numeric IDs are supported
     [InlineData(42.1, false)]           // Fractional number ID - invalid (should throw error)
