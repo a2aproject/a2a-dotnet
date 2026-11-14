@@ -311,9 +311,7 @@ static async Task VerifyHttpTenantSerializationAsync()
 
     const string resultJson =
         """{"message":{"messageId":"response-1","role":"ROLE_AGENT","parts":[]}}""";
-    var jsonRpcResponse = $$"""{"jsonrpc":"2.0","id":"1","result":{{resultJson}}}""";
-
-    using var jsonRpcHttpClient = new HttpClient(new TenantSerializationHandler(jsonRpcResponse));
+    using var jsonRpcHttpClient = new HttpClient(new TenantSerializationHandler(resultJson, isJsonRpc: true));
     using var jsonRpcClient = new A2AClient(new Uri("https://agent.example"), jsonRpcHttpClient);
     await jsonRpcClient.SendMessageAsync(request);
 
@@ -331,7 +329,7 @@ static async IAsyncEnumerable<AotCustomResult> StreamResults(
     yield return new AotCustomResult(request.Value);
 }
 
-internal sealed class TenantSerializationHandler(string responseBody) : HttpMessageHandler
+internal sealed class TenantSerializationHandler(string responseBody, bool isJsonRpc = false) : HttpMessageHandler
 {
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,
@@ -344,9 +342,17 @@ internal sealed class TenantSerializationHandler(string responseBody) : HttpMess
             throw new InvalidOperationException("HTTP request did not serialize the expected tenant fields.");
         }
 
+        var content = responseBody;
+        if (isJsonRpc)
+        {
+            using var requestDocument = JsonDocument.Parse(body);
+            var requestId = requestDocument.RootElement.GetProperty("id").GetRawText();
+            content = $$"""{"jsonrpc":"2.0","id":{{requestId}},"result":{{responseBody}}}""";
+        }
+
         return new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = new StringContent(responseBody, Encoding.UTF8, "application/json"),
+            Content = new StringContent(content, Encoding.UTF8, "application/json"),
         };
     }
 }
@@ -368,19 +374,26 @@ internal sealed record AotCustomResult(string Value);
 
 internal sealed class AotErrorHandler(string extensionUri) : HttpMessageHandler
 {
-    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var isJsonRpc = request.RequestUri!.AbsolutePath == "/rpc";
+        string? requestId = null;
+        if (isJsonRpc)
+        {
+            var requestBody = await request.Content!.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            using var requestDocument = JsonDocument.Parse(requestBody);
+            requestId = requestDocument.RootElement.GetProperty("id").GetRawText();
+        }
         var response = new HttpResponseMessage(isJsonRpc ? System.Net.HttpStatusCode.OK : System.Net.HttpStatusCode.NotFound)
         {
             Content = new StringContent(isJsonRpc
-                ? "{\"jsonrpc\":\"2.0\",\"id\":\"1\",\"error\":{\"code\":-32001,\"message\":\"task not found\"}}"
+                ? "{\"jsonrpc\":\"2.0\",\"id\":" + requestId + ",\"error\":{\"code\":-32001,\"message\":\"task not found\"}}"
                 : "{\"error\":{\"code\":404,\"status\":\"NOT_FOUND\",\"message\":\"task not found\",\"details\":[{\"reason\":\"TASK_NOT_FOUND\",\"domain\":\"a2a-protocol.org\"}]}}",
                 Encoding.UTF8, "application/json"),
         };
         response.Headers.Add("A2A-Extensions", extensionUri);
-        return Task.FromResult(response);
+        return response;
     }
 }
 
