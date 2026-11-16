@@ -72,13 +72,13 @@ public static class A2AClientFactory
     /// <returns>An <see cref="IA2AClient"/> configured for the best available protocol binding.</returns>
     /// <exception cref="A2AException">
     /// Thrown when no supported interface in the agent card matches the preferred bindings,
-    /// or when a matched binding has no registered client factory.
+    /// or when matching bindings have no registered client factory.
     /// </exception>
     /// <remarks>
     /// Selection follows spec Section 8.3: the agent's <see cref="AgentCard.SupportedInterfaces"/>
     /// order is respected (first entry is preferred), filtered to bindings listed in
-    /// <see cref="A2AClientOptions.PreferredBindings"/>. This means the agent's preference
-    /// wins when multiple bindings are mutually supported.
+    /// <see cref="A2AClientOptions.PreferredBindings"/> that have a registered client factory.
+    /// This means the agent's preference wins when multiple bindings are mutually supported.
     /// </remarks>
     public static IA2AClient Create(AgentCard agentCard, HttpClient? httpClient = null, A2AClientOptions? options = null)
     {
@@ -86,6 +86,7 @@ public static class A2AClientFactory
 
         options ??= new A2AClientOptions();
         var preferredSet = new HashSet<string>(options.PreferredBindings, StringComparer.OrdinalIgnoreCase);
+        string? firstUnregisteredBinding = null;
 
         // Walk agent's interfaces in declared preference order (spec Section 8.3.1),
         // selecting the first one the client also supports.
@@ -101,8 +102,13 @@ public static class A2AClientFactory
                 return factory(agentInterface.Url, httpClient);
             }
 
+            firstUnregisteredBinding ??= agentInterface.ProtocolBinding;
+        }
+
+        if (firstUnregisteredBinding is not null)
+        {
             throw new A2AException(
-                $"Protocol binding '{agentInterface.ProtocolBinding}' matched an agent interface but has no registered client factory. Call A2AClientFactory.Register to add one.",
+                $"Protocol binding '{firstUnregisteredBinding}' matched an agent interface but has no registered client factory. Call A2AClientFactory.Register to add one.",
                 A2AErrorCode.InvalidRequest);
         }
 
