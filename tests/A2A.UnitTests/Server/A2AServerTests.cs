@@ -6,6 +6,65 @@ namespace A2A.UnitTests.Server;
 
 public class A2AServerTests
 {
+    [Theory]
+    [InlineData(false, Role.Agent)]
+    [InlineData(true, Role.Agent)]
+    [InlineData(false, Role.Unspecified)]
+    [InlineData(true, Role.Unspecified)]
+    [InlineData(false, (Role)42)]
+    [InlineData(true, (Role)42)]
+    public async Task GivenInvalidClientRole_WhenContinuingTask_ThenRejectsBeforeExecutionAndHistory(
+        bool streaming, Role role)
+    {
+        var (server, store, handler) = CreateServer();
+        await using var serverLifetime = server;
+        await store.SaveTaskAsync("role-task", new AgentTask
+        {
+            Id = "role-task",
+            ContextId = "role-context",
+            Status = new TaskStatus { State = TaskState.InputRequired },
+            History = [new Message { MessageId = "original", Role = Role.User, Parts = [Part.FromText("original")] }],
+        });
+        bool executed = false;
+        handler.OnExecute = async (context, events, ct) =>
+        {
+            executed = true;
+            await new TaskUpdater(events, context.TaskId, context.ContextId).CompleteAsync(cancellationToken: ct);
+            events.Complete();
+        };
+        var request = new SendMessageRequest
+        {
+            Message = new Message
+            {
+                MessageId = "role-spoof",
+                TaskId = "role-task",
+                ContextId = "role-context",
+                Role = role,
+                Parts = [Part.FromText("caller supplied text")],
+            },
+        };
+
+        var error = await Assert.ThrowsAsync<A2AException>(async () =>
+        {
+            if (streaming)
+            {
+                await foreach (var _ in server.SendStreamingMessageAsync(request, null)) { }
+            }
+            else
+            {
+                await server.SendMessageAsync(request, null);
+            }
+        });
+
+        Assert.Equal(A2AErrorCode.InvalidParams, error.ErrorCode);
+        Assert.False(executed);
+        var task = await store.GetTaskAsync("role-task");
+        Assert.NotNull(task?.History);
+        Assert.Single(task.History);
+        Assert.Equal("original", task.History[0].MessageId);
+        Assert.Equal(TaskState.InputRequired, task.Status.State);
+    }
+
     private sealed class TestAgentHandler : IAgentHandler
     {
         public Func<RequestContext, AgentEventQueue, CancellationToken, Task>? OnExecute { get; set; }
