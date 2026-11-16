@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
@@ -58,10 +59,12 @@ public class SubscribeGetCompatibilityTests
     }
 
     [Theory]
-    [InlineData("GET", "task-1:subscribe")]
-    [InlineData("GET", "task-1:s%75bscribe")]
-    [InlineData("POST", "task-1:subscribe")]
-    public async Task Subscribe_ReceivesEventsWithOriginalTaskId(string method, string pathId)
+    [InlineData("GET", "task-1:subscribe", "")]
+    [InlineData("GET", "task-1:s%75bscribe", "")]
+    [InlineData("POST", "task-1:subscribe", "")]
+    [InlineData("GET", "task-1:subscribe", "/agent")]
+    [InlineData("POST", "task-1:subscribe", "/agent")]
+    public async Task Subscribe_ReceivesEventsWithOriginalTaskId(string method, string pathId, string prefix)
     {
         var builder = WebApplication.CreateBuilder();
         builder.Services.ConfigureHttpJsonOptions(options =>
@@ -71,29 +74,45 @@ public class SubscribeGetCompatibilityTests
         handler.Setup(h => h.SubscribeToTaskAsync(
                 It.Is<SubscribeToTaskRequest>(r => r.Id == "task-1"),
                 It.IsAny<A2ARequestContext?>(), It.IsAny<CancellationToken>()))
-            .Returns(OneEvent());
-        app.MapHttpA2A(handler.Object);
+            .Returns(SubscriptionEvents());
+        app.MapHttpA2A(handler.Object, prefix);
         app.Urls.Add("http://127.0.0.1:0");
         await app.StartAsync();
         var address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
         using var client = new HttpClient();
-        using var request = new HttpRequestMessage(new HttpMethod(method), $"{address}/tasks/{pathId}");
+        using var request = new HttpRequestMessage(new HttpMethod(method), $"{address}{prefix}/tasks/{pathId}");
         using var response = await client.SendAsync(request);
         var body = await response.Content.ReadAsStringAsync();
         Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("text/event-stream", response.Content.Headers.ContentType?.MediaType);
-        Assert.Contains("task-1", body, StringComparison.Ordinal);
+        var events = body.Split("\n\n", StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(2, events.Length);
+        Assert.All(events, streamEvent => Assert.StartsWith("data: ", streamEvent));
+        using var taskEvent = JsonDocument.Parse(events[0]["data: ".Length..]);
+        Assert.Equal("task-1", taskEvent.RootElement.GetProperty("task").GetProperty("id").GetString());
+        using var finalEvent = JsonDocument.Parse(events[1]["data: ".Length..]);
+        var statusUpdate = finalEvent.RootElement.GetProperty("statusUpdate");
+        Assert.Equal("task-1", statusUpdate.GetProperty("taskId").GetString());
+        Assert.Equal("TASK_STATE_COMPLETED", statusUpdate.GetProperty("status").GetProperty("state").GetString());
         handler.Verify(h => h.SubscribeToTaskAsync(
             It.Is<SubscribeToTaskRequest>(r => r.Id == "task-1"),
             It.IsAny<A2ARequestContext?>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
-    private static async IAsyncEnumerable<StreamResponse> OneEvent()
+    private static async IAsyncEnumerable<StreamResponse> SubscriptionEvents()
     {
         await Task.Yield();
         yield return new StreamResponse
         {
             Task = new AgentTask { Id = "task-1", Status = new TaskStatus { State = TaskState.Working } }
+        };
+        yield return new StreamResponse
+        {
+            StatusUpdate = new TaskStatusUpdateEvent
+            {
+                TaskId = "task-1",
+                Status = new TaskStatus { State = TaskState.Completed },
+            },
         };
     }
 }
