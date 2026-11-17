@@ -193,6 +193,13 @@ For Aspire service names or logical URLs such as `https+http://agent-api`, see
 [.NET Service Discovery](docs/service-discovery.md). Configure the HTTP client
 for both agent-card discovery and subsequent agent calls.
 
+Well-known Agent Card endpoints support `If-None-Match` revalidation: a matching
+ETag returns `304 Not Modified` without a response body. If `If-Match` or
+`If-Unmodified-Since` is present, the endpoint retains its existing `200`
+response instead of evaluating the ETag. Version-negotiated discovery varies by
+`A2A-Version`. The SDK card resolver does not automatically cache or revalidate
+Agent Cards.
+
 ### 3. Using the gRPC binding
 
 Host a gRPC endpoint alongside (or instead of) the JSON-RPC/HTTP endpoints. The gRPC service reuses the same agent registration and `IA2ARequestHandler` pipeline:

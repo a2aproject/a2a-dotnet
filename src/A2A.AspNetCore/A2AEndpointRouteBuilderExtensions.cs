@@ -6,8 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 
 namespace A2A.AspNetCore;
@@ -155,12 +153,7 @@ public static class A2ARouteBuilderExtensions
             var json = JsonSerializer.Serialize(
                 agentCard,
                 A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(AgentCard)));
-            var jsonBytes = Encoding.UTF8.GetBytes(json);
-
-            response.Headers.CacheControl = cacheControl;
-            response.Headers.ETag = $"\"{Convert.ToHexString(SHA256.HashData(jsonBytes))}\"";
-            response.Headers.LastModified = lastModified;
-            return Results.Bytes(jsonBytes, "application/json");
+            return AgentCardHttpResult.Create(response, json, lastModified, cacheControl);
         });
 
         return routeGroup;

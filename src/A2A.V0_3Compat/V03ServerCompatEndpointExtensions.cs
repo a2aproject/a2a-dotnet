@@ -6,8 +6,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 
 using V03 = A2A.V0_3;
@@ -187,12 +185,7 @@ public static class V03ServerCompatEndpointExtensions
             json = blended.ToJsonString();
         }
 
-        var jsonBytes = Encoding.UTF8.GetBytes(json);
-        response.Headers.CacheControl = cacheControl;
-        response.Headers.ETag = $"\"{Convert.ToHexString(SHA256.HashData(jsonBytes))}\"";
-        response.Headers.LastModified = lastModified;
-        response.Headers.Append("Vary", "A2A-Version");
-        return Results.Bytes(jsonBytes, "application/json");
+        return AgentCardHttpResult.Create(response, json, lastModified, cacheControl, varyByVersion: true);
     }
 
     private static string GetAgentCardCacheControl(AgentCardCacheOptions? cacheOptions)
