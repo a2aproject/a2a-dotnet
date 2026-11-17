@@ -267,28 +267,49 @@ public sealed class A2AClient : IA2AClient, IDisposable
         using (response)
         using (stream)
         {
-            await foreach (var sseItem in SseParser.Create(stream).EnumerateAsync(cancellationToken).ConfigureAwait(false))
+            await using var enumerator = SseParser.Create(stream).EnumerateAsync(cancellationToken).GetAsyncEnumerator(cancellationToken);
+            while (true)
             {
-                var rpcResponse = JsonSerializer.Deserialize<JsonRpcResponse>(sseItem.Data, A2AJsonUtilities.DefaultOptions)
-                    ?? throw new A2AException("Failed to deserialize streaming JSON-RPC response.", A2AErrorCode.InternalError) { ActivatedExtensions = activation };
-
+                TResult result;
                 try
                 {
-                    ValidateResponseId(rpcResponse, rpcRequest.Id);
+                    if (!await enumerator.MoveNextAsync().ConfigureAwait(false))
+                    {
+                        break;
+                    }
+
+                    var sseItem = enumerator.Current;
+                    var rpcResponse = JsonSerializer.Deserialize<JsonRpcResponse>(sseItem.Data, A2AJsonUtilities.DefaultOptions)
+                        ?? throw new A2AException("Failed to deserialize streaming JSON-RPC response.", A2AErrorCode.InternalError) { ActivatedExtensions = activation };
+
+                    try
+                    {
+                        ValidateResponseId(rpcResponse, rpcRequest.Id);
+                    }
+                    catch (A2AException ex)
+                    {
+                        ex.ActivatedExtensions = activation;
+                        throw;
+                    }
+
+                    if (rpcResponse.Error is { } error)
+                    {
+                        throw new A2AException(error.Message, (A2AErrorCode)error.Code) { ActivatedExtensions = activation };
+                    }
+
+                    result = rpcResponse.Result.Deserialize<TResult>(A2AJsonUtilities.DefaultOptions)
+                        ?? throw new A2AException("Failed to deserialize streaming JSON-RPC result.", A2AErrorCode.InternalError) { ActivatedExtensions = activation };
                 }
-                catch (A2AException ex)
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
-                    ex.ActivatedExtensions = activation;
                     throw;
                 }
-
-                if (rpcResponse.Error is { } error)
+                catch (Exception ex)
                 {
-                    throw new A2AException(error.Message, (A2AErrorCode)error.Code) { ActivatedExtensions = activation };
+                    A2ADiagnostics.ClientErrorCount.Add(1);
+                    activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+                    throw;
                 }
-
-                var result = rpcResponse.Result.Deserialize<TResult>(A2AJsonUtilities.DefaultOptions)
-                    ?? throw new A2AException("Failed to deserialize streaming JSON-RPC result.", A2AErrorCode.InternalError) { ActivatedExtensions = activation };
 
                 eventCount++;
                 yield return result;

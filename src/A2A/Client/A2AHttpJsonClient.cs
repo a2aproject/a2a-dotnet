@@ -372,20 +372,41 @@ public sealed class A2AHttpJsonClient : IA2AClient, IDisposable
         using (stream)
         {
             var activation = A2AResponseActivation.Read(response);
-            await foreach (var sseItem in SseParser.Create(stream).EnumerateAsync(cancellationToken).ConfigureAwait(false))
+            await using var enumerator = SseParser.Create(stream).EnumerateAsync(cancellationToken).GetAsyncEnumerator(cancellationToken);
+            while (true)
             {
-                var errorResponse = JsonSerializer.Deserialize<A2AErrorResponse>(
-                    sseItem.Data, A2AJsonUtilities.DefaultOptions);
-                if (errorResponse?.Error is { } error)
+                StreamResponse result;
+                try
                 {
-                    throw new A2AException(
-                        error.Message ?? "Streaming REST request failed.",
-                        (A2AErrorCode)error.Code)
-                    { ActivatedExtensions = activation };
-                }
+                    if (!await enumerator.MoveNextAsync().ConfigureAwait(false))
+                    {
+                        break;
+                    }
 
-                var result = JsonSerializer.Deserialize<StreamResponse>(sseItem.Data, A2AJsonUtilities.DefaultOptions)
-                    ?? throw new A2AException("Failed to deserialize streaming REST response.", A2AErrorCode.InternalError) { ActivatedExtensions = activation };
+                    var sseItem = enumerator.Current;
+                    var errorResponse = JsonSerializer.Deserialize<A2AErrorResponse>(
+                        sseItem.Data, A2AJsonUtilities.DefaultOptions);
+                    if (errorResponse?.Error is { } error)
+                    {
+                        throw new A2AException(
+                            error.Message ?? "Streaming REST request failed.",
+                            (A2AErrorCode)error.Code)
+                        { ActivatedExtensions = activation };
+                    }
+
+                    result = JsonSerializer.Deserialize<StreamResponse>(sseItem.Data, A2AJsonUtilities.DefaultOptions)
+                        ?? throw new A2AException("Failed to deserialize streaming REST response.", A2AErrorCode.InternalError) { ActivatedExtensions = activation };
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    A2ADiagnostics.ClientErrorCount.Add(1);
+                    activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+                    throw;
+                }
 
                 eventCount++;
                 yield return result;
