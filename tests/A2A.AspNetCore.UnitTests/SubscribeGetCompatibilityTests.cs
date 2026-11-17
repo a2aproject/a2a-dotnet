@@ -37,6 +37,8 @@ public class SubscribeGetCompatibilityTests
     [InlineData("task-1:other%3Asubscribe", "task-1:other:subscribe")]
     [InlineData("task-1%3ASubscribe", "task-1:Subscribe")]
     [InlineData("task-1%3ASUBSCRIBE", "task-1:SUBSCRIBE")]
+    [InlineData("task-1%3Asubscribe/", "task-1:subscribe")]
+    [InlineData("task-1:other%3Asubscribe/", "task-1:other:subscribe")]
     public async Task GetTask_EncodedColonInId_DoesNotSubscribe(string pathId, string expectedId)
     {
         var builder = WebApplication.CreateBuilder();
@@ -64,7 +66,11 @@ public class SubscribeGetCompatibilityTests
     [InlineData("GET", "task-1:s%75bscribe", "")]
     [InlineData("GET", "task-1:SUBSCRIBE", "")]
     [InlineData("GET", "task-1:sUbScRiBe", "/agent")]
+    [InlineData("GET", "task-1:subscribe/", "")]
+    [InlineData("GET", "task-1:s%75bscribe/", "/agent")]
     [InlineData("POST", "task-1:subscribe", "")]
+    [InlineData("POST", "task-1:subscribe/", "")]
+    [InlineData("POST", "task-1:subscribe/", "/agent")]
     [InlineData("GET", "task-1:subscribe", "/agent")]
     [InlineData("POST", "task-1:subscribe", "/agent")]
     public async Task Subscribe_ReceivesEventsWithOriginalTaskId(string method, string pathId, string prefix)

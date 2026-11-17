@@ -11,6 +11,8 @@ public class SubscribeRewrittenPathTests
     [Theory]
     [InlineData("task-1%3Asubscribe")]
     [InlineData("task-1:subscribe")]
+    [InlineData("task-1%3Asubscribe/")]
+    [InlineData("task-1:subscribe/")]
     public async Task RewrittenSubscriptionPath_RejectsAmbiguousOriginalRawTarget(string originalSegment)
     {
         var builder = WebApplication.CreateBuilder();
@@ -43,6 +45,8 @@ public class SubscribeRewrittenPathTests
     [InlineData("task%25part%3Asubscribe", "task%part:subscribe", true)]
     [InlineData("task%E4%B8%AD%3Asubscribe", "task中:subscribe", true)]
     [InlineData("task%3Fpart%3Asubscribe", "task?part:subscribe", true)]
+    [InlineData("task%2Fpart%3Asubscribe/", "task%2Fpart:subscribe", false)]
+    [InlineData("task%25part%3Asubscribe/", "task%part:subscribe", true)]
     public async Task PrefixChanges_KeepEncodedIdAndQuery(string segment, string expectedId, bool pathBase)
     {
         var builder = WebApplication.CreateBuilder();
@@ -78,9 +82,11 @@ public class SubscribeRewrittenPathTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task PrefixChanges_KeepLiteralSubscribe(bool pathBase)
+    [InlineData(false, "")]
+    [InlineData(true, "")]
+    [InlineData(false, "/")]
+    [InlineData(true, "/")]
+    public async Task PrefixChanges_KeepLiteralSubscribe(bool pathBase, string trailingSlash)
     {
         var builder = WebApplication.CreateBuilder();
         builder.Services.ConfigureHttpJsonOptions(options =>
@@ -109,7 +115,7 @@ public class SubscribeRewrittenPathTests
         await app.StartAsync();
         var address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
         using var client = new HttpClient();
-        using var response = await client.GetAsync($"{address}/outer/tasks/task-1:subscribe?unused=1");
+        using var response = await client.GetAsync($"{address}/outer/tasks/task-1:subscribe{trailingSlash}?unused=1");
         Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("text/event-stream", response.Content.Headers.ContentType?.MediaType);
         handler.VerifyAll();
