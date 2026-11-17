@@ -16,6 +16,11 @@ public sealed class JsonRpcResponse
     [JsonPropertyName("jsonrpc")]
     public string JsonRpc { get; set; } = "2.0";
 
+    private JsonRpcId _id;
+
+    [JsonIgnore]
+    internal bool HasId { get; private set; }
+
     /// <summary>
     /// Gets or sets the identifier established by the Client.
     /// </summary>
@@ -23,7 +28,15 @@ public sealed class JsonRpcResponse
     /// MUST contain a String, Number. Numbers SHOULD NOT contain fractional parts.
     /// </remarks>
     [JsonPropertyName("id")]
-    public JsonRpcId Id { get; set; }
+    public JsonRpcId Id
+    {
+        get => _id;
+        set
+        {
+            _id = value;
+            HasId = true;
+        }
+    }
 
     /// <summary>
     /// Gets or sets the result object on success.

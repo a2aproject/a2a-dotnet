@@ -338,7 +338,19 @@ public class A2AClientFactoryTests
         };
 
     private static HttpClient CreateCapturingHttpClient(HttpResponseMessage response, Action<HttpRequestMessage> capture) =>
-        new(new MockHttpMessageHandler(response, capture));
+        new(new MockHttpMessageHandler(response, request =>
+        {
+            capture(request);
+            using var requestJson = JsonDocument.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+            var responseBody = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            if (responseBody.Contains("\"jsonrpc\""))
+            {
+                var json = System.Text.Json.Nodes.JsonNode.Parse(responseBody)!;
+                json["id"] = requestJson.RootElement.GetProperty("id").GetString();
+                response.Content.Dispose();
+                response.Content = new StringContent(json.ToJsonString(), System.Text.Encoding.UTF8, "application/json");
+            }
+        }));
 
     // ---- Register tests ----
 
