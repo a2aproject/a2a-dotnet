@@ -8,6 +8,31 @@ namespace A2A.AspNetCore.Tests;
 
 public class A2AHttpProcessorTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SendMessageRest_WithInvalidClientRole_ReturnsBadRequest(bool streaming)
+    {
+        var (server, _) = CreateServer();
+        await using var serverLifetime = server;
+        var request = new SendMessageRequest
+        {
+            Message = new Message { MessageId = "role-probe", Role = Role.Agent, Parts = [Part.FromText("hello")] },
+        };
+        var result = streaming
+            ? A2AHttpProcessor.SendMessageStreamRest(server, NullLogger.Instance, request, CancellationToken.None)
+            : await A2AHttpProcessor.SendMessageRestAsync(server, NullLogger.Instance, request, CancellationToken.None);
+        var httpContext = new DefaultHttpContext();
+        httpContext.Response.Body = new MemoryStream();
+
+        await result.ExecuteAsync(httpContext);
+
+        httpContext.Response.Body.Position = 0;
+        var body = await new StreamReader(httpContext.Response.Body).ReadToEndAsync();
+        Assert.Equal(StatusCodes.Status400BadRequest, httpContext.Response.StatusCode);
+        Assert.Contains("ROLE_USER", body);
+    }
+
     private sealed class TestAgentHandler : IAgentHandler
     {
         public async Task ExecuteAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)

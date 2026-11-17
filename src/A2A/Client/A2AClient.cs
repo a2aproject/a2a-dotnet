@@ -169,6 +169,8 @@ public sealed class A2AClient : IA2AClient, IDisposable
             var rpcResponse = await JsonSerializer.DeserializeAsync<JsonRpcResponse>(stream, A2AJsonUtilities.DefaultOptions, cancellationToken).ConfigureAwait(false)
                 ?? throw new A2AException("Failed to deserialize JSON-RPC response.", A2AErrorCode.InternalError);
 
+            ValidateResponseId(rpcResponse, rpcRequest.Id);
+
             if (rpcResponse.Error is { } error)
             {
                 throw new A2AException(error.Message, (A2AErrorCode)error.Code);
@@ -186,6 +188,14 @@ public sealed class A2AClient : IA2AClient, IDisposable
         finally
         {
             A2ADiagnostics.ClientRequestDuration.Record(stopwatch.Elapsed.TotalMilliseconds);
+        }
+    }
+
+    private static void ValidateResponseId(JsonRpcResponse response, JsonRpcId requestId)
+    {
+        if (!response.HasId || (response.Id != requestId && (response.Id.HasValue || response.Error is null)))
+        {
+            throw new A2AException("JSON-RPC response ID does not match the request ID.", A2AErrorCode.InvalidAgentResponse);
         }
     }
 
@@ -232,6 +242,7 @@ public sealed class A2AClient : IA2AClient, IDisposable
             {
                 var rejection = await JsonSerializer.DeserializeAsync<JsonRpcResponse>(
                     stream, A2AJsonUtilities.DefaultOptions, cancellationToken).ConfigureAwait(false);
+                if (rejection is not null) ValidateResponseId(rejection, rpcRequest.Id);
                 throw rejection?.Error is { } error
                     ? new A2AException(error.Message, (A2AErrorCode)error.Code)
                     : new A2AException("Expected a streaming JSON-RPC response.", A2AErrorCode.InvalidAgentResponse);
@@ -260,6 +271,16 @@ public sealed class A2AClient : IA2AClient, IDisposable
             {
                 var rpcResponse = JsonSerializer.Deserialize<JsonRpcResponse>(sseItem.Data, A2AJsonUtilities.DefaultOptions)
                     ?? throw new A2AException("Failed to deserialize streaming JSON-RPC response.", A2AErrorCode.InternalError) { ActivatedExtensions = activation };
+
+                try
+                {
+                    ValidateResponseId(rpcResponse, rpcRequest.Id);
+                }
+                catch (A2AException ex)
+                {
+                    ex.ActivatedExtensions = activation;
+                    throw;
+                }
 
                 if (rpcResponse.Error is { } error)
                 {

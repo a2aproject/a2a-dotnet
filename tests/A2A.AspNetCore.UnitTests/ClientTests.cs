@@ -175,6 +175,18 @@ public class MockMessageHandler : HttpMessageHandler
         // Use custom response provider if available, otherwise create default
         var response = ResponseProvider?.Invoke(request) ?? CreateDefaultResponse(request);
 
+        if (RequestBody is not null && response.Content is not null)
+        {
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            var json = System.Text.Json.Nodes.JsonNode.Parse(body);
+            if (json is System.Text.Json.Nodes.JsonObject obj && obj.ContainsKey("jsonrpc"))
+            {
+                using var requestDocument = JsonDocument.Parse(RequestBody);
+                obj["id"] = requestDocument.RootElement.GetProperty("id").GetString();
+                response.Content.Dispose();
+                response.Content = new StringContent(obj.ToJsonString(), System.Text.Encoding.UTF8, "application/json");
+            }
+        }
         return response;
     }
 

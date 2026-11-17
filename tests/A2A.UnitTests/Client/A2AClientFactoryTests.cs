@@ -338,7 +338,19 @@ public class A2AClientFactoryTests
         };
 
     private static HttpClient CreateCapturingHttpClient(HttpResponseMessage response, Action<HttpRequestMessage> capture) =>
-        new(new MockHttpMessageHandler(response, capture));
+        new(new MockHttpMessageHandler(response, request =>
+        {
+            capture(request);
+            using var requestJson = JsonDocument.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+            var responseBody = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            if (responseBody.Contains("\"jsonrpc\""))
+            {
+                var json = System.Text.Json.Nodes.JsonNode.Parse(responseBody)!;
+                json["id"] = requestJson.RootElement.GetProperty("id").GetString();
+                response.Content.Dispose();
+                response.Content = new StringContent(json.ToJsonString(), System.Text.Encoding.UTF8, "application/json");
+            }
+        }));
 
     // ---- Register tests ----
 
@@ -431,6 +443,28 @@ public class A2AClientFactoryTests
     public void RegisterAddress_NullFactory_ThrowsArgumentNullException()
     {
         Assert.Throws<ArgumentNullException>(() => A2AClientFactory.RegisterAddress("TEST", null!));
+    }
+
+    [Fact]
+    public void Create_UnregisteredPreferredBinding_FallsBackToRegisteredInterface()
+    {
+        var card = new AgentCard
+        {
+            Name = "test", Description = "d", Version = "1.0",
+            SupportedInterfaces =
+            [
+                new() { ProtocolBinding = "NOT-REGISTERED-FALLBACK-TEST", Url = "agent.example.com:50051", ProtocolVersion = "1.0" },
+                new() { ProtocolBinding = ProtocolBindingNames.JsonRpc, Url = "http://agent/jsonrpc", ProtocolVersion = "1.0" },
+            ],
+        };
+        var options = new A2AClientOptions
+        {
+            PreferredBindings = ["NOT-REGISTERED-FALLBACK-TEST", ProtocolBindingNames.JsonRpc],
+        };
+
+        var client = A2AClientFactory.Create(card, options: options);
+
+        Assert.IsType<A2AClient>(client);
     }
 
     [Fact]

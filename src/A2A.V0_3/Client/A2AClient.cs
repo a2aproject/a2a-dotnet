@@ -42,12 +42,29 @@ public sealed class A2AClient : IA2AClient
 
     /// <inheritdoc />
     public Task<AgentTask> GetTaskAsync(string taskId, CancellationToken cancellationToken = default) =>
-        SendRpcRequestAsync(
+        GetTaskWithParamsAsync(
             new() { Id = string.IsNullOrEmpty(taskId) ? throw new ArgumentNullException(nameof(taskId)) : taskId },
+            cancellationToken);
+
+    /// <summary>Retrieves a task with optional history length and metadata.</summary>
+    /// <param name="taskQueryParams">The task identifier and optional query parameters.</param>
+    /// <param name="cancellationToken">A token used to cancel the request.</param>
+    /// <returns>The retrieved task.</returns>
+    public Task<AgentTask> GetTaskWithParamsAsync(TaskQueryParams taskQueryParams, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(taskQueryParams);
+        if (string.IsNullOrEmpty(taskQueryParams.Id))
+        {
+            throw new ArgumentNullException(nameof(taskQueryParams), "The task identifier must not be null or empty.");
+        }
+
+        return SendRpcRequestAsync(
+            taskQueryParams,
             A2AMethods.TaskGet,
-            A2AJsonUtilities.JsonContext.Default.TaskIdParams,
+            A2AJsonUtilities.JsonContext.Default.TaskQueryParams,
             A2AJsonUtilities.JsonContext.Default.AgentTask,
             cancellationToken);
+    }
 
     /// <inheritdoc />
     public Task<AgentTask> CancelTaskAsync(TaskIdParams taskIdParams, CancellationToken cancellationToken = default) =>
@@ -103,14 +120,17 @@ public sealed class A2AClient : IA2AClient
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        using var responseStream = await SendAndReadResponseStreamAsync(
+        var response = await SendAndReadResponseStreamAsync(
             jsonRpcParams,
             method,
             inputTypeInfo,
             "application/json",
             cancellationToken).ConfigureAwait(false);
+        using var responseStream = response.Stream;
 
         var responseObject = await JsonSerializer.DeserializeAsync(responseStream, A2AJsonUtilities.JsonContext.Default.JsonRpcResponse, cancellationToken).ConfigureAwait(false);
+
+        if (responseObject is not null) ValidateResponseId(responseObject, response.RequestId);
 
         if (responseObject?.Error is { } error)
         {
@@ -128,18 +148,21 @@ public sealed class A2AClient : IA2AClient
         JsonTypeInfo<TOutput> outputTypeInfo,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        using var responseStream = await SendAndReadResponseStreamAsync(
+        var response = await SendAndReadResponseStreamAsync(
             jsonRpcParams,
             method,
             inputTypeInfo,
             "text/event-stream",
             cancellationToken).ConfigureAwait(false);
+        using var responseStream = response.Stream;
 
         var sseParser = SseParser.Create(responseStream, (_, data) =>
         {
             var reader = new Utf8JsonReader(data);
 
             var responseObject = JsonSerializer.Deserialize(ref reader, A2AJsonUtilities.JsonContext.Default.JsonRpcResponse);
+
+            if (responseObject is not null) ValidateResponseId(responseObject, response.RequestId);
 
             if (responseObject?.Error is { } error)
             {
@@ -161,18 +184,27 @@ public sealed class A2AClient : IA2AClient
         }
     }
 
-    private async ValueTask<Stream> SendAndReadResponseStreamAsync<TInput>(
+    private static void ValidateResponseId(JsonRpcResponse response, JsonRpcId requestId)
+    {
+        if (!response.HasId || (response.Id != requestId && (response.Id.HasValue || response.Error is null)))
+        {
+            throw new A2AException("JSON-RPC response ID does not match the request ID.", A2AErrorCode.InternalError);
+        }
+    }
+
+    private async ValueTask<(Stream Stream, JsonRpcId RequestId)> SendAndReadResponseStreamAsync<TInput>(
         TInput jsonRpcParams,
         string method,
         JsonTypeInfo<TInput> inputTypeInfo,
         string expectedContentType,
         CancellationToken cancellationToken)
     {
+        JsonRpcId requestId = Guid.NewGuid().ToString();
         var response = await _httpClient.SendAsync(new(HttpMethod.Post, _baseUri)
         {
             Content = new JsonRpcContent(new JsonRpcRequest()
             {
-                Id = Guid.NewGuid().ToString(),
+                Id = requestId,
                 Method = method,
                 Params = JsonSerializer.SerializeToElement(jsonRpcParams, inputTypeInfo),
             })
@@ -182,12 +214,23 @@ public sealed class A2AClient : IA2AClient
         {
             response.EnsureSuccessStatusCode();
 
+            if (expectedContentType == "text/event-stream" &&
+                string.Equals(response.Content.Headers.ContentType?.MediaType, "application/json", StringComparison.OrdinalIgnoreCase))
+            {
+                using var errorStream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+                var rejection = await JsonSerializer.DeserializeAsync(errorStream, A2AJsonUtilities.JsonContext.Default.JsonRpcResponse, cancellationToken).ConfigureAwait(false);
+                if (rejection is not null) ValidateResponseId(rejection, requestId);
+                throw rejection?.Error is { } error
+                    ? new A2AException(error.Message, (A2AErrorCode)error.Code)
+                    : new A2AException("Expected a streaming JSON-RPC response.", A2AErrorCode.InternalError);
+            }
+
             if (response.Content.Headers.ContentType?.MediaType != expectedContentType)
             {
                 throw new InvalidOperationException($"Invalid content type. Expected '{expectedContentType}' but got '{response.Content.Headers.ContentType?.MediaType}'.");
             }
 
-            return await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+            return (await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false), requestId);
         }
         catch
         {

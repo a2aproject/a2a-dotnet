@@ -445,6 +445,11 @@ public partial class A2AServer : IA2ARequestHandler, IAsyncDisposable
 
     private void ValidateMessage(Message message)
     {
+        if (message.Role != Role.User)
+        {
+            throw new A2AException("Client messages must have role ROLE_USER.", A2AErrorCode.InvalidParams);
+        }
+
         if (_options.SupportedInputModes.Count == 0)
         {
             return;
