@@ -260,8 +260,14 @@ public static class A2ARouteBuilderExtensions
             var lastSegment = rawPath[(rawPath.LastIndexOf('/') + 1)..];
             var separator = lastSegment.LastIndexOf(':');
             var isSubscription = separator >= 0 &&
-                Uri.UnescapeDataString(lastSegment[(separator + 1)..]) == "subscribe";
+                Uri.UnescapeDataString(lastSegment[(separator + 1)..]).Equals("subscribe", StringComparison.OrdinalIgnoreCase);
             var effectivePath = context.Request.Path.Value ?? "";
+            // Reject rewrites when the raw and routed task segments disagree.
+            var lastSlash = effectivePath.LastIndexOf('/');
+            if (lastSlash < 0 || !string.Equals(PathString.FromUriComponent("/" + lastSegment).Value, effectivePath[lastSlash..], StringComparison.Ordinal))
+            {
+                return Task.FromResult<IResult>(Results.BadRequest());
+            }
             var effectiveSeparator = effectivePath.LastIndexOf(':');
             if (effectiveSeparator < 0)
             {
