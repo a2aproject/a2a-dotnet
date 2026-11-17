@@ -8,6 +8,49 @@ namespace A2A.V0_3Compat.UnitTests;
 
 public class V03ClientAdapterTests
 {
+    [Theory]
+    [InlineData(null)]
+    [InlineData(0)]
+    [InlineData(3)]
+    public async Task GetTaskAsync_ForwardsHistoryLength(int? historyLength)
+    {
+        HttpRequestMessage? capturedRequest = null;
+        var response = new V03.JsonRpcResponse
+        {
+            Id = new V03.JsonRpcId("request-1"),
+            Result = JsonSerializer.SerializeToNode(new V03.AgentTask
+            {
+                Id = "task-1",
+                ContextId = "context-1",
+                Status = new V03.AgentTaskStatus { State = V03.TaskState.Working },
+            }, V03.A2AJsonUtilities.DefaultOptions),
+        };
+        using var client = new HttpClient(new MockHttpMessageHandler(
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(response, V03.A2AJsonUtilities.DefaultOptions), Encoding.UTF8, "application/json"),
+            },
+            request => capturedRequest = request));
+        using var adapter = new V03ClientAdapter(new V03.A2AClient(new Uri("http://localhost"), client));
+
+        var task = await adapter.GetTaskAsync(new A2A.GetTaskRequest { Id = "task-1", HistoryLength = historyLength });
+
+        Assert.Equal("task-1", task.Id);
+        Assert.NotNull(capturedRequest);
+        using var document = JsonDocument.Parse(await capturedRequest.Content!.ReadAsStringAsync());
+        Assert.Equal("tasks/get", document.RootElement.GetProperty("method").GetString());
+        var parameters = document.RootElement.GetProperty("params");
+        Assert.Equal("task-1", parameters.GetProperty("id").GetString());
+        if (historyLength is null)
+        {
+            Assert.False(parameters.TryGetProperty("historyLength", out _));
+        }
+        else
+        {
+            Assert.Equal(historyLength, parameters.GetProperty("historyLength").GetInt32());
+        }
+    }
+
     [Fact]
     public async Task GetTaskAsync_TranslatesV03ExceptionToV1Exception()
     {

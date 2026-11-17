@@ -42,12 +42,29 @@ public sealed class A2AClient : IA2AClient
 
     /// <inheritdoc />
     public Task<AgentTask> GetTaskAsync(string taskId, CancellationToken cancellationToken = default) =>
-        SendRpcRequestAsync(
+        GetTaskWithParamsAsync(
             new() { Id = string.IsNullOrEmpty(taskId) ? throw new ArgumentNullException(nameof(taskId)) : taskId },
+            cancellationToken);
+
+    /// <summary>Retrieves a task with optional history length and metadata.</summary>
+    /// <param name="taskQueryParams">The task identifier and optional query parameters.</param>
+    /// <param name="cancellationToken">A token used to cancel the request.</param>
+    /// <returns>The retrieved task.</returns>
+    public Task<AgentTask> GetTaskWithParamsAsync(TaskQueryParams taskQueryParams, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(taskQueryParams);
+        if (string.IsNullOrEmpty(taskQueryParams.Id))
+        {
+            throw new ArgumentNullException(nameof(taskQueryParams), "The task identifier must not be null or empty.");
+        }
+
+        return SendRpcRequestAsync(
+            taskQueryParams,
             A2AMethods.TaskGet,
-            A2AJsonUtilities.JsonContext.Default.TaskIdParams,
+            A2AJsonUtilities.JsonContext.Default.TaskQueryParams,
             A2AJsonUtilities.JsonContext.Default.AgentTask,
             cancellationToken);
+    }
 
     /// <inheritdoc />
     public Task<AgentTask> CancelTaskAsync(TaskIdParams taskIdParams, CancellationToken cancellationToken = default) =>
