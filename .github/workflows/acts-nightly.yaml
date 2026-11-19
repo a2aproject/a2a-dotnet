@@ -46,17 +46,6 @@ jobs:
           cache-from: type=gha,scope=itk_service
           cache-to: type=gha,mode=max,scope=itk_service
 
-      # Also holds the NuGet package cache the in-container `dotnet publish`
-      # writes to, which is what keeps the agent's build inside the readiness
-      # window on a warm runner.
-      - name: Cache launcher checkouts and build outputs
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/a2a-itk-launcher
-          key: itk-launcher-${{ runner.os }}-${{ github.sha }}
-          restore-keys: |
-            itk-launcher-${{ runner.os }}-
-
       - name: Run Nightly ACTS Conformance
         run: bash run_itk.sh
         working-directory: itk
