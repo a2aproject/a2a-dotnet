@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using System.Globalization;
 using System.Security.Cryptography;
@@ -102,6 +103,88 @@ public class A2AEndpointRouteBuilderExtensionsTests
 
         Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
         requestHandler.VerifyAll();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task MapHttpA2A_CancelTask_PreservesBodyMetadata(bool includeContentLength)
+    {
+        var result = await ExecuteCancelTaskEndpointAsync(
+            """{"metadata":{"reason":"user","details":{"retry":false}}}""",
+            includeContentLength);
+
+        Assert.Equal(StatusCodes.Status200OK, result.StatusCode);
+        Assert.NotNull(result.Context);
+        Assert.NotNull(result.Context.Metadata);
+        Assert.Equal("user", result.Context.Metadata["reason"].GetString());
+        Assert.False(result.Context.Metadata["details"].GetProperty("retry").GetBoolean());
+    }
+
+    [Theory]
+    [InlineData("""{"Metadata":{"reason":"user"}}""")]
+    [InlineData("""{"mEtAdAtA":{"reason":"user"},"TeNaNt":"body-tenant"}""")]
+    [InlineData("""{"metadata":{"reason":"earlier"},"Metadata":{"reason":"user"}}""")]
+    public async Task MapHttpA2A_CancelTask_MatchesBodyPropertiesCaseInsensitively(string body)
+    {
+        var result = await ExecuteCancelTaskEndpointAsync(body);
+
+        Assert.Equal(StatusCodes.Status200OK, result.StatusCode);
+        Assert.NotNull(result.Request);
+        Assert.Null(result.Request.Tenant);
+        Assert.NotNull(result.Context);
+        Assert.NotNull(result.Context.Metadata);
+        Assert.Equal("user", result.Context.Metadata["reason"].GetString());
+    }
+
+    [Fact]
+    public async Task MapHttpA2A_CancelTask_UsesRouteIdAndClearsBodyTenant()
+    {
+        var result = await ExecuteCancelTaskEndpointAsync(
+            """{"id":"body-task","tenant":"body-tenant","metadata":{"reason":"user"}}""");
+
+        Assert.Equal(StatusCodes.Status200OK, result.StatusCode);
+        Assert.NotNull(result.Request);
+        Assert.Equal("route-task", result.Request.Id);
+        Assert.Null(result.Request.Tenant);
+        Assert.NotNull(result.Context);
+        Assert.Equal("route-task", result.Context.TaskId);
+        Assert.NotNull(result.Context.Metadata);
+        Assert.Equal("user", result.Context.Metadata["reason"].GetString());
+    }
+
+    [Theory]
+    [InlineData(null, true)]
+    [InlineData(null, false)]
+    [InlineData("", false)]
+    [InlineData("{}", true)]
+    [InlineData("{\"metadata\":null}", true)]
+    public async Task MapHttpA2A_CancelTask_AcceptsPlainCancellation(string? body, bool includeContentLength)
+    {
+        var result = await ExecuteCancelTaskEndpointAsync(body, includeContentLength);
+
+        Assert.Equal(StatusCodes.Status200OK, result.StatusCode);
+        Assert.NotNull(result.Context);
+        Assert.Equal("route-task", result.Context.TaskId);
+        Assert.Null(result.Context.Metadata);
+    }
+
+    [Theory]
+    [InlineData("{")]
+    [InlineData("[]")]
+    [InlineData("null")]
+    [InlineData("{\"metadata\":42}")]
+    [InlineData("{\"metadata\":[]}")]
+    [InlineData("{\"tenant\":42}")]
+    [InlineData("{\"Metadata\":42}")]
+    [InlineData("{\"TENANT\":42}")]
+    public async Task MapHttpA2A_CancelTask_InvalidBodyDoesNotCancelTask(string body)
+    {
+        var result = await ExecuteCancelTaskEndpointAsync(body);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, result.StatusCode);
+        Assert.Null(result.Request);
+        Assert.Null(result.Context);
     }
 
     [Fact]
@@ -284,6 +367,77 @@ public class A2AEndpointRouteBuilderExtensionsTests
 
         return context.Response;
     }
+
+    private static async Task<(int StatusCode, CancelTaskRequest? Request, RequestContext? Context)> ExecuteCancelTaskEndpointAsync(
+        string? body, bool includeContentLength = true)
+    {
+        var agent = new CancellationAgent();
+        var store = new InMemoryTaskStore();
+        await store.SaveTaskAsync("route-task", new AgentTask
+        {
+            Id = "route-task",
+            ContextId = "context",
+            Status = new() { State = TaskState.Working },
+        });
+        await using var handler = new CancellationRequestHandler(agent, store);
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.ConfigureHttpJsonOptions(options =>
+            options.SerializerOptions.TypeInfoResolver = A2AJsonUtilities.DefaultOptions.TypeInfoResolver);
+        await using var app = builder.Build();
+        app.MapHttpA2A(handler);
+        var endpoint = ((IEndpointRouteBuilder)app).DataSources
+            .SelectMany(source => source.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Single(candidate => candidate.RoutePattern.RawText == "/tasks/{id}:cancel");
+
+        using var requestBody = new MemoryStream(Encoding.UTF8.GetBytes(body ?? string.Empty));
+        using var responseBody = new MemoryStream();
+        using var scope = app.Services.CreateScope();
+        var context = new DefaultHttpContext { RequestServices = scope.ServiceProvider };
+        context.Request.Method = "POST";
+        context.Request.Path = "/tasks/route-task:cancel";
+        context.Request.RouteValues["id"] = "route-task";
+        context.Request.ContentType = body is null ? null : "application/json";
+        context.Request.ContentLength = includeContentLength ? requestBody.Length : null;
+        context.Request.Body = requestBody;
+        context.Response.Body = responseBody;
+        var canHaveBody = body is not null;
+        context.Features.Set(Mock.Of<IHttpRequestBodyDetectionFeature>(
+            feature => feature.CanHaveBody == canHaveBody));
+
+        await endpoint.RequestDelegate!(context);
+
+        return (context.Response.StatusCode, handler.Request, agent.Context);
+    }
+
+    private sealed class CancellationRequestHandler(CancellationAgent agent, InMemoryTaskStore store)
+        : A2AServer(agent, store, new ChannelEventNotifier(), NullLogger<A2AServer>.Instance)
+    {
+        public CancelTaskRequest? Request { get; private set; }
+
+        public override Task<AgentTask> CancelTaskAsync(
+            CancelTaskRequest request, A2ARequestContext? requestContext, CancellationToken cancellationToken = default)
+        {
+            Request = request;
+            return base.CancelTaskAsync(request, requestContext, cancellationToken);
+        }
+    }
+
+    private sealed class CancellationAgent : IAgentHandler
+    {
+        public RequestContext? Context { get; private set; }
+
+        public Task ExecuteAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
+            => Task.CompletedTask;
+
+        public async Task CancelAsync(RequestContext context, AgentEventQueue eventQueue, CancellationToken cancellationToken)
+        {
+            Context = context;
+            await new TaskUpdater(eventQueue, context.TaskId, context.ContextId)
+                .CancelAsync(cancellationToken: cancellationToken);
+        }
+    }
+
     [Fact]
     public async Task MapHttpA2A_UnsupportedVersionHeader_Returns400()
     {

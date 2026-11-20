@@ -123,12 +123,49 @@ internal static class A2AHttpProcessor
 
     // REST handler: Cancel task
     internal static Task<IResult> CancelTaskRestAsync(
-        IA2ARequestHandler requestHandler, ILogger logger, string id, CancellationToken cancellationToken,
+        IA2ARequestHandler requestHandler, ILogger logger, string id, HttpRequest httpRequest, CancellationToken cancellationToken,
         A2ARequestContext? requestContext = null)
         => WithExceptionHandlingAsync(logger, "REST.CancelTask", async ct =>
         {
+            // REST supplies the required Id through the route, not the JSON body.
+            var request = new CancelTaskRequest { Id = id };
+            using var body = new MemoryStream();
+            await httpRequest.Body.CopyToAsync(body, ct).ConfigureAwait(false);
+            if (body.Length > 0)
+            {
+                try
+                {
+                    body.Position = 0;
+                    using var document = await JsonDocument.ParseAsync(body, cancellationToken: ct).ConfigureAwait(false);
+                    if (document.RootElement.ValueKind != JsonValueKind.Object)
+                    {
+                        throw new JsonException("The cancellation request body must be a JSON object.");
+                    }
+
+                    foreach (var property in document.RootElement.EnumerateObject())
+                    {
+                        var propertyName = property.Name;
+                        if (propertyName.Equals("metadata", StringComparison.OrdinalIgnoreCase))
+                        {
+                            request.Metadata = (Dictionary<string, JsonElement>?)property.Value.Deserialize(
+                                A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(Dictionary<string, JsonElement>)));
+                        }
+                        else if (propertyName.Equals("tenant", StringComparison.OrdinalIgnoreCase))
+                        {
+                            request.Tenant = (string?)property.Value.Deserialize(
+                                A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(string)));
+                        }
+                    }
+                }
+                catch (JsonException ex)
+                {
+                    throw new A2AException("The cancellation request body is invalid.", ex, A2AErrorCode.InvalidParams);
+                }
+            }
+
+            A2AHttpRequestPolicy.NormalizeIncomingRequest(request, "HTTP+JSON", "CancelTask");
             var result = await requestHandler.CancelTaskAsync(
-                new CancelTaskRequest { Id = id }, requestContext, ct).ConfigureAwait(false);
+                request, requestContext, ct).ConfigureAwait(false);
             return new A2AResponseResult(result);
         }, id, cancellationToken);
 
