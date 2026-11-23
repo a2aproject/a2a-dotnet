@@ -21,7 +21,7 @@
         <PackageVersion Include="System.Net.ServerSentEvents" Version="10.0.14" />
         <!-- Testing / samples dependencies -->
         <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.5" />
-        <PackageVersion Include="JsonSchema.Net" Version="9.6.0" />
+        <PackageVersion Include="JsonSchema.Net" Version="9.7.0" />
         <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.11.0" />
         <PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.9" />
         <PackageVersion Include="Microsoft.SemanticKernel.Agents.Core" Version="1.82.0" />
@@ -29,17 +29,17 @@
         <PackageVersion Include="Microsoft.SemanticKernel.Connectors.AzureOpenAI" Version="1.82.0" />
         <PackageVersion Include="Moq" Version="4.21.0" />
         <PackageVersion Include="OpenTelemetry" Version="1.12.0" />
-        <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.20.1" />
-        <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.20.1" />
-        <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.20.1" />
+        <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.21.0" />
+        <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.21.0" />
+        <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.21.0" />
         <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.20.2" />
-        <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.20.2" />
+        <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.21.0" />
         <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.12.0" />
-        <PackageVersion Include="Polly" Version="8.9.0" />
-        <PackageVersion Include="System.CommandLine" Version="2.0.14" />
+        <PackageVersion Include="Polly" Version="8.9.1" />
+        <PackageVersion Include="System.CommandLine" Version="3.0.0" />
         <!-- Build / infrastructure dependencies -->
         <PackageVersion Include="coverlet.collector" Version="10.1.0" />
-        <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
+        <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.12.0" />
         <PackageVersion Include="System.Threading.Channels" Version="10.0.3" />
         <PackageVersion Include="xunit" Version="2.9.3" />
         <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
