@@ -60,6 +60,7 @@ This library contains the core A2A protocol implementation. It includes the foll
 ### Client Classes
 - **`A2AClient`**: Primary client for making A2A requests to agents. Supports both streaming and non-streaming communication, task management, and push notifications.
 - **`A2ACardResolver`**: Resolves agent card information from A2A-compatible endpoints to discover agent capabilities and metadata.
+- **`AgentCardSigning`**: Signs Agent Cards and verifies their signatures (specification Section 8.4). See [Agent Card Signing](docs/agent-card-signing.md).
 
 ### Server Classes  
 - **`A2AServer`**: Core server that handles A2A JSON-RPC requests, manages task lifecycle via `TaskProjection`, and coordinates streaming/non-streaming responses. Implements `IA2ARequestHandler`.

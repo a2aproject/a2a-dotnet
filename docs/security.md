@@ -199,6 +199,18 @@ The SDK does not enforce any tenant boundaries. Task IDs, push notification conf
 
 > `DistributedCacheTaskStore` is provided as an `IDistributedCache` integration point, but configuring the cache itself (TTL, eviction, persistence) is the application's responsibility.
 
+### 9. Agent Card Signatures
+
+`AgentCardSigning` signs and verifies Agent Cards (A2A specification Section 8.4). The SDK checks the signature, the algorithm and the key type; deciding which keys are trusted is the application's job.
+
+**Required application controls:**
+- Resolve keys from a source you already trust for the agent's provider. The `kid` and `jku` in a card are chosen by whoever served it, and the SDK does not fetch `jku`.
+- Restrict `AgentCardVerificationOptions.AllowedAlgorithms` to the algorithms your providers use.
+- Never return expired or revoked keys from the resolver.
+- Verify the served JSON with the `JsonElement` overload when the card may carry fields the SDK model does not define.
+
+See: [Agent Card Signing](agent-card-signing.md)
+
 ---
 
 ## Non-Goals
@@ -223,6 +235,7 @@ The SDK does not guarantee, and cannot provide, protection for:
 | Webhooks (Agent → Client callback) | Capability-gated storage, approved-address connection policy, bounded attempts, redaction, and deletion cancellation | Tenant scoping, egress controls, receiver auth/idempotency, retention, durable encrypted replacements |
 | Tenant isolation | Clients serialize standard request `Tenant` fields; a2a-dotnet HTTP servers ignore them before dispatch and do not authorize or scope resources | Scope every task and config operation to authenticated identity and route HTTP requests to the correct agent |
 | Storage | Provides `ITaskStore` interface + `InMemoryTaskStore` (dev only) | Production store, encryption, quotas, TTL cleanup |
+| Agent Card signatures | Canonicalizes cards (RFC 8785), signs, and verifies signature, algorithm and key type | Choose trusted keys per provider, restrict algorithms, reject expired or revoked keys |
 
 ---
 

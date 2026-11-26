@@ -281,12 +281,42 @@ if (discoveredCard.Name != inputCard.Name ||
 }
 
 await VerifyHttpTenantSerializationAsync();
+await VerifyAgentCardSigningAsync();
 
 GC.KeepAlive(jsonRpcBindings);
 GC.KeepAlive(httpBindings);
 GC.KeepAlive(services);
 GC.KeepAlive(declarationJson);
 Console.WriteLine("Extension AOT smoke tests passed: registration, activation, HTTP hosting, error metadata and signed-card preservation.");
+
+static async Task VerifyAgentCardSigningAsync()
+{
+    using var key = System.Security.Cryptography.ECDsa.Create(System.Security.Cryptography.ECCurve.NamedCurves.nistP256);
+    var card = new AgentCard
+    {
+        Name = "AOT signed agent",
+        Description = "Agent Card signing smoke test",
+        Version = "1.0",
+        SupportedInterfaces = [new AgentInterface { Url = "https://example.test/a2a" }],
+        Capabilities = new AgentCapabilities { Streaming = false },
+        DefaultInputModes = ["text/plain"],
+        DefaultOutputModes = ["text/plain"],
+        Skills = [new AgentSkill { Id = "s", Name = "s", Description = "s", Tags = ["t"] }],
+    };
+    AgentCardSigning.Sign(card, key, "aot-key");
+    AgentCardKeyResolver resolver = (_, _) => ValueTask.FromResult<System.Security.Cryptography.AsymmetricAlgorithm?>(key);
+
+    var fromModel = await AgentCardSigning.VerifyAsync(card, resolver).ConfigureAwait(false);
+    var cardInfo = (JsonTypeInfo<AgentCard>)A2AJsonUtilities.DefaultOptions.GetTypeInfo(typeof(AgentCard));
+    using var served = JsonDocument.Parse(JsonSerializer.Serialize(card, cardInfo));
+    var fromJson = await AgentCardSigning.VerifyAsync(served.RootElement, resolver).ConfigureAwait(false);
+    card.Description = "changed";
+    var tampered = await AgentCardSigning.VerifyAsync(card, resolver).ConfigureAwait(false);
+    if (!fromModel.IsVerified || !fromJson.IsVerified || tampered.IsVerified)
+    {
+        throw new InvalidOperationException("Native Agent Card signing or verification failed.");
+    }
+}
 
 static async Task VerifyHttpTenantSerializationAsync()
 {
